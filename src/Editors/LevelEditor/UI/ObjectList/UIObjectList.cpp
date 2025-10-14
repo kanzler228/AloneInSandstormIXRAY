@@ -1,7 +1,9 @@
 #include "stdafx.h"
 
 UIObjectList* UIObjectList::Form = nullptr;
-UIObjectList::UIObjectList():m_Root("")
+
+UIObjectList::UIObjectList():
+	m_Root("")
 {
 	m_Mode = M_Visible;
 	m_Filter[0] = 0;
@@ -26,85 +28,92 @@ void UIObjectList::Draw()
 	IsFocused = ImGui::IsWindowFocused();
 
 
+	ImGui::BeginGroup();
+	if (ImGui::RadioButton("All", m_Mode == M_All))
 	{
-		ImGui::BeginGroup();
-		if (ImGui::RadioButton("All", m_Mode == M_All))
-		{
-			m_Mode = M_All;
-			m_Root.ClearSelcted();
-		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("Visible Only", m_Mode == M_Visible))
-		{
-			m_Mode = M_Visible;
-			m_Root.ClearSelcted();
-		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("Invisible Only", m_Mode == M_Inbvisible))
-		{
-			m_Mode = M_Inbvisible;
-			m_Root.ClearSelcted();
-		}
-		ImGui::Separator();
-		
-		float BtnWidth = ImGui::GetWindowWidth() / 3 - 20;
-
-		if (ImGui::Button("Focus", ImVec2(BtnWidth, 0)))
-		{
-			for (UITreeItem* Item : m_Root.Items)
-			{
-				UIObjectListItem* RItem = (UIObjectListItem*)Item;
-				if (RItem->Object->Selected())
-				{
-					RItem->Object->Select(true);
-					Fbox bb;
-					if (RItem->Object->GetBox(bb))
-						UI->CurrentView().m_Camera.ZoomExtents(bb);
-
-					UI->RedrawScene();
-
-					break;
-				}
-			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Show", ImVec2(BtnWidth, 0)))
-		{
-			for (UITreeItem* Item : m_Root.Items)
-			{
-				UIObjectListItem* RItem = (UIObjectListItem*)Item;
-				if (RItem->bIsSelected)
-				{
-					RItem->Object->Show(true);
-				}
-			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Hide", ImVec2(BtnWidth, 0)))
-		{
-			for (UITreeItem* Item : m_Root.Items)
-			{
-				UIObjectListItem* RItem = (UIObjectListItem*)Item;
-				if (RItem->bIsSelected)
-				{
-					RItem->Object->Show(false);
-				}
-
-			}
-		}
-		ImGui::Separator();
-
-		DrawObjects();
-
-		ImGui::Text("Find: ", "");
-		ImGui::SameLine();
-		if (ImGui::InputText("##value", m_Filter, sizeof(m_Filter)))
-		{
-			m_Root.ClearSelcted();
-		}
-		ImGui::EndGroup();
-
+		m_Mode = M_All;
+		m_Root.ClearSelcted();
 	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Visible", m_Mode == M_Visible))
+	{
+		m_Mode = M_Visible;
+		m_Root.ClearSelcted();
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Invisible", m_Mode == M_Inbvisible))
+	{
+		m_Mode = M_Inbvisible;
+		m_Root.ClearSelcted();
+	}
+
+	ImGui::SameLine();
+
+	const float Avail = ImGui::GetContentRegionAvail().x;
+	const float Spacing = ImGui::GetStyle().ItemSpacing.x;
+	const float BtnWidth = (Avail - Spacing * 2) / 3.0f;
+
+	if (ImGui::Button("Focus", ImVec2(BtnWidth, 0)))
+	{
+		for (UITreeItem* Item : m_Root.Items)
+		{
+			UIObjectListItem* RItem = (UIObjectListItem*)Item;
+			if (RItem->Object->Selected())
+			{
+				RItem->Object->Select(true);
+				Fbox bb;
+				if (RItem->Object->GetBox(bb))
+					UI->CurrentView().m_Camera.ZoomExtents(bb);
+
+				UI->RedrawScene();
+				break;
+			}
+		}
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Show", ImVec2(BtnWidth, 0)))
+	{
+		for (UITreeItem* Item : m_Root.Items)
+		{
+			UIObjectListItem* RItem = (UIObjectListItem*)Item;
+			if (RItem->bIsSelected)
+				RItem->Object->Show(true);
+		}
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Hide", ImVec2(BtnWidth, 0)))
+	{
+		for (UITreeItem* Item : m_Root.Items)
+		{
+			UIObjectListItem* RItem = (UIObjectListItem*)Item;
+			if (RItem->bIsSelected)
+				RItem->Object->Show(false);
+		}
+	}
+
+	ImGui::Separator();
+
+	DrawObjects();
+	ImGui::SetNextItemWidth(-1);
+	if (ImGui::InputTextWithHint("##value", "Search...", m_Filter, sizeof(m_Filter)))
+	{
+		m_Root.ClearSelcted();
+	}
+
+	if (GUIManager->SearchIcon)
+	{
+		ImVec2 IconSize = { 12,12 };
+
+		ImGui::SameLine();
+		ImVec2 cursorPos = ImGui::GetCursorPos();
+		ImGui::SetCursorPos(ImVec2(cursorPos.x - IconSize.x - 10.f, 1 + cursorPos.y + (IconSize.y / 4)));
+
+		ImGui::Image(GUIManager->SearchIcon, IconSize);
+	}
+
+	ImGui::EndGroup();
 
 	ImGui::PopStyleVar(1);
 	ImGui::End();
@@ -143,6 +152,8 @@ void UIObjectList::Refresh()
 {
 	if (Form == nullptr)
 		return;
+
+	xrCriticalSectionGuard guard(Form->LoaderCS);
 
 	Form->m_Root = UIObjectListItem("");
 
@@ -205,8 +216,10 @@ void UIObjectList::Refresh()
 
 void UIObjectList::DrawObjects()
 {
-	if (LTools->CurrentClassID() != m_cur_cls)Refresh();
+	if (LTools->CurrentClassID() != m_cur_cls)
+		Refresh();
 
+	xrCriticalSectionGuard guard(Form->LoaderCS);
 	static ImGuiTableFlags flags = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody| ImGuiTableFlags_ScrollY;
 
 	if (ImGui::BeginTable("objects", 1, flags, ImVec2(0, -ImGui::GetFrameHeight() - 4)))

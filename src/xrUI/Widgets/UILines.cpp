@@ -21,6 +21,7 @@ CUILines::CUILines()
 	m_eTextAlign					= CGameFont::alLeft;
 	m_eVTextAlign					= valTop;
 	m_dwTextColor					= 0xffffffff;
+	m_dwTextGradientColor			= 0xff888888;
 	m_TextOffset.set				(0.0f,0.0f);
 	m_text							="";
 	uFlags.zero();
@@ -30,6 +31,7 @@ CUILines::CUILines()
 	uFlags.set(flColoringMode,		TRUE);
 	uFlags.set(flCutWordsMode,		FALSE);
 	uFlags.set(flRecognizeNewLine,	TRUE);
+	m_eTextGradientMode				= CGameFont::gm_vert;
 
 	m_wndSize = {0, 0};
 	m_wndPos  = {0, 0};
@@ -149,9 +151,9 @@ void CUILines::ParseText(bool force)
 			{
 				char* pszTemp = nullptr;
 				const u32 tcolor = line->m_subLines[i].m_color;
-				char szTempLine[MAX_MB_CHARS], * pszSearch = nullptr;
+				char szTempLine[4096], * pszSearch = nullptr;
 				size_t llen = xr_strlen(line->m_subLines[i].m_text.c_str());
-				VERIFY(llen < MAX_MB_CHARS);
+				VERIFY(llen < 4096);
 				xr_strcpy(szTempLine, line->m_subLines[i].m_text.c_str());
 				pszSearch = szTempLine;
 				while ((pszTemp = strstr(pszSearch, "\\n")) != nullptr)
@@ -176,7 +178,7 @@ void CUILines::ParseText(bool force)
 #define UBUFFER_SIZE 100
 		u16	aMarkers[UBUFFER_SIZE];
 		CUILine tmp_line;
-		char szTempLine[MAX_MB_CHARS];
+		char szTempLine[4096];
 		float fTargetWidth = 1.0f;
 		UI().ClientToScreenScaledWidth(fTargetWidth);
 		VERIFY((m_wndSize.x > 0) && (fTargetWidth > 0));
@@ -202,7 +204,7 @@ void CUILines::ParseText(bool force)
 				u16 nMarkers = m_pFont->SplitByWidth(aMarkers, UBUFFER_SIZE, fTargetWidth, pszText);
 				for (u16 j = 0; j < nMarkers; j++) {
 					uPartLen = aMarkers[j] - uFrom;
-					VERIFY((uPartLen > 0) && (uPartLen < MAX_MB_CHARS));
+					VERIFY((uPartLen > 0) && (uPartLen < 4096));
 					strncpy_s(szTempLine, pszText + uFrom, uPartLen);
 					szTempLine[uPartLen] = '\0';
 					tmp_line.AddSubLine(szTempLine, tcolor);
@@ -213,7 +215,7 @@ void CUILines::ParseText(bool force)
 					uFrom += uPartLen;
 #pragma warning( default : 4244 )
 				}
-				strncpy_s(szTempLine, pszText + uFrom, MAX_MB_CHARS);
+				strncpy_s(szTempLine, pszText + uFrom, 4096);
 				tmp_line.AddSubLine(szTempLine, tcolor);
 				m_lines.push_back(tmp_line);
 				tmp_line.Clear();
@@ -334,12 +336,28 @@ void CUILines::SetTextColor(u32 color)
 	m_dwTextColor = color; 
 }
 
+void CUILines::SetTextGradientColor(u32 color)
+{
+	if (color == m_dwTextGradientColor)
+		return;
+	uFlags.set(flNeedReparse, true);
+	m_dwTextGradientColor = color;
+}
+
 void CUILines::SetFont(CGameFont* pFont)
 {
 	if (pFont == m_pFont)
 		return;
 	uFlags.set(flNeedReparse, true);
 	m_pFont = pFont;
+}
+
+void CUILines::SetTextGradient(bool val)
+{
+	if (!m_pFont)
+		return;
+	uFlags.set(flNeedReparse, true);
+	m_pFont->SetGradient(val);
 }
 
 LPCSTR GetElipsisText(CGameFont* pFont, float width, LPCSTR source_text, LPSTR buff, int buff_len)
@@ -389,6 +407,7 @@ void CUILines::Draw(float x, float y)
 
 	R_ASSERT(m_pFont);
 	m_pFont->SetColor(m_dwTextColor);
+	m_pFont->SetGradientColor(m_dwTextGradientColor);
 
 	if (!uFlags.is(flComplexMode))
 	{
@@ -406,10 +425,12 @@ void CUILines::Draw(float x, float y)
 				passText[i] = '*';
 			passText[sz] = 0;
 			m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
+			m_pFont->SetGradientMode(m_eTextGradientMode);
 			m_pFont->Out(text_pos.x, text_pos.y, "%s", passText);
 		}
 		else{
 			m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
+			m_pFont->SetGradientMode(m_eTextGradientMode);
 			if(uFlags.test(flEllipsis) )
 			{
 				u32 buff_len	= sizeof(char)*xr_strlen(m_text.c_str()) + 1;
@@ -435,6 +456,7 @@ void CUILines::Draw(float x, float y)
 		u32 size		= (u32)m_lines.size();
 
 		m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
+		m_pFont->SetGradientMode(m_eTextGradientMode);
 		for (int i=0; i<(int)size; i++)
 		{
 			pos.x			= x + GetIndentByAlign();

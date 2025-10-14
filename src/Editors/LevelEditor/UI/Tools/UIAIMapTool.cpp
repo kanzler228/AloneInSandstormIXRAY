@@ -19,16 +19,19 @@ void UIAIMapTool::Draw()
 	if (ImGui::TreeNode("Commands"))
 	{
 		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+		ImGui::SetNextItemWidth(-1);
+		float size = float(ImGui::CalcItemWidth());
 		{
-			if (ImGui::Button("Generate Full", ImVec2(-1, 0)))
+			if (ImGui::Button("Generate Full", ImVec2(size / 2, 0)))
 			{
 				tool->GenerateMap(false);
 			}
-			if (ImGui::Button("Generate Selected", ImVec2(-1, 0)))
+			ImGui::SameLine(0, 2);
+			if (ImGui::Button("Generate Selected", ImVec2(size / 2, 0)))
 			{
 				tool->GenerateMap(true);
 			}
-			if (ImGui::Button("Clear AI Map", ImVec2(-1, 0)))
+			if (ImGui::Button("Clear AI Map", ImVec2(size / 2, 0)))
 			{
 				if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to clear AI Map?") == mrYes) 
 				{
@@ -36,11 +39,17 @@ void UIAIMapTool::Draw()
 					Scene->UndoSave();
 				}
 			}
+			ImGui::SameLine(0, 2);
+			if (ImGui::Button("Remove invalid nodes", ImVec2(size / 2, 0)))
+			{
+				tool->CleanupInvalidNodes();
+			}
 		}
 		ImGui::Separator();
 		{
-			if(ImGui::Button("Smooth Selected", ImVec2(-1, 0)))	tool->SmoothNodes();
-			if (ImGui::Button("Reset Selected", ImVec2(-1, 0)))tool->ResetNodes();
+			if(ImGui::Button("Smooth Selected", ImVec2(size / 2, 0)))	tool->SmoothNodes();
+			ImGui::SameLine(0, 2);
+			if (ImGui::Button("Reset Selected", ImVec2(size / 2, 0)))tool->ResetNodes();
 		}
 		ImGui::Separator();
 		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
@@ -59,6 +68,7 @@ void UIAIMapTool::Draw()
 		ImGui::TreePop();
 	}
 	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+	ImGui::SetNextItemWidth(0);
 	if (ImGui::TreeNode("Ignore materials"))
 	{
 		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
@@ -89,8 +99,8 @@ void UIAIMapTool::Draw()
 		ImGui::PushItemWidth(-1);
 		float size = float(ImGui::CalcItemWidth());
 		{
-			float my_tex_w = (float)ImGui::GetIO().Fonts->TexWidth;
-			float my_tex_h = (float)ImGui::GetIO().Fonts->TexHeight;
+			float my_tex_w = (float)ImGui::GetIO().Fonts->TexData->Width;
+			float my_tex_h = (float)ImGui::GetIO().Fonts->TexData->Height;
 			
 			{
 				if (ImGui::RadioButton("Add    ", m_Mode == mdAppend)) { m_Mode = mdAppend; } ImGui::SameLine(0, -1);

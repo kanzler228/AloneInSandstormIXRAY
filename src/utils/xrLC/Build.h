@@ -7,7 +7,7 @@
 #include "../Shader_xrLC.h"
 
 #include "../xrLC_Light/b_build_texture.h"
-#include "../xrLC_Light/xrFaceDefs.h"
+#include "../xrLC_Light/xrFace.h"
 
 class xrLC_GlobalData;
 class xrMU_Model;
@@ -23,7 +23,8 @@ typedef void	tesscb_face			(Face*		F);	// new face
 typedef void	tesscb_vertex		(Vertex*	V);	// new vertex
 
 class  base_lighting;
- 
+extern size_t GetHeapMemory();
+  
 //////////////////////////////////////////////////////////////////////////
 class CBuild  
 {
@@ -54,8 +55,10 @@ public:
 
 
 	void	mem_Compact				();
-	void	mem_CompactSubdivs		();
+ 
 public:
+//	void	GetMemoryUsedStorage();
+
 	void	Load					(const b_params& P, const IReader&  fs);
 	void	Run						(LPCSTR path);
 	void	StartMu					();
@@ -74,7 +77,9 @@ public:
 
 	void	BuildCForm				();
 	void	BuildPortals			(IWriter &fs);
-	void	BuildRapid				(BOOL bSave);
+
+ 	void	BuildRapid				(BOOL bSave);
+
 	void	xrPhase_Radiosity		();
 		
 	void	IsolateVertices			(BOOL bProgress);
@@ -83,7 +88,7 @@ public:
 	void	xrPhase_Subdivide		();
 	void	ImplicitLighting		();
 
-
+	void	BuildAdaptiveHT(); 
 	void	Light_prepare			();
 	void	Light					();
 	void	LMapsLocal				();
@@ -91,9 +96,14 @@ public:
 	//void	Light_R2				();
 	void	LightVertex				();
 	void	xrPhase_MergeLM			();
+	void	xrPhase_SaveLmaps		();
+
 	void	xrPhase_MergeGeometry	();
 
 	void	Flex2OGF				();
+	void	SaveOGF();
+	size_t	GetTreeSize();
+
 	void	BuildSectors			();
 
 	void	SaveLights				(IWriter &fs);

@@ -37,6 +37,7 @@ struct
 	bool can_show_cam_step_angle_horz{};
 	bool can_show_hit_power{};
 	bool can_show_hit_power_critical{};
+	bool can_show_inv_scale{};
 	bool can_show_inv_grid_x{};
 	bool can_show_inv_grid_y{};
 	bool can_show_inv_grid_width{};
@@ -125,6 +126,9 @@ struct
 	float cam_step_angle_horz{};
 	float cfg_cam_step_angle_horz{};
 
+	float inv_scale {};
+	float cfg_inv_scale {};
+
 	int inv_grid_width{};
 	u32 cfg_inv_grid_width{};
 
@@ -155,6 +159,7 @@ struct
 
 	struct WeaponIcon
 	{
+		float inv_scale{};
 		u32 inv_grid_x{};
 		u32 inv_grid_y{};
 		u32 inv_grid_width{};
@@ -163,9 +168,9 @@ struct
 	};
 
 	// id for string table
-	char inv_name[128]{};
+	string128 inv_name{};
 	// id for string table
-	char inv_short_name[128]{};
+	string128 inv_short_name{};
 
 
 	WeaponIcon icons[1024]{};
@@ -198,13 +203,14 @@ void RenderWeaponManagerWindow()
 
 			if (Render)
 			{
-				imgui_weapon_manager.ui_icons = Render->getSurface("ui\\ui_icon_equipment");
+				const auto surface = READ_IF_EXISTS(pSettings, r_string, pItem->m_section_id, "icons_texture", "ui\\ui_icon_equipment");
+				imgui_weapon_manager.ui_icons = Render->getSurface(surface);
 			}
 
 			if (!imgui_weapon_manager.init)
 			{
 				// clear bool flags that line_exist checking for correct init/uninit cycle
-				memset((&imgui_weapon_manager.init + sizeof(imgui_weapon_manager.init)), 0, 33);
+				ZeroMemory((&imgui_weapon_manager.init + sizeof(imgui_weapon_manager.init)), 33);
 
 				imgui_weapon_manager.current_slot = slot_type;
 				imgui_weapon_manager.weapon_id = pItem->object_id();
@@ -212,6 +218,7 @@ void RenderWeaponManagerWindow()
 				imgui_weapon_manager.inv_cost = pItem->Cost();
 				imgui_weapon_manager.inv_weight = pItem->Weight();
 				imgui_weapon_manager.control_inertion_factor = pItem->GetControlInertionFactor();
+				imgui_weapon_manager.inv_scale = READ_IF_EXISTS(pSettings, r_float, pItem->m_section_id, "inv_scale", 1.0f);;
 				imgui_weapon_manager.inv_grid_x = pItem->GetInvGridRect().x1;
 				imgui_weapon_manager.inv_grid_y = pItem->GetInvGridRect().y1;
 				imgui_weapon_manager.inv_grid_width = pItem->GetInvGridRect().x2;
@@ -244,7 +251,7 @@ void RenderWeaponManagerWindow()
 
 				// icons
 				imgui_weapon_manager.icons_count = 0;
-				memset(imgui_weapon_manager.icons, 0, sizeof(imgui_weapon_manager.icons));
+				ZeroMemory(imgui_weapon_manager.icons, sizeof(imgui_weapon_manager.icons));
 
 				for (const auto& pSection : pSettings->sections())
 				{
@@ -252,16 +259,17 @@ void RenderWeaponManagerWindow()
 					{
 						// todo: temp because of korzyna need to replace to g_pClsidManager
 
-						std::string_view name = pSection->Name.c_str();
+						xr_string_view name = pSection->Name.c_str();
 
 						if (!name.empty())
 						{
 							size_t index = name.find("wpn_");
-							if (index != std::string_view::npos && index == 0)
+							if (index != xr_string_view::npos && index == 0)
 							{
 								if (pSection->line_exist("inv_grid_x") && pSection->line_exist("inv_grid_y") && pSection->line_exist("inv_grid_width") && pSection->line_exist("inv_grid_height"))
 								{
 									auto& icon = imgui_weapon_manager.icons[imgui_weapon_manager.icons_count];
+									icon.inv_scale = READ_IF_EXISTS(pSettings, r_float, pSection->Name, "inv_scale", 1.0f);
 									icon.inv_grid_x = pSettings->r_u32(pSection->Name, "inv_grid_x");
 									icon.inv_grid_y = pSettings->r_u32(pSection->Name, "inv_grid_y");
 									icon.inv_grid_width = pSettings->r_u32(pSection->Name, "inv_grid_width");
@@ -271,7 +279,6 @@ void RenderWeaponManagerWindow()
 								}
 							}
 						}
-
 					}
 				}
 
@@ -457,6 +464,16 @@ void RenderWeaponManagerWindow()
 							imgui_weapon_manager.cfg_fire_dispersion_condition_factor = pSettings->r_float(pSectionName, "fire_dispersion_condition_factor");
 						}
 
+						if (pSettings->line_exist(pSectionName, "inv_scale"))
+						{
+							imgui_weapon_manager.can_show_inv_scale = true;
+							imgui_weapon_manager.cfg_inv_scale = pSettings->r_u32(pSectionName, "inv_scale");
+						}
+						else
+						{
+							imgui_weapon_manager.cfg_inv_scale = 1.0f;
+						}
+
 						if (pSettings->line_exist(pSectionName, "inv_grid_x"))
 						{
 							imgui_weapon_manager.can_show_inv_grid_x = true;
@@ -526,10 +543,11 @@ void RenderWeaponManagerWindow()
 
 						if (imgui_weapon_manager.ui_icons.Surface != nullptr)
 						{
-							float x = imgui_weapon_manager.inv_grid_x * INV_GRID_WIDTH(isHQIcons);
-							float y = imgui_weapon_manager.inv_grid_y * INV_GRID_HEIGHT(isHQIcons);
-							float w = imgui_weapon_manager.inv_grid_width * INV_GRID_WIDTH(isHQIcons);
-							float h = imgui_weapon_manager.inv_grid_height * INV_GRID_HEIGHT(isHQIcons);
+							float scaleIcon = imgui_weapon_manager.inv_scale;
+							float x = imgui_weapon_manager.inv_grid_x * INV_GRID_WIDTH(scaleIcon);
+							float y = imgui_weapon_manager.inv_grid_y * INV_GRID_HEIGHT(scaleIcon);
+							float w = imgui_weapon_manager.inv_grid_width * INV_GRID_WIDTH(scaleIcon);
+							float h = imgui_weapon_manager.inv_grid_height * INV_GRID_HEIGHT(scaleIcon);
 
 							ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.f, 0.f, 0.f, 0.f));
 							ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.f, 0.f, 0.f, 0.f));
@@ -685,14 +703,14 @@ void RenderWeaponManagerWindow()
 								{
 									ImGui::TableSetColumnIndex(column);
 									const auto& icon = imgui_weapon_manager.icons[current_icon_index];
+									float scaleIcon = icon.inv_scale;
+									float x = icon.inv_grid_x * INV_GRID_WIDTH(scaleIcon);
+									float y = icon.inv_grid_y * INV_GRID_HEIGHT(scaleIcon);
+									float w = icon.inv_grid_width * INV_GRID_WIDTH(scaleIcon);
+									float h = icon.inv_grid_height * INV_GRID_HEIGHT(scaleIcon);
 
-									float x = icon.inv_grid_x * INV_GRID_WIDTH(isHQIcons);
-									float y = icon.inv_grid_y * INV_GRID_HEIGHT(isHQIcons);
-									float w = icon.inv_grid_width * INV_GRID_WIDTH(isHQIcons);
-									float h = icon.inv_grid_height * INV_GRID_HEIGHT(isHQIcons);
-
-									char button_name[64]{};
-									sprintf_s(button_name, sizeof(button_name), "%s%d", "WeaponIconButton_", current_icon_index);
+									string64 button_name{};
+									xr_sprintf(button_name, sizeof(button_name), "%s%d", "WeaponIconButton_", current_icon_index);
 
 									bool is_pressed_icon = ImGui::ImageButton(button_name, imgui_weapon_manager.ui_icons.Surface, { w,h }, { x / imgui_weapon_manager.ui_icons.w, y / imgui_weapon_manager.ui_icons.h }, { (x + w) / imgui_weapon_manager.ui_icons.w, (y + h) / imgui_weapon_manager.ui_icons.h });
 
@@ -758,6 +776,7 @@ void RenderWeaponManagerWindow()
 						imgui_weapon_manager.upgrade_disp_crouch_no_acc = imgui_weapon_manager.cfg_upgrade_disp_crouch_no_acc;
 						imgui_weapon_manager.upgrade_disp_vel_factor = imgui_weapon_manager.cfg_upgrade_disp_vel_factor;
 						imgui_weapon_manager.fire_dispersion_condition_factor = imgui_weapon_manager.cfg_fire_dispersion_condition_factor;
+						imgui_weapon_manager.inv_scale = imgui_weapon_manager.cfg_inv_scale;
 						imgui_weapon_manager.inv_grid_height = imgui_weapon_manager.cfg_inv_grid_height;
 						imgui_weapon_manager.inv_grid_width = imgui_weapon_manager.cfg_inv_grid_width;
 						imgui_weapon_manager.inv_grid_x = imgui_weapon_manager.cfg_inv_grid_x;
@@ -852,10 +871,11 @@ void RenderWeaponManagerWindow()
 
 								if (imgui_weapon_manager.ui_icons.Surface)
 								{
-									float x = imgui_weapon_manager.inv_grid_x * INV_GRID_WIDTH(isHQIcons);
-									float y = imgui_weapon_manager.inv_grid_y * INV_GRID_HEIGHT(isHQIcons);
-									float w = imgui_weapon_manager.inv_grid_width * INV_GRID_WIDTH(isHQIcons);
-									float h = imgui_weapon_manager.inv_grid_height * INV_GRID_HEIGHT(isHQIcons);
+									float scaleIcon = imgui_weapon_manager.inv_scale;
+									float x = imgui_weapon_manager.inv_grid_x * INV_GRID_WIDTH(scaleIcon);
+									float y = imgui_weapon_manager.inv_grid_y * INV_GRID_HEIGHT(scaleIcon);
+									float w = imgui_weapon_manager.inv_grid_width * INV_GRID_WIDTH(scaleIcon);
+									float h = imgui_weapon_manager.inv_grid_height * INV_GRID_HEIGHT(scaleIcon);
 
 									bool is_pressed = ImGui::ImageButton("WeaponIconInWeaponManager##Editing", imgui_weapon_manager.ui_icons.Surface, { w,h }, { x / imgui_weapon_manager.ui_icons.w, y / imgui_weapon_manager.ui_icons.h }, { (x + w) / imgui_weapon_manager.ui_icons.w, (y + h) / imgui_weapon_manager.ui_icons.h });
 
@@ -1067,8 +1087,8 @@ void RenderWeaponManagerWindow()
 		{
 			CActor* pActor = smart_cast<CActor*>(Level().CurrentEntity());
 
-			char slot2_tab_name[128]{ "Slot 2 (INV_SLOT_2) - " };
-			char slot3_tab_name[128]{ "Slot 3 (INV_SLOT_3) - " };
+			xr_string slot2_tab_name{ "Slot 2 (INV_SLOT_2) - " };
+			xr_string slot3_tab_name{ "Slot 3 (INV_SLOT_3) - " };
 
 			if (pActor)
 			{
@@ -1077,18 +1097,18 @@ void RenderWeaponManagerWindow()
 
 				if (pItemInSlot2)
 				{
-					memcpy_s(&slot2_tab_name[0] + strlen(slot2_tab_name), sizeof(slot2_tab_name), pItemInSlot2->m_section_id.c_str(), pItemInSlot2->m_section_id.size());
+					slot2_tab_name += pItemInSlot2->m_section_id.c_str();
 				}
-				memcpy_s(&slot2_tab_name[0] + strlen(slot2_tab_name), sizeof(slot2_tab_name), "##TB_InGameWeaponManager", sizeof("##TB_InGameWeaponManager"));
+				slot2_tab_name += "##TB_InGameWeaponManager";
 
 				if (pItemInSlot3)
 				{
-					memcpy_s(&slot3_tab_name[0] + strlen(slot3_tab_name), sizeof(slot3_tab_name), pItemInSlot3->m_section_id.c_str(), pItemInSlot3->m_section_id.size());
+					slot3_tab_name += pItemInSlot3->m_section_id.c_str();
 				}
-				memcpy_s(&slot3_tab_name[0] + strlen(slot3_tab_name), sizeof(slot3_tab_name), "##TB_InGameWeaponManager", sizeof("##TB_InGameWeaponManager"));
+				slot3_tab_name += "##TB_InGameWeaponManager";
 			}
 
-			if (ImGui::BeginTabItem(slot2_tab_name))
+			if (ImGui::BeginTabItem(slot2_tab_name.c_str()))
 			{
 				CInventoryItem* pItem = pActor->inventory().ItemFromSlot(INV_SLOT_2);
 				draw_item(pItem, INV_SLOT_2);
@@ -1098,7 +1118,7 @@ void RenderWeaponManagerWindow()
 			}
 
 
-			if (ImGui::BeginTabItem(slot3_tab_name))
+			if (ImGui::BeginTabItem(slot3_tab_name.c_str()))
 			{
 
 				CInventoryItem* pItem = pActor->inventory().ItemFromSlot(INV_SLOT_3);

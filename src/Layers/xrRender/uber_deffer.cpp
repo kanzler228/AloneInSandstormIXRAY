@@ -47,7 +47,14 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		}
 		else
 		{
-			Msg("! Texture [%s] has no detail bump", C.L_textures[0].c_str());
+			if (dt && dt[0])
+			{
+				Msg("! Texture [%s] has no detail bump [%s]", C.L_textures[0].c_str(), dt);
+			}
+			else
+			{
+				Msg("! Texture [%s] has no detail bump", C.L_textures[0].c_str());
+			}
 		}
 	}
 
@@ -113,6 +120,13 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 
 		R_ASSERT3(fnameB[0] && xr_strlen(fnameB), errorMsg,  "Missing bump texture\n");
 		R_ASSERT3(fnameA[0] && xr_strlen(fnameA), errorMsg,  "Missing bump texture\n");
+	}
+
+	string_path temp;
+	bool snow_texture = FS.exist(temp, "$textures$", C.L_textures[0].c_str(), "_snowmask.dds");
+	if (snow_texture)
+	{
+		RImplementation.addShaderOption("USE_SNOW_TEXTURE", "1");
 	}
 
 	if(bHasDetailBump)
@@ -182,11 +196,21 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 	}
 
 	if (lmap) {
+		C.r_dx10Texture("s_lmap", C.L_textures[1]);
 		C.r_dx10Texture("s_hemi", C.L_textures[2]);
 	}
 
+	if (snow_texture)
+	{
+		string256 Path = {};
+		xr_strconcat(Path, *C.L_textures[0], "_snowmask");
+		C.r_dx10Texture("s_snow", Path);
+	}
+
 	C.r_dx10Sampler("smp_base");
+	C.r_dx10Sampler("smp_linear");
 	C.r_dx10Sampler("smp_rtlinear");
+
 #else //USE_DX11
 	C.r_Pass(vs, ps, FALSE);
 

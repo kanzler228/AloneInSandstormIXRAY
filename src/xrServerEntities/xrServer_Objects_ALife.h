@@ -41,7 +41,7 @@ struct  SFillPropData
 	RStringVec						character_profiles;
 	RStringVec						smart_covers;
 	xr_map<shared_str, u32>			location_colors;
-	u32								counter;
+	xr_atomic_u32					counter;
 	SFillPropData					();
 	~SFillPropData					();
 	void							load					();
@@ -350,6 +350,7 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeLevelChanger,CSE_ALifeSpaceRestrictor)
 	shared_str						m_caLevelToChange;
 	shared_str						m_caLevelPointToChange;
 	BOOL							m_bSilentMode;
+	LPSTR							destLeveName;
 
 									CSE_ALifeLevelChanger		(LPCSTR caSection);
 	virtual							~CSE_ALifeLevelChanger		();
@@ -498,6 +499,13 @@ SERVER_ENTITY_DECLARE_BEGIN3(CSE_ALifeHelicopter,CSE_ALifeDynamicObjectVisual,CS
 	virtual bool					used_ai_locations			() const;
 	virtual CSE_Motion*		motion						();
 	virtual CSE_Abstract			*cast_abstract			() {return this;}
+	virtual BOOL					Net_Relevant() override;
+
+	// For new sync system
+	Fvector PointPos;
+
+	virtual void SyncRead(NET_Packet& Packet);
+	virtual void SyncWrite(NET_Packet& Packet);
 
 SERVER_ENTITY_DECLARE_END
 
@@ -518,6 +526,13 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeCar,CSE_ALifeDynamicObjectVisual,CSE_PHSke
 	xr_vector<SDoorState>			door_states;
 	xr_vector<SWheelState>			wheel_states;
 	float							health;
+
+	u8 Engine;
+	u8 Light;
+	u16 Owner;
+	u32 Transmission;
+	xr_vector<SPHNetState> StateVec;
+
 									CSE_ALifeCar		(LPCSTR caSection);
 	virtual							~CSE_ALifeCar		();
 	virtual bool					used_ai_locations	() const;
@@ -529,6 +544,10 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeCar,CSE_ALifeDynamicObjectVisual,CSE_PHSke
 	virtual void					add_offline			(const xr_vector<ALife::_OBJECT_ID>& saved_children, const bool& update_registries);
 	virtual void					add_online			(const bool& update_registries);
 #endif
+
+	BOOL Net_Relevant() override;
+	virtual void SyncRead(NET_Packet& Packet);
+	virtual void SyncWrite(NET_Packet& Packet);
 
 protected:
 	virtual void					data_load				(NET_Packet &tNetPacket);

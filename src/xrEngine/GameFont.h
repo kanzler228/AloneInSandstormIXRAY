@@ -1,9 +1,17 @@
 #pragma once
-#include "MbHelpers.h"
 #include "../Include/xrRender/FontRender.h"
 
 struct FT_FaceRec_;
 using FT_Face = FT_FaceRec_*;
+
+#ifndef IXR_WINDOWS
+struct ABC
+{
+    int abcA;
+    u32 abcB;
+    int abcC;
+};
+#endif
 
 class ENGINE_API CGameFont
 {
@@ -24,16 +32,28 @@ public:
 		alRight,
 		alCenter
 	};
+	enum EGradientMode
+	{
+		gm_vert = 0,
+		gm_horz = 1,
+		gm_back = 2,
+		gm_down = 3,
+		gm_count
+	};
 
 private:
+
 	struct String
 	{
-		string1024 string;
+		string2048 string;
 		xr_string  string_utf8;
 		float x, y;
 		float height;
 		u32 c;
 		EAligment align;
+		bool gradient;
+		EGradientMode gradientMode;
+		u32 gradientColor;
 	};
 
 	struct BaseData
@@ -50,9 +70,12 @@ protected:
 	float fCurrentHeight = 0.0f;
 	float fCurrentX = 0.0f;
 	float fCurrentY = 0.0f;
+	bool fGradientEnabled = false;
+	EGradientMode fGradientMode = gm_vert;
 
 	u32 uFlags;
 	u32 dwCurrentColor;
+	u32 dwGradientColor;
 
 	EAligment eCurrentAlignment;
 	xr_vector<String> strings;
@@ -61,11 +84,10 @@ protected:
 public:
 	enum
 	{
-		fsGradient = (1 << 0),
-		fsDeviceIndependent = (1 << 1), //#DELETE_ME deprecated
-		fsValid = (1 << 2),
+		fsDeviceIndependent = (1 << 0), //#DELETE_ME deprecated
+		fsValid = (1 << 1),
 
-		fsMultibyte = (1 << 3),
+		fsMultibyte = (1 << 2),
 
 		fsForceDWORD = u32(-1)
 	};
@@ -78,6 +100,7 @@ public:
 
 	void ReInit();
 	inline void SetColor(u32 C) { dwCurrentColor = C; };
+	inline void SetGradientColor(u32 C) { dwGradientColor = C; };
 
 	//inline void SetHeightI(float S);
 	inline void SetHeight(float S);
@@ -86,8 +109,7 @@ public:
 	inline void SetAligment(EAligment aligment) { eCurrentAlignment = aligment; }
 
 	float SizeOf_(const char* s);
-	float SizeOf_(const wide_char* wsStr);
-	float SizeOf_(int cChar);  // only ANSII
+	float SizeOf_(int cChar);
 
 	float CurrentHeight_();
 
@@ -102,6 +124,8 @@ public:
 	u16 SplitByWidth(u16* puBuffer, u16 uBufferSize, float fTargetWidth, const char* pszText);
 	u16 GetCutLengthPos(float fTargetWidth, const char* pszText);
 
+	void SetGradient(bool val) { fGradientEnabled = val; }
+	void SetGradientMode(EGradientMode mode) { fGradientMode = mode; }
 	void OutI(float _x, float _y, const char* fmt, ...);
 	void Out(float _x, float _y, const char* fmt, ...);
 	void OutNext(const char* fmt, ...);

@@ -11,75 +11,91 @@ struct _counter
 	u32	dwCount;
 };
 
+xrCriticalSection csResolveMat;
 void	CBuild::xrPhase_ResolveMaterials()
 {
 	// Count number of materials
-	Status		("Calculating materials/subdivs...");
-	xr_vector<_counter>	counts;
+	CTimer t;
+	t.Start();
+ 	// Calculating materials
+	concurrency::concurrent_vector<_counter> counts_mt_safe;
 	{
-		counts.reserve		(256);
-		for (vecFaceIt F_it=lc_global_data()->g_faces().begin(); F_it!=lc_global_data()->g_faces().end(); F_it++)
+  		counts_mt_safe.reserve(256);
+		xr_parallel_foreach(lc_global_data()->g_faces().begin(), lc_global_data()->g_faces().end(), [&](Face* F)
 		{
-			Face*	F			= *F_it;
-			BOOL	bCreate		= TRUE;
-			for (u32 I=0; I<counts.size(); I++)
+			BOOL	bCreate = TRUE;
+ 			for (u32 I = 0; I < counts_mt_safe.size(); I++)
 			{
-				if (F->dwMaterial == counts[I].dwMaterial)
+				if (F->dwMaterial == counts_mt_safe[I].dwMaterial)
 				{
-					counts[I].dwCount	+= 1;
-					bCreate				= FALSE;
-					break;
+					counts_mt_safe[I].dwCount += 1;
+					bCreate = FALSE;
+					return;
 				}
 			}
-			if (bCreate)	{
+
+			if (bCreate)
+			{
 				_counter	C;
-				C.dwMaterial	= F->dwMaterial;
-				C.dwCount		= 1;
-				counts.push_back(C);
+				C.dwMaterial = F->dwMaterial;
+				C.dwCount = 1;
+				counts_mt_safe.push_back(C);
 			}
-			Progress(float(F_it-lc_global_data()->g_faces().begin())/float(lc_global_data()->g_faces().size()));
-		}
+		});
 	}
+	clMsg("Calculating materials/subdivs (MT)... Memory: [%umb] [%ums]", GetHeapMemory() / 1024 / 1024, t.GetElapsed_ms());
 	
-	Status				("Perfroming subdivisions...");
-	{
-		g_XSplit.reserve(64*1024);
-		g_XSplit.resize	(counts.size());
-		for (u32 I=0; I<counts.size(); I++) 
-		{
-			g_XSplit[I] = new vecFace ();
-			g_XSplit[I]->reserve	(counts[I].dwCount);
-		}
-		
-		for (vecFaceIt F_it=lc_global_data()->g_faces().begin(); F_it!=lc_global_data()->g_faces().end(); F_it++)
-		{
-			Face*	F							= *F_it;
-			if (!F->Shader().flags.bRendering)	continue;
+	
+	// Performing Subdivs
+	t.Start();
+	u32 msCalc = 0;
+	{		
+		//x6 Áûסענוו םא Ryzen 7 3700x קול SC
+		xr_vector<_counter> count(counts_mt_safe.begin(), counts_mt_safe.end());
 
-			for (u32 I=0; I<counts.size(); I++)
+		concurrency::concurrent_vector<concurrency::concurrent_vector<Face*>> g_Xsplits_def;
+		g_Xsplits_def.reserve(64*1024);
+		g_Xsplits_def.resize(count.size());
+
+ 		xr_parallel_foreach ( lc_global_data()->g_faces().begin(), lc_global_data()->g_faces().end(), [&](Face* F)
+		{
+			if (!F->Shader().flags.bRendering) return;					
+			
+			for (u32 I=0; I< count.size(); I++)
 			{
-				if (F->dwMaterial == counts[I].dwMaterial)
+				if (F->dwMaterial == count[I].dwMaterial)
 				{
-					g_XSplit[I]->push_back	(F);
+					g_Xsplits_def[I].push_back(F);
 				}
 			}
-			Progress(float(F_it-lc_global_data()->g_faces().begin())/float(lc_global_data()->g_faces().size()));
-		}
-	}
+   		});
+		msCalc = t.GetElapsed_ms();
 
-	Status				("Removing empty subdivs...");
+		  
+		g_XSplit.reserve(64 * 1024);
+		g_XSplit.resize(counts_mt_safe.size());
+		for (auto i = 0; i < g_XSplit.size(); i++)
+		{
+  			g_XSplit[i] = new vecFace( g_Xsplits_def[i].begin(), g_Xsplits_def[i].end() );
+ 		}
+	}	
+	clMsg("Perfroming subdivisions (MT)... Memory: [%umb] [%ums] copy[%ums]", GetHeapMemory() / 1024 / 1024, msCalc,  t.GetElapsed_ms() - msCalc);
+
+	t.Start();
 	{
-		for (int SP = 0; SP<int(g_XSplit.size()); SP++) 
-			if (g_XSplit[SP]->empty())	xr_delete(g_XSplit[SP]);
+		for (int SP = 0; SP<int(g_XSplit.size()); SP++)
+		{
+			if (g_XSplit[SP]->empty())
+				xr_delete(g_XSplit[SP]);
+		}
 		g_XSplit.erase(std::remove(g_XSplit.begin(),g_XSplit.end(),(vecFace*) NULL),g_XSplit.end());
 	}
-	
-	Status				("Detaching subdivs...");
-	{
-		for (u32 it=0; it<g_XSplit.size(); it++)
-		{
-			Detach(g_XSplit[it]);
-		}
-	}
+	clMsg("Removing empty subdivs (SC) ... Memory: [%umb] [%ums]", GetHeapMemory() / 1024 / 1024, t.GetElapsed_ms());
+  
+	t.Start();
+	for (auto F : g_XSplit)
+ 		Detach(F);
+   	clMsg("Detaching subdivs (MT)... Memory: [%umb] [%ums]", GetHeapMemory() / 1024 / 1024, t.GetElapsed_ms());
+
 	clMsg				("%d subdivisions.",g_XSplit.size());
 }

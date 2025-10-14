@@ -44,6 +44,8 @@ public:
 	IBlender*					b_scale;
 	IBlender*					b_cas;
 	IBlender*					b_gtao;
+	IBlender*					b_taa;
+	IBlender*					b_gamma;
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -61,9 +63,15 @@ public:
 	ref_rt						rt_Back_Buffer_AA;
 	ref_rt						rt_Position;		// 64bit,	fat	(x,y,z,?)				(eye-space)
 	ref_rt						rt_Normal;			// 64bit,	fat	(x,y,z,hemi)			(eye-space)
+	ref_rt						rt_NormalTemp;		// 64bit,	fat	(x,y,z,hemi)			(eye-space)
 	ref_rt						rt_Color;			// 64/32bit,fat	(r,g,b,specular-gloss)	(or decompressed MET-8-8-8-8)
 	ref_rt						rt_Surface;
+	ref_rt						rt_SurfaceTemp;
 	ref_rt						rt_Velocity;
+
+	ref_rtc						rt_Reflection;
+	ref_rtc						rt_Reflection_temp;
+	ref_rt						rt_Depth;
 
 	// 
 	ref_rt						rt_Accumulator;		// 64bit		(r,g,b,specular)
@@ -71,6 +79,7 @@ public:
 	ref_rt						rt_Generic_1;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	//	Igor: for volumetric lights
 	ref_rt						rt_Generic_2;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
+	ref_rt						rt_BackbufferLUT;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt						rt_Bloom_1;			// 32bit, dim/4	(r,g,b,?)
 	ref_rt						rt_Bloom_2;			// 32bit, dim/4	(r,g,b,?)
 	ref_rt						rt_LUM_64;			// 64bit, 64x64,	log-average in all components
@@ -86,6 +95,9 @@ public:
 
 	//GTAO
 	ref_rt						rt_gtao_0;
+
+	//TAA
+	ref_rt					rt_Generic_0_prev; //previous frame for taa
 
 	// smap
 	ref_rt						rt_smap_surf;	// 32bit,		color
@@ -110,6 +122,10 @@ private:
 	ref_shader					s_cas;
 	ref_shader					s_gtao;
 	ref_shader					s_puddles;
+	ref_shader					s_taa;
+
+	// For gamma correction in windowed mode
+	ref_shader					s_gamma;
 
 	// OCCq
 	ref_shader					s_occq;
@@ -117,6 +133,11 @@ private:
 	// SMAA
 	ref_rt						rt_smaa_edgetex;
 	ref_rt						rt_smaa_blendtex;
+
+	ref_rt						rt_sslr;
+	ref_rt						rt_sslr_temp;
+	ref_rt						rt_sslr_old;
+	ref_rt						rt_sslr_data;
 
 	// SSAO
 	ref_rt						rt_ssao_temp;
@@ -235,22 +256,27 @@ public:
 
 	void						init_fsr				();
 	bool						phase_fsr				();
+	void						init_xess();
+	bool						phase_xess();
 	void						init_dlss();
 	bool						phase_dlss();
 	void						phase_scale				();
 
 	void						phase_fxaa				();
 	void						phase_smaa				();
+	void						phase_taa				();
 
 	void						phase_cas				();
 	void						phase_gtao				();
+	void						phase_sslr				();
 
 	void						phase_puddles			();
 
-	void						RenderEffect			(ScreenPostProcessType postProcessType);
+	void						RenderEffect			(ScreenPostProcessType postProcessType, bool = true);
 	void						PhaseAberration			();
 	void						PhaseVignette			();
 	void						PhaseSaturation			();
+	void						PhaseWinter				();
 
 	void						phase_scene_forward		();
 	void						phase_scene_prepare		();
@@ -322,6 +348,7 @@ public:
 	void						increment_light_marker();
 
 	void						DoAsyncScreenshot		();
+	void						PhaseGammaApply			();
 
 #ifdef DEBUG
 	IC void						dbg_addline				(Fvector& P0, Fvector& P1, u32 c)					{

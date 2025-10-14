@@ -5,6 +5,7 @@ class CInventory;
 class CInventoryItem;
 class CHudItem;
 class CInventoryOwner;
+class CGrenade;
 
 class CInventorySlot
 {									
@@ -63,7 +64,8 @@ public:
 	bool					CanTakeItem			(CInventoryItem *inventory_item) const;
 
 
-	void					Activate			(u16 slot, /*EActivationReason reason=eGeneral, */bool bForce=false);
+	void					Activate			(u16 slot, bool bForce=false, bool ForceHide = false);
+	void					PutGrenade			(CGrenade* new_grenade);
 	
 	static u32 const		qs_priorities_count = 5;
 	PIItem					GetNextItemInActiveSlot		(u8 const priority_value, bool ignore_ammo);
@@ -161,6 +163,7 @@ protected:
 	u16 				m_last_slot = 0;
 
 	CInventoryOwner*	m_pOwner;
+	CGrenade*			m_pNewGrenade = nullptr;
 
 	//флаг, показывающий наличие по€са в инвенторе
 	bool				m_bBeltUseful;
@@ -193,5 +196,11 @@ private:
 
 	bool				IsSlotBlocked(u16 slot_id) const;
 	void				TryActivatePrevSlot		();
-	void				TryDeactivateActiveSlot	();
+	void				TryDeactivateActiveSlot	(bool Force = false);
+
+	const char* m_onItemAvailableToTrade = {};
+	bool m_isItemAvailableToTrade = false;
+
+	const char* m_onInventoryEat = {};
+	bool m_isInventoryEat = false;
 };

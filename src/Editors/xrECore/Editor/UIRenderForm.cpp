@@ -24,12 +24,19 @@ UIRenderForm::UIRenderForm()
 
 	if (ViewportID != 0)
 	{
-		UI->CreateViewport(ViewportID);
+		UI->CreateViewport(ViewportID, this);
+	}
+	else
+	{
+		TUI::Viewport& MainView = UI->CurrentView();
+		MainView.ViewGlobalIDX = ViewportID;
+		MainView.ViewportForm = this;
 	}
 }
 
 UIRenderForm::~UIRenderForm()
 {
+	UI->DestroyViewport(ViewportID);
 }
 
 void UIRenderForm::DrawStatistics()
@@ -86,8 +93,14 @@ void UIRenderForm::DrawStatistics()
 		print(" DT_Render", "%2.2fms", s->RenderDUMP_DT_Render.result);
 		print(" DT_Cache", "%2.2fms", s->RenderDUMP_DT_Cache.result);
 	}
+    if (psDeviceFlags.test(rsEnvironment))
+    {
+        ImGui::NewLine();
+        // color(0xFFC8DCAF);
+        print("GAME TIME", "%02d:%02d:%02d", s->hours, s->minutes, s->seconds);
+    }
 
-	ImGui::NewLine();
+    ImGui::NewLine();
 	print("Camera Pos", "%2.2f, %2.2f, %2.2f", UI->CurrentView().m_Camera.GetPosition().x, UI->CurrentView().m_Camera.GetPosition().y, UI->CurrentView().m_Camera.GetPosition().z);
 
 	ImGui::EndTable();
@@ -101,6 +114,13 @@ void UIRenderForm::Draw()
 		return;
 	}
 
+	DrawVP();
+
+	ImGui::End();
+}
+
+void UIRenderForm::DrawVP()
+{
 	if (ImGui::IsWindowFocused() || UI->ViewID == ViewportID)
 	{
 		if ((UI->IsPlayInEditor() && ViewportID == 0) || !UI->IsPlayInEditor())
@@ -125,12 +145,16 @@ void UIRenderForm::Draw()
 	m_render_pos.bottom = ImGui::GetWindowSize().y;
 	m_render_pos.top = ImGui::GetWindowPos().y;
 
+	bool cursor_in_zone = true;
 	if (UI && UI->Views[ViewportID].RTFreez->pSurface)
 	{
 		int ShiftState = ssNone;
 
 		if (ViewportID == UI->ViewID)
 		{
+			auto ViewHandle = ImGui::GetWindowViewport();
+			UI->Views[ViewportID].WndHandle = SDL_GetWindowFromID((SDL_WindowID)(size_t)ViewHandle->PlatformHandle);
+
 			if (ImGui::GetIO().KeyShift)ShiftState |= ssShift;
 			if (ImGui::GetIO().KeyCtrl)	ShiftState |= ssCtrl;
 			if (ImGui::GetIO().KeyAlt)	ShiftState |= ssAlt;
@@ -144,7 +168,6 @@ void UIRenderForm::Draw()
 		ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
 		ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 		ImVec2 mouse_pos = ImGui::GetIO().MousePos;
-		bool cursor_in_zone = true;
 		if (mouse_pos.x < canvas_pos.x)
 		{
 			cursor_in_zone = false;
@@ -167,7 +190,7 @@ void UIRenderForm::Draw()
 			mouse_pos.y = canvas_pos.y + canvas_size.y;
 		}
 
-		bool curent_shiftstate_down = m_shiftstate_down;
+		bool curent_shiftstate_down = UI->CurrentView().m_Camera.IsMoving();
 
 
 		if (canvas_size.x < 32.0f) canvas_size.x = 32.0f;
@@ -179,11 +202,10 @@ void UIRenderForm::Draw()
 
 		if (ViewportID != UI->ViewID && ImGui::IsWindowFocused())
 		{
-			ImGui::End();
 			return;
 		}
 
-		if(m_OnToolBar)
+		if (m_OnToolBar)
 			m_OnToolBar(canvas_pos, canvas_size);
 
 		if (ViewportID == UI->ViewID && !UI->IsPlayInEditor())
@@ -199,11 +221,39 @@ void UIRenderForm::Draw()
 
 				float calcSide = (canvas_size.x > canvas_size.y) ? canvas_size.y : canvas_size.x;
 
-				ImVec2 size{ calcSide*0.15f, calcSide * 0.15f };
+				ImVec2 size{ calcSide * 0.15f, calcSide * 0.15f };
 				ImVec2 pos{ canvas_pos.x + canvas_size.x - size.x, canvas_pos.y };
 
 				//Device.mView for only read
-				ImGuizmo::ViewManipulate((float*)&Device.mView, 10, pos, size, ImColor());
+				Fmatrix TempViewMatrix = Device.mView;
+				ImGuizmo::ViewManipulate((float*)&TempViewMatrix, 10, pos, size, ImColor());
+
+				if (ImGuizmo::IsUsingViewManipulate())
+				{
+					CUI_Camera& Camera = UI->CurrentView().m_Camera;
+
+					Fvector OldDir = Camera.GetDirection();
+					Fvector LookAt;
+					LookAt.mad(Camera.GetPosition(), OldDir, 1.0f);
+
+					Fmatrix InvView;
+					InvView.invert(TempViewMatrix);
+
+					Fvector Hpb;
+					InvView.getHPB(Hpb);
+
+					Fvector NewDir = InvView.k;
+					NewDir.normalize();
+
+					float Dist = LookAt.distance_to(Camera.GetPosition());
+
+					Fvector NewPos;
+					NewPos.mad(LookAt, NewDir, -Dist);
+
+					Camera.Set(Hpb, NewPos);
+
+					Device.mView.set(TempViewMatrix);
+				}
 			}
 		}
 
@@ -214,15 +264,15 @@ void UIRenderForm::Draw()
 
 		if (ImGui::IsItemFocused())
 		{
-			if ((ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right)) && !m_mouse_down&& cursor_in_zone)
+			if ((ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right)) && !m_mouse_down && cursor_in_zone)
 			{
 				UI->MousePress(TShiftState(ShiftState), mouse_pos.x - canvas_pos.x, mouse_pos.y - canvas_pos.y);
 				m_mouse_down = true;
 			}
 
-			else  if ((ImGui::IsMouseReleased(ImGuiMouseButton_Left) || ImGui::IsMouseReleased(ImGuiMouseButton_Right) )&& m_mouse_down)
+			else  if ((ImGui::IsMouseReleased(ImGuiMouseButton_Left) || ImGui::IsMouseReleased(ImGuiMouseButton_Right)) && m_mouse_down)
 			{
-				if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) &&! ImGui::IsMouseDown(ImGuiMouseButton_Right))
+				if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
 				{
 					UI->MouseRelease(TShiftState(ShiftState), mouse_pos.x - canvas_pos.x, mouse_pos.y - canvas_pos.y);
 					m_mouse_down = false;
@@ -234,7 +284,7 @@ void UIRenderForm::Draw()
 			{
 				UI->MouseMove(TShiftState(ShiftState), mouse_pos.x - canvas_pos.x, mouse_pos.y - canvas_pos.y);
 				m_mouse_move = true;
-				m_shiftstate_down = m_shiftstate_down||( ShiftState & (ssShift | ssCtrl | ssAlt));
+				m_shiftstate_down = m_shiftstate_down || (ShiftState & (ssShift | ssCtrl | ssAlt));
 			}
 
 			if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && OnClickCallback)
@@ -255,12 +305,17 @@ void UIRenderForm::Draw()
 		m_mouse_position.set(mouse_pos.x - canvas_pos.x, mouse_pos.y - canvas_pos.y);
 
 
-		if (!m_OnContextMenu.empty()&& !curent_shiftstate_down && !UI->IsPlayInEditor())
+		if (!m_OnContextMenu.empty() && !curent_shiftstate_down && !UI->IsPlayInEditor())
 		{
 			if (ImGui::BeginPopupContextItem("Menu"))
 			{
 				m_OnContextMenu();
 				ImGui::EndPopup();
+			}
+			else
+			{
+				UI->m_ContextRDir = UI->m_CurrentRDir;
+				UI->m_ContextRStart = UI->m_CurrentRStart;
 			}
 		}
 
@@ -277,17 +332,31 @@ void UIRenderForm::Draw()
 			if (ImGui::BeginChild("##renderloader", { 300, 65 }, true))
 			{
 				ImGui::Text(UI->ProgressStatusName.c_str());
-				ImGui::ProgressBar(UI->ProgressStatus / 100.f, {280, 25});
+				ImGui::ProgressBar(UI->ProgressStatus / 100.f, { 280, 25 });
 			}
 			ImGui::EndChild();
-		} 
-	}
+		}
 
-	ImGui::End();
+		if (cursor_in_zone && UseHint)
+		{
+			UI->ShowHint();
+		}
+	}
 }
 
 void UIRenderForm::HandleDragDrop(const ImVec2& canvas_pos)
 {
+	const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+
+	if (payload && ImGui::IsMouseDragging(ImGuiMouseButton_Left) && GUIManager->DnDType == EDragDropType::Viewport)
+	{
+		ImDrawList* draw_list = ImGui::GetWindowDrawList();
+		ImVec2 p_min = ImGui::GetItemRectMin();
+		ImVec2 p_max = ImGui::GetItemRectMax();
+		draw_list->AddRectFilled(p_min, p_max, IM_COL32(50, 50, 70, 100));
+		draw_list->AddRect(p_min, p_max, IM_COL32(100, 180, 255, 255));
+	}
+
 	if (ViewportID != 0 || !ImGui::BeginDragDropTarget())
 		return;
 
@@ -312,6 +381,10 @@ void UIRenderForm::HandleDragDrop(const ImVec2& canvas_pos)
 	else if (Data.FileName.ends_with(".group"))
 	{
 		DragFunctor(Data.FileName, 0);
+	}
+	else if (Data.FileName.ends_with(".r16"))
+	{
+		DragFunctor(Data.FileName, 17);
 	}
 	else {
 		DragFunctor(Data.FileName, 6);

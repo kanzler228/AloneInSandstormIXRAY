@@ -7,9 +7,13 @@
 
 #include "ui_main.h"
 #include "UI_ToolsCustom.h"
+#include "../xrEngine/Environment.h"
+#include "../xrEngine/IGame_Persistent.h"
 //---------------------------------------------------------------------------
 CCustomPreferences* EPrefs=0;
 //---------------------------------------------------------------------------
+// extern ENGINE_API BOOL bIsRaindropCollision;
+// extern ENGINE_API BOOL bIsSndOnRoof;
 
 CCustomPreferences::CCustomPreferences()
 {
@@ -48,6 +52,13 @@ CCustomPreferences::CCustomPreferences()
 	scene_clear_color	= DEFAULT_CLEARCOLOR;
 	// objects
 	object_flags.zero	();
+    // Weather
+    env_speed           = 12.f;
+    env_from_time       = 0.f;
+    env_to_time         = 24.f * 60.f * 60.f;
+    // sWeather         = "";
+	//sound
+	sound_volume		= 1.f;
 
 	//other
 	custom_icons.clear();
@@ -153,68 +164,86 @@ void CCustomPreferences::OnKeyboardCommonFileClick(ButtonValue* B, bool& bModif,
 
 void CCustomPreferences::FillProp(PropItemVec& props)
 {
-	PHelper().CreateFlag32	(props,"Objects\\Library\\Discard Instance",	&object_flags, 	epoDiscardInstance);
-	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Joints",		&object_flags, 	epoDrawJoints);
-	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Axis",		&object_flags, 	epoDrawBoneAxis);
-	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Names",	&object_flags, 	epoDrawBoneNames);
-	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Shapes",	&object_flags, 	epoDrawBoneShapes);
-	PHelper().CreateFlag32	(props,"Objects\\Show\\Hint",					&object_flags, 	epoShowHint);
-	PHelper().CreateFlag32	(props,"Objects\\Show\\Pivot",					&object_flags, 	epoDrawPivot);
-	PHelper().CreateFlag32	(props,"Objects\\Show\\Animation Path",			&object_flags, 	epoDrawAnimPath);
-	PHelper().CreateFlag32	(props,"Objects\\Show\\LOD",					&object_flags, 	epoDrawLOD);
-	PHelper().CreateFlag32	(props,"Objects\\Loading\\Deffered Loading RB",	&object_flags, 	epoDeffLoadRB);
-	PHelper().CreateFlag32	(props,"Objects\\Loading\\Deffered Loading CF",	&object_flags, 	epoDeffLoadCF);
-	PHelper().CreateFlag32	(props,"Objects\\GroupObject\\Select ingroup",	&object_flags, 	epoSelectInGroup);
+	PHelper().CreateU32		(props,"Common\\Recent Count", 						&scene_recent_count, 	0, 		25);
+	PHelper().CreateU32		(props,"Common\\Undo Level", 						&scene_undo_level, 		0, 		125);
+	PHelper().CreateBOOL	(props,"Common\\More Stats Info", 					&bMoreStats);
 
-	PHelper().CreateU32		(props,"Scene\\Common\\Recent Count", 		    &scene_recent_count,0, 		25);
-	PHelper().CreateU32		(props,"Scene\\Common\\Undo Level", 		    &scene_undo_level,	0, 		125);
-	PHelper().CreateBOOL	(props,"Scene\\Common\\More Stats Info",		&bMoreStats);
-	PHelper().CreateFloat	(props,"Scene\\Grid\\Cell Size", 	           	&grid_cell_size,	0.1f,	10.f);
-	PHelper().CreateU32		(props,"Scene\\Grid\\Cell Count", 	           	&grid_cell_count,	10, 	1000);
-	PHelper().CreateFloat(props, "Scene\\RadiusRender", &EDevice->RadiusRender,10.f,100000.f);
+	PHelper().CreateBOOL	(props,"Viewport\\Buttons\\Axis", 					&ShowAxisButtons);
+	PHelper().CreateBOOL	(props,"Viewport\\Buttons\\Old Camera Controls", 	&ShowOldCameraButtons);
 
-	PHelper().CreateBOOL	(props,"Tools\\Box Pick\\Limited Depth",		&bp_lim_depth);
-	PHelper().CreateBOOL	(props,"Tools\\Box Pick\\Back Face Culling",	&bp_cull);
-	PHelper().CreateFloat	(props,"Tools\\Box Pick\\Depth Tolerance",		&bp_depth_tolerance,0.f, 	10000.f);
-	PHelper().CreateFloat	(props,"Tools\\Sens\\Move",			          	&tools_sens_move);
+	PHelper().CreateFloat	(props,"Viewport\\Grid\\Cell Size", 				&grid_cell_size, 		0.1f, 	10.f);
+	PHelper().CreateU32		(props,"Viewport\\Grid\\Cell Count", 				&grid_cell_count, 		10, 	1000);
+
+	PHelper().CreateFloat	(props,"Viewport\\Camera\\Move Sens", 				&cam_sens_move);
+	PHelper().CreateFloat	(props,"Viewport\\Camera\\Rotate Sens", 			&cam_sens_rot);
+	PHelper().CreateFloat	(props,"Viewport\\Camera\\Fly Speed", 				&cam_fly_speed, 		0.01f, 	100.f);
+	PHelper().CreateFloat	(props,"Viewport\\Camera\\Fly Altitude", 			&cam_fly_alt, 			0.f, 	1000.f);
+
+	PHelper().CreateColor	(props,"Viewport\\Fog\\Color", 						&fog_color);
+	PHelper().CreateFloat	(props,"Viewport\\Fog\\Fogness", 					&fog_fogness, 			0.f, 	100.f);
+
+	PHelper().CreateFloat	(props,"Viewport\\Near Plane", 						&view_np, 				0.01f, 	10.f);
+	PHelper().CreateFloat	(props,"Viewport\\Far Plane", 						&view_fp, 				10.f, 	10000.f);
+	PHelper().CreateFloat	(props,"Viewport\\FOV", 							&view_fov, 				0.1f, 	170.f);
+	PHelper().CreateFloat	(props,"Viewport\\Render Radius", 					&EDevice->RenderRadius, 10.f, 	100000.f);
+	PHelper().CreateColor	(props,"Viewport\\Clear Color", 					&scene_clear_color);
+
+	PHelper().CreateFlag32	(props,"Objects\\Show\\Hint", 						&object_flags, 			epoShowHint);
+	PHelper().CreateFlag32	(props,"Objects\\Show\\Pivot", 						&object_flags, 			epoDrawPivot);
+	PHelper().CreateFlag32	(props,"Objects\\Show\\Animation Path", 			&object_flags, 			epoDrawAnimPath);
+	PHelper().CreateFlag32	(props,"Objects\\Show\\LOD's", 						&object_flags, 			epoDrawLOD);
+
+	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Joints", 			&object_flags, 			epoDrawJoints);
+	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Axis", 		&object_flags, 			epoDrawBoneAxis);
+	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Names", 		&object_flags, 			epoDrawBoneNames);
+	PHelper().CreateFlag32	(props,"Objects\\Skeleton\\Draw Bone Shapes", 		&object_flags, 			epoDrawBoneShapes);
+
+	PHelper().CreateFlag32	(props,"Objects\\Group Object\\Select ingroup", 	&object_flags, 			epoSelectInGroup);
+
+	PHelper().CreateFlag32	(props,"Objects\\Loading\\Deffered Loading RB", 	&object_flags, 			epoDeffLoadRB);
+	PHelper().CreateFlag32	(props,"Objects\\Loading\\Deffered Loading CF", 	&object_flags, 			epoDeffLoadCF);
+
+	PHelper().CreateFlag32	(props,"Objects\\Library\\Discard Instance", 		&object_flags, 			epoDiscardInstance);
+
+	PHelper().CreateBOOL	(props,"Tools\\Box Pick\\Limited Depth", 			&bp_lim_depth);
+	PHelper().CreateBOOL	(props,"Tools\\Box Pick\\Back Face Culling", 		&bp_cull);
+	PHelper().CreateFloat	(props,"Tools\\Box Pick\\Depth Tolerance", 			&bp_depth_tolerance, 	0.f, 	10000.f);
+
+	PHelper().CreateFloat	(props,"Tools\\Sens\\Move", 						&tools_sens_move);
+	PHelper().CreateFloat	(props,"Tools\\Sens\\Rotate", 						&tools_sens_rot);
+	PHelper().CreateFloat	(props,"Tools\\Sens\\Scale", 						&tools_sens_scale);
+
+	PHelper().CreateAngle	(props,"Tools\\Snap\\Angle", 						&snap_angle, 			0, 		PI_MUL_2);
+	PHelper().CreateFloat	(props,"Tools\\Snap\\Move", 						&snap_move, 			0.01f, 	500.f);
+	PHelper().CreateFloat	(props,"Tools\\Snap\\Move To", 						&snap_moveto, 			0.01f, 	1000.f);
+	PHelper().CreateFloat	(props,"Tools\\Snap\\Scale Fixed", 					&scale_fixed, 			0.01f, 	1000.f);
+
+    /*/ Weather
+    PHelper().CreateFloat(props, "Weather\\Weather from Time", &env_from_time, 0.f, 86400.f);
+    PHelper().CreateFloat(props, "Weather\\Weather to Time", &env_to_time, 0.f, 24.f * 60.f * 60.f);
+    PHelper().CreateFloat(props, "Weather\\Weather time factor", &env_speed, 0.f, 10000.f);
+    PHelper().CreateRText(props, "Weather\\Weather Cycle", &sWeather);*/
+
+	PHelper().CreateSText	(props, "Compilers Path\\xrLC",						&Compiler_xrLC);
+	PHelper().CreateSText	(props,	"Compilers Path\\xrAI",						&Compiler_xrAI);
+	PHelper().CreateSText	(props, "Compilers Path\\xrDO",						&Compiler_xrDO);
 	
-	PHelper().CreateFloat	(props,"Tools\\Sens\\Rotate",		          	&tools_sens_rot);
-	PHelper().CreateFloat	(props,"Tools\\Sens\\Scale",		          	&tools_sens_scale);
-	PHelper().CreateAngle	(props,"Tools\\Snap\\Angle",		          	&snap_angle,		0, 		PI_MUL_2);
-	PHelper().CreateFloat	(props,"Tools\\Snap\\Move",			          	&snap_move, 		0.01f,	500.f);
-	PHelper().CreateFloat	(props,"Tools\\Snap\\Move To", 		          	&snap_moveto,		0.01f,	1000.f);
-	PHelper().CreateFloat	(props,"Tools\\Snap\\Scale Fixed",              &scale_fixed,		0.01f,	1000.f);
 
-
-	PHelper().CreateBOOL	(props,"Viewport\\Buttons\\Axis",		        &ShowAxisButtons);
-	PHelper().CreateBOOL	(props,"Viewport\\Buttons\\Old Camera Control",	&ShowOldCameraButtons);
-	PHelper().CreateFloat	(props,"Viewport\\Camera\\Move Sens",		    &cam_sens_move);
-	PHelper().CreateFloat	(props,"Viewport\\Camera\\Rotate Sens",		    &cam_sens_rot);
-	PHelper().CreateFloat	(props,"Viewport\\Camera\\Fly Speed",		    &cam_fly_speed, 	0.01f, 	100.f);
-	PHelper().CreateFloat	(props,"Viewport\\Camera\\Fly Altitude",	    &cam_fly_alt, 		0.f, 	1000.f);
-	PHelper().CreateColor	(props,"Viewport\\Fog\\Color",				    &fog_color	);
-	PHelper().CreateFloat	(props,"Viewport\\Fog\\Fogness",			    &fog_fogness, 		0.f, 	100.f);
-	PHelper().CreateFloat	(props,"Viewport\\Near Plane",				    &view_np, 			0.01f,	10.f);
-	PHelper().CreateFloat	(props,"Viewport\\Far Plane", 				    &view_fp,			10.f, 	10000.f);
-	PHelper().CreateFloat	(props,"Viewport\\FOV",		  				    &view_fov,			0.1f,	170.f);
-	PHelper().CreateColor	(props,"Viewport\\Clear Color",		           	&scene_clear_color	);
-
-	PHelper().CreateSText	(props, "Compilers Path\\xrLC",					&Compiler_xrLC);
-	PHelper().CreateSText	(props,	"Compilers Path\\xrAI",		           	&Compiler_xrAI);
-	PHelper().CreateSText	(props, "Compilers Path\\xrDO",					&Compiler_xrDO);
-	
-
-   ButtonValue* B = PHelper().CreateButton	(props,"Keyboard\\Common\\File","Load,Save", 0);
-	B->OnBtnClickEvent.bind	(this,&CCustomPreferences::OnKeyboardCommonFileClick);
-	ECommandVec& cmds		= GetEditorCommands();
-	for (u32 cmd_idx=0; cmd_idx<cmds.size(); cmd_idx++){
-		SECommand*& CMD		= cmds[cmd_idx];
-		if (CMD&&CMD->editable){
+	ButtonValue* B = PHelper().CreateButton(props, "Keyboard\\Common\\File", "Load,Save", 0);
+	B->OnBtnClickEvent.bind(this, &CCustomPreferences::OnKeyboardCommonFileClick);
+	ECommandVec& cmds = GetEditorCommands();
+	for (u32 cmd_idx = 0; cmd_idx < cmds.size(); cmd_idx++)
+	{
+		SECommand*& CMD = cmds[cmd_idx];
+		if (CMD && CMD->editable)
+		{
 			VERIFY(!CMD->sub_commands.empty());
-			for (u32 sub_cmd_idx=0; sub_cmd_idx<CMD->sub_commands.size(); sub_cmd_idx++){
+			for (u32 sub_cmd_idx = 0; sub_cmd_idx < CMD->sub_commands.size(); sub_cmd_idx++)
+			{
 				SESubCommand*& SUB_CMD = CMD->sub_commands[sub_cmd_idx];
-				string128 nm; 		sprintf(nm,"%s%s%s",CMD->Desc(),!SUB_CMD->desc.empty()?"\\":"",SUB_CMD->desc.c_str());
-				ShortcutValue* V 	= PHelper().CreateShortcut(props,PrepareKey("Keyboard\\Shortcuts",nm), &SUB_CMD->shortcut);
+				string128 nm;
+				sprintf(nm, "%s%s%s", CMD->Desc(), !SUB_CMD->desc.empty() ? "\\" : "", SUB_CMD->desc.c_str());
+				ShortcutValue* V = PHelper().CreateShortcut(props, PrepareKey("Keyboard\\Shortcuts", nm), &SUB_CMD->shortcut);
 				V->OnValidateResultEvent.bind(CheckValidate);
 			}
 		}
@@ -223,7 +252,9 @@ void CCustomPreferences::FillProp(PropItemVec& props)
 
 void CCustomPreferences::Edit()
 {
-	if (bOpen)return;
+	if (bOpen)
+		return;
+
 	bOpen = true;
 	// fill prop
 	PropItemVec props;
@@ -243,6 +274,9 @@ void CCustomPreferences::Load()
 	psDeviceFlags.flags = JSONData["editor_prefs"]["device_flags"];
 	psSoundFlags.flags = JSONData["editor_prefs"]["sound_flags"];
 
+	if (JSONData["editor_prefs"].contains("sound_volume"))
+		sound_volume = JSONData["editor_prefs"]["sound_volume"];
+
 	Tools->m_Settings.flags = JSONData["editor_prefs"]["tools_settings"], Tools->m_Settings.flags;
 
 	view_np = JSONData["editor_prefs"]["view_np"];
@@ -259,7 +293,7 @@ void CCustomPreferences::Load()
 		ShowAxisButtons = JSONData["editor_prefs"]["ShowAxisButtons"];
 
 	if (JSONData["editor_prefs"].contains("ShowOldCameraButtons"))
-		ShowAxisButtons = JSONData["editor_prefs"]["ShowOldCameraButtons"];
+		ShowOldCameraButtons = JSONData["editor_prefs"]["ShowOldCameraButtons"];
 
 	tools_sens_move = JSONData["editor_prefs"]["tools_sens_move"];
 	tools_sens_rot = JSONData["editor_prefs"]["tools_sens_rot"];
@@ -290,7 +324,7 @@ void CCustomPreferences::Load()
 	scene_recent_count = JSONData["editor_prefs"]["scene_recent_count"];
 	scene_clear_color = JSONData["editor_prefs"]["scene_clear_color"];
 	object_flags.flags = JSONData["editor_prefs"]["object_flags"];
-	EDevice->RadiusRender = JSONData["render"]["render_radius"];
+	EDevice->RenderRadius = JSONData["render"]["render_radius"];
 
 	start_w = JSONData["render"]["w"];
 	start_h = JSONData["render"]["h"];
@@ -320,8 +354,15 @@ void CCustomPreferences::Load()
 				scene_recent_list.push_back(fn.c_str());
 		}
 	}
-	sWeather = ((std::string)(JSONData["editor_prefs"]["weather"])).c_str();
+	// Weather
+	if (JSONData["editor_prefs"].contains("env_from_time"))
+	{
+		env_from_time = JSONData["editor_prefs"]["env_from_time"];
+		env_to_time = JSONData["editor_prefs"]["env_to_time"];
+		env_speed = JSONData["editor_prefs"]["env_speed"];
+	}
 
+	sWeather = ((std::string)(JSONData["editor_prefs"]["weather"])).c_str();
 	if (JSONData["ContentBrowser"].contains("file_custom_icon"))
 	{
 		custom_icons = JSONData["ContentBrowser"]["file_custom_icon"].get<std::map<std::string, std::string>>();
@@ -336,6 +377,7 @@ void CCustomPreferences::Save()
 {
 	JSONData["editor_prefs"]["device_flags"] = psDeviceFlags.flags;
 	JSONData["editor_prefs"]["sound_flags"] = psSoundFlags.flags;
+	JSONData["editor_prefs"]["sound_volume"] = sound_volume;
 
 	JSONData["editor_prefs"]["tools_settings"]=Tools->m_Settings.flags;
 
@@ -350,6 +392,9 @@ void CCustomPreferences::Save()
 	JSONData["editor_prefs"]["cam_fly_alt"]=cam_fly_alt;
 	JSONData["editor_prefs"]["cam_sens_rot"]=cam_sens_rot;
 	JSONData["editor_prefs"]["cam_sens_move"]=cam_sens_move;
+
+	JSONData["editor_prefs"]["ShowAxisButtons"] = ShowAxisButtons;
+	JSONData["editor_prefs"]["ShowOldCameraButtons"] = ShowOldCameraButtons;
 
 	JSONData["editor_prefs"]["tools_sens_rot"]=tools_sens_rot;
 	JSONData["editor_prefs"]["tools_sens_move"]=tools_sens_move;
@@ -388,7 +433,12 @@ void CCustomPreferences::Save()
 
 	auto WndFlags = SDL_GetWindowFlags(g_AppInfo.Window);
 
-	JSONData["editor_prefs"]["weather"] = sWeather.c_str() ? sWeather.c_str() : "";
+    // Weather
+    JSONData["editor_prefs"]["env_from_time"] = env_from_time;
+    JSONData["editor_prefs"]["env_to_time"] = env_to_time;
+    JSONData["editor_prefs"]["env_speed"] = env_speed;
+    JSONData["editor_prefs"]["weather"] = sWeather.c_str() ? sWeather.c_str() : "";
+
 	JSONData["render"]["maximized"] = WndFlags & SDL_WINDOW_MAXIMIZED;
 
 	JSONData["render"]["w"] = EDevice->dwRealWidth;
@@ -401,7 +451,7 @@ void CCustomPreferences::Save()
 	JSONData["render"]["y"]=Y;
 
 	JSONData["windows"]["log"]=bAllowLogCommands;
-	JSONData["render"]["render_radius"]=EDevice->RadiusRender;
+	JSONData["render"]["render_radius"]=EDevice->RenderRadius;
 	
 	JSONData["ContentBrowser"]["file_custom_icon"] = custom_icons;
 	// load shortcuts
@@ -491,9 +541,10 @@ void CCustomPreferences::SaveConfig()
 
 void CCustomPreferences::AppendRecentFile(LPCSTR name)
 {
-	for (AStringIt it = scene_recent_list.begin(); it != scene_recent_list.end(); it++) 
+	for (AStringIt it = scene_recent_list.begin(); it != scene_recent_list.end(); it++)
 	{
-		if (*it == name) {
+		if (*it == name)
+		{
 			scene_recent_list.erase(it);
 			break;
 		}
@@ -501,11 +552,10 @@ void CCustomPreferences::AppendRecentFile(LPCSTR name)
 
 	scene_recent_list.insert(scene_recent_list.begin(), name);
 	while (scene_recent_list.size() > 10)
+	{
 		scene_recent_list.pop_back();
-
-	ExecCommand(COMMAND_REFRESH_UI_BAR);
+	}
 }
-//---------------------------------------------------------------------------
 
 void CCustomPreferences::OnCreate()
 {
@@ -513,7 +563,6 @@ void CCustomPreferences::OnCreate()
 	m_ItemProps = new UIPropertiesForm();
 	//m_ItemProps 		= TProperties::CreateModalForm("Editor Preferences",false,0,0,TOnCloseEvent(this,&CCustomPreferences::OnClose),TProperties::plItemFolders|TProperties::plFullSort); //TProperties::plFullExpand TProperties::plFullSort TProperties::plNoClearStore|TProperties::plFolderStore|
 }
-//---------------------------------------------------------------------------
 
 void CCustomPreferences::OnDestroy()
 {
@@ -521,5 +570,3 @@ void CCustomPreferences::OnDestroy()
 	xr_delete(m_ItemProps);
 	SaveConfig();
 }
-//---------------------------------------------------------------------------
-

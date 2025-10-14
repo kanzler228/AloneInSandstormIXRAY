@@ -19,11 +19,12 @@
 #include "../../../game_object_space.h"
 #include "../../../ai_monster_space.h"
 #include "../control_animation_base.h"
-#include "../../../UIGameCustom.h"
+#include "ui/UIGameCustom.h"
 #include "../../../../xrUI/Widgets/UIStatic.h"
 #include "../../../ai_object_location.h"
 #include "../../../ActorEffector.h"
 #include "../../../../xrEngine/CameraBase.h"
+#include "../../../../xrScripts/script_callback_ex.h"
 
 void CBaseMonster::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr user_data, const Fvector &Position, float power)
 {
@@ -47,7 +48,7 @@ void CBaseMonster::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr us
 	if (dist > db().m_max_hear_dist)	return;
 
 	// ignore sounds if not from enemies and not help sounds
-	CEntityAlive* entity = smart_cast<CEntityAlive*> (who);
+	CEntityAlive* entity = who ? who->cast_entity_alive() : NULL;
 
 	// ignore sound if enemy drop a weapon on death
 	if (!entity && ((eType & SOUND_TYPE_ITEM_HIDING) == SOUND_TYPE_ITEM_HIDING)) return;
@@ -107,9 +108,9 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 		
 		if (IsGameTypeSingle() && pEntityNC == Actor() && draw_hit_marks)
 		{
-			START_PROFILE("BaseMonster/Animation/HitEntity");
+			PROF_EVENT("BaseMonster/Animation/HitEntity");
 
-			SDrawStaticStruct* s = CurrentGameUI()->AddCustomStatic("monster_claws", false);
+			SDrawStaticStruct* s = CurrentGameUI()->AddCustomStatic("monster_claws", false, 3.0f);
 			
 			float h1,p1;
 			Device.vCameraDirection.getHP	(h1,p1);
@@ -121,10 +122,6 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 			wnd_pos.y	+= 400.0f*_cos(d);
 			wnd_pos.x	+= 500.0f*_sin(d);
 			s->wnd()->SetWndPos(wnd_pos);
-
-			STOP_PROFILE;
-
-			//SetAttackEffector			();
 			
 			float time_to_lock		= fDamage * MAX_LOCK_TIME;
 			clamp					(time_to_lock, 0.f, MAX_LOCK_TIME);
@@ -199,8 +196,9 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 
 BOOL  CBaseMonster::feel_vision_isRelevant(CObject* O)
 {
+	if(!O || O->getDestroy())		return FALSE;
 	if (!g_Alive())					return FALSE;
-	if (0==smart_cast<CEntity*>(O))	return FALSE;
+	if (!O->cast_entity())			return FALSE;
 	
 	if ((O->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) != STYPE_VISIBLEFORAI) 
 		return FALSE;
@@ -209,11 +207,13 @@ BOOL  CBaseMonster::feel_vision_isRelevant(CObject* O)
 	if (m_bSleep) return FALSE;
 	
 	// если не враг - не видит
-	CEntityAlive* entity = smart_cast<CEntityAlive*> (O);
-	if (entity && entity->g_Alive()) {
-		if (!EnemyMan.is_enemy(entity)) {
+	CEntityAlive* entity = O->cast_entity_alive();
+	if (entity && entity->g_Alive())
+	{
+		if (!EnemyMan.is_enemy(entity))
+		{
 			// если видит друга - проверить наличие у него врагов
-			CBaseMonster *monster = smart_cast<CBaseMonster *>(entity);
+			CBaseMonster *monster = entity->cast_base_monster();
 			if (monster && !m_skip_transfer_enemy) EnemyMan.transfer_enemy(monster);
 			return FALSE;
 		}

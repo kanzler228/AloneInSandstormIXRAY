@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "blender_combine.h"
 
@@ -27,13 +27,17 @@ void	CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_dx10Texture		("env_s1",			r2_T_envs1			);
 		C.r_dx10Texture		("sky_s0",			r2_T_sky0			);
 		C.r_dx10Texture		("sky_s1",			r2_T_sky1			);
+		C.r_dx10Texture		("s_env",			r2_RT_env			);
 		C.r_dx10Texture		("s_occ",			r2_RT_ssao_temp		);
 		C.r_dx10Texture		("s_half_depth",	r2_RT_half_depth	);
+		C.r_dx10Texture		("s_refl",			r2_RT_sslr			);
 		jitter(C);
 
 		C.r_dx10Sampler		("smp_nofilter");
 		C.r_dx10Sampler		("smp_material");
 		C.r_dx10Sampler		("smp_rtlinear");
+		C.r_dx10Sampler		("smp_linear");
+
 		C.r_End				();
 		break;
 	case 1:
@@ -48,6 +52,15 @@ void	CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_End();
 		break;
 	case 2:
+
+		auto is_loot_present = !!FS.exist(_game_textures_, "shaders\\lut.dds");
+		is_loot_present |= !!FS.exist("$level$", "shaders\\lut.dds");
+
+		if (is_loot_present) {
+
+			RImplementation.addShaderOption("USE_LUT_TEXTURE", "1");
+		}
+
 		C.r_Pass ("stub_notransform_aa_AA","combine_2",	FALSE,	FALSE,	FALSE);
 
 		C.r_dx10Texture		("s_position",		r2_RT_P);
@@ -55,6 +68,11 @@ void	CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_dx10Texture		("s_bloom",			r2_RT_bloom1);
 		C.r_dx10Texture		("s_image",			r2_RT_generic);
 		C.r_dx10Texture		("s_tonemap",		r2_RT_luminance_cur);
+
+		if (is_loot_present) 
+		{
+			C.r_dx10Texture("s_lut", "shaders\\lut");
+		}
 
 		C.r_dx10Sampler		("smp_nofilter");
 		C.r_dx10Sampler		("smp_rtlinear");

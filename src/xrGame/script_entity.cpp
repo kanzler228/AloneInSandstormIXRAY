@@ -191,6 +191,7 @@ CScriptEntityAction *CScriptEntity::GetCurrentAction()
 void  ActionCallback(IKinematics *tpKinematics)
 {
 	// sounds
+	if (!tpKinematics->GetUpdateCallbackParam()) return;
 	CScriptEntity	*l_tpScriptMonster = smart_cast<CScriptEntity*>((CGameObject*)(tpKinematics->GetUpdateCallbackParam()));
 	VERIFY			(l_tpScriptMonster);
 	if (!l_tpScriptMonster->GetCurrentAction())
@@ -201,8 +202,9 @@ void  ActionCallback(IKinematics *tpKinematics)
 
 void CScriptEntity::vfUpdateParticles()
 {
+	if (!GetCurrentAction()) return;
 	CScriptParticleAction	&l_tParticleAction = GetCurrentAction()->m_tParticleAction;
-	if (xr_strlen(l_tParticleAction.m_caBoneName)) {
+	if (l_tParticleAction.m_caBoneName.size()) {
 		xr_shared_ptr<CParticlesObject> l_tpParticlesObject = l_tParticleAction.m_tpParticleSystem;
 		l_tpParticlesObject->UpdateParent(GetUpdatedMatrix(l_tParticleAction.m_caBoneName,l_tParticleAction.m_tParticlePosition,l_tParticleAction.m_tParticleAngles),l_tParticleAction.m_tParticleVelocity);
 	}
@@ -211,7 +213,7 @@ void CScriptEntity::vfUpdateParticles()
 void CScriptEntity::vfUpdateSounds()
 {
 	CScriptSoundAction	&l_tSoundAction = GetCurrentAction()->m_tSoundAction;
-	if (xr_strlen(l_tSoundAction.m_caBoneName) && m_current_sound && m_current_sound->_feedback())
+	if (l_tSoundAction.m_caBoneName.size() && m_current_sound && m_current_sound->_feedback())
 		m_current_sound->_feedback()->set_position(GetUpdatedMatrix(l_tSoundAction.m_caBoneName,l_tSoundAction.m_tSoundPosition,Fvector().set(0,0,0)).c);
 }
 

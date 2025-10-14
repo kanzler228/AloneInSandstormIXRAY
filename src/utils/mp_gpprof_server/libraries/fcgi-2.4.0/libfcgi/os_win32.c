@@ -762,7 +762,7 @@ int OS_CreateLocalIpcFd(const char *bindPath, int backlog)
         strcpy(pipePath, bindPathPrefix);
         strcat(pipePath, bindPath);
 
-        hListenPipe = CreateNamedPipe(pipePath,
+        hListenPipe = CreateNamedPipeA(pipePath,
 		        PIPE_ACCESS_DUPLEX,
 		        PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_READMODE_BYTE,
 		        PIPE_UNLIMITED_INSTANCES,
@@ -883,7 +883,7 @@ int OS_FcgiConnect(char *bindPath)
         strcpy(pipePath, bindPathPrefix);
         strcat(pipePath, bindPath);
 
-        hPipe = CreateFile(pipePath,
+        hPipe = CreateFileA(pipePath,
 			    GENERIC_WRITE | GENERIC_READ,
 			    FILE_SHARE_READ | FILE_SHARE_WRITE,
 			    NULL,
@@ -1109,7 +1109,7 @@ int OS_SpawnChild(char *execPath, int listenFd)
      * XXX: Might want to apply some specific security attributes to the
      *      processes.
      */
-    success = CreateProcess(execPath,	/* LPCSTR address of module name */
+    success = CreateProcessA(execPath,	/* LPCSTR address of module name */
 			NULL,           /* LPCSTR address of command line */
 		        NULL,		/* Process security attributes */
 			NULL,		/* Thread security attributes */
@@ -1569,19 +1569,19 @@ static void printLastError(const char * text)
 {
     LPVOID buf;
 
-    FormatMessage( 
+    FormatMessageA( 
         FORMAT_MESSAGE_ALLOCATE_BUFFER | 
         FORMAT_MESSAGE_FROM_SYSTEM | 
         FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL,
         GetLastError(),
         0,
-        (LPTSTR) &buf,
+        (LPCSTR) &buf,
         0,
         NULL 
     );
     
-    fprintf(stderr, "%s: %s\n", text, (LPCTSTR) buf);
+    fprintf(stderr, "%s: %s\n", text, (LPCSTR) buf);
     LocalFree(buf);
 }
 

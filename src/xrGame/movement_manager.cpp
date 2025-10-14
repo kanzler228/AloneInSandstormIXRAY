@@ -26,6 +26,7 @@
 
 // Lain: added 
 #include "steering_behaviour.h"
+#include "Actor.h"
 
 using namespace MovementManager;
 
@@ -155,7 +156,7 @@ const xr_vector<DetailPathManager::STravelPathPoint>	&CMovementManager::path	() 
 
 void CMovementManager::update_path				()
 {
-	START_PROFILE("Build Path::update")
+	PROF_EVENT("Build Path::update")
 
 	if (!enabled() || wait_for_distributed_computation())
 		return;
@@ -183,17 +184,40 @@ void CMovementManager::update_path				()
 				m_path_state	= ePathStateSelectGameVertex;
 				break;
 			}
-			case ePathTypeLevelPath : {
+			case ePathTypeLevelPath :
+			{
 				m_path_state	= ePathStateBuildLevelPath;
-				if (!restrictions().accessible(level_path().dest_vertex_id())) {
+				ILevelGraph& LevelGraph = ai().level_graph();
+
+				if (!LevelGraph.valid_vertex_id(level_path().dest_vertex_id()))
+				{
+					shared_str ObjName = object().Name();
+#ifndef MASTER_GOLD
+					Msg("! Invalid dest level vertex id in object: %s", *ObjName);
+#endif // !MASTER_GOLD
+
+
+					u32 VertexID = LevelGraph.vertex_id(Actor()->Position());
+
+					if (!LevelGraph.valid_vertex_id(VertexID))
+					{
+#ifndef MASTER_GOLD
+						Msg("! ###DITRYHACK### Set dest vertex for object: %s at 1", *ObjName);
+#endif // !MASTER_GOLD
+						VertexID = 1;
+					}
+					level_path().set_dest_vertex(VertexID);
+				}
+
+				if (!restrictions().accessible(level_path().dest_vertex_id()))
+				{
 					Fvector							temp;
-					level_path().set_dest_vertex	(restrictions().accessible_nearest(ai().level_graph().vertex_position(level_path().dest_vertex_id()),temp));
+					level_path().set_dest_vertex	(restrictions().accessible_nearest(LevelGraph.vertex_position(level_path().dest_vertex_id()),temp));
 					detail().set_dest_position		(temp);
 				}
-				else {
-					if (!restrictions().accessible(detail().dest_position())) {
-						detail().set_dest_position	(ai().level_graph().vertex_position(level_path().dest_vertex_id()));
-					}
+				else if (!restrictions().accessible(detail().dest_position()))
+				{
+					detail().set_dest_position(LevelGraph.vertex_position(level_path().dest_vertex_id()));
 				}
 				break;
 			}
@@ -236,8 +260,6 @@ void CMovementManager::update_path				()
 #endif // USE_FREE_IN_RESTRICTIONS
 
 	m_build_at_once				= false;
-
-	STOP_PROFILE
 }
 
 bool CMovementManager::actual_all				() const

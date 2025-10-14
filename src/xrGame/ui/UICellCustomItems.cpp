@@ -5,9 +5,6 @@
 #include "UIDragDropListEx.h"
 #include "../../xrUI/Widgets/UIProgressBar.h"
 
-#define INV_GRID_WIDTHF(HQ_ICONS) ((HQ_ICONS) ? (100.0f) : (50.0f))
-#define INV_GRID_HEIGHTF(HQ_ICONS) ((HQ_ICONS) ? (100.0f) : (50.0f))
-
 namespace detail 
 {
 
@@ -25,20 +22,20 @@ struct is_helper_pred
 
 CUIInventoryCellItem::CUIInventoryCellItem(CInventoryItem* itm)
 {
-	m_pData											= (void*)itm;
+	m_pData = (void*)itm;
 
-	inherited::SetShader							(InventoryUtilities::GetEquipmentIconsShader());
+	inherited::SetShader(InventoryUtilities::GetEquipmentIconsShader(itm->IconsTexture.c_str()));
 
-	m_grid_size.set									(itm->GetInvGridRect().rb);
-	Frect rect; 
-	rect.lt.set										(INV_GRID_WIDTHF(isHQIcons) * itm->GetInvGridRect().x1,
-														INV_GRID_HEIGHTF(isHQIcons) * itm->GetInvGridRect().y1 );
+	m_grid_size.set(itm->GetInvGridRect().rb);
+	Frect rect;
+	rect.lt.set(INV_GRID_WIDTH(itm->ScaleIcon) * itm->GetInvGridRect().x1,
+		INV_GRID_HEIGHT(itm->ScaleIcon) * itm->GetInvGridRect().y1);
 
-	rect.rb.set										(	rect.lt.x+INV_GRID_WIDTHF(isHQIcons) * m_grid_size.x,
-														rect.lt.y+INV_GRID_HEIGHTF(isHQIcons) * m_grid_size.y);
+	rect.rb.set(rect.lt.x + INV_GRID_WIDTH(itm->ScaleIcon) * m_grid_size.x,
+		rect.lt.y + INV_GRID_HEIGHT(itm->ScaleIcon) * m_grid_size.y);
 
-	inherited::SetTextureRect						(rect);
-	inherited::SetStretchTexture					(true);
+	inherited::SetTextureRect(rect);
+	inherited::SetStretchTexture(true);
 }
 
 bool CUIInventoryCellItem::EqualTo(CUICellItem* itm)
@@ -86,6 +83,7 @@ void CUIInventoryCellItem::SetIsHelper (bool is_helper)
 void CUIInventoryCellItem::Update()
 {
 	inherited::Update	();
+	inherited:UpdateConditionProgressBar(); //Alundaio
 	UpdateItemText();
 
 	u32 color = GetTextureColor();
@@ -145,17 +143,12 @@ CUIDragItem* CUIAmmoCellItem::CreateDragItem()
 
 u32 CUIAmmoCellItem::CalculateAmmoCount()
 {
-	xr_vector<CUICellItem*>::iterator it   = m_childs.begin();
-	xr_vector<CUICellItem*>::iterator it_e = m_childs.end();
-
-	u32 total	= IsHelper() ? 0 : object()->m_boxCurr;
-	for ( ; it != it_e; ++it )
+	u32 total = IsHelper() ? 0 : object()->m_boxCurr;
+	for (CUICellItem* child : m_childs)
 	{
-		CUICellItem* child = *it;
-
-		if ( !child->IsHelper() )
+		if (!child->IsHelper())
 		{
-			total += ((CUIAmmoCellItem*)(*it))->object()->m_boxCurr;
+			total += ((CUIAmmoCellItem*)(child))->object()->m_boxCurr;
 		}
 	}
 
@@ -184,13 +177,20 @@ CUIWeaponCellItem::CUIWeaponCellItem(CWeapon* itm)
 	m_addons[eLauncher]		= nullptr;
 
 	if(itm->SilencerAttachable())
+	{
 		m_addon_offset[eSilencer].set(object()->GetSilencerX(), object()->GetSilencerY());
+	}
 
 	if(itm->ScopeAttachable())
+	{
 		m_addon_offset[eScope].set(object()->GetScopeX(), object()->GetScopeY());
+		mScopeBack = object()->GetScopeBack();
+	}
 
 	if(itm->GrenadeLauncherAttachable())
+	{
 		m_addon_offset[eLauncher].set(object()->GetGrenadeLauncherX(), object()->GetGrenadeLauncherY());
+	}
 }
 
 #include "../xrServerEntities/object_broker.h"
@@ -219,7 +219,13 @@ void CUIWeaponCellItem::CreateIcon(eAddonType t)
 	m_addons[t]					= new CUIStatic();	
 	m_addons[t]->SetAutoDelete	(true);
 	AttachChild					(m_addons[t]);
-	m_addons[t]->SetShader		(InventoryUtilities::GetEquipmentIconsShader());
+
+	const char* sect = nullptr;
+	if (t == eSilencer) sect = *object()->GetSilencerName();
+	else if (t == eScope) sect = *object()->GetScopeName();
+	else if (t == eLauncher) sect = *object()->GetGrenadeLauncherName();
+
+	m_addons[t]->SetShader		(InventoryUtilities::GetEquipmentIconsShader(object()->IconsTexture.c_str()));
 
 	u32 color = GetTextureColor	();
 	m_addons[t]->SetTextureColor(color);
@@ -238,18 +244,39 @@ CUIStatic* CUIWeaponCellItem::GetIcon(eAddonType t)
 void CUIWeaponCellItem::RefreshOffset()
 {
 	if(object()->SilencerAttachable())
+	{
 		m_addon_offset[eSilencer].set(object()->GetSilencerX(), object()->GetSilencerY());
+	}
 
 	if(object()->ScopeAttachable())
+	{
 		m_addon_offset[eScope].set(object()->GetScopeX(), object()->GetScopeY());
+		mScopeBack = object()->GetScopeBack();
+	}
 
 	if(object()->GrenadeLauncherAttachable())
+	{
 		m_addon_offset[eLauncher].set(object()->GetGrenadeLauncherX(), object()->GetGrenadeLauncherY());
+	}
 }
 
 void CUIWeaponCellItem::Draw()
-{	
+{
+	if (GetIcon(eScope) && mScopeBack)
+	{
+		GetIcon(eScope)->Draw();
+		GetIcon(eScope)->SetAutoDelete(false);
+		DetachChild(GetIcon(eScope));
+	}
+
 	inherited::Draw();
+
+	if (GetIcon(eScope) && mScopeBack)
+	{
+		GetIcon(eScope)->SetAutoDelete(true);
+		AttachChild(GetIcon(eScope));
+	}
+
 
 	if(m_upgrade && m_upgrade->IsShown())
 		m_upgrade->Draw();
@@ -280,20 +307,21 @@ void CUIWeaponCellItem::Update()
 		}
 	}
 
-	if (object()->ScopeAttachable()){
+	if (object()->ScopeAttachable())
+	{
+		if (m_addons[eScope])
+		{
+			DestroyIcon(eScope);
+		}
+
 		if (object()->IsScopeAttached())
 		{
 			if (!GetIcon(eScope) || bForceReInitAddons)
 			{
-				CreateIcon	(eScope);
+				CreateIcon(eScope);
 				RefreshOffset();
-				InitAddon	(GetIcon(eScope), *object()->GetScopeName(), m_addon_offset[eScope], Heading());
+				InitAddon(GetIcon(eScope), *object()->GetScopeName(), m_addon_offset[eScope], Heading());
 			}
-		}
-		else
-		{
-			if (m_addons[eScope])
-				DestroyIcon(eScope);
 		}
 	}
 
@@ -349,23 +377,24 @@ void CUIWeaponCellItem::InitAddon(CUIStatic* s, LPCSTR section, Fvector2 addon_o
 	Frect tex_rect;
 	Fvector2 base_scale;
 
+	float scaleIcon = READ_IF_EXISTS(pSettings, r_float, section, "inv_scale", 1.0f);
 	if (Heading())
 	{
-		base_scale.x = GetHeight() / (INV_GRID_WIDTHF(isHQIcons) * m_grid_size.x);
-		base_scale.y = GetWidth() / (INV_GRID_HEIGHTF(isHQIcons) * m_grid_size.y);
+		base_scale.x = GetHeight() / (INV_GRID_WIDTH(scaleIcon) * m_grid_size.x);
+		base_scale.y = GetWidth() / (INV_GRID_HEIGHT(scaleIcon) * m_grid_size.y);
 	}
 	else
 	{
-		base_scale.x = GetWidth() / (INV_GRID_WIDTHF(isHQIcons) * m_grid_size.x);
-		base_scale.y = GetHeight() / (INV_GRID_HEIGHTF(isHQIcons) * m_grid_size.y);
+		base_scale.x = GetWidth() / (INV_GRID_WIDTH(scaleIcon) * m_grid_size.x);
+		base_scale.y = GetHeight() / (INV_GRID_HEIGHT(scaleIcon) * m_grid_size.y);
 	}
 
 	Fvector2 cell_size;
-	cell_size.x = pSettings->r_u32(section, "inv_grid_width") * INV_GRID_WIDTHF(isHQIcons);
-	cell_size.y = pSettings->r_u32(section, "inv_grid_height") * INV_GRID_HEIGHTF(isHQIcons);
+	cell_size.x = pSettings->r_u32(section, "inv_grid_width") * INV_GRID_WIDTH(scaleIcon);
+	cell_size.y = pSettings->r_u32(section, "inv_grid_height") * INV_GRID_HEIGHT(scaleIcon);
 
-	tex_rect.x1 = pSettings->r_u32(section, "inv_grid_x") * INV_GRID_WIDTHF(isHQIcons);
-	tex_rect.y1 = pSettings->r_u32(section, "inv_grid_y") * INV_GRID_HEIGHTF(isHQIcons);
+	tex_rect.x1 = pSettings->r_u32(section, "inv_grid_x") * INV_GRID_WIDTH(scaleIcon);
+	tex_rect.y1 = pSettings->r_u32(section, "inv_grid_y") * INV_GRID_HEIGHT(scaleIcon);
 
 	tex_rect.rb.add(tex_rect.lt, cell_size);
 
@@ -415,8 +444,9 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	if(GetIcon(eSilencer))
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader());
-		InitAddon		(s, *object()->GetSilencerName(), m_addon_offset[eSilencer], false);
+		auto section = *object()->GetSilencerName();
+		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
+		InitAddon		(s, section, m_addon_offset[eSilencer], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);
 	}
@@ -424,7 +454,8 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	if(GetIcon(eScope))
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader());
+		auto section = *object()->GetScopeName();
+		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
 		InitAddon		(s,	*object()->GetScopeName(),		m_addon_offset[eScope], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);
@@ -433,7 +464,8 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	if(GetIcon(eLauncher))
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader());
+		auto section = *object()->GetGrenadeLauncherName();
+		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
 		InitAddon		(s, *object()->GetGrenadeLauncherName(),m_addon_offset[eLauncher], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);

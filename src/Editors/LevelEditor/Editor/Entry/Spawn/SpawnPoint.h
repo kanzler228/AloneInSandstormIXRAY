@@ -53,9 +53,12 @@ public:
         CLE_Visual*		m_Visual;
         Flags8			m_flags;
         xr_vector<CLE_Visual*> m_VisualHelpers;
-
+        IRenderVisual*  IdleParticle = nullptr;
         CLE_Motion*		m_Motion;
         CSpawnPoint*	m_owner;
+
+        xrCriticalSection FrameMutex;
+
         enum{ eSDTypeRespawn = (1<<0),};
         SSpawnData	(CSpawnPoint* o)
         {
@@ -119,6 +122,8 @@ public:
             CEnvModifier* m_EM_Ptr;
         };
     };
+
+    xrCriticalSection OnFrameLock;
 
     shared_str		SectionToEditor			(shared_str);
     shared_str		EditorToSection			(shared_str);

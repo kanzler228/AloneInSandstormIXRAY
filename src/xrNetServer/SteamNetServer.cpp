@@ -4,13 +4,13 @@
 
 // -----------------------------------------------------------------------------
 
-SteamNetServer* s_pCallbackInstance = nullptr;
+SteamNetServer* GServerCallback = nullptr;
 
 void SvSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCallback_t *pInfo)
 {
-	if (s_pCallbackInstance)
+	if (GServerCallback)
 	{
-		s_pCallbackInstance->OnSteamNetConnectionStatusChanged(pInfo);
+		GServerCallback->OnSteamNetConnectionStatusChanged(pInfo);
 	}
 }
 
@@ -19,7 +19,7 @@ void SvSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCa
 void steam_net_update_server(void* P)
 {
 	Msg("- [SteamNetServer] Thread for steam network server is started");
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	Platform::SetCurrentThreadHighPriority();
 	SteamNetServer*	C = (SteamNetServer*)P;
 	C->Update();
 }
@@ -28,9 +28,6 @@ void steam_net_update_server(void* P)
 
 SteamNetServer::SteamNetServer(CTimer* timer, BOOL	dedicated)
 	: BaseServer(timer, dedicated)
-#ifdef PROFILE_CRITICAL_SECTIONS
-	, csConnection(MUTEX_PROFILE_ID(SteamNetServer::csConnection))
-#endif // PROFILE_CRITICAL_SECTIONS
 {
 	m_players.reserve((dedicated) ? GetMaxPlayers() + 1 : GetMaxPlayers()); // 
 	m_server_password.reserve(64);
@@ -176,7 +173,7 @@ void SteamNetServer::Update()
 
 void SteamNetServer::PollConnectionStateChanges()
 {
-	s_pCallbackInstance = this;
+	GServerCallback = this;
 	m_pInterface->RunCallbacks();
 }
 
@@ -324,10 +321,10 @@ void SteamNetServer::OnClientDataReceived(HSteamNetConnection connection, SteamN
 	cl_data.clientID.set(connection); // set clientId
 	cl_data.process_id = data->process_id;
 
-	if (identity.IsLocalHost() && data->process_id == GetCurrentProcessId())
+	if (identity.IsLocalHost() && data->process_id == Platform::GetCurrentProcessId())
 	{ // if server client
-		xr_strcpy(cl_data.name, "ServerAdmin");
-		xr_strcpy(cl_data.pass, "pass");
+		xr_strcpy(cl_data.name, data->name);
+		xr_strcpy(cl_data.pass, data->pass);
 
 		FinishConnection(cl_data);
 		m_bServerClientConnected = true;

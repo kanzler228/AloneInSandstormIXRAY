@@ -31,6 +31,8 @@ public:
 
 	float					HitThroughArmor			(float hit_power, s16 element, float ap, bool& add_wound, ALife::EHitType hit_type);
 
+	bool					GlassPresent = false;
+
 	float					m_fPowerLoss;
 	float					m_fHealthRestoreSpeed;
 	float 					m_fRadiationRestoreSpeed;
@@ -42,6 +44,9 @@ public:
 
 	void					ReloadBonesProtection	();
 	void					AddBonesProtection		(LPCSTR bones_section);
+
+	virtual CHelmet* cast_helmet() { return this; }
+
 protected:
 	HitImmunity::HitTypeSVec	m_HitTypeProtection;
 	SBoneProtections*		m_boneProtection;	

@@ -14,7 +14,7 @@
 #include "script_sound.h"
 #include "../../xrCore/xr_ini.h"
 
-using Section = xr_vector<std::pair<std::string_view, CInifile::Sect*>>;
+using Section = xr_vector<xr_pair<xr_string_view, CInifile::Sect*>>;
 struct SectionData
 {
 	Section Sorted{};
@@ -24,6 +24,10 @@ struct SectionData
 struct
 {
 	// weapon tab
+	bool sort_by_grenade_launcher{};
+	bool sort_by_scope_status{};
+	bool sort_by_silencer_status{};
+
 	bool sort_by_max_cost{};
 	bool weapon_sort_by_max_hit_power{};
 	bool weapon_sort_by_max_fire_distance{};
@@ -32,22 +36,31 @@ struct
 	bool weapon_sort_by_min_fire_distance{};
 	bool spawn_on_level{};
 	bool render_as_table{ true };
-	char spawn_count[4]{};
+	string16 spawn_count{};
 	// weapon tab
 
 	SectionData WeaponsSections = {};
 	SectionData ItemsSections = {};
+	SectionData ItemsUsedSections = {};
+	SectionData DevicesSections = {};
 	SectionData AmmoSections = {};
 	SectionData OutfitSections = {};
 	SectionData AddonSections = {};
 	SectionData ArtefactSections = {};
 	SectionData MpStuffSections = {};
 
+	Section NpcList{};
+	SectionData Squads{};
+	Section Monsters{};
 	Section Vehicles{};
+	Section DynamicObjects{};
+	Section Explosives{};
+	Section Anomalies{};
 	Section Others{};
 
-	std::unique_ptr<CScriptSound> sound_tip;
+	xr_unique_ptr<CScriptSound> sound_tip;
 	string_path sound_tip_path{};
+	bool legacyNewsMode{false};
 } imgui_spawn_manager;
 
 
@@ -59,13 +72,12 @@ static void SectionStatistics(const SectionData& sections) {
 	ImGui::Separator();
 }
 
-constexpr size_t kSpawnManagerMaxSectionName = 64;
-
 float SpawnManager_ParseHitPower(const shared_str& hit_str);
 void SpawnManager_RenderTooltip(CInifile::Sect* section);
 bool SpawnManager_RenderButtonOrImage(CInifile::Sect* section, const char* imname);
 void SpawnManager_HandleButtonPress(CInifile::Sect* section);
 void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui);
+Section FilterSectionsWithSearch(const Section& sections, const char* searchBuffer);
 
 void DestroySpawnManagerWindow()
 {
@@ -76,9 +88,13 @@ void InitSections()
 {
 	if (g_pClsidManager == nullptr)
 	{
-		R_ASSERT(!"! clsid manager uninitialized!");
+		R_ASSERT2(false, "! clsid manager uninitialized!");
 		return;
 	}
+
+	CUIXml xml_test;
+	xml_test.Load(CONFIG_PATH, UI_PATH, "maingame_pda_msg.xml");
+	imgui_spawn_manager.legacyNewsMode = !xml_test.NavigateToNode("caption_static");
 
 	string_path	file_path;
 	FS.update_path(file_path, "$game_config$", "misc\\script_sound.ltx");
@@ -86,17 +102,22 @@ void InitSections()
 
 	if (ini.line_exist("pda_tips", "path") == 1)
 	{
-		memset(file_path, 0, sizeof(file_path));
+		ZeroMemory(file_path, sizeof(file_path));
 		const char* pSoundRelativeName = ini.r_string("pda_tips", "path");
 
-		char with_format_name[128]{};
-		sprintf_s(with_format_name, sizeof(with_format_name), "%s.ogg", pSoundRelativeName);
+		string128 with_format_name{};
+		xr_sprintf(with_format_name, sizeof(with_format_name), "%s.ogg", pSoundRelativeName);
 
 
 		if (FS.exist("$game_sounds$", with_format_name))
 		{
 			memcpy_s(imgui_spawn_manager.sound_tip_path, sizeof(imgui_spawn_manager.sound_tip_path), pSoundRelativeName, strlen(pSoundRelativeName));
 		}
+	}
+	else
+	{
+		string128 sndName = "device\\pda\\pda_tip";
+		memcpy_s(imgui_spawn_manager.sound_tip_path, sizeof(imgui_spawn_manager.sound_tip_path), sndName, sizeof(sndName));
 	}
 
 	//xr_set<xr_string> classes = {};
@@ -105,7 +126,7 @@ void InitSections()
 		if (pSection == nullptr)
 			continue;
 
-		std::string_view name = pSection->Name.c_str();
+		xr_string_view name = pSection->Name.c_str();
 
 		if (name.empty())
 			continue;
@@ -117,10 +138,10 @@ void InitSections()
 
 		if (pSection->line_exist("visual"))
 		{
-			std::string_view visual = pSettings->r_string(name.data(), "visual");
+			xr_string_view visual = pSettings->r_string(name.data(), "visual");
 			shared_str full_path;
 
-			if (visual.find(".ogf") == xr_string::npos)
+			if (visual.find(".ogf") == xr_string_view::npos)
 			{
 				full_path.printf("%s%s%s", FS.get_path("$game_meshes$")->m_Path, visual.data(), ".ogf");
 			}
@@ -134,13 +155,15 @@ void InitSections()
 				continue;
 			}
 		}
-		else {
-			continue;
-		}
 
 		bool isInvItem = pSection->line_exist("cost") && pSection->line_exist("inv_weight");
+		bool isFakeItem = pSection->line_exist("inv_grid_width") && pSettings->r_u32(name.data(), "inv_grid_width") <= 0 &&
+						  pSection->line_exist("inv_grid_height") && pSettings->r_u32(name.data(), "inv_grid_height") <= 0;
+
+		isInvItem &= !isFakeItem;
+
 		size_t mp_index = name.find("mp_");
-		if (g_pClsidManager->is_mp_stuff(classId) || (mp_index != std::string_view::npos && mp_index == 0))
+		if (g_pClsidManager->is_mp_stuff(classId) || (mp_index != xr_string_view::npos && mp_index == 0))
 		{
 			if (isInvItem)
 			{
@@ -180,6 +203,34 @@ void InitSections()
 			else
 			{
 				imgui_spawn_manager.ItemsSections.Unsorted.push_back({ name, pSection });
+			}
+		}
+		else if (g_pClsidManager->is_item_used(classId))
+		{
+			if (!pSection->line_exist("immunities_sect"))
+				continue;
+
+			if (isInvItem)
+			{
+				imgui_spawn_manager.ItemsUsedSections.Sorted.push_back({ name, pSection });
+			}
+			else
+			{
+				imgui_spawn_manager.ItemsUsedSections.Unsorted.push_back({ name, pSection });
+			}
+		}
+		else if (g_pClsidManager->is_device(classId))
+		{
+			if (!pSection->line_exist("immunities_sect"))
+				continue;
+
+			if (isInvItem)
+			{
+				imgui_spawn_manager.DevicesSections.Sorted.push_back({ name, pSection });
+			}
+			else
+			{
+				imgui_spawn_manager.DevicesSections.Unsorted.push_back({ name, pSection });
 			}
 		}
 		else if (g_pClsidManager->is_ammo(classId))
@@ -226,9 +277,40 @@ void InitSections()
 				imgui_spawn_manager.ArtefactSections.Unsorted.push_back({ name, pSection });
 			}
 		}
+		else if (g_pClsidManager->is_npc(classId))
+		{
+			imgui_spawn_manager.NpcList.push_back({ name, pSection });
+		}
+		else if (g_pClsidManager->is_squad(classId))
+		{
+			if (pSection->line_exist("faction") && (pSection->line_exist("npc") || pSection->line_exist("npc_in_squad")))
+			{
+				imgui_spawn_manager.Squads.Sorted.push_back({ name, pSection });
+			}
+			else
+			{
+				imgui_spawn_manager.Squads.Unsorted.push_back({ name, pSection });
+			}
+		}
+		else if (g_pClsidManager->is_monster(classId))
+		{
+			imgui_spawn_manager.Monsters.push_back({ name, pSection });
+		}
+		else if (g_pClsidManager->is_anomaly(classId))
+		{
+			imgui_spawn_manager.Anomalies.push_back({ name, pSection });
+		}
 		else if (g_pClsidManager->is_vehicle(classId))
 		{
 			imgui_spawn_manager.Vehicles.push_back({ name, pSection });
+		}
+		else if (g_pClsidManager->is_dynamic_object(classId))
+		{
+			imgui_spawn_manager.DynamicObjects.push_back({ name, pSection });
+		}
+		else if (g_pClsidManager->is_explo(classId))
+		{
+			imgui_spawn_manager.Explosives.push_back({ name, pSection });
 		}
 		else {
 			//string32 temp; CLSID2TEXT(classId, temp);
@@ -254,7 +336,7 @@ void RenderSpawnManagerWindow() {
 
 	if (imgui_spawn_manager.sound_tip.get() == nullptr)
 	{
-		imgui_spawn_manager.sound_tip = std::make_unique<CScriptSound>(imgui_spawn_manager.sound_tip_path);
+		imgui_spawn_manager.sound_tip = xr_make_unique<CScriptSound>(imgui_spawn_manager.sound_tip_path);
 		imgui_spawn_manager.sound_tip->SetVolume(0.8f);
 	}
 
@@ -348,26 +430,100 @@ void RenderSpawnManagerWindow() {
 
 		if (ImGui::BeginTabBar("##TabBar_InGameSpawnManager"))
 		{
-			if (ImGui::BeginTabItem("Items"))
+			if (ImGui::BeginTabItem("Inventory Stuff"))
 			{
-				size_t number_imgui{};
-				SectionStatistics(imgui_spawn_manager.ItemsSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.ItemsSections.Sorted, number_imgui);
+				if (ImGui::BeginTabBar("##TabBarItems_InGameSpawnManager"))
+				{
+					if (ImGui::BeginTabItem("Used"))
+					{
+						size_t number_imgui{};
+						SectionStatistics(imgui_spawn_manager.ItemsUsedSections);
+						
+						static string128 searchBuffer = "";
+						ImGui::InputText("Search##Used", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
-				if (imgui_spawn_manager.sort_by_max_cost)
-				{
-					maxSortCost(imgui_spawn_manager.ItemsSections.Sorted);
-				}
-				else if (imgui_spawn_manager.sort_by_min_cost)
-				{
-					minSortCost(imgui_spawn_manager.ItemsSections.Sorted);
-				}
+						Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.ItemsUsedSections.Sorted, searchBuffer);
+						SpawnManager_ProcessSections(filteredList, number_imgui);
 
-				if (imgui_spawn_manager.ItemsSections.Unsorted.size() > 0)
-				{
-					ImGui::SeparatorText("Unsorted");
-					SpawnManager_ProcessSections(imgui_spawn_manager.ItemsSections.Unsorted, number_imgui);
+						if (imgui_spawn_manager.sort_by_max_cost)
+						{
+							maxSortCost(imgui_spawn_manager.ItemsUsedSections.Sorted);
+						}
+						else if (imgui_spawn_manager.sort_by_min_cost)
+						{
+							minSortCost(imgui_spawn_manager.ItemsUsedSections.Sorted);
+						}
+
+						if (imgui_spawn_manager.ItemsUsedSections.Unsorted.size() > 0)
+						{
+							ImGui::SeparatorText("Unsorted");
+							SpawnManager_ProcessSections(imgui_spawn_manager.ItemsUsedSections.Unsorted, number_imgui);
+						}
+
+						ImGui::EndTabItem();
+					}
+
+					if (ImGui::BeginTabItem("Devices"))
+					{
+						size_t number_imgui{};
+						SectionStatistics(imgui_spawn_manager.DevicesSections);
+
+						static string128 searchBuffer = "";
+						ImGui::InputText("Search##Devices", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+						Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.DevicesSections.Sorted, searchBuffer);
+						SpawnManager_ProcessSections(filteredList, number_imgui);
+
+						if (imgui_spawn_manager.sort_by_max_cost)
+						{
+							maxSortCost(imgui_spawn_manager.DevicesSections.Sorted);
+						}
+						else if (imgui_spawn_manager.sort_by_min_cost)
+						{
+							minSortCost(imgui_spawn_manager.DevicesSections.Sorted);
+						}
+
+						if (imgui_spawn_manager.DevicesSections.Unsorted.size() > 0)
+						{
+							ImGui::SeparatorText("Unsorted");
+							SpawnManager_ProcessSections(imgui_spawn_manager.DevicesSections.Unsorted, number_imgui);
+						}
+
+						ImGui::EndTabItem();
+					}
+
+					if (ImGui::BeginTabItem("Items"))
+					{
+						size_t number_imgui{};
+						SectionStatistics(imgui_spawn_manager.ItemsSections);
+
+						static string128 searchBuffer = "";
+						ImGui::InputText("Search##Items", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+						Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.ItemsSections.Sorted, searchBuffer);
+						SpawnManager_ProcessSections(filteredList, number_imgui);
+
+						if (imgui_spawn_manager.sort_by_max_cost)
+						{
+							maxSortCost(imgui_spawn_manager.ItemsSections.Sorted);
+						}
+						else if (imgui_spawn_manager.sort_by_min_cost)
+						{
+							minSortCost(imgui_spawn_manager.ItemsSections.Sorted);
+						}
+
+						if (imgui_spawn_manager.ItemsSections.Unsorted.size() > 0)
+						{
+							ImGui::SeparatorText("Unsorted");
+							SpawnManager_ProcessSections(imgui_spawn_manager.ItemsSections.Unsorted, number_imgui);
+						}
+
+						ImGui::EndTabItem();
+					}
+
+					ImGui::EndTabBar();
 				}
+				
 
 				ImGui::EndTabItem();
 			}
@@ -397,6 +553,32 @@ void RenderSpawnManagerWindow() {
 						return "unknown";
 					}
 					};
+
+				ImGui::Columns(2, "##filter_columns", true);
+
+				// Left column - FILTERING (modifies data subset)
+				ImGui::TextColored(ImVec4(0.8f, 0.9f, 1.0f, 1.0f), "Active Filters");
+				ImGui::Separator();
+				if (ImGui::Checkbox("with grenade launcher##CheckBox_InGameSpawnManager", &imgui_spawn_manager.sort_by_grenade_launcher))
+				{
+				}
+				ImGui::SetItemTooltip("Show only weapons with underbarrel grenade launcher capability");
+
+				if (ImGui::Checkbox("with scope##CheckBox_InGameSpawnManager", &imgui_spawn_manager.sort_by_scope_status))
+				{
+				}
+				ImGui::SetItemTooltip("Show only weapons that support optical scopes");
+
+				if (ImGui::Checkbox("with silencer##CheckBox_InGameSpawnManager", &imgui_spawn_manager.sort_by_silencer_status))
+				{
+				}
+				ImGui::SetItemTooltip("Show only weapons that support suppressors");
+
+				ImGui::NextColumn();
+
+				// Right column - SORTING (orders existing subset)
+				ImGui::TextColored(ImVec4(0.8f, 0.9f, 1.0f, 1.0f), "Sorting Methods");
+				ImGui::Separator();
 
 				if (ImGui::Checkbox("sort by max fire distance##CheckBox_InGameSpawnManager", &imgui_spawn_manager.weapon_sort_by_max_fire_distance))
 				{
@@ -429,9 +611,16 @@ void RenderSpawnManagerWindow() {
 					imgui_spawn_manager.weapon_sort_by_min_fire_distance = false;
 				}
 				ImGui::SetItemTooltip("Sorts items by minimal hit_power field for current game difficulty[%s]that defined in weapon section in ltx file", translate_difficulty(g_SingleGameDifficulty));
+				
+				ImGui::Columns(1);
 
 				ImGui::Text("current difficulty: %s", translate_difficulty(g_SingleGameDifficulty));
 				SectionStatistics(imgui_spawn_manager.WeaponsSections);
+
+				static string128 weaponSearchBuffer = "";
+				ImGui::InputText("Search##Weapons", weaponSearchBuffer, IM_ARRAYSIZE(weaponSearchBuffer));
+
+				Section filteredWeapons = FilterSectionsWithSearch(imgui_spawn_manager.WeaponsSections.Sorted, weaponSearchBuffer);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -560,8 +749,56 @@ void RenderSpawnManagerWindow() {
 						});
 				}
 
+				if (imgui_spawn_manager.sort_by_grenade_launcher ||
+					imgui_spawn_manager.sort_by_scope_status ||
+					imgui_spawn_manager.sort_by_silencer_status)
+				{
+					Section tempFiltered;
+
+					std::copy_if(
+						filteredWeapons.begin(),
+						filteredWeapons.end(),
+						std::back_inserter(tempFiltered),
+						[&](const auto& pair) {
+							if (!pair.second)
+								return false;
+
+							const char* section = pair.first.data();
+							bool meetsConditions = true;
+
+							if (imgui_spawn_manager.sort_by_grenade_launcher)
+							{
+								if (!pSettings->line_exist(section, "grenade_launcher_status"))
+									meetsConditions = false;
+								else if (pSettings->r_u32(section, "grenade_launcher_status") <= 0)
+									meetsConditions = false;
+							}
+
+							if (meetsConditions && imgui_spawn_manager.sort_by_scope_status)
+							{
+								if (!pSettings->line_exist(section, "scope_status"))
+									meetsConditions = false;
+								else if (pSettings->r_u32(section, "scope_status") <= 0)
+									meetsConditions = false;
+							}
+
+							if (meetsConditions && imgui_spawn_manager.sort_by_silencer_status)
+							{
+								if (!pSettings->line_exist(section, "silencer_status"))
+									meetsConditions = false;
+								else if (pSettings->r_u32(section, "silencer_status") <= 0)
+									meetsConditions = false;
+							}
+
+							return meetsConditions;
+						}
+					);
+
+					filteredWeapons = std::move(tempFiltered);
+				}
+
 				size_t number_imgui{};
-				SpawnManager_ProcessSections(imgui_spawn_manager.WeaponsSections.Sorted, number_imgui);
+				SpawnManager_ProcessSections(filteredWeapons, number_imgui);
 
 				if (imgui_spawn_manager.WeaponsSections.Unsorted.size() > 0)
 				{
@@ -576,7 +813,12 @@ void RenderSpawnManagerWindow() {
 			{
 				size_t number_imgui{};
 				SectionStatistics(imgui_spawn_manager.AmmoSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.AmmoSections.Sorted, number_imgui);
+
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Ammo", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.AmmoSections.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -600,7 +842,11 @@ void RenderSpawnManagerWindow() {
 			{
 				size_t number_imgui{};
 				SectionStatistics(imgui_spawn_manager.AddonSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.AddonSections.Sorted, number_imgui);
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Addons", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.AddonSections.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -623,7 +869,11 @@ void RenderSpawnManagerWindow() {
 			{
 				size_t number_imgui{};
 				SectionStatistics(imgui_spawn_manager.ArtefactSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.ArtefactSections.Sorted, number_imgui);
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Artefacts", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.ArtefactSections.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -646,7 +896,11 @@ void RenderSpawnManagerWindow() {
 			{
 				size_t number_imgui{};
 				SectionStatistics(imgui_spawn_manager.OutfitSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.OutfitSections.Sorted, number_imgui);
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Outfits", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.OutfitSections.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -669,7 +923,11 @@ void RenderSpawnManagerWindow() {
 			{
 				size_t number_imgui{};
 				SectionStatistics(imgui_spawn_manager.MpStuffSections);
-				SpawnManager_ProcessSections(imgui_spawn_manager.MpStuffSections.Sorted, number_imgui);
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Multiplayer", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.MpStuffSections.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
 
 				if (imgui_spawn_manager.sort_by_max_cost)
 				{
@@ -688,13 +946,116 @@ void RenderSpawnManagerWindow() {
 				ImGui::EndTabItem();
 			}
 
+			if (imgui_spawn_manager.NpcList.size() > 0)
+			{
+				if (ImGui::BeginTabItem("NPC"))
+				{
+					size_t number_imgui{};
+					ImGui::Text("total sections count: %d", imgui_spawn_manager.NpcList.size());
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##NpcList", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.NpcList, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
+
+					ImGui::EndTabItem();
+				}
+			}
+
+			if (imgui_spawn_manager.Monsters.size() > 0)
+			{
+				if (ImGui::BeginTabItem("Monsters"))
+				{
+					size_t number_imgui{};
+					ImGui::Text("total sections count: %d", imgui_spawn_manager.Monsters.size());
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##Monsters", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Monsters, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
+
+					ImGui::EndTabItem();
+				}
+			}
+
+			if (ImGui::BeginTabItem("Squads"))
+			{
+				size_t number_imgui{};
+				SectionStatistics(imgui_spawn_manager.Squads);
+				static string128 searchBuffer = "";
+				ImGui::InputText("Search##Squads", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+				Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Squads.Sorted, searchBuffer);
+				SpawnManager_ProcessSections(filteredList, number_imgui);
+
+				if (imgui_spawn_manager.Squads.Unsorted.size() > 0)
+				{
+					ImGui::SeparatorText("Unsorted");
+					SpawnManager_ProcessSections(imgui_spawn_manager.Squads.Unsorted, number_imgui);
+				}
+
+				ImGui::EndTabItem();
+			}
+
+			if (imgui_spawn_manager.Anomalies.size() > 0)
+			{
+				if (ImGui::BeginTabItem("Anomalies"))
+				{
+					size_t number_imgui{};
+					ImGui::Text("total sections count: %d", imgui_spawn_manager.Anomalies.size());
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##Anomalies", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Anomalies, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
+
+					ImGui::EndTabItem();
+				}
+			}
+
 			if (imgui_spawn_manager.Vehicles.size() > 0)
 			{
 				if (ImGui::BeginTabItem("Vehicles"))
 				{
 					size_t number_imgui{};
 					ImGui::Text("total sections count: %d", imgui_spawn_manager.Vehicles.size());
-					SpawnManager_ProcessSections(imgui_spawn_manager.Vehicles, number_imgui);
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##Vehicles", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Vehicles, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
+
+					ImGui::EndTabItem();
+				}
+			}
+
+			if (imgui_spawn_manager.Explosives.size() > 0)
+			{
+				if (ImGui::BeginTabItem("Explosives"))
+				{
+					size_t number_imgui{};
+					ImGui::Text("total sections count: %d", imgui_spawn_manager.Explosives.size());
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##Explosives", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Explosives, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
+
+					ImGui::EndTabItem();
+				}
+			}
+
+			if (imgui_spawn_manager.DynamicObjects.size() > 0)
+			{
+				if (ImGui::BeginTabItem("Dynamic Objects"))
+				{
+					size_t number_imgui{};
+					ImGui::Text("total sections count: %d", imgui_spawn_manager.DynamicObjects.size());
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##DynamicObjects", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.DynamicObjects, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
 
 					ImGui::EndTabItem();
 				}
@@ -706,7 +1067,11 @@ void RenderSpawnManagerWindow() {
 				{
 					size_t number_imgui{};
 					ImGui::Text("total sections count: %d", imgui_spawn_manager.Others.size());
-					SpawnManager_ProcessSections(imgui_spawn_manager.Others, number_imgui);
+					static string128 searchBuffer = "";
+					ImGui::InputText("Search##Others", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+
+					Section filteredList = FilterSectionsWithSearch(imgui_spawn_manager.Others, searchBuffer);
+					SpawnManager_ProcessSections(filteredList, number_imgui);
 
 					ImGui::EndTabItem();
 				}
@@ -721,12 +1086,12 @@ void RenderSpawnManagerWindow() {
 
 void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui)
 {
-	auto sm_process_button = [](bool is_table, const std::string_view& section_name, CInifile::Sect* pSection, size_t& number_imgui) {
-		char imname[kSpawnManagerMaxSectionName]{};
+	auto sm_process_button = [](bool is_table, const xr_string_view& section_name, CInifile::Sect* pSection, size_t& number_imgui) {
+		string64 imname{};
 		memcpy_s(imname, sizeof(imname), section_name.data(), section_name.size());
 
-		char index[10]{};
-		sprintf_s(index, sizeof(index), "##%zu", number_imgui);
+		string16 index{};
+		xr_sprintf(index, sizeof(index), "##%zu", number_imgui);
 		memcpy_s(imname + section_name.size(), sizeof(imname), index, sizeof(index));
 
 		if (SpawnManager_RenderButtonOrImage(pSection, imname))
@@ -764,11 +1129,11 @@ void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui)
 
 					if (current_section_index < size_of_sections)
 					{
-						ImGui::TableSetColumnIndex(column);
+						ImGui::TableSetColumnIndex((int)column);
 
 						const auto& pair = sections[current_section_index];
 
-						const std::string_view& section_name = pair.first;
+						const xr_string_view& section_name = pair.first;
 						CInifile::Sect* pSection = pair.second;
 
 						if (!section_name.empty() && pSection)
@@ -778,13 +1143,8 @@ void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui)
 					}
 				}
 			}
-
-
-
 			ImGui::EndTable();
 		}
-
-
 	}
 	else
 	{
@@ -800,13 +1160,14 @@ void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui)
 		}
 	}
 
-
 	std::sort(sections.begin(), sections.end());
 }
 
 bool SpawnManager_RenderButtonOrImage(CInifile::Sect* section, const char* imname)
 {
-	const auto surfaceParams = ::Render->getSurface("ui\\ui_icon_equipment");
+	auto name = section->Name.c_str();
+	const auto surface = READ_IF_EXISTS(pSettings, r_string, name, "icons_texture", "ui\\ui_icon_equipment");
+	const auto surfaceParams = ::Render->getSurface(surface);
 
 	bool isIcon = section->line_exist("inv_grid_x")
 		&& section->line_exist("inv_grid_y")
@@ -816,14 +1177,16 @@ bool SpawnManager_RenderButtonOrImage(CInifile::Sect* section, const char* imnam
 	if (surfaceParams.Surface == nullptr || !isIcon)
 		return ImGui::Button(imname);
 
-	auto name = section->Name.c_str();
-	float x = pSettings->r_float(name, "inv_grid_x") * INV_GRID_WIDTH(isHQIcons);
-	float y = pSettings->r_float(name, "inv_grid_y") * INV_GRID_HEIGHT(isHQIcons);
-	float w = pSettings->r_float(name, "inv_grid_width") * INV_GRID_WIDTH(isHQIcons);
-	float h = pSettings->r_float(name, "inv_grid_height") * INV_GRID_HEIGHT(isHQIcons);
+	float scaleIcon = READ_IF_EXISTS(pSettings, r_float, name, "inv_scale", 1.0f);
+	float x = pSettings->r_float(name, "inv_grid_x") * INV_GRID_WIDTH(scaleIcon);
+	float y = pSettings->r_float(name, "inv_grid_y") * INV_GRID_HEIGHT(scaleIcon);
+	float w = pSettings->r_float(name, "inv_grid_width") * INV_GRID_WIDTH(scaleIcon);
+	float h = pSettings->r_float(name, "inv_grid_height") * INV_GRID_HEIGHT(scaleIcon);
 
 	ImGui::SeparatorText(name);
-	return ImGui::ImageButton(imname, surfaceParams.Surface, { w / (1 + isHQIcons), h / (1 + isHQIcons)},
+	bool isScaleIcon = scaleIcon > 1.0f;
+
+	return ImGui::ImageButton(imname, surfaceParams.Surface, { w / (1 + isScaleIcon), h / (1 + isScaleIcon)},
 		{ x / surfaceParams.w, y / surfaceParams.h },
 		{ (x + w) / surfaceParams.w, (y + h) / surfaceParams.h });
 
@@ -842,43 +1205,52 @@ void SpawnManager_HandleButtonPress(CInifile::Sect* section)
 			imgui_spawn_manager.sound_tip->PlayAtPos(Actor()->lua_game_object(), Fvector().set(0.0f, 0.0f, 0.0f), 0.0f, sm_2D);
 		}
 
-		char text_news[128]{};
+		xr_string text_news_final = "";
+		if (imgui_spawn_manager.legacyNewsMode)
+		{
+			text_news_final += "%c[255,160,160,160]";
+			text_news_final += g_pStringTable->translate("general_in_item").c_str();
+			text_news_final += "\\n%c[default]";
+		}
+
+		string128 text_news;
 		if (section->line_exist("inv_name"))
 		{
 			const char* name = g_pStringTable->translate(pSettings->r_string(section->Name.c_str(), "inv_name")).c_str();
-			sprintf_s(text_news, sizeof(text_news), "[%s] x [%d] (%s)", section->Name.c_str(), count, name);
+			xr_sprintf(text_news, sizeof(text_news), "[%s] x [%d] (%s)", section->Name.c_str(), count, name);
 		}
 		else
 		{
-			sprintf_s(text_news, sizeof(text_news), "[%s] x [%d]", section->Name.c_str(), count);
+			xr_sprintf(text_news, sizeof(text_news), "[%s] x [%d]", section->Name.c_str(), count);
 		}
+		text_news_final += text_news;
 
 		GAME_NEWS_DATA				news_data;
 		news_data.m_type = GAME_NEWS_DATA::eNewsType::eNews;
 		news_data.news_caption = g_pStringTable->translate("general_in_item");
-		news_data.news_text = text_news;
+		news_data.news_text = text_news_final.c_str();
 		news_data.show_time = 3000;
-		news_data.texture_name = "ui_inGame2_Predmet_poluchen";
+		news_data.texture_name = "ui_ixray_spawn_icon";
 		Actor()->AddGameNews(news_data);
 	}
-
 
 	xr_string cmd = "g_spawn_inv ";
 	bool isInvItem = section->line_exist("cost") && section->line_exist("inv_weight");
 
-
 	bool spawn_on_level = imgui_spawn_manager.spawn_on_level;
-	if (pInput)
+	if (pInput != nullptr && pInput->iGetAsyncKeyState(SDL_SCANCODE_LCTRL))
 	{
-		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_LCTRL))
-		{
-			spawn_on_level = !imgui_spawn_manager.spawn_on_level;
-		}
+		spawn_on_level = !imgui_spawn_manager.spawn_on_level;
 	}
 
 	if (spawn_on_level || !isInvItem)
 	{
 		cmd = "g_spawn ";
+	}
+
+	if (g_pClsidManager->is_squad(pSettings->r_clsid(section->Name.c_str(), "class")))
+	{
+		cmd = "g_spawn_squad ";
 	}
 
 	cmd += section->Name.c_str();
@@ -941,21 +1313,53 @@ float SpawnManager_ParseHitPower(const shared_str& hit_str) {
 
 	Fvector4 fvHitPower{};
 	string32 buffer{};
-	fvHitPower[egdMaster] = (float)atof(_GetItem(*hit_str, 0, buffer));//первый параметр - это хит для уровня игры мастер
-	fvHitPower[egdNovice] = fvHitPower[egdStalker] = fvHitPower[egdVeteran] = fvHitPower[egdMaster];//изначально параметры для других уровней сложности такие же
-	int num_game_diff_param = _GetItemCount(*hit_str);//узнаём колличество параметров для хитов
-	if (num_game_diff_param > 1)//если задан второй параметр хита
+	fvHitPower[egdMaster] = (float)atof(_GetItem(*hit_str, 0, buffer));
+	fvHitPower[egdNovice] = fvHitPower[egdStalker] = fvHitPower[egdVeteran] = fvHitPower[egdMaster];
+	int num_game_diff_param = _GetItemCount(*hit_str);
+	if (num_game_diff_param > 1)
 	{
-		fvHitPower[egdVeteran] = (float)atof(_GetItem(*hit_str, 1, buffer));//то вычитываем его для уровня ветерана
+		fvHitPower[egdVeteran] = (float)atof(_GetItem(*hit_str, 1, buffer));
 	}
-	if (num_game_diff_param > 2)//если задан третий параметр хита
+	if (num_game_diff_param > 2)
 	{
-		fvHitPower[egdStalker] = (float)atof(_GetItem(*hit_str, 2, buffer));//то вычитываем его для уровня сталкера
+		fvHitPower[egdStalker] = (float)atof(_GetItem(*hit_str, 2, buffer));
 	}
-	if (num_game_diff_param > 3)//если задан четвёртый параметр хита
+	if (num_game_diff_param > 3)
 	{
-		fvHitPower[egdNovice] = (float)atof(_GetItem(*hit_str, 3, buffer));//то вычитываем его для уровня новичка
+		fvHitPower[egdNovice] = (float)atof(_GetItem(*hit_str, 3, buffer));
 	}
 
 	return fvHitPower[g_SingleGameDifficulty];
+}
+
+Section FilterSectionsWithSearch(const Section& sections, const char* searchBuffer)
+{
+	if (!searchBuffer || !*searchBuffer)
+		return sections;
+
+	xr_string searchStr = xr_strlwr_rus(Platform::UTF8_to_CP1251(searchBuffer));
+
+	Section filtered;
+	filtered.reserve(sections.size());
+
+	std::copy_if(sections.begin(), sections.end(),
+		std::back_inserter(filtered),
+		[&](const xr_pair<xr_string_view, CInifile::Sect*>& pair)
+		{
+			if (!pair.second)
+				return false;
+
+			const char* sectionKey = pair.first.data();
+
+			xr_string lowerSectionName = xr_strlwr_rus(sectionKey);
+
+			const char* rawName = READ_IF_EXISTS(pSettings, r_string, sectionKey, "inv_name", sectionKey);
+
+			xr_string lowerTranslated = xr_strlwr_rus(g_pStringTable->translate(rawName).c_str());
+
+			return lowerSectionName.find(searchStr) != xr_string::npos ||
+				lowerTranslated.find(searchStr) != xr_string::npos;
+		});
+
+	return filtered;
 }

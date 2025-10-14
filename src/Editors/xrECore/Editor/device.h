@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../../../xrEngine/device.h"
 #include "UI_Camera.h"
@@ -38,6 +38,7 @@ private:
 	float m_fNearer;
 
 	ref_shader m_CurrentShader;
+	ref_texture SearchIcon;
 
 	void _SetupStates();
 	void _Create(IReader* F);
@@ -50,8 +51,7 @@ public:
 	ref_texture texture_null;
 	Fmaterial m_DefaultMat;
 
-public:
-	float RadiusRender;
+	float RenderRadius;
 	u32 dwRealWidth, dwRealHeight;
 	float m_RenderArea;
 	float m_ScreenQuality;
@@ -62,13 +62,6 @@ public:
 	RECT NormalWinSize;
 	bool NormalWinSizeSaved = false;
 	bool isZoomed = false;
-	//bool isMoving = false;
-public:
-	// camera
-	CRegistrator<pureDrawUI> seqDrawUI;
-
-	// Dependent classes
-	CResourceManager* Resources;
 
 public:
 	CEditorRenderDevice();
@@ -174,14 +167,18 @@ public:
 public:
 	Shader_xrLC_LIB ShaderXRLC;
 
+	// camera
+	CRegistrator<pureDrawUI> seqDrawUI;
+
+	// Dependent classes
+	CResourceManager* Resources;
+
 private:
 	virtual void _BCL AddSeqFrame(pureFrame* f, bool mt);
 	virtual void _BCL RemoveSeqFrame(pureFrame* f);
 
-private:
-	HWND hwnd;
 public:
-	HWND GetHWND() { return hwnd; }
+	HWND GetHWND() const;
 	void CreateWindow();
 	void DestryWindow();
 	virtual void Reset(bool precache);

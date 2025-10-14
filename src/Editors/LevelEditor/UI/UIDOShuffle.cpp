@@ -19,9 +19,13 @@ UIDOShuffle::~UIDOShuffle()
 
 	ApplyChanges();
 	xr_delete(m_Props);
-	if (m_Texture) m_Texture->Release();
+	if (m_Texture)
+		IM_TEXTURE_RELEASE(m_Texture);
+
 	ClearIndexForms();
-	if (m_RealTexture)m_RealTexture->Release();
+
+	if (m_RealTexture)
+		IM_TEXTURE_RELEASE(m_RealTexture);
 }
 
 void UIDOShuffle::Draw()
@@ -69,9 +73,10 @@ void UIDOShuffle::Draw()
 	{
 		if (m_RealTexture != m_Texture)
 		{
-			if (m_RealTexture)m_RealTexture->Release();
+			if (m_RealTexture)
+				IM_TEXTURE_RELEASE(m_RealTexture);
+
 			m_RealTexture = m_Texture;
-			if(m_RealTexture) m_RealTexture->AddRef();
 		}
 		ImGui::Image(m_RealTexture ? m_RealTexture :m_TextureNull->pSurface, ImVec2(256, 256));
 
@@ -199,7 +204,7 @@ void UIDOShuffle::LoadFromStream(xr_string& fname)
 	if (Form->DM->ImportColorIndices(fname.c_str()))
 	{
 		Form->DM->InvalidateSlots();
-		Form->FillData();
+		Form->FillData(false);
 		Form->bModif = true;
 	}
 }
@@ -233,43 +238,47 @@ void UIDOShuffle::Show(EDetailManager* DM)
 	VERIFY(!Form);
 	Form = new UIDOShuffle();
 	Form->DM = DM;
-	Form->FillData();
+	Form->FillData(true);
 }
 
-void UIDOShuffle::FillData()
+void UIDOShuffle::FillData(bool ReloadTex)
 {
 	m_list.clear();
 	OnItemFocused(nullptr);
 
 	xr_string TextureMaskPath = DM->m_Base.GetName();
-	m_MaskTexture.destroy();
-	if (!TextureMaskPath.empty())
+
+	if (ReloadTex)
 	{
-		TextureMaskPath += ".dds";
-
-		string_path FullPath;
-		FS.update_path(FullPath, _game_textures_, TextureMaskPath.c_str());
-
-		Pixels = DXTUtils::GitPixels(FullPath, 256, 256);
-
-		// FX: Remove Alpha
-		for (size_t Iter = 3; Iter < Pixels.size(); Iter += 4)
+		m_MaskTexture.destroy();
+		if (!TextureMaskPath.empty())
 		{
-			Pixels[Iter] = 255;
-		}
+			TextureMaskPath += ".dds";
 
-		if (!Pixels.empty())
-		{
-			m_MaskTexture = new CTexture();
-			ID3DTexture2D* pTexture = nullptr;
-			R_CHK(REDevice->CreateTexture(256, 256, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &pTexture, 0));
+			string_path FullPath;
+			FS.update_path(FullPath, _game_textures_, TextureMaskPath.c_str());
+
+			Pixels = DXTUtils::GitPixels(FullPath, 256, 256);
+
+			// FX: Remove Alpha
+			for (size_t Iter = 3; Iter < Pixels.size(); Iter += 4)
 			{
-				D3DLOCKED_RECT rect;
-				R_CHK(pTexture->LockRect(0, &rect, 0, D3DLOCK_DISCARD));
-				memcpy(rect.pBits, Pixels.data(), Pixels.size());
-				R_CHK(pTexture->UnlockRect(0));
+				Pixels[Iter] = 255;
+			}
 
-				m_MaskTexture->pSurface = pTexture;
+			if (!Pixels.empty())
+			{
+				m_MaskTexture = new CTexture();
+				ID3DTexture2D* pTexture = nullptr;
+				R_CHK(REDevice->CreateTexture(256, 256, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &pTexture, 0));
+				{
+					D3DLOCKED_RECT rect;
+					R_CHK(pTexture->LockRect(0, &rect, 0, D3DLOCK_DISCARD));
+					memcpy(rect.pBits, Pixels.data(), Pixels.size());
+					R_CHK(pTexture->UnlockRect(0));
+
+					m_MaskTexture->pSurface = pTexture;
+				}
 			}
 		}
 	}
@@ -300,18 +309,31 @@ void UIDOShuffle::FillData()
 
 void UIDOShuffle::OnItemFocused(const char* name)
 {
-
 	if (!name)
 	{
-		if (m_Texture) m_Texture->Release(); m_Texture = nullptr;
+		if (m_Texture)
+		{
+			IM_TEXTURE_RELEASE(m_Texture);
+			m_Texture = nullptr;
+		}
+
 		m_Props->ClearProperties();
 		m_list_selected = -1;
 		return;
 	}
+
 	m_Thm = ImageLib.CreateThumbnail(name, EImageThumbnail::ETObject);
-	if (m_Texture) m_Texture->Release(); m_Texture = nullptr;
-	if (m_Thm)m_Thm->Update(m_Texture);
-	if (m_Thm)xr_delete(m_Thm);
+	if (m_Texture)
+	{
+		IM_TEXTURE_RELEASE(m_Texture);
+		m_Texture = nullptr;
+	}
+	
+	if (m_Thm)
+		m_Thm->Update((ID3DBaseTexture*&)m_Texture);
+
+	xr_delete(m_Thm);
+
 	EDetail *dd= DM->FindDOByName(name);
 	VERIFY(dd);
 	PropItemVec items;

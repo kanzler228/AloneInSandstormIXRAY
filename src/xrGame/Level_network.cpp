@@ -20,6 +20,8 @@
 #include "ui/UIGameTutorial.h"
 #include "ui/UIPdaWnd.h"
 #include "../xrNetServer/NET_AuthCheck.h"
+#include "Actor.h"
+#include "holder_custom.h"
 
 #include "../xrPhysics/PhysicsCommon.h"
 ENGINE_API bool g_dedicated_server;
@@ -31,6 +33,7 @@ extern bool	g_b_ClearGameCaptions;
 
 void CLevel::remove_objects	()
 {
+	PROF_EVENT("remove_objects");
 	if (!IsGameTypeSingle()) Msg("CLevel::remove_objects - Start");
 	BOOL						b_stored = psDeviceFlags.test(rsDisableObjectsAsCrows);
 	
@@ -117,9 +120,10 @@ void CLevel::remove_objects	()
 extern CUISequencer * g_tutorial;
 extern CUISequencer * g_tutorial2;
 
-void CLevel::net_Stop		()
+void CLevel::net_Stop()
 {
-	Msg							("- Disconnect");
+	Msg("- Disconnect");
+	script_client_events.clear();
 
 	if(CurrentGameUI())
 	{
@@ -187,11 +191,22 @@ void CLevel::ClientSend()
 		if (CurrentControlEntity()) 
 		{
 			CObject* pObj = CurrentControlEntity();
+
+			if (CActor* act = smart_cast<CActor*>(pObj))
+			{
+				if (act->Holder() != nullptr)
+				{
+					if (CObject* holder = act->Holder()->cast_game_object())
+					{
+						pObj = holder;
+					}
+				}
+			}
+
 			if (!pObj->getDestroy() && pObj->net_Relevant())
 			{				
 				P.w_begin		(M_CL_UPDATE);
 				
-
 				P.w_u16			(u16(pObj->ID()));
 				P.w_u32			(0);	//reserved place for client's ping
 
@@ -246,7 +261,7 @@ void CLevel::ClientSave()
 		if (!O || O->getDestroy())
 			continue;
 
-		CGameObject* GO = smart_cast<CGameObject*>(O);
+		CGameObject* GO = O->cast_game_object();
 		if (!GO || !GO->net_SaveRelevant())
 			continue;
 
@@ -453,16 +468,7 @@ void CLevel::OnConnectResult(NET_Packet*	P)
 			{
 				if (strstr(ResultStr, "Data verification failed. Cheater?"))
 					MainMenu()->SetErrorDialog(CMainMenu::ErrDifferentVersion);
-			}break;
-		case ecr_cdkey_validation_failed:		//GameSpy CDKey
-			{
-				if (!xr_strcmp(ResultStr, "Invalid CD Key"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInvalid);//, ResultStr);
-				if (!xr_strcmp(ResultStr, "CD Key in use"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInUse);//, ResultStr);
-				if (!xr_strcmp(ResultStr, "Your CD Key is disabled. Contact customer service."))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyDisabled);//, ResultStr);
-			}break;		
+			}break;	
 		case ecr_password_verification_failed:		//login+password
 			{
 				MainMenu()->SetErrorDialog(CMainMenu::ErrInvalidPassword);

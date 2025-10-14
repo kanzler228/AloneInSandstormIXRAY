@@ -1,43 +1,37 @@
 #include "stdafx.h"
 #include "Utils/Cursor3D.h"
-#include "..\xrengine\GameFont.h"
+#include "../xrengine\GameFont.h"
 #include "UI\UIEditLibrary.h"
 #include "Editor/Utils/ContentView.h"
-
-#ifdef _LEVEL_EDITOR
-//.    if (m_Cursor->GetVisible()) RedrawScene();
-#endif
+#include "../xrECore/Editor/UIEditLightAnim.h"
 
 ECORE_API extern bool bIsLevelEditor;
-CLevelMain*	LUI=(CLevelMain*)UI;
+CLevelMain* LUI = (CLevelMain*)UI;
 
 CLevelMain::CLevelMain()
 {
-	m_Cursor        = new C3DCursor();
-	EPrefs			= new CLevelPreferences();
+	m_Cursor = new C3DCursor();
+	EPrefs = new CLevelPreferences();
 }
 
 CLevelMain::~CLevelMain()
 {
-	xr_delete		(EPrefs);
-	xr_delete		(m_Cursor);
-   // TClipMaker::DestroyForm(g_clip_maker);
+	xr_delete(EPrefs);
+	xr_delete(m_Cursor);
 }
-
-
 
 // Tools commands
 CCommandVar CLevelTool::CommandChangeTarget(CCommandVar p1, CCommandVar p2)
 {
 	if (Scene->GetTool(p1)->IsEnabled())
 	{
-		SetTarget	(p1,p2);
-		ExecCommand	(COMMAND_UPDATE_PROPERTIES);
-		return 		TRUE;
-	}else{
-		return 		FALSE;
+		SetTarget(p1, p2);
+		ExecCommand(COMMAND_UPDATE_PROPERTIES);
+		return TRUE;
 	}
+	return FALSE;
 }
+
 CCommandVar CLevelTool::CommandShowObjectList(CCommandVar p1, CCommandVar p2)
 {
 	if (LUI->GetEState()==esEditScene) ShowObjectList();
@@ -47,64 +41,57 @@ CCommandVar CLevelTool::CommandShowObjectList(CCommandVar p1, CCommandVar p2)
 // Main commands
 CCommandVar CommandLibraryEditor(CCommandVar p1, CCommandVar p2)
 {
-	//if (Scene->ObjCount() || (LUI->GetEState() != esEditScene))
-	//{
-	//	if (LUI->GetEState() == esEditLibrary)
-	//		UIEditLibrary::Show();
-	//	else
-	//		ELog.DlgMsg(mtError, "! Scene must be empty before editing library!");
-	//}
-	//else
-		UIEditLibrary::Show();
+	UIEditLibrary::Show();
 
 	return TRUE;
 }
+
 CCommandVar CommandLAnimEditor(CCommandVar p1, CCommandVar p2)
 {
-	//TfrmEditLightAnim::ShowEditor();
+	UIEditLightAnim::Show();
 	return TRUE;
 }
-CCommandVar CommandFileMenu(CCommandVar p1, CCommandVar p2)
-{
-	//FHelper.ShowPPMenu(fraLeftBar->pmSceneFile,0);
-	return TRUE;
-}
+
 CCommandVar CommandLoadCustomIcons(CCommandVar p1, CCommandVar p2)
 {
 	GContentView->LoadCustomIcons();
 	return TRUE;
 }
+
 CCommandVar CommandRemoveCustomIcon(CCommandVar p1, CCommandVar p2)
 {
 	GContentView->RemoveCustomIcon(p1);
 	return TRUE;
 }
+
 CCommandVar CLevelTool::CommandEnableTarget(CCommandVar p1, CCommandVar p2)
 {
-	ESceneToolBase* M 	= Scene->GetTool(p1);
-	VERIFY					(M);
-	BOOL res				= FALSE;
+	ESceneToolBase* M = Scene->GetTool(p1);
+	VERIFY(M);
+	BOOL res = FALSE;
 	if (p2)
 	{
-		res 				= ExecCommand(COMMAND_LOAD_LEVEL_PART,M->FClassID,TRUE);
-		if(res)
-			M->m_EditFlags.set(ESceneToolBase::flEnable,TRUE);
-	}else
+		res = ExecCommand(COMMAND_LOAD_LEVEL_PART, M->FClassID, TRUE);
+		if (res)
+			M->m_EditFlags.set(ESceneToolBase::flEnable, TRUE);
+	}
+	else
 	{
 		if (!Scene->IfModified())
 		{
-			M->m_EditFlags.set(ESceneToolBase::flEnable,TRUE);
-			res				= FALSE;
-		}else
-		{
-			res				= ExecCommand(COMMAND_UNLOAD_LEVEL_PART,M->FClassID,TRUE);
-			if(res)
-				M->m_EditFlags.set(ESceneToolBase::flEnable,FALSE);
+			M->m_EditFlags.set(ESceneToolBase::flEnable, TRUE);
+			res = FALSE;
 		}
-		if (res)        	
-			ExecCommand(COMMAND_CHANGE_TARGET,OBJCLASS_SCENEOBJECT);
+		else
+		{
+			res = ExecCommand(COMMAND_UNLOAD_LEVEL_PART, M->FClassID, TRUE);
+			if (res)
+				M->m_EditFlags.set(ESceneToolBase::flEnable, FALSE);
+		}
+		if (res)
+			ExecCommand(COMMAND_CHANGE_TARGET, OBJCLASS_SCENEOBJECT);
 	}
-	ExecCommand				(COMMAND_REFRESH_UI_BAR);
+
 	return res;
 }
 
@@ -121,33 +108,21 @@ CCommandVar CLevelTool::CommandShowTarget(CCommandVar p1, CCommandVar p2)
 
 CCommandVar CLevelTool::CommandReadonlyTarget(CCommandVar p1, CCommandVar p2)
 {
-	ESceneToolBase* M 		= Scene->GetTool(p1); VERIFY(M);
-	BOOL res				= TRUE;
-	if (p2){
+	ESceneToolBase* M = Scene->GetTool(p1); VERIFY(M);
+	BOOL res = TRUE;
+	if (p2)
+	{
 		if (!Scene->IfModified())
 		{
-			M->m_EditFlags.set(ESceneToolBase::flForceReadonly,FALSE);
-			res				= FALSE;
-		}else
-		{
-//.            xr_string pn	= Scene->LevelPartName(LTools->m_LastFileName.c_str(),M->ClassID);
+			M->m_EditFlags.set(ESceneToolBase::flForceReadonly, FALSE);
+			res = FALSE;
 		}
-	}else
-	{
-//.        xr_string pn		= Scene->LevelPartName(LTools->m_LastFileName.c_str(), M->ClassID);
 	}
 	if (res)
 	{
-		Reset				();
-		ExecCommand			(COMMAND_REFRESH_UI_BAR);
+		Reset();
 	}
 	return res;
-}
-
-CCommandVar CLevelTool::CommandMultiReplaceObjects(CCommandVar p1, CCommandVar p2)
-{
-
-	return false;
 }
 
 CCommandVar CLevelTool::CommandMultiRenameObjects(CCommandVar p1, CCommandVar p2)
@@ -323,8 +298,12 @@ CCommandVar CommandClear(CCommandVar p1, CCommandVar p2)
 {
 	LoaderEvent.wait();
 
-	if( !Scene->locked() ){
-		if (!Scene->IfModified()) return TRUE;
+	if( !Scene->locked() )
+	{
+		Scene->Stop();
+		
+		if (!Scene->IfModified()) 
+			return TRUE;
 		UI->CurrentView().m_Camera.Reset	();
 		Scene->Reset			();
 		Scene->m_LevelOp.Reset	();
@@ -355,12 +334,14 @@ CCommandVar CommandClearDebugDraw(CCommandVar p1, CCommandVar p2)
 	UI->RedrawScene				();
 	return 						TRUE;
 }
+
+#include "Utils/ClipMaker.h"
 CCommandVar CommandShowClipEditor(CCommandVar p1, CCommandVar p2)
 {
-/*	if(g_clip_maker==NULL)
-	   g_clip_maker = TClipMaker::CreateForm();
+	if(g_clip_maker==NULL)
+	   g_clip_maker = new TClipMaker();
 
-	if(!g_clip_maker->Visible)	
+	//if(!g_clip_maker->)	
 	{
 		ESceneCustomOTool* st = Scene->GetOTool(OBJCLASS_SPAWNPOINT);
 
@@ -383,10 +364,12 @@ CCommandVar CommandShowClipEditor(CCommandVar p1, CCommandVar p2)
 		CSpawnPoint* sp = smart_cast<CSpawnPoint*>(CO);
 
 		
-		CKinematicsAnimated* KA 	= PKinematicsAnimated(sp->m_SpawnData.m_Visual->visual);
-		R_ASSERT					(KA);
-		g_clip_maker->ShowEditor	(KA);
-	}*/
+		if (CKinematicsAnimated* KA = PKinematicsAnimated(sp->m_SpawnData.m_Visual->visual))
+		{
+			g_clip_maker->ShowEditor(KA);
+			UI->Push(g_clip_maker);
+		}
+	}
 	return 							TRUE;
 }
 
@@ -442,6 +425,23 @@ CCommandVar CommandCleanLibrary(CCommandVar p1, CCommandVar p2)
 CCommandVar CommandReloadObjects(CCommandVar p1, CCommandVar p2)
 {
 	Lib.ReloadObjects	();
+
+	ObjectIt _F = Scene->FirstObj(OBJCLASS_SECTOR);
+	ObjectIt _E = Scene->LastObj(OBJCLASS_SECTOR);
+	for (; _F != _E; _F++)
+	{
+		CSector* _S = (CSector*)(*_F);
+		_S->ReloadObjectsReferences();
+	}
+
+	_F = Scene->FirstObj(OBJCLASS_SCENEOBJECT);
+	_E = Scene->LastObj(OBJCLASS_SCENEOBJECT);
+	for (; _F != _E; _F++)
+	{
+		CSceneObject* _S = (CSceneObject*)(*_F);
+		_S->ReloadReferences();
+	}
+
 	return 				TRUE;
 }
 
@@ -696,7 +696,17 @@ CCommandVar CommandMakeAIMap(CCommandVar p1, CCommandVar p2)
 {
 	if( !Scene->locked() ){
 		if (mrYes==ELog.DlgMsg(mtConfirmation, mbYes |mbNo, "Are you sure to export ai-map?"))
-			return 				Builder.MakeAIMap( );
+			return 				Builder.MakeAIMap(false);
+	}else{
+		ELog.DlgMsg( mtError, "Scene sharing violation" );
+	}
+	return 						FALSE;
+}
+CCommandVar CommandMakeAIMapLegacy(CCommandVar p1, CCommandVar p2)
+{
+	if( !Scene->locked() ){
+		if (mrYes==ELog.DlgMsg(mtConfirmation, mbYes |mbNo, "Are you sure to export ai-map?"))
+			return 				Builder.MakeAIMap(true);
 	}else{
 		ELog.DlgMsg( mtError, "Scene sharing violation" );
 	}
@@ -899,6 +909,62 @@ CCommandVar CommandHideSel(CCommandVar p1, CCommandVar p2)
 		return 					FALSE;
 	}
 }
+
+CCommandVar CommandCreateShapeSphere(CCommandVar p1, CCommandVar p2)
+{
+	Fvector p, n;
+	if (LUI->PickGround(p, UI->m_ContextRStart, UI->m_ContextRDir, 1, &n))
+	{
+		// before callback
+		string256 namebuffer;
+		Scene->GenObjectName(OBJCLASS_SHAPE, namebuffer, Scene->LevelPrefix().c_str());
+		auto obj = Scene->GetOTool(OBJCLASS_SHAPE)->CreateObject(nullptr, namebuffer);
+		if (!obj->Valid())
+		{
+			xr_delete(obj);
+			return 0;
+		}
+
+		CEditShape* shape = static_cast<CEditShape*>(obj);
+		Fsphere M;
+		M.identity();
+		shape->add_sphere(M);
+		obj->MoveTo(p, n);
+		Scene->SelectObjects(false, OBJCLASS_SHAPE);
+		Scene->AppendObject(obj);
+		ExecCommand(COMMAND_CHANGE_TARGET, OBJCLASS_SHAPE);
+	}
+
+	return TRUE;
+}
+
+CCommandVar CommandCreateShapeBox(CCommandVar p1, CCommandVar p2)
+{
+	Fvector p, n;
+	if (LUI->PickGround(p, UI->m_ContextRStart, UI->m_ContextRDir, 1, &n))
+	{
+		// before callback
+		string256 namebuffer;
+		Scene->GenObjectName(OBJCLASS_SHAPE, namebuffer, Scene->LevelPrefix().c_str());
+		auto obj = Scene->GetOTool(OBJCLASS_SHAPE)->CreateObject(nullptr, namebuffer);
+		if (!obj->Valid())
+		{
+			xr_delete(obj);
+			return 0;
+		}
+
+		CEditShape* shape = static_cast<CEditShape*>(obj);
+		Fmatrix M;
+		M.identity();
+		shape->add_box(M);
+		obj->MoveTo(p, n);
+		Scene->SelectObjects(false, OBJCLASS_SHAPE);
+		Scene->AppendObject(obj);
+		ExecCommand(COMMAND_CHANGE_TARGET, OBJCLASS_SHAPE);
+	}
+	return TRUE;
+}
+
 CCommandVar CommandHideAll(CCommandVar p1, CCommandVar p2)
 {
 	if( !Scene->locked() ){
@@ -1018,31 +1084,7 @@ CCommandVar CommandShowContextMenu(CCommandVar p1, CCommandVar p2)
 	LUI->ShowContextMenu		(p1);
 	return 						TRUE;
 }
-//------        
-CCommandVar CommandRefreshUIBar(CCommandVar p1, CCommandVar p2)
-{
-	/*if(MainForm)
-		if(MainForm->GetTopBarForm())
-			MainForm->GetTopBarForm()->RefreshBar();
-	fraTopBar->RefreshBar		();
-	fraLeftBar->RefreshBar		();
-	fraBottomBar->RefreshBar	();*/
-	return 						TRUE;
-}
-CCommandVar CommandRestoreUIBar(CCommandVar p1, CCommandVar p2)
-{
-	/*fraTopBar->fsStorage->RestoreFormPlacement();
-	fraLeftBar->fsStorage->RestoreFormPlacement();
-	fraBottomBar->fsStorage->RestoreFormPlacement();*/
-	return 						TRUE;
-}
-CCommandVar CommandSaveUIBar(CCommandVar p1, CCommandVar p2)
-{
-   /* fraTopBar->fsStorage->SaveFormPlacement();
-	fraLeftBar->fsStorage->SaveFormPlacement();
-	fraBottomBar->fsStorage->SaveFormPlacement();*/
-	return 						TRUE;
-}
+
 CCommandVar CommandUpdateToolBar(CCommandVar p1, CCommandVar p2)
 {
  /*   fraLeftBar->UpdateBar		();*/
@@ -1095,13 +1137,11 @@ void CLevelMain::RegisterCommands()
 	REGISTER_CMD_C	    (COMMAND_SHOW_TARGET,           	LTools,CLevelTool::CommandShowTarget);
 	REGISTER_CMD_C	    (COMMAND_READONLY_TARGET,          	LTools,CLevelTool::CommandReadonlyTarget);
 	REGISTER_CMD_C	    (COMMAND_MULTI_RENAME_OBJECTS,     	LTools,CLevelTool::CommandMultiRenameObjects);
-	REGISTER_CMD_C	    (COMMAND_MULTI_REPLACE_OBJECTS,     LTools,CLevelTool::CommandMultiReplaceObjects);
 
 	REGISTER_CMD_CE	    (COMMAND_SHOW_OBJECTLIST,           "Scene\\Show Object List",		LTools,CLevelTool::CommandShowObjectList, false);
 	// common
 	REGISTER_CMD_S	    (COMMAND_LIBRARY_EDITOR,           	CommandLibraryEditor);
 	REGISTER_CMD_S	    (COMMAND_LANIM_EDITOR,            	CommandLAnimEditor);
-	REGISTER_CMD_SE	    (COMMAND_FILE_MENU,              	"File\\Menu",					CommandFileMenu, 		true);
 	REGISTER_CMD_S		(COMMAND_LOAD_LEVEL_PART,			CommandLoadLevelPart);
 	REGISTER_CMD_S		(COMMAND_UNLOAD_LEVEL_PART,			CommandUnloadLevelPart);
 	REGISTER_CMD_SE	    (COMMAND_LOAD,              		"File\\Load Level", 			CommandLoad, 			true);
@@ -1137,6 +1177,7 @@ void CLevelMain::RegisterCommands()
 	REGISTER_CMD_SE	    (COMMAND_MAKE_GAME,              	"Compile\\Make Game",	        CommandMakeGame,false);
 	REGISTER_CMD_SE	    (COMMAND_MAKE_PUDDLES,             	"Compile\\Make Puddles",	    CommandMakePuddles,false);
 	REGISTER_CMD_SE	    (COMMAND_MAKE_AIMAP,              	"Compile\\Make AI Map",	        CommandMakeAIMap,false);
+	REGISTER_CMD_SE	    (COMMAND_MAKE_AIMAP_LEGACY,        	"Compile\\Make AI Map Legacy",  CommandMakeAIMapLegacy,false);
 	REGISTER_CMD_SE	    (COMMAND_MOVE_GIZMO,              	"Gizmo\\Set at camera",	        CommandMakeGizmo,false);
 	REGISTER_CMD_SE	    (COMMAND_UPDATE_GIZMO,             	"Gizmo\\Update at camera",	    CommandUpdateGizmo,false);
 	REGISTER_CMD_SE	    (COMMAND_MAKE_DETAILS,              "Compile\\Make Details",        CommandMakeDetails,false);
@@ -1149,6 +1190,8 @@ void CLevelMain::RegisterCommands()
 	REGISTER_CMD_SE	    (COMMAND_HIDE_UNSEL,              	"Visibility\\Hide Unselected",	CommandHideUnsel,false);
 	REGISTER_CMD_SE	    (COMMAND_HIDE_SEL,              	"Visibility\\Hide Selected", 	CommandHideSel,false);
 	REGISTER_CMD_SE	    (COMMAND_HIDE_ALL,              	"Visibility\\Hide All", 		CommandHideAll,false);
+	REGISTER_CMD_SE	    (COMMAND_CREATE_SHAPE_BOX,         	"Create\\Box", 					CommandCreateShapeBox,false);
+	REGISTER_CMD_SE	    (COMMAND_CREATE_SHAPE_SPHERE,      	"Create\\Sphere", 				CommandCreateShapeSphere,false);
 	REGISTER_CMD_S	    (COMMAND_LOCK_ALL,              	CommandLockAll);
 	REGISTER_CMD_S	    (COMMAND_LOCK_SEL,					CommandLockSel);
 	REGISTER_CMD_S	    (COMMAND_LOCK_UNSEL,              	CommandLockUnsel);
@@ -1163,9 +1206,6 @@ void CLevelMain::RegisterCommands()
 	REGISTER_CMD_S	    (COMMAND_ICON_REMOVE, CommandRemoveCustomIcon);
 	REGISTER_CMD_S	    (COMMAND_REFRESH_SOUND_ENV_GEOMETRY,CommandRefreshSoundEnvGeometry);
 	REGISTER_CMD_S	    (COMMAND_SHOWCONTEXTMENU,           CommandShowContextMenu);
-	REGISTER_CMD_S	    (COMMAND_REFRESH_UI_BAR,            CommandRefreshUIBar);
-	REGISTER_CMD_S	    (COMMAND_RESTORE_UI_BAR,            CommandRestoreUIBar);
-	REGISTER_CMD_S	    (COMMAND_SAVE_UI_BAR,              	CommandSaveUIBar);
 	REGISTER_CMD_S	    (COMMAND_UPDATE_TOOLBAR,            CommandUpdateToolBar);
 	REGISTER_CMD_S	    (COMMAND_UPDATE_CAPTION,            CommandUpdateCaption);
 	REGISTER_CMD_S	    (COMMAND_CREATE_SOUND_LIB,          CommandCreateSoundLib);
@@ -1246,46 +1286,37 @@ bool EditLibPickObjectGeometry(  Fvector& hitpoint,  const Fvector& start, const
 	return false;
 }
 
-bool ScenePickObjectGeometry( Fvector& hitpoint,  const Fvector& start, const Fvector& direction, int bSnap, Fvector* hitnormal )
+bool ScenePickObjectGeometry(Fvector& hitpoint, const Fvector& start, const Fvector& direction, int bSnap, Fvector* hitnormal)
 {
-
-	SRayPickInfo pinf;
-
-   
-	SRayPickInfo l_pinf;
-	bool bResult = false;
-
+	constexpr std::array ObjClasses = 
 	{
-	  SRayPickInfo l_pinf;
-	  bool l_bres = Scene->RayPickObject( l_pinf.inf.range, start,direction, OBJCLASS_SPAWNPOINT , &l_pinf, Scene->GetSnapList(false) );
-	  
-	  if( l_bres )
-	  {
-		  pinf = l_pinf;
-		  bResult = true;
-	  }
-	  
-	}
-	{
-	
-	 SRayPickInfo l_pinf;
-	 bool l_bres = Scene->RayPickObject( l_pinf.inf.range, start, direction, OBJCLASS_SCENEOBJECT , &l_pinf, Scene->GetSnapList(false) );
+	   OBJCLASS_SPAWNPOINT,
+	   OBJCLASS_SCENEOBJECT,
+	   OBJCLASS_TERRAIN
+	};
 
-	 if( !bResult||(l_bres && l_pinf.inf.range < pinf.inf.range) )
-		  pinf = l_pinf;
-	 if( l_bres )
-		   bResult = true;
-		   
+	xr_optional<SRayPickInfo> Hits;
+
+	for (ESceneItemsGuids objClass : ObjClasses)
+	{
+		SRayPickInfo currentInfo;
+		if (Scene->RayPickObject(currentInfo.inf.range, start, direction, objClass, &currentInfo, Scene->GetSnapList(false)))
+		{
+			if (!Hits || currentInfo.inf.range < Hits->inf.range)
+			{
+				Hits = currentInfo;
+			}
+		}
 	}
 
+	if (Hits)
+	{
+		RetrieveSceneObjPointAndNormal(hitpoint, hitnormal, *Hits, bSnap);
+		return true;
+	}
 
-	 if( bResult )
-			RetrieveSceneObjPointAndNormal( hitpoint,  hitnormal, pinf, bSnap );
-			
-	 return  bResult;
-
+	return false;
 }
-
 
 bool PickObjectGeometry( EEditorState est, Fvector& hitpoint,  const Fvector& start, const Fvector& direction, int bSnap, Fvector* hitnormal )
 {
@@ -1472,7 +1503,8 @@ void CLevelMain::LoadSettings(nlohmann::json& js)
 
 Ivector2 CLevelMain::GetRenderMousePosition() const
 {
-	return MainForm->GetRenderForm()->GetMousePos();
+	TUI::Viewport& Viewport = UI->CurrentView();
+	return Viewport.ViewportForm->GetMousePos();
 }
 
 void CLevelMain::OnDrawUI()

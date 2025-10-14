@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "UI_ToolsCustom.h"
 #include "EditObject.h"
@@ -63,14 +63,12 @@ void CToolCustom::SetAction(ETAction action)
 	m_Action = action;
 
 	UI->RedrawScene();
-	ExecCommand(COMMAND_REFRESH_UI_BAR);
 }
 
 void CToolCustom::SetAxis(ETAxis axis)
 {
 	m_Axis = axis;
 	UI->RedrawScene();
-	ExecCommand(COMMAND_REFRESH_UI_BAR);
 }
 
 
@@ -78,7 +76,6 @@ void CToolCustom::SetSettings(u32 mask, BOOL val)
 {
 	m_Settings.set(mask,val);
 	UI->RedrawScene();
-	ExecCommand(COMMAND_REFRESH_UI_BAR);
 }
 
 

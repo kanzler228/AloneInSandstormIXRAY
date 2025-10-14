@@ -20,6 +20,8 @@
 #include "inventory_upgrade_manager.h"
 #include "inventory_upgrade.h"
 #include "inventory_upgrade_property.h"
+#include "Level.h"
+#include "../../xrUI/UIHelper.h"
 
 
 UIProperty::UIProperty()
@@ -66,7 +68,7 @@ UIProperty::Property_type* UIProperty::get_property()
 	{
 		return nullptr;
 	}
-	Property_type* proper = ai().alife().inventory_upgrade_manager().get_property( m_property_id );
+	Property_type* proper = Level().m_upgrade_manager->get_property(m_property_id);
 	VERIFY( proper );
 	return proper;
 }
@@ -100,7 +102,7 @@ bool UIProperty::compute_value( ItemUpgrades_type const& item_upgrades )
 	ItemUpgrades_type::const_iterator ie_upg = item_upgrades.end();
 	for ( ; ib_upg != ie_upg; ++ib_upg )
 	{
-		Upgrade_type* upgr = ai().alife().inventory_upgrade_manager().get_upgrade( *ib_upg );
+		Upgrade_type* upgr = Level().m_upgrade_manager->get_upgrade(*ib_upg);
 		VERIFY( upgr );
 		for(u8 i = 0; i < inventory::upgrade::max_properties_count; i++)
 		{
@@ -142,6 +144,38 @@ UIInvUpgPropertiesWnd::UIInvUpgPropertiesWnd()
 {
 	m_properties_ui.reserve( 15 );
 	m_temp_upgrade_vector.reserve( 1 );
+	m_Upgr_line = nullptr;
+	m_iNumUpgr = 0;
+	m_fnext_line_pos = 0.0f;
+	m_fsec_col_pos = 0.0f;
+}
+
+void UIInvUpgPropertiesWnd::UpdateStatsPos(float& h, Fvector2& pos, UIProperty* pWnd, int& counter) const
+{
+
+	// Если элемент четный, размещаем его в правом столбце
+	if ((counter) % 2 == 0)
+	{
+		pos.x = 0.0f; // Левый столбец
+	}
+	else
+	{
+		pos.x = m_fsec_col_pos; // Правый столбец
+	}
+	// Увеличиваем счетчик
+	counter += 1;
+
+	// Устанавливаем вертикальное положение
+	pos.y = h;
+
+	// Если оба столбца заполнены (четное количество элементов), переходим на следующую строку
+	if (counter % 2 == 0)
+	{
+		h += m_fnext_line_pos;
+	}
+
+	// Устанавливаем позицию элемента
+	pWnd->SetWndPos(pos);
 }
 
 UIInvUpgPropertiesWnd::~UIInvUpgPropertiesWnd()
@@ -160,10 +194,10 @@ void UIInvUpgPropertiesWnd::init_from_xml( LPCSTR xml_name )
 
 	CUIXmlInit::InitWindow( ui_xml, "properties", 0, this );
 
-	m_Upgr_line = new CUIStatic();	 
-	AttachChild(m_Upgr_line);
-	m_Upgr_line->SetAutoDelete(true);
-	CUIXmlInit::InitStatic(ui_xml, "properties:upgr_line", 0, m_Upgr_line);
+	if (ui_xml.NavigateToNode("properties:upgr_line"))
+		m_Upgr_line = UIHelper::CreateStatic(ui_xml, "properties:upgr_line", this);
+	m_fsec_col_pos = ui_xml.ReadAttribFlt("properties", 0, "sec_col_pos", UI().is_widescreen() ? 105.f : 130.f);
+	m_fnext_line_pos = ui_xml.ReadAttribFlt("properties", 0, "next_line_pos", 20.f);
 
 	LPCSTR properties_section = "upgrades_properties";
 
@@ -193,28 +227,56 @@ void UIInvUpgPropertiesWnd::init_from_xml( LPCSTR xml_name )
 	ui_xml.SetLocalRoot( stored_root );
 }
 
-void UIInvUpgPropertiesWnd::set_info( ItemUpgrades_type const& item_upgrades )
+void UIInvUpgPropertiesWnd::set_info(ItemUpgrades_type const& item_upgrades)
 {
 	Fvector2 new_size;
+	new_size.set(GetWndPos());
+	float height = 0.f;
+	float visiblePropertiesHeight = 0.0f;
+	m_iNumUpgr = 0;
 	new_size.x = GetWndSize().x;
-	new_size.y = m_Upgr_line->GetWndSize().y+3.0f;
-	
-	Properties_type::iterator ib = m_properties_ui.begin();
-	Properties_type::iterator ie = m_properties_ui.end();
-	for ( ; ib != ie ; ++ib )
-	{
-		UIProperty* ui_property = (*ib);
-		ui_property->Show( false );
+	if (m_Upgr_line)
+		height += m_Upgr_line->GetWndSize().y + 3.0f;
 
-		if ( ui_property->compute_value( item_upgrades ) )
+	for (auto& ui_property : m_properties_ui)
+	{
+		ui_property->Show(false);
+
+		if (ui_property->compute_value(item_upgrades))
 		{
-			ui_property->SetWndPos( Fvector2().set( ui_property->GetWndPos().x, new_size.y ) );
-			new_size.y += ui_property->GetWndSize().y;
-			ui_property->Show( true );
+			new_size.set(ui_property->GetWndPos());
+			new_size.x = 0.f;
+			UpdateStatsPos(height, new_size, ui_property, m_iNumUpgr);
+
+			visiblePropertiesHeight += ui_property->GetWndSize().y;
+			ui_property->Show(true);
 		}
 	}
-	new_size.y += 10.0f;
-	SetWndSize( new_size );
+
+	if (GetParent())
+	{
+		if (m_iNumUpgr % 2 == 0)
+		{
+			height -= visiblePropertiesHeight - (m_fnext_line_pos / 2.f);
+		}
+		else
+		{
+			height += m_fnext_line_pos / 2.f;
+		}
+	}
+	else
+	{
+		if (m_iNumUpgr % 2 != 0)
+		{
+			height += m_fnext_line_pos;
+		}
+		else
+		{
+			visiblePropertiesHeight = 0.0f;
+		}
+	}
+	height += visiblePropertiesHeight;
+	SetHeight(height);
 }
 
 void UIInvUpgPropertiesWnd::set_upgrade_info( Upgrade_type& upgrade )

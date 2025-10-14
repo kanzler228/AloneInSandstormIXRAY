@@ -21,6 +21,13 @@ LPCSTR update_path_script(CLocatorAPI* fs, LPCSTR initial, LPCSTR src)
 	return *temp_2;
 }
 
+//Alundaio: Set flag to rescan all files in path
+void rescan_path_script(CLocatorAPI* fs, LPCSTR initial)
+{
+	fs->get_path(initial)->m_Flags.set(FS_Path::flNeedRescan, TRUE);
+}
+//-Alundaio
+
 class FS_file_list{
 	xr_vector<LPSTR>*	m_p;
 public :
@@ -100,24 +107,28 @@ public:
 
 FS_file_list_ex::FS_file_list_ex(LPCSTR path, u32 flags, LPCSTR mask)
 {
-	FS_Path* P = FS.get_path(path);
-	P->m_Flags.set	(FS_Path::flNeedRescan,TRUE);
-	FS.m_Flags.set	(CLocatorAPI::flNeedCheck,TRUE);
-	FS.rescan_pathes();
-
-	FS_FileSet		files;
-	FS.file_list(files,path,flags,mask);
-
-	for(FS_FileSetIt it=files.begin();it!=files.end();++it){
-		m_file_items.push_back	(FS_item());
-		FS_item& itm			= m_file_items.back();
-		ZeroMemory				(itm.name,sizeof(itm.name));
-		xr_strcat					(itm.name,it->name.c_str());
-		itm.modif				= it->time_write;
-		itm.size				= it->size;
+	if (strstr(path, "$game_saves$"))
+	{
+		FS_Path* P = FS.get_path(path);
+		P->m_Flags.set(FS_Path::flNeedRescan, TRUE);
+		FS.m_Flags.set(CLocatorAPI::flNeedCheck, TRUE);
+		FS.rescan_pathes();
 	}
 
-	FS.m_Flags.set	(CLocatorAPI::flNeedCheck,FALSE);
+	FS_FileSet files;
+	FS.file_list(files, path, flags, mask);
+
+	for (FS_FileSetIt it = files.begin(); it != files.end(); ++it)
+	{
+		m_file_items.push_back(FS_item());
+		FS_item& itm = m_file_items.back();
+		ZeroMemory(itm.name, sizeof(itm.name));
+		xr_strcat(itm.name, it->name.c_str());
+		itm.modif = it->time_write;
+		itm.size = it->size;
+	}
+
+	FS.m_Flags.set(CLocatorAPI::flNeedCheck, FALSE);
 }
 
 void FS_file_list_ex::Sort(u32 flags)
@@ -212,6 +223,9 @@ void fs_registrator::script_register(lua_State *L)
 			.def("update_path",							&update_path_script)
 			.def("get_path",							&CLocatorAPI::get_path)
 			.def("append_path",							&CLocatorAPI::append_path)
+			//Alundaio
+			.def("rescan_path",							&rescan_path_script)
+			//-Alundaio
 			
 			.def("file_delete",							(void	(CLocatorAPI::*)(LPCSTR,LPCSTR)) (&CLocatorAPI::file_delete))
 			.def("file_delete",							(void	(CLocatorAPI::*)(LPCSTR)) (&CLocatorAPI::file_delete))

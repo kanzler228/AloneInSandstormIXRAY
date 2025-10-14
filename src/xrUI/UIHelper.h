@@ -11,6 +11,7 @@ class CUIWindow;
 class CUIStatic;
 class CUITextWnd;
 class CUIProgressBar;
+class CUIProgressShape;
 class CUIFrameLineWnd;
 class CUIFrameWindow;
 class CUI3tButton;
@@ -20,6 +21,8 @@ class CUIDragDropListEx;
 class CUIDragDropReferenceList;
 class CUIEditBox;
 
+#include "Widgets/UIStackPanel.h"
+
 class UI_API UIHelper
 {
 public:
@@ -27,10 +30,12 @@ public:
 	~UIHelper		() {};
 
 	static	CUIStatic*			CreateStatic		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
+	static	CUIStackPanel*		CreateStackPanel	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
 	static	CUITextWnd*			CreateTextWnd		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
 	static	CUIProgressBar*		CreateProgressBar	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIFrameLineWnd*	CreateFrameLine		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIFrameWindow*		CreateFrameWindow	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
+	static	CUIProgressShape*	CreateProgressShape	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
+	static	CUIFrameLineWnd*	CreateFrameLine		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical = true );
+	static	CUIFrameWindow*		CreateFrameWindow	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical = true );
 	static	CUI3tButton*		Create3tButton		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
 	static	CUICheckButton*		CreateCheck			( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
 	static	CUIEditBox*			CreateEditBox		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );

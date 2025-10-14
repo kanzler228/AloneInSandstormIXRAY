@@ -14,6 +14,7 @@ public:
 
 
 	virtual void			Load								(LPCSTR section);
+	virtual void			LoadSounds							(LPCSTR section) override;
 	
 	virtual BOOL 			net_Spawn							(CSE_Abstract* DC);
 	virtual void 			net_Destroy							();
@@ -51,13 +52,21 @@ public:
 	virtual void			DeactivateItem						();
 	virtual bool			GetBriefInfo						(II_BriefInfo& info);
 
-	virtual bool			SendDeactivateItem					();
+	virtual bool			SendDeactivateItem					(bool Force);
 protected:
 	ALife::_TIME_ID			m_dwGrenadeRemoveTime;
 	ALife::_TIME_ID			m_dwGrenadeIndependencyTime;
 	bool					m_bExplosionOnHit;
 	bool					m_bExplosionWhileNotActivated;
 	U32Vec					m_eExplosionHitTypes;
+
+	struct SContactGrenadeParams
+	{
+		u32 SafeTime = 0, DelayTime = 0;
+		bool ExplosionOnKick = false, DeactivateOnLowSpeedContact = false;
+		float MinExplosionSpeed = 0.0f;
+	} m_contact_grenade_params;
+
 protected:
 	ESoundTypes				m_eSoundCheckout;
 private:
@@ -69,11 +78,14 @@ protected:
 public:
 
 	virtual BOOL			UsedAI_Locations					();
+	virtual CGrenade		*cast_grenade						()	{return this;}
 	virtual CExplosive		*cast_explosive						()	{return this;}
 	virtual CMissile		*cast_missile						()	{return this;}
 	virtual CHudItem		*cast_hud_item						()	{return this;}
 	virtual CGameObject		*cast_game_object					()	{return this;}
 	virtual IDamageSource	*cast_IDamageSource					()	{return CExplosive::cast_IDamageSource();}
+
+	SContactGrenadeParams& ContactParams						() { return m_contact_grenade_params; }
 
 	typedef					xr_delegate< void (CGrenade*) >	destroy_callback;
 	void					set_destroy_callback				(destroy_callback callback) 

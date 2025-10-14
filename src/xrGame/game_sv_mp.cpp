@@ -603,7 +603,10 @@ void	game_sv_mp::RespawnPlayer			(ClientID id_who, bool NoSpectator)
 	CSE_ALifeCreatureActor	*pA	=	smart_cast<CSE_ALifeCreatureActor*>(pOwner);
 	CSE_Spectator			*pS =	smart_cast<CSE_Spectator*>(pOwner);
 
-	if (pA)
+	xrClientData* xrSVCData = (xrClientData*)m_server->GetServerClient();
+	bool owner_is_server_actor = !!g_actor_single && (g_actor_single->ID() == pOwner->ID);
+
+	if (pA && !owner_is_server_actor)
 	{
 		//------------------------------------------------------------			
 		AllowDeadBodyRemove(id_who, xrCData->ps->GameID);
@@ -612,7 +615,7 @@ void	game_sv_mp::RespawnPlayer			(ClientID id_who, bool NoSpectator)
 		//------------------------------------------------------------
 	};
 
-	if (pA && !NoSpectator)
+	if (pA && !NoSpectator && !owner_is_server_actor)
 	{
 		//------------------------------------------------------------
 		SpawnPlayer(id_who, "spectator");
@@ -643,33 +646,33 @@ void	game_sv_mp::RespawnPlayer			(ClientID id_who, bool NoSpectator)
 };
 
 
-void	game_sv_mp::SpawnPlayer(ClientID id, LPCSTR N)
+void game_sv_mp::SpawnPlayer(ClientID id, LPCSTR N)
 {
-	xrClientData* CL	= m_server->ID_to_client(id);
+	xrClientData* CL = m_server->ID_to_client(id);
 	//-------------------------------------------------
 	CL->net_PassUpdates = TRUE;
 	//-------------------------------------------------
-	game_PlayerState*	ps_who	=	CL->ps;
+	game_PlayerState* ps_who = CL->ps;
 	ps_who->setFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD);
-	
+
 	// Spawn "actor"
-	CSE_Abstract*	E				=	spawn_begin	(N);													// create SE
-	
-	E->set_name_replace		( get_name_id(id) );					// name
+	CSE_Abstract* E = spawn_begin(N);													// create SE
 
-	E->s_flags.assign		(M_SPAWN_OBJECT_LOCAL | M_SPAWN_OBJECT_ASPLAYER);	// flags
+	E->set_name_replace(get_name_id(id));					// name
 
-	CSE_ALifeCreatureActor	*pA	=	smart_cast<CSE_ALifeCreatureActor*>(E);
-	CSE_Spectator			*pS	=	smart_cast<CSE_Spectator*>(E);
+	E->s_flags.assign(M_SPAWN_OBJECT_LOCAL | M_SPAWN_OBJECT_ASPLAYER);	// flags
 
-	R_ASSERT2	(pA || pS,"Respawned Client is not Actor nor Spectator");
-	
-	if (pA) 
+	CSE_ALifeCreatureActor* pA = smart_cast<CSE_ALifeCreatureActor*>(E);
+	CSE_Spectator* pS = smart_cast<CSE_Spectator*>(E);
+
+	R_ASSERT2(pA || pS, "Respawned Client is not Actor nor Spectator");
+
+	if (pA)
 	{
-		pA->s_team				=	u8(ps_who->team);
-		assign_RP				(pA, ps_who);
-		SetSkin					(E, pA->s_team, ps_who->skin);
-		ps_who->resetFlag		(GAME_PLAYER_FLAG_VERY_VERY_DEAD);
+		pA->s_team = u8(ps_who->team);
+		assign_RP(pA, ps_who);
+		SetSkin(E, pA->s_team, ps_who->skin);
+		ps_who->resetFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD);
 		if (!ps_who->RespawnTime)
 		{
 			OnPlayerEnteredGame(id);
@@ -682,17 +685,18 @@ void	game_sv_mp::SpawnPlayer(ClientID id, LPCSTR N)
 		if (pS)
 		{
 			Fvector Pos, Angle;
-//			ps_who->setFlag(GAME_PLAYER_FLAG_CS_SPECTATOR);
-			if (!GetPosAngleFromActor(id, Pos, Angle)) assign_RP				(E, ps_who);
+			//			ps_who->setFlag(GAME_PLAYER_FLAG_CS_SPECTATOR);
+			if (!GetPosAngleFromActor(id, Pos, Angle)) assign_RP(E, ps_who);
 			else
 			{
 				E->o_Angle.set(Angle);
-				E->o_Position.set(Pos);				
+				E->o_Position.set(Pos);
 			}
 		};
-	
-	Msg		("* %s [%d] respawned as %s", get_name_id(id), E->ID, (0 == pA) ? "spectator" : "actor");
-	spawn_end				(E,id);
+
+	E = spawn_end(E, id);
+
+	Msg("* %s [%d] respawned as %s", get_name_id(id), E->ID, (0 == pA) ? "spectator" : "actor");
 
 	ps_who->SetGameID(CL->owner->ID);
 
@@ -1925,10 +1929,9 @@ void game_sv_mp::DestroyGameItem(CSE_Abstract* entity)
 
 void game_sv_mp::RejectGameItem(CSE_Abstract* entity)
 {
-//	R_ASSERT2( entity, "entity not found for rejecting" );
-	VERIFY2  ( entity, "entity not found for rejecting" );
-	if ( !entity ) {
-		Msg ( "! ERROR: entity not found for rejecting" );
+	if (!entity)
+	{
+		Msg("! ERROR: entity not found for rejecting");
 		return;
 	}
 
@@ -1939,19 +1942,17 @@ void game_sv_mp::RejectGameItem(CSE_Abstract* entity)
 			return;
 	}
 
-	CSE_Abstract*	e_parent = get_entity_from_eid(entity->ID_Parent);
-	
-//	R_ASSERT2( e_parent, make_string<const char*>( "RejectGameItem: parent not found. entity_id = [%d], parent_id = [%d]", entity->ID, entity->ID_Parent ).c_str() );
-	VERIFY2  ( e_parent, make_string<const char*>( "RejectGameItem: parent not found. entity_id = [%d], parent_id = [%d]", entity->ID, entity->ID_Parent ));
-	if ( !e_parent ) {
-		Msg( "! ERROR (RejectGameItem): parent not found. entity_id = [%d], parent_id = [%d]", entity->ID, entity->ID_Parent );
+	CSE_Abstract* e_parent = get_entity_from_eid(entity->ID_Parent);
+	if (!e_parent)
+	{
+		Msg("! ERROR (RejectGameItem): parent not found. entity_id = [%d], parent_id = [%d]", entity->ID, entity->ID_Parent);
 		return;
 	}
 
-	NET_Packet		P;
-	u_EventGen		(P,GE_OWNERSHIP_REJECT, e_parent->ID);
-	P.w_u16			(entity->ID);
-	Level().Send	(P,net_flags(TRUE,TRUE));
+	NET_Packet P;
+	u_EventGen(P, GE_OWNERSHIP_REJECT, e_parent->ID);
+	P.w_u16(entity->ID);
+	Level().Send(P, net_flags(TRUE, TRUE));
 }
 
 #include "../xrEngine/string_table.h"
@@ -2352,14 +2353,14 @@ void	game_sv_mp::OnPlayerChangeName		(NET_Packet& P, ClientID sender)
 	if (!ps) return;
 
 	xrGameSpyServer* sv = smart_cast<xrGameSpyServer*>( m_server );
-	if( sv && sv->IsPublicServer() )
+	if( sv && sv->HasProtected() )
 	{
-		Msg( "Player \"%s\" try to change name on \"%s\" at public server.", ps->getName(), NewName );
+		Msg( "Player \"%s\" try to change name on \"%s\" at protected server.", ps->getName(), NewName );
 
 		NET_Packet			P_;
 		GenerateGameMessage (P_);
 		P_.w_u32				(GAME_EVENT_SERVER_STRING_MESSAGE);
-		P_.w_stringZ			("Server is public. Can\'t change player name!");
+		P_.w_stringZ			("Server is protected. Can\'t change player name!");
 		m_server->SendTo	( sender, P_ );
 		return;
 	}

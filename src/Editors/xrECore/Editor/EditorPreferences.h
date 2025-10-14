@@ -77,7 +77,13 @@ public:
 	AStringVec 		scene_recent_list;
 	// objects
 	Flags32			object_flags;
+    // Weather
+    float           env_from_time;
+    float           env_to_time;
+    float           env_speed;
 	shared_str      sWeather;
+	// sound
+	float			sound_volume;
 
 	xr_string		Compiler_xrAI;
 	xr_string		Compiler_xrLC;

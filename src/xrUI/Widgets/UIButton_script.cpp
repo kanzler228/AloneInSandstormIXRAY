@@ -6,8 +6,9 @@
 #include "UISpinNum.h"
 #include "UISpinText.h"
 #include "UITrackBar.h"
+#include "UIArrowStepper.h"
 
-#include <luabind.hpp>
+#include <luabind/luabind.hpp>
 
 using namespace luabind;
 
@@ -18,6 +19,8 @@ void CUIButton::script_register(lua_State *L)
 	[
 		class_<CUIButton, CUIStatic>("CUIButton")
 		.def(							constructor<>())
+		.def("SetHighlightColor",		&CUIButton::SetHighlightColor)
+		.def("EnableTextHighlighting",	&CUIButton::EnableTextHighlighting)
 		,
 
 		class_<CUI3tButton, CUIButton>("CUI3tButton")
@@ -48,9 +51,21 @@ void CUIButton::script_register(lua_State *L)
 		.def("GetCheck",				&CUITrackBar::GetCheck)
 		.def("SetCheck",				&CUITrackBar::SetCheck)
 		.def("GetIValue",				&CUITrackBar::GetIValue)
+		.def("SetIValue",				&CUITrackBar::SetIValue) // FFx0001 ++
 		.def("GetFValue",				&CUITrackBar::GetFValue)
+		.def("SetFValue",				&CUITrackBar::SetFValue) // FFx0001 ++
 		.def("SetOptIBounds",			&CUITrackBar::SetOptIBounds)
 		.def("SetOptFBounds",			&CUITrackBar::SetOptFBounds)
 		.def("SetCurrentValue",			&CUITrackBar::SetCurrentOptValue)
+		.def("CurrentID",				&CUITrackBar::CurrentID)
+		.def("SetCurrentID",			&CUITrackBar::SetCurrentID),
+
+		class_<CUIArrowStepper, CUIWindow>("CUIArrowStepper")
+		.def(							constructor<>())
+		.def("GetCheck",				&CUIArrowStepper::GetCheck)
+		.def("SetCheck",				&CUIArrowStepper::SetCheck)
+		.def("GetIValue",				&CUIArrowStepper::GetIValue)
+		.def("GetFValue",				&CUIArrowStepper::GetFValue)
+		.def("SetCurrentValue",			&CUIArrowStepper::SetCurrentOptValue)
 	];
 }

@@ -1,5 +1,4 @@
 #include "StdAfx.h"
-//#include "cl_collector.h"
 #include "Build.h"
 #include "../xrLC_Light/xrMU_Model.h"
 #include "../xrLC_Light/xrMU_Model_Reference.h"
@@ -7,8 +6,7 @@
 #include "../xrLC_Light/xrLC_GlobalData.h"
 #include "../xrLC_Light/xrFace.h"
 
-#include "../../xrCore/FS.h"
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 
 int GetVertexIndex(Vertex *F)
 {
@@ -25,38 +23,7 @@ int getCFormVID(vecVertex& V,Vertex *F)
 	return int(it-V.begin());
 }
 int bCriticalErrCnt = 0;
-/*
 
-int getTriByEdge(Vertex *V1, Vertex *V2, Face* parent, vecFace &ids)
-{
-	Face*	found	= 0;
-	int		f_count = 0;
-
-	for (vecFaceIt I=V1->m_adjacents.begin(); I!=V1->m_adjacents.end(); ++I)
-	{
-		Face* test = *I;
-		if (test == parent) continue;
-		if (test->VContains(V2)) 
-		{
-			++f_count;
-			found = test;
-		}
-	}
-	if (f_count>1) 
-	{
-		bCriticalErrCnt	++;
-		pBuild->err_multiedge.w_fvector3(V1->P);
-		pBuild->err_multiedge.w_fvector3(V2->P);
-	}
-	if (found) {
-		vecFaceIt F = std::lower_bound(ids.begin(),ids.end(),found);
-		if (found == *F) return int(F-ids.begin());
-		else return -1;
-	} else {
-		return -1;
-	}
-}
-*/
 void TestEdge			(Vertex *V1, Vertex *V2, Face* parent)
 {
 	Face*	found	= 0;
@@ -83,7 +50,7 @@ extern void SimplifyCFORM		(CDB::CollectorPacked& CL);
 void CBuild::BuildCForm	()
 {
 	// Collecting data
-	Phase		("CFORM: creating...");
+	Status		("CFORM: creating...");
 	vecFace*	cfFaces		= new vecFace	();
 	vecVertex*	cfVertices	= new vecVertex	();
 	{
@@ -115,8 +82,10 @@ void CBuild::BuildCForm	()
 		Status("Collecting vertices...");
 		cfVertices->reserve	(lc_global_data()->g_vertices().size());
 		std::sort(cfFaces->begin(),cfFaces->end());
+		
 		for (u32 V=0; V<lc_global_data()->g_vertices().size(); V++)
-			if (cfVertexMarks[V]) cfVertices->push_back(lc_global_data()->g_vertices()[V]);
+		if (cfVertexMarks[V])
+			cfVertices->push_back(lc_global_data()->g_vertices()[V]);
 	}
 
 	float	p_total = 0;
@@ -127,8 +96,8 @@ void CBuild::BuildCForm	()
 		BB.modify((*it)->P );
 
 	// CForm
-	Phase	("CFORM: collision model...");
-	Status	("Items to process: %d", cfFaces->size());
+ 	Status	("Items to process: %d", cfFaces->size());
+	
 	p_total = 0;
 	p_cost  = 1.f/(cfFaces->size());
 
@@ -148,6 +117,7 @@ void CBuild::BuildCForm	()
 			);
 		Progress(p_total+=p_cost);		// progress
 	}
+
 	if (bCriticalErrCnt) {
 		err_save	();
 		clMsg		("MultipleEdges: %d faces",bCriticalErrCnt);
@@ -157,8 +127,11 @@ void CBuild::BuildCForm	()
 
 	// Models
 	Status			("Models...");
-	for (u32 ref=0; ref<mu_refs().size(); ref++)
+	for (u32 ref = 0; ref < mu_refs().size(); ref++)
+	{
+		Progress( float(ref)/float(mu_refs().size()) );
 		mu_refs()[ref]->export_cform_game(CL);
+	}
 
 	// Simplification
 	if (g_params().m_quality!=ebqDraft)
@@ -181,10 +154,14 @@ void CBuild::BuildCForm	()
 	hdr.facecount	= (u32)CL.getTS();
 	hdr.aabb		= BB;
 	MFS->w			(&hdr,sizeof(hdr));
+	Msg("CFORM Saving HDR: %u", MFS->tell());
 
 	// Data
 	MFS->w			(CL.getV(),(u32)CL.getVS()*sizeof(Fvector));
+	Msg("CFORM Saving Verts: %u", MFS->tell());
+
 	MFS->w			(CL.getT(),(u32)CL.getTS()*sizeof(CDB::TRI));
+	Msg("CFORM Saving FACES: %u", MFS->tell());
 
 	// Clear pDeflector (it is stored in the same memory space with dwMaterialGame)
 	for (vecFaceIt I=lc_global_data()->g_faces().begin(); I!=lc_global_data()->g_faces().end(); I++)
@@ -192,7 +169,6 @@ void CBuild::BuildCForm	()
 		Face* F			= *I;
 		F->pDeflector	= NULL;
 	}
-
 	FS.w_close		(MFS);
 }
 

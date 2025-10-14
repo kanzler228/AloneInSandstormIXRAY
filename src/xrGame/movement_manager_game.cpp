@@ -24,6 +24,7 @@
 
 void CMovementManager::show_game_path_info	()
 {
+#ifdef Debug
 	Msg							("! Cannot build GAME path! (object %s)",*object().cName());
 	Msg							("! CURRENT LEVEL : %s",*Level().name());
 	Fvector						temp = ai().game_graph().vertex(object().ai_location().game_vertex_id())->level_point();
@@ -48,11 +49,12 @@ void CMovementManager::show_game_path_info	()
 	const_iterator				E = m_location_manager->vertex_types().end();
 	for ( ; I != E; ++I)
 		Msg						("!   [%d][%d][%d][%d]",(*I).tMask[0],(*I).tMask[1],(*I).tMask[2],(*I).tMask[3]);
+#endif
 }
 
 void CMovementManager::process_game_path()
 {
-	START_PROFILE			("Build Path/Process Game Path");
+	PROF_EVENT("Build Path/Process Game Path");
 
 	if (m_path_state != ePathStateTeleport) {
 
@@ -203,6 +205,4 @@ void CMovementManager::process_game_path()
 		}
 		default : NODEFAULT;
 	}
-	
-	STOP_PROFILE
 }

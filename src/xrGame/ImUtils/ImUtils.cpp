@@ -4,6 +4,7 @@
 
 clsid_manager* g_pClsidManager;
 CImGuiGameSearchManager imgui_search_manager;
+CHudAdjustManager imgui_hud_adjust_manager;
 
 void RegisterImGuiInGame()
 {
@@ -13,9 +14,13 @@ void RegisterImGuiInGame()
 		CImGuiManager::Instance().Subscribe("Spawn Manager", CImGuiManager::ERenderPriority::eMedium, RenderSpawnManagerWindow);
 		CImGuiManager::Instance().Subscribe("Weapon Manager", CImGuiManager::ERenderPriority::eMedium, RenderWeaponManagerWindow);
 		CImGuiManager::Instance().Subscribe("Search Manager", CImGuiManager::ERenderPriority::eMedium, RenderSearchManagerWindow);
+		CImGuiManager::Instance().Subscribe("OMF Editor", CImGuiManager::ERenderPriority::eMedium, RenderToolsOMFEditorWindow);
+		CImGuiManager::Instance().Subscribe("Hud Adjust", CImGuiManager::ERenderPriority::eMedium,
+			RenderHUDAdjustManager);
 
 		InitImGuiCLSIDInGame();
 		InitImGuiSearchInGame();
+		InitImGuiHudAdjustInGame();
 		InitSections();
 	}
 }
@@ -173,7 +178,7 @@ void CImGuiGameSearchManager::init()
 	type_to_class[eSelectedType::kSelectedType_Weapon_Magazine] = g_pClsidManager->weapon_magazine;
 	type_to_class[eSelectedType::kSelectedType_Weapon_StationaryMachineGun] = g_pClsidManager->weapon_stationary_machine_gun;
 
-	for (const std::pair<eSelectedType, CLASS_ID>& pair : type_to_class)
+	for (const xr_pair<eSelectedType, CLASS_ID>& pair : type_to_class)
 	{
 		class_to_type[pair.second] = pair.first;
 	}
@@ -182,11 +187,11 @@ void CImGuiGameSearchManager::init()
 	{
 		char* pPtr = &category_names[i][0];
 		const char* pStr = convertTypeToString(i);
-		char result[32]{};
+		string32 result{};
 
 		if (pStr == nullptr && type_to_class.find(eSelectedType(i)) != type_to_class.end())
 		{
-			char name[16]{};
+			string16 name{};
 			CLASS_ID id = type_to_class.at(eSelectedType(i));
 			CLSID2TEXT(id, name);
 
@@ -273,7 +278,7 @@ const char* CImGuiGameSearchManager::getDefaultNameOfSelectedType(eSelectedType 
 }
 const char* CImGuiGameSearchManager::getTranslatedString(eSelectedType type)
 {
-	char name[16]{};
+	string16 name{};
 	CLASS_ID id = type_to_class.at(type);
 	CLSID2TEXT(id, name);
 
@@ -293,81 +298,128 @@ const char* CImGuiGameSearchManager::getTranslatedString(eSelectedType type)
 }
 
 void clsid_manager::add_mp_stuff(CLASS_ID id) {
-	if (!is_item(id))
-		mp_stuffs.insert(id);
+	mp_stuffs.insert(id);
 }
 
 bool clsid_manager::is_mp_stuff(CLASS_ID id) {
-	return mp_stuffs.find(id) != mp_stuffs.end();
+	return mp_stuffs.contains(id);
 }
 
 void clsid_manager::add_item(CLASS_ID id) {
-	if (!is_item(id))
-		items.insert(id);
+	items.insert(id);
 }
 
 bool clsid_manager::is_item(CLASS_ID id) {
-	return items.find(id) != items.end();
+	return items.contains(id);
+}
+
+void clsid_manager::add_item_used(CLASS_ID id) {
+	items_used.insert(id);
+}
+
+bool clsid_manager::is_item_used(CLASS_ID id) {
+	return items_used.contains(id);
+}
+
+void clsid_manager::add_device(CLASS_ID id) {
+	devices.insert(id);
+}
+
+bool clsid_manager::is_device(CLASS_ID id) {
+	return devices.contains(id);
+}
+
+void clsid_manager::add_dynamic_object(CLASS_ID id) {
+	dynamic_objects.insert(id);
+}
+
+bool clsid_manager::is_dynamic_object(CLASS_ID id) {
+	return dynamic_objects.contains(id);
 }
 
 void clsid_manager::add_outfit(CLASS_ID id) {
-	if (!is_outfit(id))
-		outfits.insert(id);
+	outfits.insert(id);
 }
 
 bool clsid_manager::is_outfit(CLASS_ID id) {
-	return outfits.find(id) != outfits.end();
+	return outfits.contains(id);
 }
 void clsid_manager::add_ammo(CLASS_ID id) {
-	if (!is_ammo(id))
-		ammo.insert(id);
+	ammo.insert(id);
 }
 
 bool clsid_manager::is_ammo(CLASS_ID id) {
-	return ammo.find(id) != ammo.end();
+	return ammo.contains(id);
 }
 void clsid_manager::add_weapon(CLASS_ID id) {
-	if (!is_weapon(id))
-		weapons.insert(id);
+	weapons.insert(id);
 }
 
 bool clsid_manager::is_weapon(CLASS_ID id) {
-	return weapons.find(id) != weapons.end();
+	return weapons.contains(id);
 }
 void clsid_manager::add_monster(CLASS_ID id) {
-	if (!is_monster(id))
-		monsters.insert(id);
+	monsters.insert(id);
 }
 
 bool clsid_manager::is_monster(CLASS_ID id) {
-	return monsters.find(id) != monsters.end();
+	return monsters.contains(id);
 }
 void clsid_manager::add_addon(CLASS_ID id) {
-	if (!is_addon(id))
-		addons.insert(id);
+	addons.insert(id);
 }
 
 bool clsid_manager::is_addon(CLASS_ID id) {
-	return addons.find(id) != addons.end();
+	return addons.contains(id);
 }
 void clsid_manager::add_artefact(CLASS_ID id) {
-	if (!is_artefact(id))
-		artefacts.insert(id);
+	artefacts.insert(id);
 }
 
 bool clsid_manager::is_artefact(CLASS_ID id) {
-	return artefacts.find(id) != artefacts.end();
+	return artefacts.contains(id);
 }
+
 void clsid_manager::add_vehicle(CLASS_ID id) {
-	if (!is_vehicle(id))
-		vehicles.insert(id);
+	vehicles.insert(id);
 }
 
 bool clsid_manager::is_vehicle(CLASS_ID id) {
-	return vehicles.find(id) != vehicles.end();
+	return vehicles.contains(id);
 }
+
+void clsid_manager::add_explo(CLASS_ID id) {
+	explosives.insert(id);
+}
+
+bool clsid_manager::is_explo(CLASS_ID id) {
+	return explosives.contains(id);
+}
+
+void clsid_manager::add_npc(CLASS_ID id) {
+	npc_list.insert(id);
+}
+
+bool clsid_manager::is_npc(CLASS_ID id) {
+	return npc_list.contains(id);
+}
+
+bool clsid_manager::is_anomaly(CLASS_ID id) {
+	return anomalies.contains(id);
+}
+void clsid_manager::add_anomaly(CLASS_ID id) {
+	anomalies.insert(id);
+}
+
+bool clsid_manager::is_squad(CLASS_ID id) {
+	return squads.contains(id);
+}
+void clsid_manager::add_squad(CLASS_ID id) {
+	squads.insert(id);
+}
+
 const char* clsid_manager::translateCLSID(CLASS_ID id) {
-	char name[16]{};
+	string16 name{};
 	CLSID2TEXT(id, name);
 
 	for (int i = 0; i < 16; ++i)

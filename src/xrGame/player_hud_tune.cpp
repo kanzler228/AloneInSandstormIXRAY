@@ -27,7 +27,7 @@ bool is_attachable_item_tuning_mode()
 			pInput->iGetAsyncKeyState(SDL_SCANCODE_C);
 }
 
-void tune_remap(const Ivector& in_values, Ivector& out_values)
+void tune_remap(const Fvector& in_values, Fvector& out_values)
 {
 	if( pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT) )
 	{
@@ -106,7 +106,7 @@ void calc_cam_diff_rot(Fmatrix item_transform, Fvector diff, Fvector& res)
 	res.mul					(180.0f/PI);
 }
 
-void attachable_hud_item::tune(Ivector values)
+void attachable_hud_item::tune(Fvector values)
 {
 #ifndef MASTER_GOLD
 	if(!is_attachable_item_tuning_mode() )
@@ -182,10 +182,14 @@ void attachable_hud_item::tune(Ivector values)
 #endif // #ifndef MASTER_GOLD
 }
 
+bool forceFPDraw = false;
+bool forceFP2Draw = false;
+bool forceSPDraw = false;
+
 void attachable_hud_item::debug_draw_firedeps()
 {
-#ifndef MASTER_GOLD
-	bool bForce = (hud_adj_mode==3||hud_adj_mode==4);
+#ifdef DEBUG_DRAW
+	bool bForce = (hud_adj_mode==3||hud_adj_mode==4||forceFPDraw||forceFP2Draw||forceSPDraw);
 
 	if(hud_adj_mode==5||hud_adj_mode==6||hud_adj_mode==7 ||bForce)
 	{
@@ -194,23 +198,23 @@ void attachable_hud_item::debug_draw_firedeps()
 		firedeps			fd;
 		setup_firedeps		(fd);
 		
-		if (hud_adj_mode == 5 || bForce)
+		if (hud_adj_mode == 5 || forceFPDraw)
 			render.draw_aabb(fd.vLastFP, 0.005f, 0.005f, 0.005f, color_xrgb(255, 0, 0));
 
-		if (hud_adj_mode == 6)
+		if (hud_adj_mode == 6 || forceFP2Draw)
 			render.draw_aabb(fd.vLastFP2, 0.005f, 0.005f, 0.005f, color_xrgb(0, 0, 255));
 
-		if (hud_adj_mode == 7)
+		if (hud_adj_mode == 7 || forceSPDraw)
 			render.draw_aabb(fd.vLastSP, 0.005f, 0.005f, 0.005f, color_xrgb(0, 255, 0));
 	}
 #endif // DEBUG
 }
 
 
-void player_hud::tune(Ivector _values)
+void player_hud::tune(Fvector _values)
 {
 #ifndef MASTER_GOLD
-	Ivector				values;
+	Fvector				values;
 	tune_remap			(_values,values);
 
 	bool is_16x9		= UI().is_widescreen();
@@ -231,8 +235,8 @@ void player_hud::tune(Ivector _values)
 		if(idx)
 			_curr_dr	/= 20.0f;
 
-		Fvector& pos_	=(idx!=0)?m_attached_items[hud_adj_item_idx]->hands_offset_pos():m_attached_items[hud_adj_item_idx]->hands_attach_pos();
-		Fvector& rot_	=(idx!=0)?m_attached_items[hud_adj_item_idx]->hands_offset_rot():m_attached_items[hud_adj_item_idx]->hands_attach_rot();
+		Fvector& pos_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets[0][idx];
+		Fvector& rot_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets[1][idx];
 
 		if(hud_adj_mode==1)
 		{
@@ -279,10 +283,10 @@ void player_hud::tune(Ivector _values)
 	if(hud_adj_mode==8 || hud_adj_mode==9)
 	{
 		if(hud_adj_mode==8 && (values.z) )
-			_delta_pos	+= (values.z>0)?0.001f:-0.001f;
+			_delta_pos	+= values.z;
 		
 		if(hud_adj_mode==9 && (values.z) )
-			 _delta_rot += (values.z>0)?0.1f:-0.1f;
+			 _delta_rot += values.z;
 	}else
 	{
 		attachable_hud_item* hi = m_attached_items[hud_adj_item_idx];

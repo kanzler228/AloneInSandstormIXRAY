@@ -37,7 +37,8 @@ bool CUIDialogWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 
 bool CUIDialogWnd::IR_process()
 {
-	if(!IsEnabled())					return false;
+	if (!IsEnabled() || GetHolder() == nullptr)
+		return false;
 
 	if(GetHolder() && GetHolder()->IgnorePause())		
 		return true;
@@ -56,6 +57,13 @@ UI_API CDialogHolder* CurrentDialogHolder()
 	return g_pGameCustom->GetDialogHolder();
 }
 
+void CUIDialogWnd::ShowOrHideDialog(bool bDoHideIndicators)
+{
+	if (IsShown())
+		GetHolder()->StopDialog(this);
+	else
+		CurrentDialogHolder()->StartDialog(this, bDoHideIndicators);
+}
 
 void CUIDialogWnd::ShowDialog(bool bDoHideIndicators)
 {

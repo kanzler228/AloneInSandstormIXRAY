@@ -23,15 +23,8 @@ execute_process(
 set(NUGET_PACKAGE_PLATFORM x64)
 set(NUGET_PACKAGE_PLATFORM_EX x86_64)
 
-# SDL3
-set(CORE_SDL3_PLATFORM linux-${NUGET_PACKAGE_PLATFORM})
-set(CORE_SDL3 ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Sdl.Runtimes.${CORE_SDL3_PLATFORM}.2024.3.16-open/)
-
 # Optick
 set(CORE_OPT ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Optick.1.4.0/)
-
-# DxMath
-set(CORE_DXMATH ${CMAKE_BINARY_DIR}/packages/directxmath.2024.2.15.1/)
 
 # Theora
 set(ENGINE_THRA ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.LibTheora.1.1.1.3/)
@@ -51,6 +44,14 @@ set(ENGINE_FREETYPE ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.FreeType.2.13
 # Steam Sockets
 set(STEAM_SOCKETS_PATH ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.GameNetworkingSockets.Vcpkg.Runtimes.linux-x64.1.4.1)
 
+set(STEAM_SOCKETS_LINK_LIBRARY ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libGameNetworkingSockets.so)
+set(STEAM_SOCKETS_LIBRARY ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libGameNetworkingSockets.so)
+set(STEAM_SOCKETS_CRYPTO ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libcrypto.so.3)
+set(STEAM_SOCKETS_PROTOBUF_LITE ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libprotobuf-lite.so.3.21.8.0)
+set(STEAM_SOCKETS_PROTOBUF ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libprotobuf.so.3.21.8.0)
+set(STEAM_SOCKETS_PROTOC ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libprotoc.so.3.21.8.0)
+set(STEAM_SOCKETS_SSL ${STEAM_SOCKETS_PATH}/runtimes/linux-x64/native/Release/libssl.so.3)
+
 # LuaJIT 
 set(LUAJIT ${CMAKE_BINARY_DIR}/packages/IXRay.Packages.LuaJIT.Runtimes.linux-x64.2023.8.23.1-open/)
 
@@ -63,14 +64,3 @@ set(FREEIMAGE ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.FreeImage.WinMerge.
 
 # Nuget
 set(NVTT ${CMAKE_BINARY_DIR}/packages/IXRay.Packages.Nvtt.2020.12.21-open/)
-
-# TBB
-set(IXR_TBB_SDK ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.OneTbb.Runtimes.linux-x64.2024.3.26-open/)
-set(IXR_TBB_INC ${IXR_TBB_SDK}build/native/include/)
-set(IXR_TBB_BIN ${IXR_TBB_LIB})
-
-# Mimalloc
-set(MIMALLOC ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Mimalloc.Runtimes.linux-x64.2.1.7.3)
-
-# LZO
-set(LZO ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Lzo.Runtimes.linux-x64.2.10.0)

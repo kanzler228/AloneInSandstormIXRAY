@@ -5,7 +5,12 @@
 
 #include <AL/al.h>
 #include <AL/alc.h>
-#include <opus/opus.h>
+
+#ifdef IXR_WINDOWS
+#	include <opus/opus.h>
+#else
+#	include <opus.h>
+#endif
 
 CStreamPlayerA::CStreamPlayerA(ALuint sampleRate, ALenum format, ALCcontext* context)
 	: m_sampleRate(sampleRate), m_format(format), m_pContext(context), m_source(0)
@@ -17,6 +22,12 @@ CStreamPlayerA::CStreamPlayerA(ALuint sampleRate, ALenum format, ALCcontext* con
 		m_freeBuffers.push_back(m_buffers[i]);
 
 	alGenSources(1, &m_source);
+
+	ALenum Aerror = alGetError();
+	if (Aerror != AL_NO_ERROR)
+	{
+		Msg("OpenAL error: %s", alGetString(Aerror));
+	}
 
 	alSourcef(m_source, AL_SOURCE_TYPE, AL_STREAMING);
 	alSourcei(m_source, AL_LOOPING, AL_FALSE);

@@ -3,7 +3,7 @@
 //----------------------------------------------------
 
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "EditMesh.h"
 #include "EditObject.h"
@@ -382,13 +382,22 @@ void CEditableMesh::GenerateSVertices(u32 influence)
 void CEditableMesh::GenerateAdjacency()
 {
 	m_AdjsRefs++;
-    if (m_Adjs)		return;
-	m_Adjs			= new AdjVec();
-	VERIFY			(m_Faces);
-    m_Adjs->resize	(m_VertCount);
-//.	Log				(".. Update adjacency");
-	for (u32 f_id=0; f_id<m_FaceCount; f_id++)
-		for (int k=0; k<3; k++) (*m_Adjs)[m_Faces[f_id].pv[k].pindex].push_back(f_id);
+	if (m_Adjs)
+	{
+		return;
+	}
+
+	m_Adjs = new AdjVec();
+	VERIFY(m_Faces);
+	m_Adjs->resize(m_VertCount);
+
+	for (u32 f_id = 0; f_id < m_FaceCount; f_id++)
+	{
+		for (int k = 0; k < 3; k++)
+		{
+			(*m_Adjs)[m_Faces[f_id].pv[k].pindex].push_back(f_id);
+		}
+	}
 }
 
 CSurface*	CEditableMesh::GetSurfaceByFaceID(u32 fid)
@@ -518,3 +527,57 @@ bool CEditableMesh::Validate()
 }
 //----------------------------------------------------------------------------
 
+void CEditableMesh::Create(st_Face* faces, u32 face_count, Fvector* vertices, u32 vertex_count, Fvector* normals, u32 normal_count)
+{
+	// Clear existing data
+	Clear();
+
+	// Allocate and copy vertices
+	m_VertCount = vertex_count;
+	m_Vertices = xr_alloc<Fvector>(m_VertCount);
+	CopyMemory(m_Vertices, vertices, m_VertCount * sizeof(Fvector));
+
+	// Allocate and copy faces
+	m_FaceCount = face_count;
+	m_Faces = xr_alloc<st_Face>(m_FaceCount);
+	CopyMemory(m_Faces, faces, m_FaceCount * sizeof(st_Face));
+
+	// Allocate smooth groups
+	m_SmoothGroups = xr_alloc<u32>(m_FaceCount);
+	for (u32 i = 0; i < m_FaceCount; ++i)
+		m_SmoothGroups[i] = 0;
+
+	// Generate normals if needed
+	if (normals && normal_count)
+	{
+		m_Normals = xr_alloc<Fvector>(normal_count);
+		CopyMemory(m_Normals, normals, normal_count * sizeof(Fvector));
+	}
+	else
+	{
+		GenerateFNormals();
+		GenerateVNormals(nullptr, true);
+	}
+
+	// Generate adjacency information
+	GenerateAdjacency();
+
+	// Update bounding box
+	RecomputeBBox();
+
+	// Create default surface if none exists
+	if (m_SurfFaces.empty())
+	{
+		CSurface* surf = new CSurface();
+		surf->SetName("default");
+		surf->SetShader("default");
+		m_Parent->Surfaces().push_back(surf);
+
+		IntVec face_indices;
+		face_indices.resize(m_FaceCount);
+		for (u32 i = 0; i < m_FaceCount; ++i)
+			face_indices[i] = i;
+
+		m_SurfFaces[surf] = face_indices;
+	}
+}

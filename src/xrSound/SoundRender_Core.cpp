@@ -1,15 +1,18 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../xrEngine/xrLevel.h"
-#include "System/NotificationClient.h"
+
+#ifdef IXR_WINDOWS
+#	include "System/NotificationClient.h"
+#endif
 
 #include "SoundRender_Core.h"
 #include "SoundRender_Source.h"
 #include "SoundRender_Emitter.h"
 #include <AL/efx.h>
 
-int		psSoundTargets			= 256;
+int		psSoundTargets			= 256 - 32;
 Flags32	psSoundFlags			= { ss_Hardware };
 float	psSoundOcclusionScale	= 0.5f;
 float	psSoundCull				= 0.01f;
@@ -59,8 +62,10 @@ CSoundRender_Core::~CSoundRender_Core()
 {
 	xr_delete					(geom_ENV);
 	xr_delete					(geom_SOM);
-
-	xr_delete					(pSysNotification);
+	
+#ifdef IXR_WINDOWS
+	xr_delete(pSysNotification);
+#endif
 }
 
 void CSoundRender_Core::_initialize(int stage)
@@ -163,11 +168,8 @@ void CSoundRender_Core::set_geometry_occ(CDB::MODEL* M)
 
 void CSoundRender_Core::set_geometry_som(IReader* I)
 {
-#ifdef _EDITOR
-	ETOOLS::destroy_model	(geom_SOM);
-#else
 	xr_delete				(geom_SOM);
-#endif
+
 	if (0==I)		return;
 
 	// check version
@@ -194,19 +196,17 @@ void CSoundRender_Core::set_geometry_som(IReader* I)
 		if (P.b2sided)
 			CL.add_face_packed_D(P.v3,P.v2,P.v1,*(u32*)&P.occ,0.01f);
 	}
-	geom_SOM			= new CDB::MODEL();
-	geom_SOM->build		(CL.getV(),int(CL.getVS()),CL.getT(),int(CL.getTS()));
+
+	geom_SOM = new CDB::MODEL();
+	geom_SOM->build(CL.getV(), CL.getVS(), CL.getT(), CL.getTS());
 
 	geom->close();
 }
 
 void CSoundRender_Core::set_geometry_env(IReader* I)
 {
-#ifdef _EDITOR
-	ETOOLS::destroy_model	(geom_ENV);
-#else
 	xr_delete				(geom_ENV);
-#endif
+
 	if (0==I)				return;
 	if (0==s_environment)	return;
 

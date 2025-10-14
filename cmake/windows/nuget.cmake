@@ -28,10 +28,6 @@ else()
     set(NUGET_PACKAGE_PLATFORM_EX x86_64)
 endif()
 
-# SDL3
-set(CORE_SDL3_PLATFORM win-${NUGET_PACKAGE_PLATFORM})
-set(CORE_SDL3 ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Sdl.Runtimes.${CORE_SDL3_PLATFORM}.2024.3.16-open/)
-
 # Optick
 set(CORE_OPT ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Optick.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.1.4.0.1/)
 
@@ -53,14 +49,17 @@ set(SND_VOB ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.LibVorbis.1.3.7.4/)
 # FreeType
 set(ENGINE_FREETYPE ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.FreeType.2.13.2/)
 
-# DxMath
-set(CORE_DXMATH ${CMAKE_BINARY_DIR}/packages/directxmath.2024.2.15.1/)
-
 # Steam Sockets
 set(STEAM_SOCKETS_PATH ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.GameNetworkingSockets.Vcpkg.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.1.4.1)
 
-# RedImage
-set(REDIMAGE_PATH ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.RedImageTool.Runtimes.win-x64.0.1.0)
+set(STEAM_SOCKETS_LINK_LIBRARY ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/GameNetworkingSockets.lib)
+set(STEAM_SOCKETS_LIBRARY ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/GameNetworkingSockets.dll)
+set(STEAM_SOCKETS_LEGACY ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/legacy.dll)
+set(STEAM_SOCKETS_CRYPTO ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libcrypto-3-x64.dll)
+set(STEAM_SOCKETS_PROTOBUF_LITE ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libprotobuf-lite.dll)
+set(STEAM_SOCKETS_PROTOBUF ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libprotobuf.dll)
+set(STEAM_SOCKETS_PROTOC ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libprotoc.dll)
+set(STEAM_SOCKETS_SSL ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libssl-3-x64.dll)
 
 # LuaJIT 
 set(LUAJIT ${CMAKE_BINARY_DIR}/packages/IXRay.LuaJIT.Binaries.win10.0.19041.0-${NUGET_PACKAGE_PLATFORM}.1626960173.0.0-open/)
@@ -79,6 +78,7 @@ set(NVTT ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Nvtt.Runtimes.win-x64.20
 set(IXR_TBB_SDK ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.OneTbb.Runtimes.win7-${NUGET_PACKAGE_PLATFORM}.2021.11.0/)
 set(IXR_TBB_INC ${IXR_TBB_SDK}build/native/include/)
 set(IXR_TBB_BIN ${IXR_TBB_SDK}runtimes/win7-${NUGET_PACKAGE_PLATFORM}/native/Release/${IXR_TBB_NAME})
+set(IXR_TBB_LIB ${IXR_TBB_SDK}/runtimes/win7-${NUGET_PACKAGE_PLATFORM}/native/Release/tbb12.lib)
 
 # AMD FidelityFX FSR2
 set(AMD_FSR2 ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.FidelityFX.FSR2.DirectX11.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.2.2.1.1)
@@ -89,14 +89,62 @@ set(SPEEXDSP ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.SpeexDsp.Runtimes.wi
 # OPUS
 set(OPUS ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Opus.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.2024.5.22-open)
 
-# Mimalloc
-set(MIMALLOC ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Mimalloc.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.2.1.7.3)
-if("${NUGET_PACKAGE_PLATFORM}" MATCHES "(x86)")
-    set(MIMALLOC_POSTFIX "32")
-endif()
-
 # LZO
 set(LZO ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.Lzo.Runtimes.win-${NUGET_PACKAGE_PLATFORM}.2.10.0)
+set(LZO_LIB ${LZO}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/lzo2.lib)
+
+# Intel XeSS
+set(INTEL_XESS ${CMAKE_BINARY_DIR}/packages/IXRay.IntelXESS.2.0.1.1/include/)
+set(INTEL_XESS_LIB ${CMAKE_BINARY_DIR}/packages/IXRay.IntelXESS.2.0.1.1/lib/libxess.lib)
+set(INTEL_XESS_DX11_LIB ${CMAKE_BINARY_DIR}/packages/IXRay.IntelXESS.2.0.1.1/lib/libxess_dx11.lib)
+set(INTEL_XESS_BIN ${CMAKE_BINARY_DIR}/packages/IXRay.IntelXESS.2.0.1.1/bin/libxess.dll)
+set(INTEL_XESS_DX11_BIN ${CMAKE_BINARY_DIR}/packages/IXRay.IntelXESS.2.0.1.1/bin/libxess_dx11.dll)
+
+# YAML
+set(YAML_CORE ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.YamlCpp.Runtimes.win-x64.0.8.0)
+set(YAML_INCL ${YAML_CORE}/build/native/include)
+set(YAML_LIB  ${YAML_CORE}/runtimes/win-x64/native/Release/yaml-cpp.lib)
+set(YAML_BIN  ${YAML_CORE}/runtimes/win-x64/native/Release/yaml-cpp.dll)
+set(YAML_LIB_NAME yaml-cpp.dll)
+
+# RedImage
+set(REDIMAGE_INCL ${CMAKE_BINARY_DIR}/packages/IXRay.RedImage.0.1.1/include/)
+set(REDIMAGE_LIB  ${CMAKE_BINARY_DIR}/packages/IXRay.RedImage.0.1.1/lib/RedImageTool.lib)
+set(REDIMAGE_BIN  ${CMAKE_BINARY_DIR}/packages/IXRay.RedImage.0.1.1/bin/RedImageTool.dll)
+
+# MySQL Connector
+set(MYSQLCONNECTOR ${CMAKE_BINARY_DIR}/packages/IXRay.MySQLConnector.8.0.33/)
 
 # DLSS
-set(NVIDIA_DLSS ${CMAKE_BINARY_DIR}/packages/IXRay.DLSS.310.2.0/)
+set(NVIDIA_DLSS ${CMAKE_BINARY_DIR}/packages/IXRay.DLSS.310.4.0/)
+
+# Sound 3rd
+function(setup_audio_libs target)
+    target_link_libraries(${target} PRIVATE
+        ${SND_OGG}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libogg.lib
+        ${SND_VOB}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbisfile.lib
+        ${SND_VOB}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbis.lib
+        ${SND_OAL}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/OpenAL32.lib
+        ${SPEEXDSP}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/speexdsp.lib
+        ${OPUS}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/opus.lib
+    )
+
+    target_include_directories(${target} PRIVATE
+        "${SND_OGG}/native/include/"
+        "${SND_VOB}/native/include/"
+        "${SND_OAL}/native/include/"
+        "${SPEEXDSP}/build/native/include/"
+        "${OPUS}/build/native/include/"
+    )
+
+    add_custom_command(TARGET ${target}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SND_OGG}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/libogg.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SND_OAL}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/OpenAL32.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SND_VOB}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbisfile.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SND_VOB}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbis.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPEEXDSP}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/speexdsp.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/speexdsp.dll
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OPUS}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/opus.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+    )
+
+endfunction()

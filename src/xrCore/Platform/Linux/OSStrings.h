@@ -9,7 +9,7 @@
 #define _vsnprintf vsnprintf
 #define vsprintf_s(dest, size, format, args) vsprintf(dest, format, args)
 #define strlwr _strlwr
-
+#define sscanf_s sscanf
 inline const char* itoa(float val)
 {
     static std::string temp;
@@ -20,6 +20,15 @@ inline const char* itoa(float val)
 inline void itoa(float val, char* str, [[maybe_unused]]size_t size)
 {
     strcpy(str, itoa(val));
+}
+
+inline void strupr(char* s)
+{
+    while (*s)
+    {
+        *s = static_cast<char>(std::toupper(static_cast<unsigned char>(*s)));
+        ++s;
+    }
 }
 
 #define _itoa itoa
@@ -70,6 +79,24 @@ inline int strcpy_s(char *dest, size_t num, const char *source)
     }
     dest[0] = '\0';
     return ERANGE;
+}
+
+inline errno_t strncpy_s(char * dest, const char * src, size_t count)
+{
+    if (!dest || !src)
+        return EINVAL;
+
+    if (count == 0)
+        return ERANGE;
+
+    size_t len = std::strlen(src);
+    if (len >= count)
+        len = count - 1;
+
+    std::memcpy(dest, src, len);
+    dest[len] = '\0';
+
+    return 0;
 }
 
 inline int strncpy_s(char * dest, size_t dst_size, const char * source, size_t num)

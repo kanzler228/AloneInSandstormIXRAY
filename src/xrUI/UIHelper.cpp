@@ -10,6 +10,7 @@
 #include "UIXmlInit.h"
 
 #include "Widgets/UIProgressBar.h"
+#include "Widgets/UIProgressShape.h"
 #include "Widgets/UIFrameLineWnd.h"
 #include "Widgets/UIFrameWindow.h"
 #include "Widgets/UI3tButton.h"
@@ -26,6 +27,18 @@ CUIStatic* UIHelper::CreateStatic( CUIXml& xml, LPCSTR ui_path, CUIWindow* paren
 		ui->SetAutoDelete	( true );
 	}
 	CUIXmlInit::InitStatic	( xml, ui_path, 0, ui );
+	return ui;
+}
+
+CUIStackPanel* UIHelper::CreateStackPanel(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent)
+{
+	CUIStackPanel* ui = new CUIStackPanel;
+	if (parent)
+	{
+		parent->AttachChild(ui);
+		ui->SetAutoDelete(true);
+	}
+	CUIXmlInit::InitStackPanel(xml, ui_path, 0, ui);
 	return ui;
 }
 
@@ -62,27 +75,52 @@ CUIProgressBar* UIHelper::CreateProgressBar( CUIXml& xml, LPCSTR ui_path, CUIWin
 	return ui;
 }
 
-CUIFrameLineWnd* UIHelper::CreateFrameLine( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent )
+CUIProgressShape* UIHelper::CreateProgressShape(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent)
 {
-	CUIFrameLineWnd* ui			= new CUIFrameLineWnd();
-	if(parent)
-	{
-		parent->AttachChild		( ui );
-		ui->SetAutoDelete		( true );
-	}
-	CUIXmlInit::InitFrameLine	( xml, ui_path, 0, ui );
+	CUIProgressShape* ui = new CUIProgressShape();
+	parent->AttachChild(ui);
+	ui->SetAutoDelete(true);
+	CUIXmlInit::InitProgressShape(xml, ui_path, 0, ui);
 	return ui;
 }
 
-CUIFrameWindow* UIHelper::CreateFrameWindow( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent )
+CUIFrameLineWnd* UIHelper::CreateFrameLine(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical)
 {
-	CUIFrameWindow* ui			= new CUIFrameWindow();
-	if(parent)
+    // If it's not critical element, then don't crash if it doesn't exist
+    if (!critical && !xml.NavigateToNode(ui_path, 0))
+        return nullptr;
+
+    auto ui = new CUIFrameLineWnd();
+    if (!CUIXmlInit::InitFrameLine(xml, ui_path, 0, ui, critical))
+    {
+        R_ASSERT2(!critical, "Failed to create frame line");
+        xr_delete(ui);
+    }
+    else if (parent)
+    {
+        parent->AttachChild(ui);
+        ui->SetAutoDelete(true);
+    }
+    return ui;
+}
+
+CUIFrameWindow* UIHelper::CreateFrameWindow(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical)
+{
+	// If it's not critical element, then don't crash if it doesn't exist
+	if (!critical && !xml.NavigateToNode(ui_path, 0))
+		return nullptr;
+
+	auto ui = new CUIFrameWindow();
+	if (!CUIXmlInit::InitFrameWindow(xml, ui_path, 0, ui, critical))
 	{
-		parent->AttachChild		( ui );
-		ui->SetAutoDelete		( true );
+		R_ASSERT2(!critical, "Failed to create frame window");
+		xr_delete(ui);
 	}
-	CUIXmlInit::InitFrameWindow	( xml, ui_path, 0, ui );
+	else if (parent)
+	{
+		parent->AttachChild(ui);
+		ui->SetAutoDelete(true);
+	}
 	return ui;
 }
 

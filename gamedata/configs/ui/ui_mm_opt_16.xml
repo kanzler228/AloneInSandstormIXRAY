@@ -9,7 +9,7 @@
       <auto_static x="0" y="0" width="102" height="768" stretch="1">
 		    <texture>ui_inGame2_opt_left_widepanel</texture>
 	    </auto_static>
-	    <auto_static x="921" y="0" width="102" height="768" stretch="1">
+	    <auto_static x="921" y="0" width="104" height="768" stretch="1">
 		    <texture>ui_inGame2_opt_right_widepanel</texture>
 	    </auto_static>
 	</background>
@@ -160,6 +160,18 @@
             <options_item entry="rs_device_active" group="mm_opt_video"/>
         </check_rs_device_active>
 
+        <cap_screenshot_format x="26" y="3" width="108" height="24">
+            <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_screenshot_format</text>
+        </cap_screenshot_format>
+        <list_screenshot_format x="154" y="0.5" width="188" height="20" list_length="3"  always_show_scroll="0">
+            <options_item entry="r__screenshot_format" group="mm_opt_video" depend="runtime"/>
+            <list_font r="170" g="170" b="170" font="letterica16"/>
+		    <text_color>
+	            <e r="170" g="170" b="170"/>
+	            <d r="70" g="70" b="70"/>
+		    </text_color>
+        </list_screenshot_format>
+
         <btn_advanced x="270" y="322" width="86" height="24" stretch="1">
             <text r="170" g="170" b="170" align="c" font="letterica16">ui_mm_advanced</text>
             <texture>ui_inGame2_button</texture>
@@ -245,7 +257,7 @@
         <cap_vid_scale x="26" y="3" width="108" height="24" >
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_vid_scale</text>
         </cap_vid_scale>
-        <track_vid_scale x="154" y="6" width="188" height="16" step="0.01" show_value="1">
+        <track_vid_scale x="154" y="6" width="188" height="16" step="0.01" show_value="1" magnitude="100">
             <options_item entry="vid_scale" group="mm_opt_video_adv" depend="vid"/>
         </track_vid_scale>
 
@@ -522,6 +534,14 @@
             <options_item entry="enable_dof_reload" group="mm_opt_video_adv"/>
         </check_dof_reload>
 
+        <cap_dof_talk x="26" y="3" width="108" height="24">
+            <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_dof_talk</text>
+        </cap_dof_talk>
+        <check_dof_talk x="143" y="0.5" width="35" stretch="1" height="29">
+	        <texture>ui_inGame2_checkbox</texture>
+            <options_item entry="enable_dof_talk" group="mm_opt_video_adv"/>
+        </check_dof_talk>
+
         <cap_volumetric_light x="26" y="3" width="108" height="24">
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_volumetric_light</text>
         </cap_volumetric_light>
@@ -551,14 +571,14 @@
         <cap_mastervolume x="26" y="3" width="108" height="24">
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_master_volume</text>
         </cap_mastervolume>
-        <track_mastervolume x="154" y="0.5" width="188" height="16" step="0.01" show_value="1">
+        <track_mastervolume x="154" y="0.5" width="188" height="16" step="0.01" show_value="1" magnitude="100">
             <options_item entry="snd_volume_eff" group="mm_opt_sound"/>
         </track_mastervolume>
 
         <cap_musicvolume x="26" y="3" width="108" height="24">
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_music_volume</text>
         </cap_musicvolume>
-        <track_musicvolume x="154" y="0.5" width="188" height="16" step="0.01" show_value="1">
+        <track_musicvolume x="154" y="0.5" width="188" height="16" step="0.01" show_value="1" magnitude="100">
             <options_item entry="snd_volume_music" group="mm_opt_sound"/>
         </track_musicvolume>
 
@@ -603,6 +623,19 @@
 	            <d r="70" g="70" b="70"/>
 		    </text_color>
         </list_difficulty>
+
+        <cap_lang x="26" y="3" width="108" height="24">
+            <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_lang</text>
+        </cap_lang>
+
+        <list_lang x="154" y="0.5" width="188" height="20" list_length = "4" always_show_scroll = "0">
+            <options_item entry="language" group="mm_opt_gameplay" />
+            <list_font r="170" g="170" b="170" font="letterica16"/>
+		    <text_color>
+	            <e r="170" g="170" b="170"/>
+	            <d r="70" g="70" b="70"/>
+		    </text_color>
+        </list_lang>
 
         <cap_check_crosshair x="26" y="3" width="108" height="24">
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_show_crosshair</text>
@@ -680,7 +713,7 @@
         <cap_mousesens x="12" y="3" width="108" height="24">
             <text r="170" g="170" b="170" font="letterica16" align="r" vert_align="c">ui_mm_mouse_sense</text>
         </cap_mousesens>
-        <track_mousesens x="140" y="6" width="188" height="16" step="0.01">
+        <track_mousesens x="140" y="6" width="188" height="16" step="0.01" show_value="1" magnitude="10">
             <options_item entry="mouse_sens" group="mm_opt_controls"/>
         </track_mousesens>
         <cap_check_mouseinvert x="12" y="33" width="108" height="24">
