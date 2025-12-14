@@ -39,6 +39,8 @@ enum EActorKeyflags
 	kfNEXTAMMO = (1ul << 10ul),
 	kfTACTICALTORCH = (1ul << 11ul),
 	kfLASER = (1ul << 12ul),
+	kfMAGCHECK = (1ul << 13ul),
+	kfFIREMODECHECK = (1ul << 14ul),
 };
 
 enum EMovementStates

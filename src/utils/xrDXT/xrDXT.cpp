@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "xrDXT.h"
+#include <magic_enum/magic_enum.hpp>
 
 #ifdef IXR_WINDOWS
 #include <RedImage/RedImage.hpp>
@@ -29,7 +30,7 @@ void DXTUtils::Converter::MakeTGA(u32 w, u32 h, U32Vec& From, xr_path To)
 
 	for (u32 y = 0; y < h; y++)
 	{
-		for (u32 x = 0; x < w;x++)
+		for (u32 x = 0; x < w; x++)
 		{
 			Surface.SetPixel(From[y * w + x], x, y);
 		}
@@ -37,6 +38,15 @@ void DXTUtils::Converter::MakeTGA(u32 w, u32 h, U32Vec& From, xr_path To)
 
 	Surface.Convert(RedImageTool::RedTexturePixelFormat::R8G8B8A8);
 	Surface.SwapRB();
+
+
+	std::filesystem::path dir = To.parent_path();
+
+	if (!dir.empty() && (!std::filesystem::exists(dir) || !std::filesystem::is_directory(dir)))
+	{
+		std::filesystem::create_directories(dir);
+	}
+
 	Surface.SaveToTga(To.xstring().data());
 }
 
@@ -140,6 +150,8 @@ DXTUtils::ImageInfo DXT_API DXTUtils::GitPixels(const char* FileName)
 
 	RedImageTool::RedImage Img;
 	Img.LoadFromFile(FileName);
+	RedImageTool::RedTexturePixelFormat OldFormat = Img.GetFormat();
+	
 	Img.ClearMipLevels();
 	Img.Convert(RedImageTool::RedTexturePixelFormat::R8G8B8A8);
 	Img.SwapRB();
@@ -148,7 +160,9 @@ DXTUtils::ImageInfo DXT_API DXTUtils::GitPixels(const char* FileName)
 	Pixels.resize(PixelCount);
 	memcpy(Pixels.data(), *Img, PixelCount);
 
-	return { Img.GetWidth(), Img.GetHeight(), Pixels };
+
+	shared_str FormatText = magic_enum::enum_name(OldFormat).data();
+	return { (u32)Img.GetWidth(), (u32)Img.GetHeight(), Pixels, FormatText };
 }
 
 void DXTUtils::Filter::Resize(u32* dst, u32 dstW, u32 dstH, u32* out, u32 outW, u32 outH)

@@ -21,7 +21,7 @@ private:
 	typedef CWeapon inherited;
 protected:
 	//звук текущего выстрела
-	shared_str		m_sSndShotCurrent;
+	xr_string		m_sSndShotCurrent;
 
 	//дополнительная информация о глушителе
 	LPCSTR			m_sSilencerFlameParticles;
@@ -52,6 +52,8 @@ protected:
 	virtual void	switch2_FireMode();
 	virtual void	switch2_LightMis();
 	virtual void	switch2_Kick	();
+	virtual void	switch2_MagCheck();
+	virtual void	switch2_FiremodeCheck();
 	
 	virtual void	OnShot			();
 			void	OnShotJammed	();
@@ -117,6 +119,10 @@ public:
 	virtual void	UnloadMagazine	(bool spawn_ammo = true);
 
 	virtual bool	GetBriefInfo	(II_BriefInfo& info);
+
+	virtual void	UpdateBonePartAnimations() override;
+	void UpdateFiremodeAnimations();
+	void UpdateIdleAnimations();
 
 	bool			bMisfireReload;
 

@@ -28,7 +28,7 @@
 #include "player_hud.h"
 #include "../xrEngine/xr_input.h"
 #include "flare.h"
-#include "CustomDetector.h"
+#include "CustomDevice.h"
 #include "clsid_game.h"
 #include "HUDManager.h"
 #include "Weapon.h"
@@ -135,12 +135,12 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	}
 	case kDETECTOR:
 	{
-		PIItem det_active = inventory().ItemFromSlot(DETECTOR_SLOT);
+		PIItem det_active = inventory().ItemFromSlot(DEVICE_SLOT);
 		if (det_active)
 		{
-			if (CCustomDetector* det = det_active->cast_custom_detector())
+			if (CCustomDevice* dev = det_active->cast_custom_device())
 			{
-				det->switch_detector();
+				dev->switch_device();
 			}
 		}
 	}break;
@@ -260,7 +260,10 @@ void CActor::IR_OnMouseWheel(int direction)
 
 void CActor::IR_OnKeyboardRelease(int cmd)
 {
-	if(hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))	return;
+	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
+	{
+		return;
+	}
 
 	if (Remote())
 		return;
@@ -295,7 +298,40 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 
 void CActor::IR_OnKeyboardHold(int cmd)
 {
-	if(hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))	return;
+	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
+	{
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_RIGHT))
+		{
+			g_player_hud->tune(Fvector().set(1, 0, 0));
+		}
+
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_LEFT))
+		{
+			g_player_hud->tune(Fvector().set(-1, 0, 0));
+		}
+
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_UP))
+		{
+			g_player_hud->tune(Fvector().set(0, 1, 0));
+		}
+
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_DOWN))
+		{
+			g_player_hud->tune(Fvector().set(0, -1, 0));
+		}
+
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_PAGEUP))
+		{
+			g_player_hud->tune(Fvector().set(0, 0, 1));
+		}
+
+		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_PAGEDOWN))
+		{
+			g_player_hud->tune(Fvector().set(0, 0, -1));
+		}
+
+		return;
+	}
 
 	if (Remote() || !g_Alive())					return;
 	if (m_input_external_handler && !m_input_external_handler->authorized(cmd))	return;
@@ -581,7 +617,7 @@ void CActor::SetActorKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags mask, bool state, 
 	}
 }
 
-extern BOOL b_toggle_weapon_aim;
+extern bool b_toggle_weapon_aim;
 
 void CActor::ProcessKeys(CHudItem* itm)
 {
@@ -698,6 +734,18 @@ void CActor::ProcessKeys(CHudItem* itm)
 	{
 		wpn->Action(kLASER, CMD_START);
 		SetActorKeyRepeatFlag(kfLASER, false);
+	}
+
+	if ((m_iKeyFlags & kfMAGCHECK) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kMAG_CHECK, CMD_START);
+		SetActorKeyRepeatFlag(kfMAGCHECK, false);
+	}
+
+	if ((m_iKeyFlags & kfFIREMODECHECK) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kFIREMODE_CHECK, CMD_START);
+		SetActorKeyRepeatFlag(kfFIREMODECHECK, false);
 	}
 }
 
@@ -1004,31 +1052,31 @@ void CActor::SwitchNightVision()
 	PIItem active_item = inventory().ActiveItem();
 	CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 	CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
-	CCustomDetector* det = GetDetector();
+	CCustomDevice* dev = GetDevice();
 
-	if (itm != nullptr && det != nullptr)
+	if (itm != nullptr && dev != nullptr)
 	{
 		if (wpn != nullptr && wpn->IsZoomed())
 		{
 			return;
 		}
 
-		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
 		{
 			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfNIGHTVISION))
 			{
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+			if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
 			{
 				return;
 			}
 
 			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_nvg, true);
 			itm->SwitchState(CHUDState::eDeviceSwitch);
-			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_nvg, true);
-			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_nvg, true);
+			dev->SwitchState(CCustomDevice::eDeviceSwitch);
 			return;
 		}
 	}
@@ -1058,17 +1106,17 @@ void CActor::SwitchNightVision()
 		}
 	}
 
-	if (det != nullptr)
+	if (dev != nullptr)
 	{
-		if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+		if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
 		{
-			if (det->GetState() != CCustomDetector::eIdle)
+			if (dev->GetState() != CCustomDevice::eIdle)
 			{
 				return;
 			}
 
-			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_nvg, true);
-			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_nvg, true);
+			dev->SwitchState(CCustomDevice::eDeviceSwitch);
 			return;
 		}
 	}
@@ -1104,31 +1152,31 @@ void CActor::SwitchTorch()
 		PIItem active_item = inventory().ActiveItem();
 		CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 		CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
-		CCustomDetector* det = GetDetector();
+		CCustomDevice* dev = GetDevice();
 
-		if (itm != nullptr && det != nullptr)
+		if (itm != nullptr && dev != nullptr)
 		{
 			if (wpn && wpn->IsZoomed())
 			{
 				return;
 			}
 
-			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
 			{
 				if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfHEADLAMP))
 				{
 					return;
 				}
 
-				if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+				if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
 				{
 					return;
 				}
 
 				itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_torch, true);
 				itm->SwitchState(CHUDState::eDeviceSwitch);
-				det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_torch, true);
-				det->SwitchState(CCustomDetector::eDeviceSwitch);
+				dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_torch, true);
+				dev->SwitchState(CCustomDevice::eDeviceSwitch);
 				return;
 			}
 		}
@@ -1158,17 +1206,17 @@ void CActor::SwitchTorch()
 			}
 		}
 
-		if (det != nullptr)
+		if (dev != nullptr)
 		{
-			if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_torch))
+			if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_torch))
 			{
-				if (det->GetState() != CCustomDetector::eIdle)
+				if (dev->GetState() != CCustomDevice::eIdle)
 				{
 					return;
 				}
 
-				det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_torch, true);
-				det->SwitchState(CCustomDetector::eDeviceSwitch);
+				dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_torch, true);
+				dev->SwitchState(CCustomDevice::eDeviceSwitch);
 				return;
 			}
 		}
@@ -1200,31 +1248,31 @@ void CActor::ClearMask()
 	PIItem active_item = inventory().ActiveItem();
 	CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 	CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
-	CCustomDetector* det = GetDetector();
+	CCustomDevice* dev = GetDevice();
 
-	if (itm != nullptr && det != nullptr)
+	if (itm != nullptr && dev != nullptr)
 	{
 		if (wpn != nullptr && wpn->IsZoomed())
 		{
 			return;
 		}
 
-		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_clear_mask) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_clear_mask))
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_clear_mask) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_clear_mask))
 		{
 			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfCLEARMASK))
 			{
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+			if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
 			{
 				return;
 			}
 
 			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_clear_mask, true);
 			itm->SwitchState(CHUDState::eDeviceSwitch);
-			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_clear_mask, true);
-			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_clear_mask, true);
+			dev->SwitchState(CCustomDevice::eDeviceSwitch);
 			return;
 		}
 	}
@@ -1254,17 +1302,17 @@ void CActor::ClearMask()
 		}
 	}
 
-	if (det != nullptr)
+	if (dev != nullptr)
 	{
-		if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_clear_mask))
+		if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_clear_mask))
 		{
-			if (det->GetState() != CCustomDetector::eIdle)
+			if (dev->GetState() != CCustomDevice::eIdle)
 			{
 				return;
 			}
 
-			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_clear_mask, true);
-			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			dev->m_eDevicesFlags.set(CCustomDevice::EDevicesFlags::df_clear_mask, true);
+			dev->SwitchState(CCustomDevice::eDeviceSwitch);
 			return;
 		}
 	}
@@ -1375,12 +1423,12 @@ void CActor::NoClipFly(int cmd)
 				break;
 			}
 
-			PIItem det_active = inventory().ItemFromSlot(DETECTOR_SLOT);
-			if (det_active)
+			PIItem dev_active = inventory().ItemFromSlot(DEVICE_SLOT);
+			if (dev_active)
 			{
-				if (CCustomDetector* det = det_active->cast_custom_detector())
+				if (CCustomDevice* dev = dev_active->cast_custom_device())
 				{
-					det->switch_detector();
+					dev->switch_device();
 				}
 			}
 		}break;

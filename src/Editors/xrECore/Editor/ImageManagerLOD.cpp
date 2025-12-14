@@ -48,7 +48,7 @@ BOOL GetPointColor(SPickQuery::SResult* R, u32& alpha, u32& color)
 
     auto& Layer = surf->m_ImageData->layers;
 
-    if (!Layer.empty())
+    if (!Layer.empty() && !Layer.back().empty())
     {
         color = Layer.back()[V * surf->m_ImageData->w + U];
         alpha = color_get_A(color);
@@ -334,7 +334,7 @@ void CImageManager::CreateLODTexture(CEditableObject* OBJECT, U32Vec& lod_pixels
 //------------------------------------------------------------------------------
 // 
 //------------------------------------------------------------------------------
-void CImageManager::CreateLODTexture(CEditableObject* OBJECT, LPCSTR tex_name, u32 tgt_w, u32 tgt_h, int samples, int age, int quality)
+void CImageManager::CreateLODTexture(CEditableObject* OBJECT, LPCSTR tex_name, u32 tgt_w, u32 tgt_h, int samples, time_t age, int quality)
 {
     U32Vec lod_pixels, nm_pixels;
 

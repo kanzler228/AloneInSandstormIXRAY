@@ -40,9 +40,10 @@ ShowLoadingStages = false               ; Loading stages from CS/SoC
 DisableMotionIcon = false               ; Disable motion icon
 PdaRearrangeTabButtons = false          ; for CS style buttons, where their size depends on text
 UseSavedGameStatic = true               ; Use custom static for save games
+DisableHudRenderingOnMaster = false     ; Disable HUD on Master difficulty. Gunslinger Mod style
 
 [physics]
-DeadBodyRagdoll = false                 ; Enable regdoll body
+DeadBodyRagdoll = false                 ; Enable ragdoll body
 
 [gameplay]
 EnableThirst = false                    ; Thirst
@@ -58,6 +59,7 @@ EnableAlternateZoomFovCalc = false      ; Don't turn it on unnecessarily! Breaks
 EnableInventoryPistolSlot = false       ; 2nd slot for pistols only (like in CS/SoC)
 EnableImproveWeaponMisfire = false      ; Gunslinger Mod Style
 EnableDelayedWeaponActions = false      ; Gunslinger Mod Style
+EnableLegacyUpgradeSystem = false		; Use upgrade system from Clear Sky
 
 ; Dialogs
 DialogFovScale = 0.75                   ; Increasing fov during dialogue
@@ -74,6 +76,9 @@ FontAtlasSize = 4096                    ; Texture atlas size value. Must be in t
 
 [environment]
 ReadSunConfig = false                   ; Enable sun movement in configurations
+
+[localization]
+PreferedFallbackLanguage = eng
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Extended sections

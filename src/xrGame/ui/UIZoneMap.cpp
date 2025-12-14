@@ -17,6 +17,7 @@
 #include "../../xrUI/UIHelper.h"
 #include "ui/UIInventoryUtilities.h"
 #include "../map_manager.h"
+#include "../game_cl_single.h"
 //////////////////////////////////////////////////////////////////////////
 
 CUIZoneMap::CUIZoneMap()
@@ -77,6 +78,7 @@ void CUIZoneMap::Init()
 		m_clipFrame.SetWndSize(temp);
 
 		temp = m_clipFrame.GetWndPos();
+		temp.x *= k;
 		m_clipFrame.SetWndPos(temp.mul(UI_BASE_HEIGHT));
 	}
 
@@ -148,7 +150,9 @@ void CUIZoneMap::Update()
 		return;
 	}
 
-	if (!(Device.dwFrame % 20) && IsGameTypeSingleCompatible())
+	const static bool noHUDonMaster = EngineExternal()[EEngineExternalUI::DisableHudRenderingOnMaster];
+	bool renderHUD = noHUDonMaster ? g_SingleGameDifficulty < egdStalker : true;
+	if (!(Device.dwFrame % 20) && IsGameTypeSingleCompatible() && renderHUD)
 	{
 		string16	text_str;
 		xr_strcpy(text_str, sizeof(text_str), "");
@@ -164,6 +168,8 @@ void CUIZoneMap::Update()
 		}
 		m_Counter_text.SetText(text_str);
 	}
+	if (!renderHUD)
+		m_Counter_text.SetText("");
 
 	UpdateRadar(Device.vCameraPosition);
 	float h, p;

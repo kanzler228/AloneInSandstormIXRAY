@@ -12,7 +12,6 @@
 #include "alife_simulator.h"
 #include "game_cl_base.h"
 #include "game_cl_single.h"
-#include "game_sv_single.h"
 #include "Hit.h"
 #include "PHDestroyable.h"
 #include "Actor.h"
@@ -42,6 +41,7 @@
 #include "cameralook.h"
 #include "character_hit_animations_params.h"
 #include "inventory_upgrade_manager.h"
+#include "FreeMP/game_sv_freemp.h"
 
 #include "gamespy/GameSpy_Full.h"
 
@@ -86,7 +86,7 @@ extern	ESingleGameDifficulty g_SingleGameDifficulty;
 extern	UI_API BOOL	g_show_wnd_rect2;
 //-----------------------------------------------------------
 extern	float	g_fTimeFactor;
-extern	BOOL	b_toggle_weapon_aim;
+extern	bool	b_toggle_weapon_aim;
 //extern  BOOL	g_old_style_ui_hud;
 
 extern float	g_smart_cover_factor;
@@ -99,10 +99,15 @@ int				g_keypress_on_start = 1;
 
 extern	BOOL	g_fight_fast_respawn;
 
+extern float g_bobbing_factor;
+
 extern ENGINE_API int m_look_cam_fp_zoom;
 
 int m_iQuickSave = 0;
 int m_iQuickSavesCount = 5;
+
+extern float	_delta_pos;
+extern float	_delta_rot;
 
 ENGINE_API extern float	g_console_sensitive;
 
@@ -314,15 +319,14 @@ class CCC_ALifeProcessTime : public IConsole_Command {
 public:
 	CCC_ALifeProcessTime(LPCSTR N) : IConsole_Command(N) { };
 	virtual void Execute(LPCSTR args) {
-		if ((IsGameTypeSingle()) && ai().get_alife()) {
-			game_sv_Single* tpGame = smart_cast<game_sv_Single*>(Level().Server->game);
-			VERIFY(tpGame);
+		if ((IsGameTypeSingle()) && ai().get_alife()) 
+		{
 			int id1 = 0;
 			sscanf(args, "%d", &id1);
 			if (id1 < 1)
 				Msg("Invalid process time! (%d)", id1);
 			else
-				tpGame->alife().set_process_time(id1);
+				Level().Server->game->alife().set_process_time(id1);
 		}
 		else
 			Log("!Not a single player game!");
@@ -336,11 +340,9 @@ public:
 	CCC_ALifeObjectsPerUpdate(LPCSTR N) : IConsole_Command(N) { };
 	virtual void Execute(LPCSTR args) {
 		if ((IsGameTypeSingle()) && ai().get_alife()) {
-			game_sv_Single* tpGame = smart_cast<game_sv_Single*>(Level().Server->game);
-			VERIFY(tpGame);
 			int id1 = 0;
 			sscanf(args, "%d", &id1);
-			tpGame->alife().objects_per_update(id1);
+			Level().Server->game->alife().objects_per_update(id1);
 		}
 		else
 			Log("!Not a single player game!");
@@ -352,12 +354,10 @@ public:
 	CCC_ALifeSwitchFactor(LPCSTR N) : IConsole_Command(N) { };
 	virtual void Execute(LPCSTR args) {
 		if ((IsGameTypeSingle()) && ai().get_alife()) {
-			game_sv_Single* tpGame = smart_cast<game_sv_Single*>(Level().Server->game);
-			VERIFY(tpGame);
 			float id1 = 0;
 			sscanf(args, "%f", &id1);
 			clamp(id1, .1f, 1.f);
-			tpGame->alife().set_switch_factor(id1);
+			Level().Server->game->alife().set_switch_factor(id1);
 		}
 		else
 			Log("!Not a single player game!");
@@ -1835,7 +1835,7 @@ public:
 			}
 
 			int count = 1;
-			char nameSection[128] = {};
+			string128 nameSection = {};
 			auto sc = sscanf_s(args, "%s %d", nameSection, (unsigned)sizeof(nameSection), &count);
 			if (sc > 2) {
 				Msg("! Failed to parse input");
@@ -1859,13 +1859,9 @@ public:
 			}
 
 			Fvector3 point = point.mad(Device.vCameraPosition, Device.vCameraDirection, HUD().GetCurrentRayQuery().range);
-			auto tpGame = smart_cast<game_sv_Single*>(Level().Server->game);
-			if (tpGame == nullptr) {
-				return;
-			}
 
 			for (size_t i = 0; i < count; i++) {
-				auto item = tpGame->alife().spawn_item(nameSection, point, 0, actor->ai_location().game_vertex_id(), u16(-1));
+				auto item = Level().Server->game->alife().spawn_item(nameSection, point, 0, actor->ai_location().game_vertex_id(), u16(-1));
 				item->cast_alife_object()->use_ai_locations(false);
 
 				auto anomaly = item->cast_anomalous_zone();
@@ -1882,37 +1878,31 @@ public:
 			}
 		}
 
-		else {
+		else 
+		{
+			string128 nameSection = {};
+			int count = 1;
+			auto sc = sscanf_s(args, "%s %d", nameSection, (unsigned)sizeof(nameSection), &count);
+			if (sc > 2) {
+				Msg("! Failed to parse input");
+				return;
+			}
 
-			if (pSettings->section_exist(args))
+			if (pSettings->section_exist(nameSection))
 			{
-				Fvector3 pos, dir, madPos;
-				float range;
-				pos.set(Device.vCameraPosition);
-				dir.set(Device.vCameraDirection);
-				collide::rq_result& RQ = HUD().GetCurrentRayQuery();
-
-				if (RQ.O)
-				{
-					Msg("! ERROR: Can spawn only on ground");
-					return;
-				}
-
-				range = RQ.range;
-				dir.normalize();
-				madPos.mad(pos, dir, range);
+				Fvector3 madPos = madPos.mad(Device.vCameraPosition, Device.vCameraDirection, HUD().GetCurrentRayQuery().range);
 
 				NET_Packet		P;
 				P.w_begin(M_REMOTE_CONTROL_CMD);
 				string128 str;
-				xr_sprintf(str, "spawn_on_position %s %f %f %f", args, madPos.x, madPos.y, madPos.z);
+				xr_sprintf(str, "spawn_on_position %s %f %f %f %d", nameSection, madPos.x, madPos.y, madPos.z, count);
 				P.w_stringZ(str);
 				Level().Send(P, net_flags(TRUE, TRUE));
 			}
 			else
 			{
 				Msg("! ERROR: bad command parameters.");
-				Msg("Spawn item. Format: \"g_spawn <item section>\"");
+				Msg("Spawn item. Format: \"g_spawn <item section> <count>\"");
 				return;
 			}
 		}
@@ -2138,13 +2128,8 @@ public:
 			}
 		}
 
-		auto tpGame = smart_cast<game_sv_Single*>(Level().Server->game);
-		if (tpGame == nullptr) {
-			return;
-		}
-
 		for (int i = 0; i < count; i++) {
-			CALifeSimulator__spawn_item2(&tpGame->alife(), nameSection, actor->Position(), actor->ai_location().level_vertex_id(),
+			CALifeSimulator__spawn_item2(&Level().Server->game->alife(), nameSection, actor->Position(), actor->ai_location().level_vertex_id(),
 				actor->ai_location().game_vertex_id(), actor->ID());
 		}
 	}
@@ -2196,7 +2181,8 @@ public:
 			{
 				xr_shared_ptr<CParticlesObject> pParticle = Particles::Details::Create(string, FALSE);
 
-				pParticle->SetAutoRemove(true);
+				if (!pParticle->IsLooped())
+					pParticle->SetAutoRemove(true);
 
 				// вычислить позицию и направленность партикла
 				Fmatrix pos;
@@ -2312,7 +2298,7 @@ public:
 };
 #endif
 
-extern void RefreshNamesNPC();
+extern void RefreshNames();
 extern void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
 
 class CCC_ChangeLanguage : public CCC_Token
@@ -2365,7 +2351,7 @@ public:
 		
 		if (g_pGameLevel != nullptr)
 		{
-			RefreshNamesNPC();
+			RefreshNames();
 		}
 	}
 
@@ -2603,6 +2589,10 @@ void CCC_RegisterCommands()
 	CMD1(CCC_Script, "run_script");
 	CMD1(CCC_ScriptCommand, "run_string");
 	CMD1(CCC_TimeFactor, "time_factor");
+
+	CMD4(CCC_Float, "hud_adj_delta_pos", &_delta_pos, 0.0001f, 1.0f);
+	CMD4(CCC_Float, "hud_adj_delta_rot", &_delta_rot, 0.0001f, 1.0f);
+
 #endif // MASTER_GOLD
 
 	CMD1(CCC_ReloadSystemLtx, "reload_system_ltx");
@@ -2813,9 +2803,11 @@ void CCC_RegisterCommands()
 	CMD4(CCC_Integer, "dbg_bones_snd_player", &dbg_moving_bones_snd_player, FALSE, TRUE);
 #endif
 	CMD4(CCC_Float, "con_sensitive", &g_console_sensitive, 0.01f, 1.0f);
-	CMD4(CCC_Integer, "wpn_aim_toggle", &b_toggle_weapon_aim, 0, 1);
+	CMD2(CCC_Boolean, "wpn_aim_toggle", &b_toggle_weapon_aim);
 
 	CMD4(CCC_Integer, "g_fight_fast_respawn", &g_fight_fast_respawn, 0, 1);
+
+	CMD4(CCC_Float, "g_bobbing_factor", &g_bobbing_factor, 0.3f, 1.0f);
 
 	//	CMD4(CCC_Integer,	"hud_old_style",			&g_old_style_ui_hud, 0, 1);
 

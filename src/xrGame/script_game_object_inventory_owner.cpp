@@ -41,7 +41,7 @@
 #include "ai/stalker/ai_stalker_impl.h"
 #include "smart_cover_object.h"
 #include "smart_cover.h"
-#include "CustomDetector.h"
+#include "CustomDevice.h"
 #include "doors_manager.h"
 #include "doors_door.h"
 #include "Torch.h"
@@ -880,10 +880,10 @@ void CScriptGameObject::SwitchToUpgrade()
 
 	if (CUIGameCustom* current_ui = CurrentGameUI())
 	{
-		if (current_ui->TalkMenu->IsShown())
-		{
-			current_ui->TalkMenu->SwitchToUpgrade();
-		}
+		if (current_ui->TalkMenu && current_ui->TalkMenu->IsShown())
+			current_ui->TalkMenu->HideDialog();
+
+		current_ui->StartUpgrade(Actor(), nullptr);
 	}
 }
 
@@ -1266,6 +1266,25 @@ void CScriptGameObject::HideDetector()
 	g_player_hud->detach_item(g_player_hud->attached_item(1)->m_parent_hud_item);
 }
 
+void CScriptGameObject::SwitchDetector()
+{
+	CActor* pActor = object().cast_actor();
+
+	if (pActor == nullptr)
+	{
+		return;
+	}
+
+	CCustomDevice* pDevice = pActor->GetDevice(true);
+
+	if (pDevice == nullptr)
+	{
+		return;
+	}
+
+	pDevice->switch_device();
+}
+
 int CScriptGameObject::Weapon_GrenadeLauncher_Status()
 {
 	if (CWeapon* weapon = object().cast_weapon())
@@ -1358,12 +1377,12 @@ CScriptGameObject* CScriptGameObject::active_detector() const
 		return 0;
 	}
 
-	if (CInventoryItem* result = inventory_owner->inventory().ItemFromSlot(DETECTOR_SLOT))
+	if (CInventoryItem* result = inventory_owner->inventory().ItemFromSlot(DEVICE_SLOT))
 	{
-		CCustomDetector* detector = result->cast_custom_detector();
-		VERIFY(detector);
+		CCustomDevice* device = result->cast_custom_device();
+		VERIFY(device);
 
-		return detector->IsWorking() ? result->object().lua_game_object() : 0;
+		return device->IsWorking() ? result->object().lua_game_object() : 0;
 	}
 
 	return 0;

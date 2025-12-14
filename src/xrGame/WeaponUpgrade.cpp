@@ -127,6 +127,18 @@ bool CWeapon::install_upgrade_disp( LPCSTR section, bool test )
 	VERIFY( !fis_zero(zoom_cam_recoil.MaxAngleVert ) );
 	VERIFY( !fis_zero(zoom_cam_recoil.MaxAngleHorz ) );
 
+	result |= process_if_exists(section, "pattern_factor", &CInifile::r_float, cam_recoil.Pattern.Factor, test);
+	result |= process_if_exists(section, "pattern_stiffness", &CInifile::r_float, cam_recoil.Pattern.Stiffness, test);
+	result |= process_if_exists(section, "pattern_damping", &CInifile::r_float, cam_recoil.Pattern.Damping, test);
+	result |= process_if_exists(section, "pattern_impulse", &CInifile::r_float, cam_recoil.Pattern.Impulse, test);
+	result |= process_if_exists(section, "pattern_return_speed", &CInifile::r_float, cam_recoil.Pattern.ReturnSpeed, test);
+	result |= process_if_exists(section, "zoom_pattern_factor", &CInifile::r_float, zoom_cam_recoil.Pattern.Factor, test);
+	result |= process_if_exists(section, "zoom_pattern_stiffness", &CInifile::r_float, zoom_cam_recoil.Pattern.Stiffness, test);
+	result |= process_if_exists(section, "zoom_pattern_damping", &CInifile::r_float, zoom_cam_recoil.Pattern.Damping, test);
+	result |= process_if_exists(section, "zoom_pattern_impulse", &CInifile::r_float, zoom_cam_recoil.Pattern.Impulse, test);
+	result |= process_if_exists(section, "zoom_pattern_return_speed", &CInifile::r_float, zoom_cam_recoil.Pattern.ReturnSpeed, test);
+
+
 	result |= process_if_exists( section, "PDM_disp_base",          &CInifile::r_float, m_pdm.m_fPDM_disp_base,          test );
 	result |= process_if_exists( section, "PDM_disp_vel_factor",    &CInifile::r_float, m_pdm.m_fPDM_disp_vel_factor,    test );
 	result |= process_if_exists( section, "PDM_disp_accel_factor",  &CInifile::r_float, m_pdm.m_fPDM_disp_accel_factor,  test );
@@ -572,7 +584,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 		if (pSettings->line_exist(hud_sect, "shell_params_section"))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-			bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"), iMagazineSize + 1);
+			bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"));
 			m_shell_bones.push_back(bone_params);
 			result = true;
 		}
@@ -583,7 +595,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			if (pSettings->line_exist(hud_sect, *params_section))
 			{
 				SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-				bone_params->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+				bone_params->Load(pSettings->r_string(hud_sect, *params_section));
 				m_shell_bones.push_back(bone_params);
 				result = true;
 			}
@@ -597,7 +609,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			{
 				if (bone_param->AmmoType == undefined_ammo_type)
 				{
-					bone_param->Load(pSettings->r_string(hud_sect, "shell_params_section"), iMagazineSize + 1);
+					bone_param->Load(pSettings->r_string(hud_sect, "shell_params_section"));
 					result = true;
 				}
 			}
@@ -612,7 +624,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 				{
 					if (bone_param->AmmoType == i)
 					{
-						bone_param->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+						bone_param->Load(pSettings->r_string(hud_sect, *params_section));
 						result = true;
 					}
 				}
@@ -625,7 +637,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 		if (pSettings->line_exist(hud_sect, "ammo_params_section") && pSettings->section_exist(pSettings->r_string(hud_sect, "ammo_params_section")))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-			bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"), iMagazineSize + 1);
+			bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"));
 			m_ammo_bones_mag.push_back(bone_params);
 			result = true;
 		}
@@ -638,7 +650,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 				if (need_add)
 				{
 					SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-					bone_params->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+					bone_params->Load(pSettings->r_string(hud_sect, *params_section));
 					m_ammo_bones_mag.push_back(bone_params);
 					result = true;
 				}
@@ -653,7 +665,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			{
 				if (bone_param->AmmoType == undefined_ammo_type)
 				{
-					bone_param->Load(pSettings->r_string(hud_sect, "ammo_params_section"), iMagazineSize + 1);
+					bone_param->Load(pSettings->r_string(hud_sect, "ammo_params_section"));
 					result = true;
 				}
 			}
@@ -668,7 +680,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 				{
 					if (bone_param->AmmoType == i)
 					{
-						bone_param->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+						bone_param->Load(pSettings->r_string(hud_sect, *params_section));
 						result = true;
 					}
 				}

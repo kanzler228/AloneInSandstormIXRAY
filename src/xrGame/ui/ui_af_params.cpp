@@ -17,7 +17,7 @@ u32 const green_clr = color_argb(255,170,170,170);
 
 CUIArtefactParams::CUIArtefactParams(const CParamType& type)
 {
-	for ( u32 i = 0; i < ALife::infl_max_count; ++i )
+	for ( u32 i = 0; i < ALife::eHitTypeWound_2; ++i )
 	{
 		m_immunity_item[i] = nullptr;
 	}
@@ -63,9 +63,10 @@ LPCSTR af_restore_section_names[] = // ALife::EConditionRestoreType
 {
 	"health_restore_speed",			// eHealthRestoreSpeed=0
 	"satiety_restore_speed",		// eSatietyRestoreSpeed=1
-	"power_restore_speed",			// ePowerRestoreSpeed=2
-	"bleeding_restore_speed",		// eBleedingRestoreSpeed=3
-	"radiation_restore_speed",		// eRadiationRestoreSpeed=4
+	"thirst_restore_speed",		// eThirstRestoreSpeed=2
+	"power_restore_speed",			// ePowerRestoreSpeed=3
+	"bleeding_restore_speed",		// eBleedingRestoreSpeed=4
+	"radiation_restore_speed",		// eRadiationRestoreSpeed=5
 };
 
 LPCSTR af_immunity_caption[] =  // ALife::EInfluenceType
@@ -87,6 +88,7 @@ LPCSTR af_restore_caption[] =  // ALife::EConditionRestoreType
 {
 	"ui_inv_health",
 	"ui_inv_satiety",
+	"ui_inv_thirst",
 	"ui_inv_power",
 	"ui_inv_bleeding",
 	"ui_inv_radiation",
@@ -121,20 +123,31 @@ void CUIArtefactParams::InitFromXml( CUIXml& xml )
 		m_disp_condition->SetCaption(name);
 		xml.SetLocalRoot(base_node);
 	}
-	for ( u32 i = 0; i < ALife::infl_max_count; ++i )
+	for ( u32 i = 0; i < ALife::eHitTypeWound_2; ++i )
 	{
 		m_immunity_item[i] = new UIArtefactParamItem();
-		m_immunity_item[i]->Init( xml, af_immunity_section_names[i] );
-		m_immunity_item[i]->SetAutoDelete(false);
+		if (m_immunity_item[i]->Init(xml, af_immunity_section_names[i]))
+		{
+			m_immunity_item[i]->SetAutoDelete(false);
 
-		name = g_pStringTable->translate(af_immunity_caption[i]).c_str();
-		m_immunity_item[i]->SetCaption( name );
+			name = g_pStringTable->translate(af_immunity_caption[i]).c_str();
+			m_immunity_item[i]->SetCaption(name);
 
-		xml.SetLocalRoot( base_node );
+			xml.SetLocalRoot(base_node);
+		}
+		else
+		{
+			xr_delete(m_immunity_item[i]);
+		}
 	}
 
 	for ( u32 i = 0; i < ALife::eRestoreTypeMax; ++i )
 	{
+		if (!xml.NavigateToNode(af_restore_section_names[i]))
+		{
+			continue;
+		}
+
 		m_restore_item[i] = new UIArtefactParamItem();
 		m_restore_item[i]->Init( xml, af_restore_section_names[i] );
 		m_restore_item[i]->SetAutoDelete(false);
@@ -213,11 +226,11 @@ void CUIArtefactParams::SetInfo(CInventoryItem& pInvItem)
 
 	if (is_artefact())
 	{
-		for (u32 i = 0; i < ALife::infl_max_count; ++i)
+		for (u32 i = 0; i < ALife::eHitTypeWound_2; ++i)
 		{
 			shared_str const& sect = pSettings->r_string(af_section, "hit_absorbation_sect");
 			val = pSettings->r_float(sect, af_immunity_section_names[i]);
-			if (fis_zero(val))
+			if (fis_zero(val) || !m_immunity_item[i])
 			{
 				continue;
 			}
@@ -235,6 +248,11 @@ void CUIArtefactParams::SetInfo(CInventoryItem& pInvItem)
 
 		for (u32 i = 0; i < ALife::eRestoreTypeMax; ++i)
 		{
+			if (m_restore_item[i] == nullptr)
+			{
+				continue;
+			}
+
 			val = pSettings->r_float(af_section, af_restore_section_names[i]);
 			if (fis_zero(val))
 			{
@@ -302,9 +320,11 @@ UIArtefactParamItem::~UIArtefactParamItem()
 {
 }
 
-void UIArtefactParamItem::Init( CUIXml& xml, LPCSTR section )
+bool UIArtefactParamItem::Init( CUIXml& xml, LPCSTR section )
 {
-	CUIXmlInit::InitWindow( xml, section, 0, this );
+	if (!CUIXmlInit::InitWindow(xml, section, 0, this, false))
+		return false;
+
 	xml.SetLocalRoot( xml.NavigateToNode( section ) );
 
 	m_caption   = UIHelper::CreateStatic( xml, "caption", this );
@@ -324,6 +344,7 @@ void UIArtefactParamItem::Init( CUIXml& xml, LPCSTR section )
 		m_texture_plus._set( texture_plus );
 		VERIFY( m_texture_plus.size() );
 	}
+	return true;
 }
 
 void UIArtefactParamItem::SetCaption( LPCSTR name )

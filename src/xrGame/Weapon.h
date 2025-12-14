@@ -136,6 +136,8 @@ public:
 		eDevice,
 		eLightMis,
 		eKick,
+		eMagCheck,
+		eFiremodeCheck,
 	};
 	enum EWeaponSubStates{
 		eSubstateReloadBegin		=0,
@@ -193,7 +195,7 @@ public:
 		u8 AmmoType = undefined_ammo_type;
 		xr_hash_map<u32, std::pair<shared_str, RStringVec>> ConfigurationMap{};
 		RStringVec AllBones{};
-		void Load(const shared_str& section, u32 size);
+		void Load(const shared_str& section);
 	};
 
 	struct SAmmoBonesLite
@@ -203,6 +205,39 @@ public:
 
 	} m_ammo_bones_lite;
 
+	public:
+		struct SRecoilPoint {
+			float x; 
+			float y; 
+		};
+
+		struct SRecoilPattern
+		{
+			shared_str name;
+			xr_vector<SRecoilPoint> bullet_patterns;
+			u32 current_bullet;
+
+			SRecoilPattern() : current_bullet(0) {}
+		};
+
+		// Данные паттернов
+		SRecoilPattern m_hipfire_pattern;
+		SRecoilPattern* m_current_pattern;
+
+		void LoadRecoilPatterns(LPCSTR section);
+		void ApplyPattern();
+		void StopPattern();
+		// для доступа к паттерну отдачи
+		bool GetCurrentRecoilPattern(float& out_x, float& out_y);
+
+protected:
+	// Вспомогательные методы
+	void LoadBulletPattern(LPCSTR section, LPCSTR line, SRecoilPattern& pattern);
+	void StartRecoilPattern();
+	SRecoilPattern* GetPatternByName(const shared_str& name);
+
+	public:
+
 	//обновление видимости для косточек аддонов
 	void UpdateAddonsVisibility();
 	void UpdateHUDAddonsVisibility();
@@ -211,6 +246,7 @@ public:
 	void UpdateAmmoBones(xr_vector<SAmmoBonesParams*>& lVector, u32 idx, u8 type);
 	void UpdateLiteAmmoBones(u32 idx);
 	void UpdateShellBones(u32 idx, u8 type);
+	virtual void UpdateBonePartAnimations() {}
 	//инициализация свойств присоединенных аддонов
 	virtual void InitAddons();
 
@@ -346,6 +382,7 @@ public:
 	bool m_bIsAimStarted = false;
 	bool m_bRestGlSil = false;
 	bool m_bTacticalTorchStatus = false;
+	bool m_bTacticalLaserStatus = false;
 	bool m_bJustAfterReload = false;
 	bool m_bIsPreloaded = false;
 	bool m_bAddCartridgeInOpen = false;
@@ -466,7 +503,7 @@ public:
 	//показывает, что оружие находится в соостоянии поворота для приближенного прицеливания
 			bool			IsRotatingToZoom	() const		{	return (m_zoom_params.m_fZoomRotationFactor<1.f);}
 
-	u8 GetCurrentHudOffsetIdx() const;
+	virtual u8 GetCurrentHudOffsetIdx() const override;
 
 	virtual float				Weight			() const;		
 	virtual	u32					Cost			() const;
@@ -638,6 +675,7 @@ protected:
 
 public:
 	IC int					GetAmmoElapsed		()	const		{ return iAmmoElapsed; }
+	virtual int				GetCurrentElapsed	(bool for_grenade_mode = false)	const { return iAmmoElapsed; }
 	int						GetAmmoChamberElapsed()	const		{ return iAmmoChamberElapsed; }
 	IC int					GetAmmoMagSize		()	const		{ return iMagazineSize; }
 	bool					IsChamber			()  const		{ return m_bAmmoInChamber; }

@@ -99,11 +99,12 @@ void CArtefact::Load(LPCSTR section)
 	}
 
 
-	m_fHealthRestoreSpeed    = pSettings->r_float	(section,"health_restore_speed"		);
-	m_fRadiationRestoreSpeed = pSettings->r_float	(section,"radiation_restore_speed"	);
-	m_fSatietyRestoreSpeed   = pSettings->r_float	(section,"satiety_restore_speed"	);
-	m_fPowerRestoreSpeed     = pSettings->r_float	(section,"power_restore_speed"		);
-	m_fBleedingRestoreSpeed  = pSettings->r_float	(section,"bleeding_restore_speed"	);
+	m_fHealthRestoreSpeed = pSettings->r_float(section, "health_restore_speed");
+	m_fRadiationRestoreSpeed = pSettings->r_float(section, "radiation_restore_speed");
+	m_fSatietyRestoreSpeed = pSettings->r_float(section, "satiety_restore_speed");
+	m_fThirstRestoreSpeed = READ_IF_EXISTS(pSettings, r_float, section, "thirst_restore_speed", 0.0f);
+	m_fPowerRestoreSpeed = pSettings->r_float(section, "power_restore_speed");
+	m_fBleedingRestoreSpeed = pSettings->r_float(section, "bleeding_restore_speed");
 	
 	if(pSettings->section_exist(pSettings->r_string(section,"hit_absorbation_sect")))
 	{
@@ -463,15 +464,15 @@ void CArtefact::OnStateSwitch(u32 S)
 	switch(S){
 	case eShowing:
 		{
-			PlayHUDMotion("anm_show", FALSE, S);
+			PlayHUDMotion("anm_show", EHudMixType::eNoMix, S);
 		}break;
 	case eHiding:
 		{
-			PlayHUDMotion("anm_hide", FALSE, S);
+			PlayHUDMotion("anm_hide", EHudMixType::eNoMix, S);
 		}break;
 	case eActivating:
 		{
-			PlayHUDMotion("anm_activate", FALSE, S);
+			PlayHUDMotion("anm_activate", EHudMixType::eNoMix, S);
 		}break;
 	case eIdle:
 		{
@@ -482,7 +483,7 @@ void CArtefact::OnStateSwitch(u32 S)
 
 void CArtefact::PlayAnimIdle()
 {
-	PlayHUDMotion("anm_idle", FALSE, eIdle);
+	PlayHUDMotion("anm_idle", EHudMixType::eNoMix, eIdle);
 }
 
 void CArtefact::OnAnimationEnd(u32 state)

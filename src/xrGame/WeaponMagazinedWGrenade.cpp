@@ -60,7 +60,7 @@ void CWeaponMagazinedWGrenade::Load(LPCSTR section)
 	if (pSettings->line_exist(hud_sect, "gl_ammo_params_section") && pSettings->section_exist(pSettings->r_string(hud_sect, "gl_ammo_params_section")))
 	{
 		SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-		bone_params->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"), 2);
+		bone_params->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"));
 		m_ammo_bones_gl.push_back(bone_params);
 	}
 	else for (int i = 0; i < m_ammoTypes2.size(); i++)
@@ -70,7 +70,7 @@ void CWeaponMagazinedWGrenade::Load(LPCSTR section)
 		if (pSettings->line_exist(hud_sect, *params_section))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-			bone_params->Load(pSettings->r_string(hud_sect, *params_section), 2);
+			bone_params->Load(pSettings->r_string(hud_sect, *params_section));
 			m_ammo_bones_gl.push_back(bone_params);
 		}
 	}
@@ -80,12 +80,12 @@ void CWeaponMagazinedWGrenade::LoadSounds(LPCSTR section)
 {
 	inherited::LoadSounds(section);
 
-	m_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot);
+	m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot);
 
 	if (SoundExist(section, "snd_shoot_grenade_actor"))
 	{
 		m_eSoundsFlags.set(ESoundsFlags::sf_shoot_grenade_actor, TRUE);
-		m_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot);
 	}
 
 	if (SoundExist(section, "snd_load_grenade"))
@@ -255,7 +255,7 @@ void CWeaponMagazinedWGrenade::switch2_Reload()
 		{
 			PlaySound("sndReloadG", get_LastFP2());
 		}
-		PlayHUDMotion(SetCurrentReloadAnimation(), true, eReload);
+		PlayHUDMotion(SetCurrentReloadAnimation(), EHudMixType::eMixAll, eReload);
 	}
 	else
 	{
@@ -667,11 +667,11 @@ void CWeaponMagazinedWGrenade::OnEvent(NET_Packet& P, u16 type)
 
 			if (m_eSoundsFlags.test(ESoundsFlags::sf_shoot_grenade_actor))
 			{
-				m_sounds.PlaySound("sndShotGActor", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
+				m_layered_sounds.PlaySound("sndShotGActor", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
 			}
 			else
 			{
-				m_sounds.PlaySound("sndShotG", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
+				m_layered_sounds.PlaySound("sndShotG", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
 			}
 
 			AddShotEffector();
@@ -895,7 +895,7 @@ float	CWeaponMagazinedWGrenade::CurrentZoomFactor()
 //виртуальные функции для проигрывания анимации HUD
 void CWeaponMagazinedWGrenade::PlayAnimModeSwitch()
 {
-	PlayHUDMotion(SetCurrentStateAnimation("anm_switch"), TRUE, eSwitch);
+	PlayHUDMotion(SetCurrentStateAnimation("anm_switch"), EHudMixType::eMixAll, eSwitch);
 }
 
 shared_str CWeaponMagazinedWGrenade::SetCurrentStateAnimation(const shared_str& first_name)
@@ -965,10 +965,10 @@ void CWeaponMagazinedWGrenade::UpdateSounds()
 	Fvector P = get_LastFP();
 	if (Device.dwFrame % 3 == 0)
 	{
-		m_sounds.SetPosition("sndShotG", P);
+		m_layered_sounds.SetPosition("sndShotG", P);
 		if (m_eSoundsFlags.test(ESoundsFlags::sf_shoot_grenade_actor))
 		{
-			m_sounds.SetPosition("sndShotGActor", P);
+			m_layered_sounds.SetPosition("sndShotGActor", P);
 		}
 	}
 	else if (Device.dwFrame % 3 == 1)
@@ -1088,18 +1088,17 @@ bool CWeaponMagazinedWGrenade::install_upgrade_ammo_class(LPCSTR section, bool t
 
 bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 {
-	LPCSTR str;
+	LPCSTR str = {};
 	bool result = inherited::install_upgrade_impl(section, test);
 
-	//	grenade_class = ammo_vog-25, ammo_vog-25p          // name of the ltx-section of used grenades
 	bool result2 = process_if_exists_set(section, "grenade_class", &CInifile::r_string, str, test);
 	if (result2 && !test)
 	{
-		xr_vector<shared_str>& ammo_types = !m_bGrenadeMode ? m_ammoTypes2 : m_ammoTypes;
+		RStringVec& ammo_types = !m_bGrenadeMode ? m_ammoTypes2 : m_ammoTypes;
 		ammo_types.clear();
 		for (int i = 0, count = _GetItemCount(str); i < count; ++i)
 		{
-			string128						ammo_item;
+			string128 ammo_item = {};
 			_GetItem(str, i, ammo_item);
 			ammo_types.push_back(ammo_item);
 		}
@@ -1112,11 +1111,18 @@ bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 	result |= process_if_exists(section, "launch_speed", &CInifile::r_float, m_fLaunchSpeed, test);
 
 	result2 = process_if_exists_set(section, "snd_shoot_grenade", &CInifile::r_string, str, test);
-	if (result2 && !test) { m_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot); }
+	if (result2 && !test)
+	{
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot);
+	}
 	result |= result2;
 
 	result2 = process_if_exists_set(section, "snd_shoot_grenade_actor", &CInifile::r_string, str, test);
-	if (result2 && !test) { m_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot); }
+	if (result2 && !test)
+	{
+		m_eSoundsFlags.set(ESoundsFlags::sf_shoot_grenade_actor, TRUE);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot);
+	}
 	result |= result2;
 
 	result2 = process_if_exists_set(section, "snd_reload_grenade", &CInifile::r_string, str, test);
@@ -1153,7 +1159,7 @@ bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 		{
 			if (bone_param->AmmoType == undefined_ammo_type)
 			{
-				bone_param->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"), 2);
+				bone_param->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"));
 			}
 		}
 	}
@@ -1167,7 +1173,7 @@ bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 			{
 				if (bone_param->AmmoType == i)
 				{
-					bone_param->Load(pSettings->r_string(hud_sect, *params_section), 2);
+					bone_param->Load(pSettings->r_string(hud_sect, *params_section));
 				}
 			}
 		}
@@ -1335,5 +1341,17 @@ const xr_vector<shared_str>& CWeaponMagazinedWGrenade::getAmmoTypes(bool for_gre
 	else
 	{
 		return m_bGrenadeMode ? m_ammoTypes2 : m_ammoTypes;
+	}
+}
+
+int CWeaponMagazinedWGrenade::GetCurrentElapsed(bool for_grenade_mode) const
+{
+	if (for_grenade_mode)
+	{
+		return m_bGrenadeMode ? iAmmoElapsed : iAmmoElapsed2;
+	}
+	else
+	{
+		return m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed;
 	}
 }

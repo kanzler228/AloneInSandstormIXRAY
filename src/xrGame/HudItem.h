@@ -6,6 +6,7 @@ class NET_Packet;
 class CInventoryItem;
 class CMotionDef;
 class CCustomDetector;
+class CCustomDevice;
 class CWeaponMagazined;
 class CWeaponMagazinedWGrenade;
 class CWeaponBinoculars;
@@ -24,6 +25,7 @@ class CPhysicsShellHolder;
 #include "HudSound.h"
 #include "InertionData.h"
 #include "../xrScripts/script_export_space.h"
+#include "player_hud.h"
 
 #include "HudTorchLight.h"
 
@@ -46,7 +48,6 @@ enum EHudStates
 		eSprintEnd,
 		eDeviceSwitch,
 		ePrepareDetector,
-		ePrepareDetectorEnd,
 		eFinishDetector,
 		eLastBaseState = eFinishDetector,
 };
@@ -111,7 +112,7 @@ public:
 	virtual bool				Action				(u16 cmd, u32 flags)			{return false;}
 			void				OnMovementChanged	(ACTOR_DEFS::EMoveCommand cmd)	;
 	
-	virtual	u8					GetCurrentHudOffsetIdx ()							{return 0;}
+	virtual	u8					GetCurrentHudOffsetIdx () const {return 0;}
 
 	BOOL						GetHUDmode			();
 	IC BOOL						IsPending			()		const					{ return !!m_huditem_flags.test(fl_pending);}
@@ -155,8 +156,8 @@ public:
 
 	virtual	void				UpdateXForm			()						= 0;
 
-	u32							PlayHUDMotion		(const shared_str& M, BOOL bMixIn, u32 state);
-	u32							PlayHUDMotion_noCB	(const shared_str& M, BOOL bMixIn);
+	u32							PlayHUDMotion		(const shared_str& M, EHudMixType bMixIn, u32 state);
+	u32							PlayHUDMotion_noCB	(const shared_str& M, EHudMixType bMixIn);
 	void						StopCurrentAnimWithoutCallback();
 	bool						AddSuffixName		(shared_str& anim, LPCSTR suffix, LPCSTR test_suffix = "");
 	shared_str					SetCurrentIdleAnimation();
@@ -175,8 +176,14 @@ public:
 
 	virtual bool				CheckCompatibility		(CHudItem*)			{return true;}
 
+	void PlayBonePartAnim(const shared_str& anim, BOOL bMixIn);
+
 	virtual float GetHudFov();
 	virtual bool AllowBore() { return !m_bDisableBore && m_eAnimationsFlags.test(EAnimationsFlags::af_bore); }
+
+	float getLookOutSpeedKoef() const { return m_fLookOutSpeedKoef; }
+	float getLookOutAmplK() const { return m_fLookOutAmplK; }
+	float getActorCamSpeedFactor() const { return m_fActorCamSpeedFactor; }
 
 	bool CanStartAction(CActor* pActor);
 	bool SetKeyRepeatFlag(u32 kfACTTYPE);
@@ -196,21 +203,35 @@ public:
 		af_nvg = (1 << 1),
 		af_clear_mask = (1 << 2),
 		af_prepare_detector = (1 << 3),
-		af_prepare_detector_end = (1 << 4),
-		af_finish_detector = (1 << 5),
-		af_det_hand_draw = (1 << 6),
-		af_det_hand_hide = (1 << 7),
-		af_det_hand_throw_start = (1 << 8),
-		af_det_hand_throw_idle = (1 << 9),
-		af_det_hand_throw_end = (1 << 10),
-		af_det_hand_kick = (1 << 11),
-		af_det_hand_lam = (1 << 12),
-		af_bore = (1 << 13),
-		af_firemode = (1 << 14),
-		af_empty_click = (1 << 15),
-		af_aim_in_out = (1 << 16),
-		af_sprint_in_out = (1 << 17),
-		af_kick = (1 << 18),
+		af_finish_detector = (1 << 4),
+		af_det_hand_draw = (1 << 5),
+		af_det_hand_hide = (1 << 6),
+		af_det_hand_throw_start = (1 << 7),
+		af_det_hand_throw_idle = (1 << 8),
+		af_det_hand_throw_end = (1 << 9),
+		af_det_hand_kick = (1 << 10),
+		af_det_hand_lam = (1 << 11),
+		af_bore = (1 << 12),
+		af_firemode = (1 << 13),
+		af_empty_click = (1 << 14),
+		af_aim_in_out = (1 << 15),
+		af_sprint_in_out = (1 << 16),
+		af_kick = (1 << 17),
+		af_mag_check = (1 << 18),
+		af_firemode_check = (1 << 19),
+
+		af_det_hand_shoot = (1 << 23),
+		af_det_hand_dry = (1 << 24),
+		af_det_hand_jammed = (1 << 25),
+		af_det_hand_lightmis = (1 << 26),
+	};
+
+	enum EBPAnimsFlags : u64
+	{
+		abpf_idle = (1 << 0),
+		abpf_idle_empty = (1 << 1),
+		abpf_idle_jammed = (1 << 2),
+		abpf_firemode = (1 << 3),
 	};
 
 	enum ESoundsFlags : u64
@@ -271,6 +292,7 @@ public:
 
 	Flags32 m_eDevicesFlags;
 	Flags32 m_eAnimationsFlags;
+	Flags32 m_eBonePartAnimationsFlags;
 	Flags64 m_eSoundsFlags;
 	Flags64 m_eSoundsFlags2;
 
@@ -311,6 +333,9 @@ protected:
 	float						m_nearwall_speed_mod;
 	float						m_fHudFov;
 	float						m_fHudFovFactor;
+	float						m_fLookOutSpeedKoef = 1.0f;
+	float						m_fLookOutAmplK = 1.0f;
+	float						m_fActorCamSpeedFactor = 1.0f;
 
 	bool						m_bDisableBore;
 	bool						m_bSwitchSprint = false;
@@ -334,6 +359,7 @@ public:
 
 	virtual CHudItem*			cast_hud_item			()				{ return this; }
 	virtual CCustomDetector*	cast_custom_detector	()				{ return nullptr; }
+	virtual CCustomDevice*		cast_custom_device		()				{ return nullptr; }
 	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
 	virtual CWeaponKnife* cast_weapon_knife() { return nullptr; }
 	virtual CWeaponMagazined* cast_weapon_magazined() { return nullptr; }

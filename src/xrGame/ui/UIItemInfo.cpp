@@ -314,7 +314,7 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 			pItem->SetFont						(m_desc_info.pDescFont);
 			pItem->SetWidth						(UIDesc->GetDesiredChildWidth());
 			pItem->SetTextComplexMode			(true);
-			pItem->SetText						(*pInvItem->ItemDescription());
+			pItem->SetText(pInvItem->IsUsedAdditionalDescription() ? *pInvItem->GetExtendedUnionDescription() : *pInvItem->ItemDescription());
 			pItem->AdjustHeightToText			();
 			UIDesc->AddWindow					(pItem, true);
 		}
@@ -376,6 +376,10 @@ void CUIItemInfo::TryAddConditionInfo(CInventoryItem& pInvItem, CInventoryItem* 
 	{
 		UIConditionWnd->SetInfo(pCompareItem, pInvItem);
 		UIDesc->AddWindow(UIConditionWnd, false);
+	}
+	else
+	{
+		UIDesc->RemoveWindow(UIConditionWnd);
 	}
 }
 

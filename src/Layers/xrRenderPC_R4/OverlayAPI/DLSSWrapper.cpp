@@ -5,6 +5,16 @@
 DLSSWrapper g_DLSSWrapper;
 
 bool DLSSInited = false;
+extern ENGINE_API u32 ps_render_scale_preset;
+extern ENGINE_API float ps_render_scale;
+
+static shared_str GetOptimalPresetForScale(float scale) {
+	if (scale >= 0.9f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+	else if (scale >= 0.7f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality;
+	else if (scale >= 0.6f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced;
+	else if (scale >= 0.5f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance;
+	else return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance;
+}
 
 void DLSSWrapper::Create(const ContextParameters& Parameters)
 {
@@ -52,6 +62,38 @@ void DLSSWrapper::Create(const ContextParameters& Parameters)
 		NgxParameters = nullptr;
 		return;
 	}
+	// Устанавливаем пресет для выбранного режима качества
+
+	shared_str presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+
+	if (ps_render_scale_preset == 5)
+	{
+		presetParameter = GetOptimalPresetForScale(ps_render_scale);
+	}
+	else
+	{
+		switch (ps_render_scale_preset) {
+		case 4:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance;
+			break;
+		case 3:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance;
+			break;
+		case 2:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced;
+			break;
+		case 1:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality;
+			break;
+		case 0:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+			break;
+		default:
+			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+		}
+	}
+
+	NgxParameters->Set(presetParameter.c_str(), static_cast<int>(NVSDK_NGX_DLSS_Hint_Render_Preset_F));
 
 	int32_t flags = 0;
 	flags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
@@ -138,7 +180,7 @@ bool DLSSWrapper::Draw(const DrawParameters& params)
 	dlssEvalParams.InMVScaleY = (float)params.renderHeight * 0.5f;
 
 	dlssEvalParams.pInTransparencyMask = params.transparencyAndCompositionResource;
-
+	
 	NVSDK_NGX_Result result = NGX_D3D11_EVALUATE_DLSS_EXT(RContext, Handle, NgxParameters, &dlssEvalParams);
 	if(result != NVSDK_NGX_Result_Success)
 	{

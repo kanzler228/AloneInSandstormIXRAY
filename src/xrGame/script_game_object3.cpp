@@ -44,8 +44,9 @@
 #include "WeaponMagazined.h"
 #include "inventory_upgrade_manager.h"
 #include "alife_simulator.h"
-#include "eatable_item.h"
 #include "CustomOutfit.h"
+#include "player_hud.h"
+#include "../xrUI/ui_base.h"
 
 namespace MemorySpace {
 	struct CVisibleObject;
@@ -182,7 +183,8 @@ u32 CScriptGameObject::PlayHudMotion(LPCSTR M, bool bMixIn, u32 state)
 {
 	if (CHudItem* itm = object().cast_hud_item())
 	{
-		return itm->PlayHUDMotion(M, bMixIn, state);
+		EHudMixType mix_type = bMixIn ? EHudMixType::eMixAll : EHudMixType::eNoMix;
+		return itm->PlayHUDMotion(M, mix_type, state);
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CGameObject : cannot be cast to CHudItem!");
@@ -1568,6 +1570,15 @@ float CScriptGameObject::GetArtefactSatietyRestoreSpeed()
 
 	return artefact->GetSatietyPower();
 }
+
+float CScriptGameObject::GetArtefactThirstRestoreSpeed()
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	return artefact->GetThirstPower();
+}
+
 float CScriptGameObject::GetArtefactPowerRestoreSpeed()
 {
 	CArtefact* artefact = object().cast_artefact();
@@ -1606,6 +1617,14 @@ void CScriptGameObject::SetArtefactSatietyRestoreSpeed(float value)
 	THROW(artefact);
 
 	artefact->SetSatietyPower(value);
+}
+
+void CScriptGameObject::SetArtefactThirstRestoreSpeed(float value)
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	artefact->SetThirstPower(value);
 }
 
 void CScriptGameObject::SetArtefactPowerRestoreSpeed(float value)
@@ -1792,4 +1811,25 @@ void CScriptGameObject::SetHeadRotate(bool value)
 {
 	if (CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object()))
 		pInventoryOwner->SetHeadRotate(value);
+}
+
+void CScriptGameObject::SetSubIconText(LPCSTR m_custom_text, int m_custom_text_clr_inv, LPCSTR item_custom_text_font, Fvector2 m_custom_text_offset)
+{
+	if (CInventoryItem* iitem = this->object().cast_inventory_item()) {
+		iitem->m_custom_text = m_custom_text;
+		iitem->m_custom_text_clr_inv = m_custom_text_clr_inv;
+		iitem->m_custom_text_font = UI().Font().GetFont(item_custom_text_font);
+		iitem->m_custom_text_offset = m_custom_text_offset;
+	}
+}
+
+void CScriptGameObject::SetSubIcon(bool m_custom_mark, Fvector2 m_custom_mark_offset, Fvector2 m_custom_mark_size, LPCSTR m_custom_mark_texture, int m_custom_mark_clr)
+{
+	if (CInventoryItem* iitem = this->object().cast_inventory_item()) {
+		iitem->m_custom_mark = m_custom_mark;
+		iitem->m_custom_mark_offset = m_custom_mark_offset;
+		iitem->m_custom_mark_size = m_custom_mark_size;
+		iitem->m_custom_mark_texture = m_custom_mark_texture;
+		iitem->m_custom_mark_clr = m_custom_mark_clr;
+	}
 }

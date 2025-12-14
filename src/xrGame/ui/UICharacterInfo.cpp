@@ -301,6 +301,12 @@ void CUICharacterInfo::UpdateRelation()
 		if(showRelation) {
 			CSE_ALifeTraderAbstract* T = ch_info_get_from_id(m_ownerID);
 			CSE_ALifeTraderAbstract* TA = ch_info_get_from_id(Actor()->ID());
+			if (!T || !TA)
+			{
+				m_icons[eRelationCaption]->Show(false);
+				m_icons[eRelation]->Show(false);
+				return;
+			}
 
 			SetRelation(RELATION_REGISTRY().GetRelationType(T, TA), RELATION_REGISTRY().GetAttitude(T, TA));
 		}
@@ -372,8 +378,8 @@ bool CUICharacterInfo::get_actor_community( shared_str* our, shared_str* enemy )
 		return false;
 	}
 	u32   size_temp   = (xr_strlen(vs_teams) + 1) * sizeof(char);
-	PSTR  our_fract   = (PSTR)_alloca( size_temp );
-	PSTR  enemy_fract = (PSTR)_alloca( size_temp );
+	char*  our_fract   = (char*)_alloca( size_temp );
+	char*  enemy_fract = (char*)_alloca( size_temp );
 	_GetItem( vs_teams, 0, our_fract, size_temp );
 	_GetItem( vs_teams, 1, enemy_fract, size_temp );
 

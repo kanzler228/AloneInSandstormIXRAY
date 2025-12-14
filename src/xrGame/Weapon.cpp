@@ -15,14 +15,14 @@
 #include "object_broker.h"
 #include "player_hud.h"
 #include "GamePersistent.h"
-#include "EffectorFall.h"
+#include "EffectorDOF.h"
 #include "debug_renderer.h"
 #include "clsid_game.h"
 #include "WeaponBinocularsVision.h"
 #include "../../xrUI/Widgets/UIWindow.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "Torch.h"
-#include "CustomDetector.h"
+#include "CustomDevice.h"
 #include "script_game_object.h"
 #include <WeaponBinoculars.h>
 #include "Level_Bullet_Manager.h"
@@ -34,7 +34,7 @@
 #define WEAPON_REMOVE_TIME		60000
 #define ROTATION_TIME			0.25f
 
-BOOL	b_toggle_weapon_aim		= FALSE;
+bool	b_toggle_weapon_aim		= false;
 extern CUIXml*	pWpnScopeXml;
 
 ENGINE_API extern float psHUD_FOV_def;
@@ -63,6 +63,8 @@ CWeapon::CWeapon()
 
 	m_ammoType				= 0;
 	m_ChamberAmmoType		= 0;
+
+	m_current_pattern = nullptr;
 
 	eHandDependence			= hdNone;
 
@@ -302,6 +304,8 @@ void CWeapon::Load		(LPCSTR section)
 	inherited::Load					(section);
 	CShootingObject::Load			(section);
 
+
+
 	m_base_inertion = m_current_inertion;
 
 	m_zoom_inertion.PitchOffsetR = READ_IF_EXISTS(pSettings, r_float, hud_sect, "inertion_aim_pitch_offset_r", 0.0f);
@@ -391,6 +395,8 @@ void CWeapon::Load		(LPCSTR section)
 
 	zoom_cam_recoil.ReturnMode		= cam_recoil.ReturnMode;
 	zoom_cam_recoil.StopReturn		= cam_recoil.StopReturn;
+
+	zoom_cam_recoil.Pattern = cam_recoil.Pattern;
 
 	
 	if ( pSettings->line_exist( section, "zoom_cam_relax_speed" ) )
@@ -739,7 +745,7 @@ void CWeapon::Load		(LPCSTR section)
 	if (pSettings->line_exist(hud_sect, "shell_params_section"))
 	{
 		SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-		bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"), iMagazineSize + 1);
+		bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"));
 		m_shell_bones.push_back(bone_params);
 	}
 	else for (int i = 0; i < m_ammoTypes.size(); i++)
@@ -749,7 +755,7 @@ void CWeapon::Load		(LPCSTR section)
 		if (pSettings->line_exist(hud_sect, *params_section))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-			bone_params->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+			bone_params->Load(pSettings->r_string(hud_sect, *params_section));
 			m_shell_bones.push_back(bone_params);
 		}
 	}
@@ -757,7 +763,7 @@ void CWeapon::Load		(LPCSTR section)
 	if (pSettings->line_exist(hud_sect, "ammo_params_section") && pSettings->section_exist(pSettings->r_string(hud_sect, "ammo_params_section")))
 	{
 		SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-		bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"), iMagazineSize + 1);
+		bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"));
 		m_ammo_bones_mag.push_back(bone_params);
 	}
 	else for (int i = 0; i < m_ammoTypes.size(); i++)
@@ -767,7 +773,7 @@ void CWeapon::Load		(LPCSTR section)
 		if (pSettings->line_exist(hud_sect, *params_section))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-			bone_params->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize + 1);
+			bone_params->Load(pSettings->r_string(hud_sect, *params_section));
 			m_ammo_bones_mag.push_back(bone_params);
 		}
 	}
@@ -789,9 +795,12 @@ void CWeapon::Load		(LPCSTR section)
 			ConfigNode = bullet_bone_name;
 		}
 	}
+
+	// Загрузка паттернов отдачи
+	LoadRecoilPatterns(section);
 }
 
-void CWeapon::SAmmoBonesParams::Load(const shared_str& section, u32 size)
+void CWeapon::SAmmoBonesParams::Load(const shared_str& section)
 {
 	if (!AllBones.empty())
 	{
@@ -827,24 +836,28 @@ void CWeapon::SAmmoBonesParams::Load(const shared_str& section, u32 size)
 
 	ConfigurationMap.clear();
 
-	for (u32 i = 0; i < size; ++i)
+	u32 k = 0;
+
+	configuration.printf("configuration_%d", k);
+
+	while (pSettings->line_exist(section, configuration))
 	{
-		auto& ConfigNode = ConfigurationMap[i];
-		configuration.printf("configuration_%d", i);
-		ConfigNode.first = configuration;
-		if (pSettings->line_exist(section, configuration))
+		auto& node = ConfigurationMap[k];
+
+		node.first = configuration;
+
+		LPCSTR S = pSettings->r_string(section, *configuration);
+		if (S && S[0])
 		{
-			LPCSTR S = pSettings->r_string(section, *configuration);
-			if (S && S[0])
+			string128 Item = {};
+			u32 count = _GetItemCount(S);
+			for (u32 it = 0; it < count; ++it)
 			{
-				string128 Item = {};
-				u32 count = _GetItemCount(S);
-				for (u32 it = 0; it < count; ++it)
-				{
-					ConfigNode.second.push_back(_GetItem(S, it, Item));
-				}
+				node.second.push_back(_GetItem(S, it, Item));
 			}
 		}
+
+		configuration.printf("configuration_%d", ++k);
 	}
 }
 
@@ -870,7 +883,106 @@ void CWeapon::LoadFireParams		(LPCSTR section)
 	CShootingObject::LoadFireParams(section);
 };
 
+void CWeapon::LoadRecoilPatterns(LPCSTR section)
+{
+	LoadBulletPattern(section, "hipfire_pattern", m_hipfire_pattern);
+	m_hipfire_pattern.name = "hipfire";
 
+	cam_recoil.Pattern.Factor = READ_IF_EXISTS(pSettings, r_float, section, "pattern_factor", 0.035f);
+	cam_recoil.Pattern.Stiffness = READ_IF_EXISTS(pSettings, r_float, section, "pattern_stiffness", 800.0f);
+	cam_recoil.Pattern.Damping = READ_IF_EXISTS(pSettings, r_float, section, "pattern_damping", 40.0f);
+	cam_recoil.Pattern.Impulse = READ_IF_EXISTS(pSettings, r_float, section, "pattern_impulse", 35.0f);
+	cam_recoil.Pattern.Loop = READ_IF_EXISTS(pSettings, r_bool, section, "pattern_loop", true);
+	cam_recoil.Pattern.ReturnSpeed = READ_IF_EXISTS(pSettings, r_float, section, "pattern_return_speed", 5.0f);
+	cam_recoil.Pattern.ReturnEnable = READ_IF_EXISTS(pSettings, r_bool, section, "pattern_return_enable", true);
+
+
+	cam_recoil.Pattern.RandomOffsetEnable =
+		READ_IF_EXISTS(pSettings, r_bool, section, "pattern_random_enable", false);
+
+	if (cam_recoil.Pattern.RandomOffsetEnable)
+	{
+		Fvector2 pattern_random_x =
+			READ_IF_EXISTS(pSettings, r_fvector2, section, "pattern_random_x", Fvector2().set(0, 0));
+		Fvector2 pattern_random_y =
+			READ_IF_EXISTS(pSettings, r_fvector2, section, "pattern_random_y", Fvector2().set(0, 0));
+
+
+		cam_recoil.Pattern.RandomOffsetX.x = pattern_random_x.x;
+		cam_recoil.Pattern.RandomOffsetX.y = pattern_random_x.y;
+
+		cam_recoil.Pattern.RandomOffsetY.x = pattern_random_y.x;
+		cam_recoil.Pattern.RandomOffsetY.y = pattern_random_y.y;
+	}
+
+
+	zoom_cam_recoil.Pattern.Factor = READ_IF_EXISTS(pSettings, r_float, section, "zoom_pattern_factor", 0.015f);
+	zoom_cam_recoil.Pattern.Stiffness = READ_IF_EXISTS(pSettings, r_float, section, "zoom_pattern_stiffness", 800.0f);
+	zoom_cam_recoil.Pattern.Damping = READ_IF_EXISTS(pSettings, r_float, section, "zoom_pattern_damping", 40.0f);
+	zoom_cam_recoil.Pattern.Impulse = READ_IF_EXISTS(pSettings, r_float, section, "zoom_pattern_impulse", 35.0f);
+	zoom_cam_recoil.Pattern.Loop = READ_IF_EXISTS(pSettings, r_bool, section, "zoom_pattern_loop", true);
+	zoom_cam_recoil.Pattern.ReturnSpeed = READ_IF_EXISTS(pSettings, r_float, section, "zoom_pattern_return_speed", 5.0f);
+	zoom_cam_recoil.Pattern.ReturnEnable = READ_IF_EXISTS(pSettings, r_bool, section, "zoom_pattern_return_enable", true);
+
+	zoom_cam_recoil.Pattern.RandomOffsetEnable =
+		READ_IF_EXISTS(pSettings, r_bool, section, "zoom_pattern_random_enable", false);
+
+	if (zoom_cam_recoil.Pattern.RandomOffsetEnable)
+	{
+		Fvector2 zoom_pattern_random_x =
+			READ_IF_EXISTS(pSettings, r_fvector2, section, "zoom_pattern_random_x", Fvector2().set(0, 0));
+		Fvector2 zoom_pattern_random_y =
+			READ_IF_EXISTS(pSettings, r_fvector2, section, "zoom_pattern_random_y", Fvector2().set(0, 0));
+
+
+		zoom_cam_recoil.Pattern.RandomOffsetX.x = zoom_pattern_random_x.x; 
+		zoom_cam_recoil.Pattern.RandomOffsetX.y = zoom_pattern_random_x.y; 
+
+		zoom_cam_recoil.Pattern.RandomOffsetY.x = zoom_pattern_random_y.x; 
+		zoom_cam_recoil.Pattern.RandomOffsetY.y = zoom_pattern_random_y.y; 
+	}
+
+//	Msg("[%s] Recoil patterns loaded: hipfire=%d (factor=%.2f), (factor=%.2f)",
+//		section,
+//		m_hipfire_pattern.bullet_patterns.size(), cam_recoil.Pattern.Factor, zoom_cam_recoil.Pattern.Factor);
+}
+
+void CWeapon::LoadBulletPattern(LPCSTR section, LPCSTR pattern_name, SRecoilPattern& pattern)
+{
+	pattern.bullet_patterns.clear();
+	pattern.current_bullet = 0;
+
+	string512 subsection_name;
+	xr_sprintf(subsection_name, "%s_%s", section, pattern_name);
+
+	if (!pSettings->section_exist(subsection_name)) {
+//		Msg("!! Recoil pattern subsection not found: %s", subsection_name);
+		return;
+	}
+
+	string64 LineName;
+
+	for (u32 i = 1; i < 255; i++)
+	{
+		xr_sprintf(LineName, "bullet_%d", i);
+
+		if (!pSettings->line_exist(subsection_name, LineName))
+			break;
+
+		Fvector2 _point= pSettings->r_fvector2(subsection_name, LineName);
+
+		SRecoilPoint point;
+		point.x = _point.x;
+		point.y = _point.y;
+
+		pattern.bullet_patterns.push_back(point);
+
+//		Msg("Recoil bullet %d: x=%.3f, y=%.3f", i, point.x, point.y);
+	}
+
+//	Msg("Loaded %d recoil bullets from subsection %s",
+//		pattern.bullet_patterns.size(), subsection_name);
+}
 
 BOOL CWeapon::net_Spawn		(CSE_Abstract* DC)
 {
@@ -1173,6 +1285,7 @@ void CWeapon::OnH_B_Independent	(bool just_before_destroy)
 	m_strapped_mode				= false;
 	m_strapped_mode_rifle = false;
 	m_zoom_params.m_bIsZoomModeNow	= false;
+	bDisablePrepareAnimation = false;
 	UpdateXForm					();
 
 }
@@ -1208,6 +1321,7 @@ void CWeapon::OnActiveItem ()
 //-
 
 	bStopReloadSignal = false;
+	bDisablePrepareAnimation = false;
 
 	inherited::OnActiveItem		();
 	//если мы занружаемся и оружие было в руках
@@ -1230,6 +1344,7 @@ void CWeapon::OnHiddenItem ()
 	m_set_next_ammoType_on_reload = undefined_ammo_type;
 	m_bBlockEmptyClick = false;
 	bWorking = false;
+	bDisablePrepareAnimation = false;
 }
 
 bool CWeapon::SendDeactivateItem(bool Force)
@@ -1397,6 +1512,7 @@ void CWeapon::ForceUpdateHUD()
 	UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, type_to_update);
 	UpdateShellBones(iAmmoElapsed, m_LastShotAmmoType != undefined_ammo_type ? m_LastShotAmmoType : GetTargetAmmoType());
 	UpdateLiteAmmoBones(iAmmoElapsed + iAmmoChamberElapsed);
+	UpdateBonePartAnimations();
 }
 
 void CWeapon::SwitchTorch(bool status, bool forced)
@@ -1654,13 +1770,21 @@ bool CWeapon::Action(u16 cmd, u32 flags)
 	{
 		case kWPN_FIRE:
 			{
+				if (m_pInventory != nullptr && m_pInventory->IsSlotBlocked(this))
+				{
+					return false;
+				}
+
 				if (IsTriStateReload() && GetState() == eReload && (m_sub_state == eSubstateReloadInProcess || m_bAddCartridgeInOpen && m_sub_state == eSubstateReloadBegin) && flags & CMD_START)
 				{
 					bStopReloadSignal = true;
 					return true;
 				}
-				if(IsPending())		
+
+				if (IsPending())		
+				{
 					return false;
+				}
 
 				if (flags&CMD_START) 
 					FireStart();
@@ -1768,7 +1892,7 @@ bool CWeapon::Action(u16 cmd, u32 flags)
 							{
 								SwitchState(eIdle);
 							}
-
+							StopShooting();
 							OnZoomIn();
 						}
 					}
@@ -2089,7 +2213,7 @@ bool CWeapon::OnWeaponJam()
 	//	return false;
 	//}
 
-	if (m_bUseLightMis && !(pActor->GetDetector() != nullptr && m_bDisableLightMisDet))
+	if (m_bUseLightMis && !(pActor->GetDevice() != nullptr && m_bDisableLightMisDet))
 	{
 		float curcond = GetCondition();
 		float startcond = light_misfire.startcond;
@@ -2551,9 +2675,12 @@ bool CWeapon::CanAimNow()
 
 	bool result = true;
 
-	if (pActor && pActor->GetDetector() != nullptr)
+	CCustomDevice* pDevice = pActor->GetDevice();
+
+	if (pDevice != nullptr)
 	{
-		result = !!(pActor->GetDetector()->GetState() == CCustomDetector::eIdle);
+		u32 state = pDevice->GetState();
+		result = !!(state == CCustomDevice::eIdle || state == CCustomDevice::EDeviceStates::eHandAimStart || state == CCustomDevice::EDeviceStates::eHandAimEnd);
 	}
 
 	if (m_eAnimationsFlags.test(EAnimationsFlags::af_sprint_in_out) && (pActor->GetMovementState(ACTOR_DEFS::EMovementStates::eReal) & ACTOR_DEFS::EMoveCommand::mcSprint || GetState() == eSprintStart || GetState() == eSprintEnd || m_bSwitchSprint))
@@ -2569,7 +2696,7 @@ bool CWeapon::CanAimNow()
 
 			if (IsScopeAttached())
 			{
-				sect = GetCurrentScopeSection();
+				sect = ScopeAttachable() ? GetScopeName() : cNameSect();
 			}
 
 			if (READ_IF_EXISTS(pSettings, r_bool, sect, "prohibit_aim_for_grenade_mode", false))
@@ -2616,6 +2743,128 @@ float CWeapon::CurrentZoomFactor()
 	return IsScopeAttached() ? m_zoom_params.m_fScopeZoomFactor : m_zoom_params.m_fIronSightZoomFactor;
 };
 
+CWeapon::SRecoilPattern* CWeapon::GetPatternByName(const shared_str& name)
+{
+	if (name == "hipfire") return &m_hipfire_pattern;
+	return nullptr;
+}
+
+void CWeapon::StartRecoilPattern()
+{
+	if (!m_hipfire_pattern.bullet_patterns.empty()) {
+		m_current_pattern = &m_hipfire_pattern;
+	}
+	else {
+		m_current_pattern = nullptr;
+		return;
+	}
+
+	m_current_pattern->current_bullet = 0;
+}
+
+void CWeapon::StopPattern()
+{
+
+	if (m_current_pattern)
+	{
+		m_current_pattern->current_bullet = 0;
+		//Msg("Recoil pattern %s reset", m_current_pattern->name.c_str());
+	}
+}
+
+void CWeapon::ApplyPattern()
+{
+	if (!m_current_pattern) {
+		StartRecoilPattern();
+	}
+
+	if (!m_current_pattern)
+	{
+		return;
+	}
+
+	
+	if (m_current_pattern->current_bullet < m_current_pattern->bullet_patterns.size())
+	{
+		SRecoilPoint& point = m_current_pattern->bullet_patterns[m_current_pattern->current_bullet];
+	//	Msg("Pattern bullet %d/%d: raw (x:%.3f, y:%.3f)",
+	//		m_current_pattern->current_bullet + 1,
+	//		m_current_pattern->bullet_patterns.size(),
+	//		point.x, point.y);
+	}
+
+	
+	m_current_pattern->current_bullet++;
+
+	if (m_current_pattern->current_bullet >= m_current_pattern->bullet_patterns.size())
+	{
+		bool should_loop = IsZoomed() ? zoom_cam_recoil.Pattern.Loop : cam_recoil.Pattern.Loop;
+
+		if (should_loop)
+		{
+			m_current_pattern->current_bullet = 0;
+	//		Msg("Recoil pattern %s looped (zoom=%d, loop_setting=%d)",
+	//			m_current_pattern->name.c_str(),
+	//			IsZoomed(),
+	//			should_loop);
+		}
+		else
+		{
+			m_current_pattern->current_bullet = m_current_pattern->bullet_patterns.size();
+	//		Msg("Recoil pattern %s finished (no loop)", m_current_pattern->name.c_str());
+		}
+	}
+}
+
+bool CWeapon::GetCurrentRecoilPattern(float& out_x, float& out_y)
+{
+	if (!m_current_pattern || m_current_pattern->bullet_patterns.empty())
+		return false;
+
+	u32 idx = 0;
+	if (m_current_pattern->current_bullet > 0)
+	{
+		idx = m_current_pattern->current_bullet - 1;
+	}
+	else
+	{
+		// Если current_bullet == 0, используем последний элемент (для цикличности)
+		idx = m_current_pattern->bullet_patterns.size() - 1;
+	}
+
+
+	if (idx >= m_current_pattern->bullet_patterns.size())
+	{
+		idx = m_current_pattern->bullet_patterns.size() - 1;
+	}
+
+	const SRecoilPoint& point = m_current_pattern->bullet_patterns[idx];
+
+	bool offset_enabled = IsZoomed() ? zoom_cam_recoil.Pattern.RandomOffsetEnable : cam_recoil.Pattern.RandomOffsetEnable;
+
+	if (offset_enabled)
+	{
+
+		float min_x = IsZoomed() ? zoom_cam_recoil.Pattern.RandomOffsetX.x : cam_recoil.Pattern.RandomOffsetX.x;
+		float max_x = IsZoomed() ? zoom_cam_recoil.Pattern.RandomOffsetX.y : cam_recoil.Pattern.RandomOffsetX.y;
+		float min_y = IsZoomed() ? zoom_cam_recoil.Pattern.RandomOffsetY.x : cam_recoil.Pattern.RandomOffsetY.x;
+		float max_y = IsZoomed() ? zoom_cam_recoil.Pattern.RandomOffsetY.y : cam_recoil.Pattern.RandomOffsetY.y;
+
+		out_x = point.x + Random.randF(min_x, max_x);
+		out_y = point.y + Random.randF(min_y, max_y);
+	}
+	else
+	{
+		out_x = point.x;
+		out_y = point.y;
+	}
+
+//	Msg("GetCurrentRecoilPattern: bullet %d/%d -> (x:%.3f, y:%.3f)",
+//		idx + 1, m_current_pattern->bullet_patterns.size(), out_x, out_y);
+
+	return true;
+}
+
 void GetZoomData(const float scope_factor, float& delta, float& min_zoom_factor);
 
 float LastZoomFactor = 0.f;
@@ -2624,6 +2873,17 @@ void CWeapon::OnZoomIn()
 {
 	m_bSwitchSprint = false;
 	m_zoom_params.m_bIsZoomModeNow		= true;
+
+	CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr;
+
+	if (pActor != nullptr)
+	{
+		if (CCustomDevice* pDevice = pActor->GetDevice())
+		{
+			pDevice->SwitchZoom();
+		}
+	}
+
 	if (m_zoom_params.m_bUseDynamicZoom && IsScopeAttached())
 	{
 		if (LastZoomFactor)
@@ -2656,11 +2916,9 @@ void CWeapon::OnZoomIn()
 
 	if (m_zoom_params.m_sUseZoomPostprocess.size() && IsScopeAttached()) 
 	{
-		CActor* actor = H_Parent() ? H_Parent()->cast_actor() : nullptr;
-
-		if (actor && !GetNightVision())
+		if (pActor != nullptr && !GetNightVision())
 		{
-			m_zoom_params.m_pNight_vision = new CWeaponNightVision(m_zoom_params.m_sUseZoomPostprocess, actor);
+			m_zoom_params.m_pNight_vision = new CWeaponNightVision(m_zoom_params.m_sUseZoomPostprocess, pActor);
 		}
 	}
 }
@@ -2670,6 +2928,16 @@ void CWeapon::OnZoomOut()
 	m_zoom_params.m_bIsZoomModeNow		= false;
 	m_fRTZoomFactor = GetZoomFactor();//store current
 	m_zoom_params.m_fCurrentZoomFactor = g_fov;
+
+	CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr;
+
+	if (pActor != nullptr)
+	{
+		if (CCustomDevice* pDevice = pActor->GetDevice())
+		{
+			pDevice->SwitchZoom();
+		}
+	}
 
 	GamePersistent().SetPickableEffectorDOF(false);
 
@@ -3820,11 +4088,12 @@ void CWeapon::UnloadChamber(bool spawn_ammo)
 bool CWeapon::GetScopeBack()
 {
 	if (bUseAltScope && m_eScopeStatus != ALife::eAddonPermanent && IsScopeAttached())
+	{
 		return !!READ_IF_EXISTS(pSettings, r_bool, GetNameWithAttachmentScope(), "scope_back", false);
+	}
 
-	return !!READ_IF_EXISTS(pSettings, r_bool, GetCurrentScopeSection(), "scope_back", false);
+	return !!READ_IF_EXISTS(pSettings, r_bool, ScopeAttachable() ? GetScopeName() : cNameSect(), "scope_back", false);
 }
-
 
 void CWeapon::UpdateCollimatorSight()
 {

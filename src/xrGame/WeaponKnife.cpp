@@ -305,16 +305,16 @@ void CWeaponKnife::switch2_Attacking(u32 state)
 	{
 		if (CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr)
 		{
-			if (CCustomDetector* pDet = pActor->GetDetector())
+			if (CCustomDevice* pDev = pActor->GetDevice())
 			{
-				if (pDet->CanKick())
+				if (pDev->CanKick())
 				{
-					pDet->SwitchState(CCustomDetector::EDetectorStates::eHandKick1);
+					pDev->SwitchState(CCustomDevice::EDeviceStates::eHandKick1);
 				}
 			}
 		}
 
-		PlayHUDMotion("anm_attack", FALSE, state);
+		PlayHUDMotion("anm_attack", EHudMixType::eNoMix, state);
 
 		if (m_eSoundsFlags.test(ESoundsFlags::sf_kick))
 		{
@@ -325,16 +325,16 @@ void CWeaponKnife::switch2_Attacking(u32 state)
 	{
 		if (CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr)
 		{
-			if (CCustomDetector* pDet = pActor->GetDetector())
+			if (CCustomDevice* pDev = pActor->GetDevice())
 			{
-				if (pDet->CanKick())
+				if (pDev->CanKick())
 				{
-					pDet->SwitchState(CCustomDetector::EDetectorStates::eHandKick2);
+					pDev->SwitchState(CCustomDevice::EDeviceStates::eHandKick2);
 				}
 			}
 		}
 
-		PlayHUDMotion("anm_attack2", FALSE, state);
+		PlayHUDMotion("anm_attack2", EHudMixType::eNoMix, state);
 
 		if (m_eSoundsFlags.test(ESoundsFlags::sf_kick))
 		{
@@ -357,7 +357,7 @@ void CWeaponKnife::switch2_Hiding	()
 {
 	FireEnd					();
 	VERIFY(GetState()==eHiding);
-	PlayHUDMotion("anm_hide", TRUE, GetState());
+	PlayHUDMotion("anm_hide", EHudMixType::eMixAll, GetState());
 
 	if (m_eSoundsFlags.test(ESoundsFlags::sf_holster))
 	{
@@ -374,7 +374,7 @@ void CWeaponKnife::switch2_Hidden()
 void CWeaponKnife::switch2_Showing	()
 {
 	VERIFY(GetState()==eShowing);
-	PlayHUDMotion("anm_show", FALSE, GetState());
+	PlayHUDMotion("anm_show", EHudMixType::eNoMix, GetState());
 
 	if (m_eSoundsFlags.test(ESoundsFlags::sf_draw))
 	{

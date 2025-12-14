@@ -22,7 +22,6 @@
 #include "../trade_parameters.h"
 #include "../ActorHelmet.h"
 #include "../CustomOutfit.h"
-#include "../CustomDetector.h"
 #include "../eatable_item.h"
 
 #include "../../xrUI/Widgets/UIProgressBar.h"
@@ -335,9 +334,8 @@ void CUIActorMenu::CheckDistance()
 			HideDialog();
 		}
 	}
-	else //pBoxGO
+	else if (pBoxGO)
 	{
-		VERIFY(pBoxGO);
 		if (pActorGO->Position().distance_to( pBoxGO->Position() ) > 3.0f)
 		{
 			g_btnHint->Discard();

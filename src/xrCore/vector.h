@@ -101,7 +101,6 @@ template <class T> struct _quaternion;
 #include "_obb.h"
 #include "_sphere.h"
 #include "_cylinder.h"
-#include "_random.h"
 #include "_compressed_normal.h"
 #include "_plane.h"
 #include "_plane2.h"
@@ -111,6 +110,7 @@ template <class T> struct _quaternion;
 #endif
 #pragma pack(pop)
 
+constexpr Fvector zero_vel = { 0.0f, 0.0f, 0.0f };
 
 // normalize angle (0..2PI)
 ICF float		angle_normalize_always	(float a)
@@ -271,6 +271,34 @@ IC float		angle_inertion_var(float src, float tgt, float min_speed, float max_sp
 	src				-= dH-dCH;
 	return			src;
 }
+IC Fvector EulerYawPitchRollInertion(const Fvector& current_ypr, const Fvector& target_ypr, float speed, float dt)
+{
+	Fvector diff;
+
+	for (int i = 0; i < 3; i++)
+	{
+		float curr = angle_normalize(current_ypr[i]);
+		float targ = angle_normalize(target_ypr[i]);
+
+		diff[i] = targ - curr;
+		if (diff[i] > PI) diff[i] -= PI_MUL_2;
+		else if (diff[i] < -PI) diff[i] += PI_MUL_2;
+	}
+
+	float diff_length = diff.magnitude();
+	if (diff_length < EPS_S) return Fvector{ current_ypr.x, current_ypr.y, current_ypr.z };
+
+	float max_move = speed * dt;
+
+	if (diff_length > max_move)
+	{
+		float scale = max_move / diff_length;
+		diff.x *= scale;
+		diff.y *= scale;
+		diff.z *= scale;
+	}
+	return Fvector{ angle_normalize(current_ypr.x + diff.x), angle_normalize(current_ypr.y + diff.y), angle_normalize(current_ypr.z + diff.z) };
+};
 
 template <class T>
 IC _matrix<T>& _matrix<T>::rotation	(const _quaternion<T> &Q) 

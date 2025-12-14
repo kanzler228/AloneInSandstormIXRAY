@@ -31,7 +31,7 @@
 #include "../../xrUI/UICursor.h"
 #include "../MPPlayersBag.h"
 #include "../player_hud.h"
-#include "../CustomDetector.h"
+#include "../CustomDevice.h"
 #include "../PDA.h"
 
 #include "../actor_defs.h"
@@ -547,7 +547,7 @@ bool CUIActorMenu::TryActiveSlot(CUICellItem* itm)
 		SendEvent_ActivateSlot( slot, m_pActorInvOwner->object_id() );
 		return true;
 	}
-	if ( slot == DETECTOR_SLOT )
+	if ( slot == DEVICE_SLOT )
 	{
 
 	}
@@ -639,7 +639,7 @@ bool CUIActorMenu::ToSlot(CUICellItem* itm, bool force_place, u16 slot_id)
 		if ( !force_place || slot_id == NO_ACTIVE_SLOT ) 
 			return false;
 
-		if ( m_pActorInvOwner->inventory().SlotIsPersistent(slot_id) && slot_id != DETECTOR_SLOT  )
+		if ( m_pActorInvOwner->inventory().SlotIsPersistent(slot_id) && slot_id != DEVICE_SLOT  )
 			return false;
 
 		const static bool pistolsOnly = EngineExternal()[EEngineExternalGame::EnableInventoryPistolSlot];
@@ -660,10 +660,11 @@ bool CUIActorMenu::ToSlot(CUICellItem* itm, bool force_place, u16 slot_id)
 		VERIFY								(result);
 
 		result								= ToSlot(itm, false, slot_id);
-		if (b_own_item && result && slot_id == DETECTOR_SLOT)
+
+		if (b_own_item && result && slot_id == DEVICE_SLOT)
 		{
-			CCustomDetector* det = iitem->cast_custom_detector();
-			det->switch_detector();
+			CCustomDevice* dev = iitem->cast_custom_device();
+			dev->switch_device();
 		}
 
 		return result;
@@ -1110,14 +1111,14 @@ void CUIActorMenu::PropertiesBoxForWeapon( CUICellItem* cell_item, PIItem item, 
 	}
 	if (pWeapon->cast_weapon_magazined() != nullptr && IsGameTypeSingleCompatible())
 	{
-		bool b = (pWeapon->GetAmmoElapsed() || pWeapon->IsChamber() && pWeapon->GetAmmoChamberElapsed());
+		bool b = pWeapon->GetState() != CWeapon::EWeaponStates::eReload && (pWeapon->GetAmmoElapsed() || pWeapon->IsChamber() && pWeapon->GetAmmoChamberElapsed() && !pWeapon->IsGrenadeMode());
 		if (!b)
 		{
 			for (u32 i = 0; i < cell_item->ChildsCount(); ++i)
 			{
 				CWeapon* pChildWpn = (CWeapon*)cell_item->Child(i)->m_pData;
 				CWeaponMagazined* weap_mag = pChildWpn ? pChildWpn->cast_weapon_magazined() : nullptr;
-				if (weap_mag != nullptr && (weap_mag->GetAmmoElapsed() || weap_mag->IsChamber() && weap_mag->GetAmmoChamberElapsed()))
+				if (weap_mag != nullptr && weap_mag->GetState() != CWeapon::EWeaponStates::eReload && (weap_mag->GetAmmoElapsed() || weap_mag->IsChamber() && weap_mag->GetAmmoChamberElapsed() && !weap_mag->IsGrenadeMode()))
 				{
 					b = true;
 					break; // for
@@ -1555,7 +1556,10 @@ void CUIActorMenu::ProcessPropertiesBoxClicked(CUIWindow* w, void* d)
 			}
 
 			UnloadWeapon(weap_mag);
-			weap_mag->UnloadChamber();
+			if (!weap_mag->IsGrenadeMode())
+			{
+				weap_mag->UnloadChamber();
+			}
 			for (u32 i = 0; i < cell_item->ChildsCount(); ++i)
 			{
 				CUICellItem* child_itm = cell_item->Child(i);
@@ -1564,7 +1568,10 @@ void CUIActorMenu::ProcessPropertiesBoxClicked(CUIWindow* w, void* d)
 				if (child_weap_mag != nullptr)
 				{
 					UnloadWeapon(child_weap_mag);
-					child_weap_mag->UnloadChamber();
+					if (!child_weap_mag->IsGrenadeMode())
+					{
+						child_weap_mag->UnloadChamber();
+					}
 				}
 			}
 			break;

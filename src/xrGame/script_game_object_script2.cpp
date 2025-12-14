@@ -147,11 +147,22 @@ class_<CScriptGameObject> script_register_game_object1(class_<CScriptGameObject>
 
 		.def("patrol",						&CScriptGameObject::GetPatrolPathName)
 
+		//FFx0001++
+		.def("get_item_additional_description", &CScriptGameObject::GetItemAdditionalDescription)
+		.def("set_item_additional_description", &CScriptGameObject::SetItemAdditionalDescription)
+		.def("unset_item_additional_description", &CScriptGameObject::UnsetItemAdditionalDescription)
+		.def("is_item_used_additional_description", &CScriptGameObject::IsItemUsedAdditionalDescription)
+
 		.def("get_ammo_in_magazine",		&CScriptGameObject::GetAmmoElapsed)
 		.def("get_ammo_in_magazine_and_chamber", &CScriptGameObject::GetAmmoElapsedWithChamber) //FFx0001++
 		.def("is_weapon_use_chamber",			 &CScriptGameObject::IsWeaponUseChamber) //FFx0001++
 		.def("get_ammo_total",				&CScriptGameObject::GetSuitableAmmoTotal)
 		.def("set_ammo_elapsed",			&CScriptGameObject::SetAmmoElapsed)
+
+
+		.def("set_sub_inventory_icon_text", &CScriptGameObject::SetSubIconText)
+		.def("set_sub_inventory_icon",		&CScriptGameObject::SetSubIcon)
+
 		//Alundaio
 		.def("use",							&CScriptGameObject::Use)
 		.def("start_trade",					&CScriptGameObject::StartTrade)

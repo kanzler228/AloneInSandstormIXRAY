@@ -412,6 +412,7 @@ public:
 
 			void				HideWeapon			();
 			void				HideDetector		();
+			void				SwitchDetector		();
 			void				RestoreWeapon		();
 			void				AllowSprint			(bool b);
 
@@ -475,6 +476,11 @@ public:
 //////////////////////////////////////////////////////////////////////////
 
 			LPCSTR				GetPatrolPathName	();
+			LPCSTR				GetItemAdditionalDescription();
+			void				SetItemAdditionalDescription(LPCSTR additionalDescription);
+			void				UnsetItemAdditionalDescription();
+			bool				IsItemUsedAdditionalDescription();
+
 			u32					GetAmmoElapsed		();
 			u32					GetAmmoElapsedWithChamber(); // FFx0001 ++
 			bool				IsWeaponUseChamber(); // FFx0001 ++
@@ -827,6 +833,9 @@ public:
 			void SetHeadRotate(bool value);
 			void				setMechanic								(bool cond);
 
+			void				SetSubIconText(LPCSTR m_custom_text, int item_custom_text_clr_inv, LPCSTR item_custom_text_font, Fvector2 m_custom_text_offset);
+			void				SetSubIcon(bool m_custom_mark, Fvector2 m_custom_mark_offset, Fvector2 m_custom_mark_size, LPCSTR m_custom_mark_texture, int m_custom_mark_clr);
+
 			_DECLARE_FUNCTION14(cast_GameObject, CScriptGameObject);
 			_DECLARE_FUNCTION14(cast_Car, CCar);
 			_DECLARE_FUNCTION14(cast_Heli, CHelicopter);
@@ -941,12 +950,14 @@ public:
 			float				GetArtefactHealthRestoreSpeed();
 			float				GetArtefactRadiationRestoreSpeed();
 			float				GetArtefactSatietyRestoreSpeed();
+			float				GetArtefactThirstRestoreSpeed();
 			float				GetArtefactPowerRestoreSpeed();
 			float				GetArtefactBleedingRestoreSpeed();
 
 			void				SetArtefactHealthRestoreSpeed(float value);
 			void				SetArtefactRadiationRestoreSpeed(float value);
 			void				SetArtefactSatietyRestoreSpeed(float value);
+			void				SetArtefactThirstRestoreSpeed(float value);
 			void				SetArtefactPowerRestoreSpeed(float value);
 			void				SetArtefactBleedingRestoreSpeed(float value);
 			CScriptGameObject* ItemOnBelt(u32 item_id) const;
