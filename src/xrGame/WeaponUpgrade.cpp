@@ -62,19 +62,37 @@ bool CWeapon::install_upgrade_ammo_class( LPCSTR section, bool test )
 			m_ammoTypes.push_back( ammoItem );
 		}
 		m_ammoType = 0;
-
-		m_mags_capacity.clear();
-		for (int i = 0; i < m_ammoTypes.size(); i++)
-		{
-			static shared_str capacity_value;
-			capacity_value.printf("ammo_mag_size_for_type_%d", i);
-			if (pSettings->line_exist(*m_section_id, *capacity_value))
-			{
-				m_mags_capacity.emplace_back(static_cast<u8>(i), pSettings->r_u32(*m_section_id, *capacity_value));
-			}
-		}
 	}
 	result |= result2;
+
+	for (u8 i = 0; i < m_ammoTypes.size(); ++i)
+	{
+		shared_str key;
+		key.printf("ammo_mag_size_for_type_%d", i);
+
+		if (!pSettings->line_exist(section, *key))
+		{
+			continue;
+		}
+
+		u32 value = pSettings->r_u32(section, *key);
+		bool found = false;
+
+		for (auto& capacity : m_mags_capacity)
+		{
+			if (capacity.first == i)
+			{
+				capacity.second = value;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			m_mags_capacity.emplace_back(i, value);
+		}
+	}
 
 	return result;
 }
@@ -584,7 +602,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 		if (pSettings->line_exist(hud_sect, "shell_params_section"))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-			bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"));
+			bone_params->Load(pSettings->r_string(hud_sect, "shell_params_section"), -1);
 			m_shell_bones.push_back(bone_params);
 			result = true;
 		}
@@ -595,7 +613,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			if (pSettings->line_exist(hud_sect, *params_section))
 			{
 				SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-				bone_params->Load(pSettings->r_string(hud_sect, *params_section));
+				bone_params->Load(pSettings->r_string(hud_sect, *params_section), -1);
 				m_shell_bones.push_back(bone_params);
 				result = true;
 			}
@@ -609,7 +627,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			{
 				if (bone_param->AmmoType == undefined_ammo_type)
 				{
-					bone_param->Load(pSettings->r_string(hud_sect, "shell_params_section"));
+					bone_param->Load(pSettings->r_string(hud_sect, "shell_params_section"), -1);
 					result = true;
 				}
 			}
@@ -624,7 +642,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 				{
 					if (bone_param->AmmoType == i)
 					{
-						bone_param->Load(pSettings->r_string(hud_sect, *params_section));
+						bone_param->Load(pSettings->r_string(hud_sect, *params_section), 1);
 						result = true;
 					}
 				}
@@ -637,7 +655,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 		if (pSettings->line_exist(hud_sect, "ammo_params_section") && pSettings->section_exist(pSettings->r_string(hud_sect, "ammo_params_section")))
 		{
 			SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-			bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"));
+			bone_params->Load(pSettings->r_string(hud_sect, "ammo_params_section"), iMagazineSize);
 			m_ammo_bones_mag.push_back(bone_params);
 			result = true;
 		}
@@ -647,13 +665,10 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			params_section.printf("ammo_params_section_%d", i);
 			if (pSettings->line_exist(hud_sect, *params_section))
 			{
-				if (need_add)
-				{
-					SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-					bone_params->Load(pSettings->r_string(hud_sect, *params_section));
-					m_ammo_bones_mag.push_back(bone_params);
-					result = true;
-				}
+				SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
+				bone_params->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize);
+				m_ammo_bones_mag.push_back(bone_params);
+				result = true;
 			}
 		}
 	}
@@ -665,7 +680,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 			{
 				if (bone_param->AmmoType == undefined_ammo_type)
 				{
-					bone_param->Load(pSettings->r_string(hud_sect, "ammo_params_section"));
+					bone_param->Load(pSettings->r_string(hud_sect, "ammo_params_section"), iMagazineSize);
 					result = true;
 				}
 			}
@@ -680,7 +695,7 @@ bool CWeapon::install_upgrade_ammo_bones(LPCSTR section, bool test)
 				{
 					if (bone_param->AmmoType == i)
 					{
-						bone_param->Load(pSettings->r_string(hud_sect, *params_section));
+						bone_param->Load(pSettings->r_string(hud_sect, *params_section), iMagazineSize);
 						result = true;
 					}
 				}

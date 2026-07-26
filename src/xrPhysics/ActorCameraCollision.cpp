@@ -18,6 +18,7 @@
 #ifdef DEBUG
 #	include	"debug_output.h"
 #endif
+#include "../xrCore/EngineExternal.h"
 CPhysicsShell*	actor_camera_shell = nullptr;
 #ifdef	DEBUG
 BOOL dbg_draw_camera_collision = FALSE;
@@ -84,7 +85,13 @@ static void	cammera_shell_collide_callback( bool& do_collide, bool bo1, dContact
 static void cammera_shell_character_collide_callback( bool& do_collide, bool bo1, dContact& c, SGameMtl* material_1, SGameMtl* material_2 )
 {
 	do_collide =  false;
-	return;
+
+	static const bool isCameraMagicFieldDisabled = EngineExternal()[EEngineExternalPhysical::DisableCameraMagicField];
+
+	if (isCameraMagicFieldDisabled)
+	{
+		return;
+	}
 
 	dxGeomUserData	*oposite_data		=	retrieveGeomUserData( bo1 ? c.geom.g2 : c.geom.g1 ) ;
 	do_collide =  false;
@@ -144,8 +151,10 @@ CPhysicsShell* create_camera_shell( IPhysicsShellHolder *actor )
 	roote->add_geom( character_test_geom );
 	VERIFY( shell );
 	shell->set_ApplyByGravity( false );
-	shell->set_ObjectContactCallback( cammera_shell_collide_callback );
-	character_test_geom->set_obj_contact_cb( cammera_shell_character_collide_callback );
+	shell->set_ObjectContactCallback( cammera_shell_collide_callback);
+
+	character_test_geom->set_obj_contact_cb(cammera_shell_character_collide_callback);
+
 	shell->set_ContactCallback( 0 );
 	shell->set_CallbackData( smart_cast<CPHObject*>(shell) );
 	dMass m;

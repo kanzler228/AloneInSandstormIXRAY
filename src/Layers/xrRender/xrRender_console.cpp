@@ -59,7 +59,9 @@ xr_token							aa_type_token[] = {
 	{ "fxaa",						1												},
 #if RENDER != R_R1
 	{ "smaa",						2												},
+#ifdef USE_DX11
 	{ "taa",						3												},
+#endif
 #endif // DEBUG	
 	{ 0,							0												}
 };
@@ -86,8 +88,8 @@ float		ps_r__Detail_rainbow_hemi	= 0.75f	;
 float		ps_r__Tree_SBC				= 1.5f	;	// scale bias correct
 
 float		ps_r__WallmarkTTL			= 50.f	;
-float		ps_r__WallmarkSHIFT			= 0.0001f;
-float		ps_r__WallmarkSHIFT_V		= 0.0001f;
+float		ps_r__WallmarkSHIFT			= 0.001f;
+float		ps_r__WallmarkSHIFT_V		= 0.001f;
 
 float		ps_r__GLOD_ssa_start		= 256.f	;
 float		ps_r__GLOD_ssa_end			=  64.f	;

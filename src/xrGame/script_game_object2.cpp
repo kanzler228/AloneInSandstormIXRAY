@@ -227,7 +227,7 @@ const CDangerObject* CScriptGameObject::GetBestDanger()
 {
 	if (const CCustomMonster* monster = object().cast_custom_monster())
 	{
-		if (!monster->memory().danger().selected())
+		if (monster->memory().danger().selected())
 		{
 			return monster->memory().danger().selected();
 		}
@@ -430,6 +430,30 @@ void CScriptGameObject::SetActorDirection(float dir)
 	else
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "ScriptGameObject : attempt to call SetActorDirection method for non-actor object");
+	}
+}
+
+void CScriptGameObject::CameraMove(float YawOffset) // FNAS
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		actor->cam_Active()->Move(0, YawOffset);
+	}
+}
+
+void CScriptGameObject::SwitchTorch() // FNAS
+{
+	if (CTorch* torch = object().cast_torch())
+	{
+		torch->Switch(!torch->torch_active());
+	}
+}
+
+void CScriptGameObject::SetActorCrouch() // FNAS
+{
+	if (CActor* pActor = object().cast_actor())
+	{
+		pActor->SetMovementState(ACTOR_DEFS::EMovementStates::eReal, ACTOR_DEFS::EMoveCommand::mcCrouch, true);
 	}
 }
 

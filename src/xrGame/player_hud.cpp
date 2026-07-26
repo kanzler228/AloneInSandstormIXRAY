@@ -90,7 +90,7 @@ void player_hud_motion_container::load(IKinematicsAnimated* model, const shared_
 		CImGuiManager::Instance().Subscribe
 		(
 			"HudAdjust",
-			CImGuiManager::ERenderPriority::eMedium, [this]
+			CImGuiManager::ERenderPriority::eMedium, []
 			{
 				if (!Engine.External.EditorStates[static_cast<u8>(EditorUI::HudAdjust)]) {
 					return;
@@ -394,6 +394,11 @@ void attachable_hud_item::setup_firedeps(firedeps& fd)
 	// fire point&direction
 	if(m_measures.m_prop_flags.test(hud_item_measures::e_fire_point))
 	{
+		R_ASSERT4(m_measures.m_fire_bone != BI_NONE, 
+			"Invalid fire bone specified", 
+			m_sect_name.c_str(), 
+			pSettings->r_string(m_sect_name, "fire_bone"));
+
 		Fmatrix& fire_mat								= m_model->LL_GetTransform(m_measures.m_fire_bone);
 		fire_mat.transform_tiny							(fd.vLastFP, m_measures.m_fire_point_offset);
 		m_item_transform.transform_tiny					(fd.vLastFP);
@@ -413,6 +418,11 @@ void attachable_hud_item::setup_firedeps(firedeps& fd)
 
 	if(m_measures.m_prop_flags.test(hud_item_measures::e_fire_point2))
 	{
+		R_ASSERT4(m_measures.m_fire_bone2 != BI_NONE,
+			"Invalid fire bone 2 specified",
+			m_sect_name.c_str(),
+			pSettings->r_string(m_sect_name, "fire_bone2"));
+
 		Fmatrix& fire_mat			= m_model->LL_GetTransform(m_measures.m_fire_bone2);
 		fire_mat.transform_tiny		(fd.vLastFP2,m_measures.m_fire_point2_offset);
 		m_item_transform.transform_tiny	(fd.vLastFP2);
@@ -589,6 +599,10 @@ void weapon_inertion::Load(const shared_str& section, bool is_16x9)
 	aim_move_slow_crouch_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_aim_move_slow_crouch_factor", 1.0f);
 	aim_move_crouch_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_aim_move_crouch_factor", 1.0f);
 	aim_move_slow_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_aim_move_slow_factor", 1.0f);
+
+	aim_move_slow_crouch_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_move_slow_crouch_factor", 1.0f);
+	aim_move_crouch_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_move_crouch_factor", 1.0f);
+	aim_move_slow_factor = READ_IF_EXISTS(pSettings, r_float, section, "hud_move_slow_factor", 1.0f);
 
 	no_other_hud_moving_while_suicide = READ_IF_EXISTS(pSettings, r_bool, section, "no_other_hud_moving_while_suicide", false);
 
@@ -769,7 +783,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, EHudMixType bMi
 
 	u32 ret = g_player_hud->anim_play(m_attach_place_idx, M.mid, need_mix_hands, md, speed);
 	
-	if(IKinematicsAnimated* ka = m_model->dcast_PKinematicsAnimated())
+	if(m_model->dcast_PKinematicsAnimated() != nullptr)
 	{
 		shared_str item_anm_name;
 		if(anm->m_base_name!=anm->m_additional_name)
@@ -914,15 +928,15 @@ void attachable_hud_item::GetCurrentTargetOffset(weapon_inertion& inertion_param
 
 	if ((real & mcCrouch) && (real & mcAccel))
 	{
-		koef = inertion_params.aim_move_slow_crouch_factor;
+		koef = inertion_params.move_slow_crouch_factor;
 	}
 	else if (real & mcCrouch)
 	{
-		koef = inertion_params.aim_move_crouch_factor;
+		koef = inertion_params.move_crouch_factor;
 	}
 	else if (real & mcAccel)
 	{
-		koef = inertion_params.aim_move_slow_factor;
+		koef = inertion_params.move_slow_factor;
 	}
 
 	if (tocrouch_time_remains > 0)
@@ -1116,11 +1130,14 @@ void attachable_hud_item::UpdateInertion(u32 delta, CActor* actor)
 
 	float factor = 1.0f;
 
+	bool IsZooming = m_attach_place_idx == 1 && static_cast<CCustomDevice*>(m_parent_hud_item)->IsZoomed()
+		|| ((itm->WpnCanShoot() || itm->cast_weapon_binoculars() != nullptr) && (static_cast<CWeapon*>(itm)->IsZoomed() || static_cast<CWeapon*>(itm)->m_bIsAimStarted));
+
 	if (itm->GetState() == CHUDState::eHiding || det != nullptr && det->GetState() == CHUDState::eHiding)
 	{
 		factor = current_params.move_weaponhide_factor;
 	}
-	else if ((itm->WpnCanShoot() || smart_cast<CWeaponBinoculars*>(itm) != nullptr) && (static_cast<CWeapon*>(itm)->IsZoomed() || static_cast<CWeapon*>(itm)->m_bIsAimStarted))
+	else if (IsZooming)
 	{
 		GetCurrentTargetOffset_aim(current_params, targetpos, targetrot, factor, real);
 		factor = current_params.move_unzoom_factor;
@@ -1412,11 +1429,11 @@ void player_hud::render_hud()
 	if (m_animator_item && m_animator_item->IsPlaying)
 		m_animator_item->render();
 
-	if(m_show_legs && Actor() && m_legs_model && Actor()->Holder() == nullptr)
+	if(m_show_legs > 0 && Actor() && m_legs_model && Actor()->Holder() == nullptr && Actor()->active_cam() == eacFirstEye)
 	{
 		bool isClimb = Actor()->GetMovementState(ACTOR_DEFS::EMovementStates::eReal) & mcClimb;
-		if(!isClimb) {
-			auto bHud = ::Render->get_HUD();
+		if(!isClimb) 
+		{
 			IKinematics* actor_model = Actor()->Visual()->dcast_PKinematics();
 
 			actor_model->CalculateBones(TRUE);
@@ -1424,37 +1441,40 @@ void player_hud::render_hud()
 			m_legs_model->CalculateBones_Invalidate();
 			m_legs_model->CalculateBones(TRUE);
 
-			if(m_legs_model->LL_BoneCount() == actor_model->LL_BoneCount()) {
-				for(u16 i = 0; i < m_legs_model->LL_BoneCount(); ++i) {
+			u16 legs_bones_cnt = m_legs_model->LL_BoneCount();
+			if(legs_bones_cnt == actor_model->LL_BoneCount())
+			{
+				for(u16 i = 0; i < legs_bones_cnt; ++i)
+				{
 					auto& BoneInstance = m_legs_model->LL_GetBoneInstance(i);
+
 					BoneInstance.mTransform.set(actor_model->LL_GetBoneInstance(i).mTransform);
 					BoneInstance.mRenderTransform.mul_43(BoneInstance.mTransform, m_legs_model->LL_GetData(i).m2b_transform);
 				}
 			}
-			else {
-				auto setBoneTransform = [actor_model, this](u16 ID, shared_str bonename) {
+			else
+			{
+				for(auto& [bonename, ID] : *m_legs_model->LL_Bones())
+				{
 					auto BoneID = actor_model->LL_BoneID(bonename);
-					if(BoneID != BI_NONE) {
+
+					if (BoneID != BI_NONE) 
+					{
 						auto& BoneInstance = m_legs_model->LL_GetBoneInstance(ID);
+
 						BoneInstance.mTransform.set(actor_model->LL_GetBoneInstance(BoneID).mTransform);
 						BoneInstance.mRenderTransform.mul_43(BoneInstance.mTransform, m_legs_model->LL_GetData(ID).m2b_transform);
 					}
-				};
-
-				setBoneTransform(0, "root_stalker");
-				setBoneTransform(1, "bip01");
-
-				shared_str bonename;
-				for(u16 i = 0; i < m_legs_model->LL_BoneCount(); ++i) {
-					bonename = m_legs_model->LL_BoneName_dbg(i);
-					setBoneTransform(i, bonename);
 				}
 			}
 
-			const u16 BoneID = m_legs_model->LL_BoneID("bip01_spine");
-			auto& BoneInstance = m_legs_model->LL_GetData(BoneID);
-			m_legs_model->Bone_Calculate(&BoneInstance, &m_legs_model->LL_GetTransform(BoneInstance.GetParentID()));
+			if (auto BoneID = m_legs_model->LL_BoneID("bip01_spine"); BoneID != BI_NONE)
+			{
+				auto& BoneInstance = m_legs_model->LL_GetData(BoneID);
+				m_legs_model->Bone_Calculate(&BoneInstance, &m_legs_model->LL_GetTransform(BoneInstance.GetParentID()));
+			}
 
+			auto bHud = ::Render->get_HUD();
 			::Render->set_HUD(FALSE);
 
 			::Render->set_Transform(&Actor()->XFORM());

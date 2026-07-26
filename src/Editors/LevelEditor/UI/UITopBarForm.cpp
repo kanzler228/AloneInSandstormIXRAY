@@ -82,6 +82,7 @@ void UITopBarForm::Draw()
 		| ImGuiWindowFlags_NoResize
 		| ImGuiWindowFlags_NoMove
 		| ImGuiWindowFlags_NoScrollbar
+		| ImGuiWindowFlags_NoScrollWithMouse
 		;
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
@@ -325,11 +326,15 @@ void UITopBarForm::ClickPlayPC()
 	if (!Scene->BuildForPCPlay())
 		return;
 
-	LTools->RunGame("-editor_scene -start server(editor/single/alife/new) client(localhost) -nointro -noprefetch");
+	string_path params;
+	xr_sprintf(params, "-r4 -start server(%s/single/alife/new) client(localhost) -noprefetch -nointro -fsltx fsgame_editor.ltx", Scene->m_LevelOp.m_FNLevelPath.c_str());
+
+	LTools->RunGame(params);
+
 }
 void UITopBarForm::ClickPlayCleanGame()
 {
-	LTools->RunGame("");
+	LTools->RunGame("-noprefetch -r4  -fsltx fsgame_editor.ltx");
 }
 
 void UITopBarForm::ClickPreferences()

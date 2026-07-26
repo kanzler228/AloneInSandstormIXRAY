@@ -110,6 +110,7 @@ extern float	_delta_pos;
 extern float	_delta_rot;
 
 ENGINE_API extern float	g_console_sensitive;
+extern	BOOL	g_b_COD_PickUpMode;
 
 void register_mp_console_commands();
 //-----------------------------------------------------------
@@ -487,10 +488,20 @@ void get_files_list(xr_vector<shared_str>& files, LPCSTR dir, LPCSTR file_ext)
 #include "UIGameCustom.h"
 #include "HUDManager.h"
 
-class CCC_ALifeSave : public IConsole_Command {
+class CCC_ALifeSave : public IConsole_Command
+{
+private:
+	bool m_isSaveStatus = false;
+	const char* m_onSaveStatus = {};
 public:
-	CCC_ALifeSave(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = true; };
-	virtual void Execute(LPCSTR args) {
+	CCC_ALifeSave(LPCSTR N) : IConsole_Command(N)
+	{
+		bEmptyArgsHandled = true;
+		LoadCallbackGlobals(m_isSaveStatus, m_onSaveStatus, "OnSaveStatus");
+	};
+
+	virtual void Execute(LPCSTR args)
+	{
 
 #if 0
 		if (!Level().autosave_manager().ready_for_autosave()) {
@@ -506,6 +517,14 @@ public:
 		{
 			Msg("cannot make saved game because actor is dead :(");
 			return;
+		}
+
+		luabind::functor<bool> savesFunctor;
+		if (m_isSaveStatus)
+		{
+			R_ASSERT2(ai().script_engine().functor(m_onSaveStatus, savesFunctor), "Failed to get functor <OnSaveStatus>");
+			if (!savesFunctor())
+				return;
 		}
 
 //		Console->Execute("stat_memory");
@@ -668,9 +687,6 @@ public:
 		if (saved_game && *saved_game)
 		{
 			xr_strcpy(g_last_saved_game, saved_game);
-			wchar_t WName[256];
-			MultiByteToWideChar(CP_ACP, 0, g_last_saved_game, (int)strlen(g_last_saved_game), WName, (int)strlen(g_last_saved_game));
-			WideCharToMultiByte(CP_UTF8, 0, WName, (int)strlen(g_last_saved_game), g_last_saved_game, (int)strlen(g_last_saved_game), 0, 0);
 
 			return;
 		}
@@ -2409,7 +2425,8 @@ void CCC_RegisterCommands()
 	CMD1(CCC_ChZLoggerTest, "chZLoggerTest");
 	CMD1(CCC_ConsoleColors, "get_console_colors");
 #endif
-
+	CMD4(CCC_Integer, "cl_cod_pickup_mode", &g_b_COD_PickUpMode, 0, 1);
+	
 	CMD1(CCC_MemStats, "stat_memory");
 	// game
 	CMD3(CCC_Mask, "g_crouch_toggle", &psActorFlags, AF_CROUCH_TOGGLE);
@@ -2460,7 +2477,7 @@ void CCC_RegisterCommands()
 
 	//#ifdef DEBUG
 	CMD4(CCC_Float, "hud_fov", &psHUD_FOV_def, 5.0f, 180.0f);
-	CMD4(CCC_Float, "fov", &g_fov, 5.0f, 180.0f);
+	CMD4(CCC_Float, "fov", &g_base_fov, 5.0f, 180.0f);
 	CMD2(CCC_Boolean, "g_3d_scopes", &g_3d_scopes);
 	//#endif // DEBUG
 

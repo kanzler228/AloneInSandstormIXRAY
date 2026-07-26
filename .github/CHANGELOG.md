@@ -1,8 +1,284 @@
 # Changelog
 
-English | [Русский](../doc/CHANGELOG.rus.md)
+<div>
+  <p>
+    English
+    |
+    <a href="../doc/CHANGELOG.rus.md">
+      Русский
+    </a>
+  </p>
+</div>
 
 Full changelog of _IX-Ray_ 1.6 project
+
+## Release 1.3.4 (April 2026)
+
+### Common
+
+- Removed x86 CMake presets (@Drombeys)
+- Updated root documents (@Drombeys)
+- Updated website (@ForserX, @FFx0001, @SaloEater, @LostAlphaRus)
+
+### Engine
+
+- Fixed localized save game loading (@Drombeys)
+- Fixed log message skipping (@ForserX)
+- Fixed memory leak in renders (@v2v3v4)
+- Fixed method exit on missing model (@Drombeys)
+- Implemented optional camera-shell collision (@Hozar_2002)
+- Improved UI backend stability (@mrGlock5, @Drombeys)
+
+### Graphics
+
+- Added night vision scope jitter effect (@Shtrecker)
+- Added scope brightness control for 3D scopes (@Shtrecker)
+- Fixed normal map reconstruction and terrain normals for PBR shaders (@LVutner)
+- Removed TAA option from D3D9 renderers (@LVutner)
+
+### Gameplay
+
+- Added `aiIgnoreActor` for mutants (@v2v3v4)
+- Added check to verify caller is alive (@Drombeys)
+- Added FNaS mod features (@Emmis)
+- Added game loading check for tooltips to prevent display on loading screens (@Shtrecker)
+- Added validation during path building (@ForserX, @FFx0001, @Drombeys)
+- Experimentally fixed offline alife simulation (@Drombeys)
+- Fixed addons visibility (@Shtrecker)
+- Fixed detector aim animations (@Shtrecker)
+- Fixed edible items jumping after use (@Shtrecker)
+- Fixed freezing with incorrect suppressor parameters (@FFx0001, @v2v3v4)
+- Fixed GOAP crash (@v2v3v4)
+- Fixed grenade launcher reload (@Shtrecker)
+- Fixed grenade packing (@Drombeys)
+- Fixed HUD flickering issue (@Shtrecker)
+- Fixed inertia (@Shtrecker)
+- Fixed known first-person leg issues (@v2v3v4)
+- Fixed magazine capacity calculation (@Shtrecker)
+- Fixed magazine capacity in grenade launcher mode (@Shtrecker)
+- Fixed missing breath sound (@mrGlock5)
+- Fixed reload mixing (@Shtrecker)
+- Fixed reload sounds in STCoP WP scope system (@Shtrecker)
+- Fixed running state in reload action (@Shtrecker)
+- Fixed Sidorovich armor durability issue when shot while wearing and selling same armor (@Shtrecker)
+- Fixed vertical stripes (@mrGlock5)
+- Force crash on missing upgrade (@St4lker0k765)
+- Hidden indicators when zoom is fully rotated (@Shtrecker)
+- Improved and fixed bullet bones scheme (@Shtrecker)
+- Restored old loading logic for ammo bones system (@Shtrecker)
+
+### Toolchain
+
+- Added sector validation for missing shaders in library (@Drombeys)
+- Enabled mesh optimization during level loading (@Drombeys)
+- Fixed default value display in `Level Name` properties (@ForserX)
+- Fixed missing level error message (@Drombeys)
+- Fixed object reloading in editors (@ForserX)
+- Fixed run compile geometry and light from Level Editor interface (@wikiraccoon)
+- Fixed scale manipulator in Level Editor (@ForserX)
+- Fixed shape type detection for `EnvMod` (@mnelenpridumivat)
+- Fixed snap list in Level Editor (@ForserX)
+- Improved Spawn Manager stability when configurations are incorrect (@Drombeys)
+- Reported invalid face deletion in object (@ForserX)
+
+## Release 1.3.3 (January 2026)
+
+### Common
+
+- Updated root documents (@Drombeys)
+
+### Engine
+
+- Added `log1` function for script message output to log (@MAYLAYSHEZ)
+- Added security check for `CScriptEntity::vfUpdateSounds()` method (@Drombeys)
+- Centralized IK calculation in one place (@v2v3v4)
+- Disabled by force fixed objects (@v2v3v4)
+- Fixed comma-separated OMF animation mask reading (@Drombeys)
+- Fixed mouse button state checking (@Shtrecker)
+- Fixed structure initialization in camera effector (@Hozar_2002)
+- Pre-reserved memory for GOAP upon first vector addition (@v2v3v4)
+- Set main menu FPS lock to 120 (@MAYLAYSHEZ)
+
+### Graphics
+
+- Fixed typo in texture loading message (@Drombeys)
+- Fixed wallmark display (@Drombeys)
+- Improved light source testing on sectors and portals (@v2v3v4)
+
+### Gameplay
+
+- Added visual change during upgrades (@Shtrecker)
+- Fixed item pickup functionality (@Drombeys)
+- Fixed machine gun belt hiding during alternative sight system operation (@Shtrecker)
+- Fixed original bug with incorrect color text transfer (@mnelenpridumivat)
+- Fixed restrictor triggers when legs are enabled (@v2v3v4)
+- Fixed weapon data cleaning implementation (@Shtrecker)
+- Refactored first-person leg code (@v2v3v4, @Hozar2002)
+- Reworked booster system functionality (@Shtrecker)
+
+### Toolchain
+
+- Fixed numeric issues in Editors (@ForserX)
+- Fixed UI/UX issues in Level Editor (@ForserX)
+- Restored auto-mod selection feature (@ForserX)
+
+## Release 1.3.2 (January 2026)
+
+### Common
+
+- Selected xrEngine project by default during solution generation (@Drombeys)
+- Updated root documents (@Drombeys)
+- Updated website (@ForserX)
+
+### Engine
+
+- Added self-model ignoring in feel vision (@v2v3v4)
+- Applied `LineSpacing` for `CGameFont` (@v2v3v4)
+- Fixed shape intersection issues (@v2v3v4)
+- Fixed single-line Lua snippet reading (@ForserX)
+- Fixed window focus in fullscreen mode (@Drombeys)
+- Forced function inlining (@v2v3v4)
+- Implemented separate Render Object Specific for rain to prevent hand darkening (@v2v3v4)
+
+### Graphics (renders, shaders)
+
+- Added `FORWARD_REFLECTION_MIPS_GEN` GPU event (@Drombeys)
+- Added `particle_s-mul` shader in D3D11 (@Drombeys)
+- Added security check for `has_light_visible_from_sectors` method (@Drombeys)
+- Clamped GTAO radius in shaders (@LVutner)
+- Fixed double particle rendering (@v2v3v4, @Dimakuzmin)
+- Fixed wetness effect implementation (@Hozar2002)
+- Forced early-z for `accum_base` shader (@LVutner)
+- Implemented snow mask disabling capability for specific locations (@ForserX)
+- Improved DFV approximation in shaders (@LVutner)
+- Improved water shader for proper display of defective textures (@Hozar2002)
+
+### Gameplay
+
+- Added additional mouse bindings (@Drombeys, @BASE1707)
+- Added center mode support for `CUIStackPanel` control (@St4lker0k765)
+- Added chimera configuration for animation prefix override (@mnelenpridumivat)
+- Added critical sections for game fonts (@v2v3v4)
+- Added logging for incorrectly configured bones (@St4lker0k765)
+- Added stub functions for Gasmask script exports (@Drombeys, @BASE1707)
+- Added translation reload for upgrades (@St4lker0k765)
+- Added visual identification helper (@v2v3v4)
+- Detached legs position from root bone (@Drombeys)
+- Disabled hitmarks and news rendering when HUD was disabled (@St4lker0k765)
+- Extended Explosive module capabilities (@Drombeys, @BASE1707)
+- Fixed `box_x_axis` calculation in trajectory collision checking (@mnelenpridumivat)
+- Fixed `sv_adm_menu_ban_time` warning in console (@St4lker0k765)
+- Fixed Call of Chernobyl item drop and trading crashes (@Romann, @revolucas)
+- Fixed chimera attack animations when only one unnumbered animation existed (@mnelenpridumivat)
+- Fixed crash caused by grenade throwing (@v2v3v4)
+- Fixed crash for scopes with target illumination (@v2v3v4)
+- Fixed crash on missing `upgrades_properties` section (@St4lker0k765)
+- Fixed crash when inserting artifacts into locked belt (@St4lker0k765)
+- Fixed crash with duplicate task targets (@St4lker0k765)
+- Fixed infinite money trades (@Shtrecker)
+- Fixed menu text alignment after resolution change (@St4lker0k765)
+- Fixed minimum and maximum character money (@Shtrecker)
+- Fixed NPC shaking when aiming at nearby player (@v2v3v4)
+- Fixed physics for proper ladder functionality (@ForserX)
+- Fixed script export functionality (@Hozar_2002)
+- Fixed single item selection (@MAYLAYSHEZ)
+- Fixed talk menu display issue (@St4lker0k765)
+- Implemented game save creation limit (@Drombeys)
+- Improved `g_fight_fast_respawn` console command (@v2v3v4)
+- Improved FOV change handling during running (@Hozar2002)
+- Optimized `InBelt` and `InRuck` functions (@Shtrecker)
+- Removed `missing danger fov` warning (@St4lker0k765)
+- Removed verify in `CWeaponBinoculars::OnZoomOut` method (@Drombeys)
+- Returned `UpdateCameraDirection` function (@St4lker0k765)
+- Reverted "Improve AI system" (@Drombeys)
+- Set parameters with default values (@v2v3v4)
+
+### Resources
+
+- Added missing English locale XMLs for Clear Sky (@St4lker0k765)
+- Bypassed crash on invalid AI map at kamp point (@Drombeys)
+- Fixed broken logic in `[logic@defend_work2]` section (@Drombeys)
+- Fixed missing trade caption in Clear Sky (@St4lker0k765)
+- Fixed option application in Clear Sky (@St4lker0k765)
+- Fixed text size for upgrades window (@St4lker0k765)
+
+### Toolchain
+
+- Added portal shader for Editors (@ForserX)
+- Always initialized xrDebug for Editors (@St4lker0k765)
+- Did not skip loading on GUID mismatch (@St4lker0k765)
+- Disabled async LOD calculation due to rendering architecture limitations (@ForserX)
+- Fixed `ai_map_ixray.part` loading (@mnelenpridumivat)
+- Fixed `Bone Form` opening (@mnelenpridumivat)
+- Fixed `EditorProp` initialization in `SGameMtlPair` during AE loading (@mnelenpridumivat)
+- Fixed debug portal drawing (@ForserX)
+- Fixed editor implementation issues (@ForserX)
+- Fixed ImGui error with No Sun checkbox IDs (@mnelenpridumivat)
+- Fixed loop condition and used empty() method in xrLC (@ForserX)
+- Fixed particle destruction in Particle Editor (@ForserX)
+- Fixed Play Level and Play Clean Game buttons (@VodkaNET)
+- Fixed sector loading issues (@St4lker0k765)
+- Fixed Shader Editor material issues (@ForserX)
+- Fixed Sound Editor opening (@ForserX)
+- Fixed textures loading in xrAI (@St4lker0k765)
+
+## Release 1.3.1 (December 2025)
+
+### Common
+
+- Updated root documents (@Drombeys)
+- Updated website and documentation (@Drombeys, @ForserX, @St4lker0k765, @GladiatorVS, @mnelenpridumivat, @kola2451, @FFx0001)
+
+### Engine
+
+- Added error checking for `BN_bn2dec` function (@openhands)
+- Fixed critical crash when mob path doesn't exist (@Drombeys)
+- Fixed memory leak in ASN.1 combination (@tabudz)
+- Fixed overflow checking in `BN_bn2dec` function (@openhands)
+- Fixed potential infinite loop in `BN_mod_sqrt` function (@openhands)
+- Implemented cursor emulation for fullscreen, use system cursor for windowed mode (@ForserX)
+- Prevented small subgroup attacks on DH/DHE (@tabudz)
+- Restored FPS lock for menus (@v2v3v4)
+
+### Graphics (renders, shaders)
+
+- Added GPU event disabling (@Drombeys, @ForserX)
+- Fixed clouds when using USE_LEGACY_SKY_TONEMAP macro (@Hozar2002)
+
+### Gameplay
+
+- Added game crash on missing upgrade scheme (@St4lker0k765)
+- Added invalid community check to `general_goodwill` function (@St4lker0k765)
+- Added spacing support for `CUIStackPanel` (@St4lker0k765)
+- Added stack panel support for boosters and anomaly fields (@St4lker0k765)
+- Added vertical modes for `CUIStackPanel` (@St4lker0k765)
+- Excluded missing ammo section from ammo switching (@St4lker0k765)
+- Fixed `snd_reload_jammed` sound for BM16 weapon (@Shtrecker)
+- Fixed ammunition display system loading (@Shtrecker)
+- Fixed info panel height for upgrade icons (@nicknames)
+- Fixed original booster usage bug(@Shtrecker)
+- Fixed original campfire sound playback bug (@v2v3v4)
+- Fixed script exports (@Shtrecker)
+- Fixed spot pointer position (@St4lker0k765)
+- Fixed unary minus operator in `_vector3` (@ForserX)
+- Fixed weapon bones visibility (@Shtrecker)
+- Optimized animation parameter parsing (@ForserX)
+- Reset player movement states when `g_no_clip` is enabled (@v2v3v4)
+- Restored camera-shell collision detection logic (@Drombeys)
+
+### Resources
+
+- Added mouse sensitivity adjustment to UI in control options (@Drombeys)
+- Applied stretch mode for options window (@Drombeys)
+- Fixed base attack detection when NPC is not nearby (@FFx0001)
+- Fixed crash during location loading stage (@Drombeys)
+- Fixed original task marker misalignment bug (@St4lker0k765)
+
+### Toolchain
+
+- Fixed crash after item position and orientation reset (@St4lker0k765)
+- Reworked AI map saving to `.part` format for SDK compatibility (@VodkaNET)
+- Reworked slider handling in HUD adjust system (@Drombeys)
 
 ## Release 1.3 (December 2025)
 

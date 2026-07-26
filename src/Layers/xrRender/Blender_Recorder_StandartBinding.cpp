@@ -481,7 +481,7 @@ static class cl_rain_params : public R_constant_setup {
 #endif
 		float rainDensity = g_pGamePersistent->Environment().CurrentEnv->rain_density;
 		float rainWetness = g_pGamePersistent->Environment().wetness_factor;
-		RCache.set_c(C, rainDensity, rainWetness, 0.0f, 0.0f);
+		RCache.set_c(C, rainDensity, rainWetness, 0.0f, (float)g_pGameLevel->UseSnowmask);
 	}
 } binder_rain_params;
 
@@ -504,6 +504,13 @@ static class cl_m_hud_params : public R_constant_setup
 		RCache.set_c(C, RDEVICE.hudViewportData.isRenderProcess, RDEVICE.hudViewportData.isRenderActive, 0.0f, RDEVICE.hudViewportData.renderZoomRotateFactor);
 	}
 }    binder_m_hud_params;
+
+static class cl_m_zoom_deviation : public R_constant_setup
+{
+	virtual void setup(R_constant* C) {
+		RCache.set_c(C, 0.0f, 0.0f, RDEVICE.hudViewportData.renderScopeBrightnessValue, RDEVICE.hudViewportData.renderScopeBrightnessJitterValue);
+	}
+} binder_m_zoom_deviation;
 
 static class cl_affects : public R_constant_setup
 {
@@ -665,6 +672,7 @@ void	CBlender_Compile::SetMapping()
 
 	//LVutner: Gunslinger...
 	r_Constant("m_hud_params", &binder_m_hud_params);
+	r_Constant("m_zoom_deviation", &binder_m_zoom_deviation);
 	r_Constant("m_affects", &binder_affects);
 	r_Constant("m_actor_params", &binder_actor_states);
 	r_Constant("m_timearrow", &binder_m_timearrow);

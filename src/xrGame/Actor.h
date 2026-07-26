@@ -120,6 +120,8 @@ public:
 
 	virtual void						OnEvent				( NET_Packet& P, u16 type		);
 
+	void								Center(Fvector& C)	const;
+
 	// Render
 	virtual void						renderable_Render			();
 	virtual BOOL						renderable_ShadowGenerate	();
@@ -191,7 +193,6 @@ public:
 	virtual void OnItemDropUpdate ();
 
 	virtual	void OnPlayHeadShotParticle (NET_Packet P);
-	void legs_shift_callback(CBoneInstance* K);
 
 	virtual void						Die				(CObject* who);
 	virtual	void						Hit				(SHit* pHDS);
@@ -341,6 +342,9 @@ public:
 	bool					use_HolderEx			(CHolderCustom* object, bool bForce);
 
 	virtual bool			can_attach				(const CInventoryItem *inventory_item) const;
+
+	virtual void UpdatePlayerHud() final override;
+
 protected:
 	CHolderCustom*			m_holder;
 	u16						m_holderID;

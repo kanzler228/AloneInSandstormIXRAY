@@ -664,6 +664,11 @@ int	CScriptGameObject::GetAttitude(CScriptGameObject* pToWho)
 {
 	CInventoryOwner* pInventoryOwner = object().cast_inventory_owner();
 	VERIFY(pInventoryOwner);
+	if (pInventoryOwner->Community() == NO_COMMUNITY_INDEX)
+	{
+		g_pScriptEngine->print_stack();
+		R_ASSERT2(false, "Unable to get attitude from owner with invalid community index");
+	}
 
 	CInventoryOwner* pOthersInventoryOwner = pToWho->object().cast_inventory_owner();
 	VERIFY(pOthersInventoryOwner);
@@ -1231,21 +1236,11 @@ void CScriptGameObject::attachable_item_load_attach(LPCSTR section)
 
 void CScriptGameObject::RestoreWeapon()
 {
-#ifdef DEBUG
-	ai().script_engine().script_log(eLuaMessageTypeMessage,"CScriptGameObject::RestoreWeapon called!!!");
-	ai().script_engine().print_stack();
-#endif //#ifdef DEBUG
-
 	Actor()->SetWeaponHideState(INV_STATE_BLOCK_ALL, false);
 }
 
 void CScriptGameObject::HideWeapon()
 {
-#ifdef DEBUG
-	ai().script_engine().script_log(eLuaMessageTypeMessage,"CScriptGameObject::HideWeapon called!!!");
-	ai().script_engine().print_stack();
-#endif //#ifdef DEBUG
-
 	Actor()->SetWeaponHideState(INV_STATE_BLOCK_ALL, true);
 }
 
@@ -2005,7 +2000,7 @@ void CScriptGameObject::Weapon_AddonDetach(LPCSTR item_section, bool b_spawn_ite
 void CScriptGameObject::Weapon_SetCurrentScope(u8 type)
 {
 	CWeaponMagazined* weapon = object().cast_weapon_magazined();
-	if (!weapon)
+	if (weapon != nullptr)
 	{
 		weapon->m_cur_scope = type;
 	}
@@ -2018,7 +2013,7 @@ void CScriptGameObject::Weapon_SetCurrentScope(u8 type)
 u8 CScriptGameObject::Weapon_GetCurrentScope()
 {
 	CWeaponMagazined* weapon = object().cast_weapon_magazined();
-	if (weapon == nullptr)
+	if (weapon != nullptr)
 	{
 		return weapon->m_cur_scope;
 	}
@@ -2482,4 +2477,33 @@ bool CScriptGameObject::IsInCar()
 
 	Msg("! IsInCar(): method applicable only for actor!");
 	return false;
+}
+
+bool CScriptGameObject::GetGasmaskStatus()
+{
+	//if (CActor* pActor = smart_cast<CActor*>(&object()))
+	//{
+	//	return g_pGamePersistent && g_pGamePersistent->m_pGShaderConstants
+	//		&& g_pGamePersistent->m_pGShaderConstants->m_fGasMaskEnabled;
+	//}
+	//else
+	//{
+	//	Msg("! GetGasmaskStatus(): method applicable only for actor!");
+	//}
+	return false;
+}
+
+float CScriptGameObject::GetGasmaskCondition()
+{
+	//if (CActor* pActor = smart_cast<CActor*>(&object()))
+	//{
+	//	return g_pGamePersistent && g_pGamePersistent->m_pGShaderConstants
+	//		&& g_pGamePersistent->m_pGShaderConstants->m_fGasMaskCondition;
+	//}
+	//else
+	//{
+	//	Msg("! GetGasmaskCondition(): method applicable only for actor!");
+	//}
+	//return 0.f;
+	return 1.f;
 }

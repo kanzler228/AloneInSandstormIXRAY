@@ -260,7 +260,7 @@ void CPHElement::getQuaternion(Fquaternion& quaternion)
 	if(!isActive()) return;
 	const float* q=dBodyGetQuaternion(m_body);
 	quaternion.set(-q[0],q[1],q[2],q[3]);
-	VERIFY(_valid(quaternion));
+	//VERIFY(_valid(quaternion));
 }
 void CPHElement::setQuaternion(const Fquaternion& quaternion)
 {
@@ -412,6 +412,7 @@ void CPHElement::PhDataUpdate(dReal step)
 		dBodySetAngularVel(m_body, 0, 0, 0);
 		dBodySetForce(m_body, 0, 0, 0);
 		dBodySetTorque(m_body, 0, 0, 0);
+		dBodyDisable(m_body);
 		return;
 	}
 
@@ -436,7 +437,7 @@ void CPHElement::PhDataUpdate(dReal step)
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////scale velocity///////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
-	VERIFY(dV_valid(linear_velocity));
+	//VERIFY(dV_valid(linear_velocity));
 #ifdef DEBUG
 	if(!dV_valid(angular_velocity))
 	{

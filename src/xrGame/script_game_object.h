@@ -249,6 +249,9 @@ public:
 	// Actor only
 			void				SetActorPosition	(Fvector pos);
 			void				SetActorDirection	(float dir);
+			void				CameraMove			(float YawOffset);	// FNAS
+			void				SwitchTorch			();					// FNAS
+			void				SetActorCrouch		();					// FNAS
 			void				SetNpcPosition		(Fvector pos);
 			void				DisableHitMarks		(bool disable);
 			bool				DisableHitMarks		() const;
@@ -997,6 +1000,8 @@ public:
 	LPCSTR GetCutsceneVisual();
 	void SetInvulnerable(bool value);
 	void SetFire(bool value);
+	bool GetGasmaskStatus();
+	float GetGasmaskCondition();
 	bool GetAnimatorForceHideItems();
 	void SetAnimatorForceHideItems(bool status);
 	bool IsInCar();

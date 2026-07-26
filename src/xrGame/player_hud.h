@@ -109,6 +109,10 @@ struct weapon_inertion
 	float aim_move_crouch_factor = 1.0f;
 	float aim_move_slow_factor = 1.0f;
 
+	float move_slow_crouch_factor = 1.0f;
+	float move_crouch_factor = 1.0f;
+	float move_slow_factor = 1.0f;
+
 	bool no_other_hud_moving_while_suicide = false;
 
 	u32 to_crouch_time = 0;
@@ -306,7 +310,7 @@ public:
 	void			UpdateWeaponOffset(u32 delta);
 
 	IKinematics*	m_legs_model;
-	bool			m_show_legs = true;
+	s32				m_show_legs = 1;
 	bool			m_need_reload = true;
 	shared_str		NextHUDSect;
 

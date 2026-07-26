@@ -45,7 +45,7 @@
 #include "Weapon.h"
 #include "raypick.h"
 #include "ai_object_location.h"
-
+#include "inventory_upgrade_manager.h"
 #include "ActorHelmet.h"
 #include "PickupManager.h"
 #include "UIActorMenu.h"
@@ -57,7 +57,7 @@ using namespace luabind;
 
 void show_legs(bool val)
 {
-	g_player_hud->m_show_legs = val;
+	g_player_hud->m_show_legs += val ? 1 : -1;
 }
 
 void block_action_script(int cmd) {
@@ -204,7 +204,7 @@ CScriptGameObject *get_object_by_id(u16 id)
 	if (!pGameObject)
 	{
 		//g_pScriptEngine->print_stack();
-		return nullptr;
+		return 0;
 	}
 
 	return pGameObject->lua_game_object();
@@ -1080,6 +1080,8 @@ void RefreshNames()
 	if (g_pGameLevel == nullptr)
 		return;
 
+	Level().m_upgrade_manager->RefreshTranslations();
+
 	for (auto& [id, pointer] : ai().alife().objects().objects())
 	{
 		const auto obj = g_pGameLevel->Objects.net_Find(id);
@@ -1447,6 +1449,11 @@ void spawn_anomaly(LPCSTR str, int level_vertex_id, const Fvector& position, flo
 	F_entity_Destroy(object);
 }
 
+void set_time_factor_single(float value) // FNAS
+{
+	Level().SetGameTimeFactor(value);
+}
+
 LPCSTR GetActorMaterialPairName()
 {
 	u16 mtl_idx = Actor() ? Actor()->material().last_material_idx() : GAMEMTL_NONE_IDX;
@@ -1480,7 +1487,7 @@ void CLevel::script_register(lua_State *L)
 		def("debug_actor",						tpfGetActor),
 		def("check_object",						check_object),
 #endif
-		
+		def("set_time_factor_single", set_time_factor_single), // FNAS
 		def("get_weather",						get_weather),
 		def("set_weather",						set_weather),
 		def("set_weather_fx",					set_weather_fx),

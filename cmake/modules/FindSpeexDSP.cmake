@@ -20,21 +20,16 @@ if(NOT TARGET SpeexDSP::speexdsp)
         message(STATUS "speexdsp not found, fetching from source...")
         FetchContent_Declare(
             speexdsp
-            GIT_REPOSITORY https://github.com/thewh1teagle/speexdsp.git
-            GIT_TAG        feat/add-cmake
+            GIT_REPOSITORY https://gitlab.xiph.org/xiph/speexdsp.git
+            GIT_TAG        main
         )
         FetchContent_MakeAvailable(speexdsp)
 
         if(TARGET speexdsp)
-        target_include_directories(speexdsp PUBLIC
-            ${speexdsp_SOURCE_DIR}/include
-            ${speexdsp_SOURCE_DIR}/libspeexdsp
-        )
-
-        if(NOT TARGET SpeexDSP::speexdsp)
-            add_library(SpeexDSP::speexdsp ALIAS speexdsp)
+            if(NOT TARGET SpeexDSP::speexdsp)
+                add_library(SpeexDSP::speexdsp ALIAS speexdsp)
+            endif()
         endif()
-endif()
         
     endif()
 endif()

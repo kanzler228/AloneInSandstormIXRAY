@@ -50,7 +50,7 @@ public:
 	virtual void			net_Destroy			();
 	virtual void			net_Export			(NET_Packet& P);
 	virtual void			net_Import			(NET_Packet& P);
-	
+	virtual void			net_Relcase			(CObject* object);
 	virtual CWeapon			*cast_weapon			()					{return this;}
 	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
 	virtual CWeaponKnife* cast_weapon_knife() { return nullptr; }
@@ -113,6 +113,9 @@ public:
 	bool IsHudModelForceUnhide() const;
 	bool IsUIForceUnhiding() const;
 	bool ScopeFit(CScope*) const;
+
+	virtual void on_a_hud_attach() override;
+
 protected:
 	//время удаления оружия
 	ALife::_TIME_ID			m_dwWeaponRemoveTime;
@@ -195,7 +198,7 @@ public:
 		u8 AmmoType = undefined_ammo_type;
 		xr_hash_map<u32, std::pair<shared_str, RStringVec>> ConfigurationMap{};
 		RStringVec AllBones{};
-		void Load(const shared_str& section);
+		void Load(const shared_str& section, s32 base_node_count);
 	};
 
 	struct SAmmoBonesLite
@@ -204,6 +207,8 @@ public:
 		u32 bullet_cnt = 0;
 
 	} m_ammo_bones_lite;
+
+	xr_hash_map<u8, RStringVec> m_mag_bone_type{};
 
 	public:
 		struct SRecoilPoint {
@@ -244,6 +249,7 @@ protected:
 	void ProcessScope();
 	void UpdateScopePosition();
 	void UpdateAmmoBones(xr_vector<SAmmoBonesParams*>& lVector, u32 idx, u8 type);
+	void UpdateMagAmmoBones(xr_hash_map<u8, RStringVec>& lVector, u8 type);
 	void UpdateLiteAmmoBones(u32 idx);
 	void UpdateShellBones(u32 idx, u8 type);
 	virtual void UpdateBonePartAnimations() {}
@@ -712,6 +718,8 @@ public:
 			float			GetFirstBulletDisp	()	const	{ return m_first_bullet_controller.get_fire_dispertion(); };
 
 	virtual void			UnloadChamber(bool spawn_ammo = true);
+
+	virtual void OnChangeVisual() final override;
 
 protected:
 	int						iAmmoElapsed;		// ammo in magazine, currently

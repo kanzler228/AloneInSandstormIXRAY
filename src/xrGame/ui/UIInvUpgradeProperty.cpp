@@ -188,29 +188,29 @@ void UIInvUpgPropertiesWnd::init_from_xml(LPCSTR xml_name)
 
 	LPCSTR properties_section = "upgrades_properties";
 
-	VERIFY2(pSettings->section_exist(properties_section), make_string<const char*>("Section [%s] does not exist !", properties_section));
-	VERIFY2(pSettings->line_count(properties_section), make_string<const char*>("Section [%s] is empty !", properties_section));
 	shared_str property_id;
 
-	CInifile::Sect& inv_section = pSettings->r_section(properties_section);
-
-	for (const auto& section_data : inv_section.Data)
+	if (pSettings->section_exist(properties_section))
 	{
-		UIProperty* ui_property = new UIProperty(); // load one time !!
-		ui_property->init_from_xml(ui_xml);
+		CInifile::Sect& inv_section = pSettings->r_section(properties_section);
 
-		property_id._set(section_data.first);
-		if (!ui_property->init_property(property_id))
+		for (const auto& section_data : inv_section.Data)
 		{
-			Msg("! Invalid property <%s> in inventory upgrade manager!", property_id.c_str());
-			xr_delete(ui_property);
-			continue;
-		}
+			UIProperty* ui_property = new UIProperty(); // load one time !!
+			ui_property->init_from_xml(ui_xml);
 
-		m_properties_ui.push_back(ui_property);
-		AttachChild(ui_property);
-	} // for ib
+			property_id._set(section_data.first);
+			if (!ui_property->init_property(property_id))
+			{
+				Msg("! Invalid property <%s> in inventory upgrade manager!", property_id.c_str());
+				xr_delete(ui_property);
+				continue;
+			}
 
+			m_properties_ui.push_back(ui_property);
+			AttachChild(ui_property);
+		} // for ib
+	}
 	ui_xml.SetLocalRoot(stored_root);
 }
 
@@ -243,30 +243,30 @@ void UIInvUpgPropertiesWnd::set_info(ItemUpgrades_type const& item_upgrades)
 		}
 	}
 
-	if (GetParent())
+	// Для финальной высоты нужно добавить высоту последнего элемента, если количество нечетное
+	if (m_iNumUpgr > 0)
 	{
-		if (m_iNumUpgr % 2 == 0)
+		UIProperty* last_property = nullptr;
+		for (auto& ui_property : m_properties_ui)
 		{
-			height -= visiblePropertiesHeight - (m_fnext_line_pos / 2.f);
+			if (ui_property->IsShown())
+			{
+				last_property = ui_property;
+			}
 		}
-		else
+		
+		if (last_property)
 		{
-			height += m_fnext_line_pos / 2.f;
+			if (m_iNumUpgr % 2 != 0)
+			{
+				height += last_property->GetWndSize().y;
+			}
+			else
+			{
+				height += last_property->GetWndSize().y;
+			}
 		}
 	}
-	else
-	{
-		if (m_iNumUpgr % 2 != 0)
-		{
-			height += m_fnext_line_pos;
-		}
-		else
-		{
-			visiblePropertiesHeight = 0.0f;
-		}
-	}
-
-	height += visiblePropertiesHeight;
 	SetHeight(height);
 }
 

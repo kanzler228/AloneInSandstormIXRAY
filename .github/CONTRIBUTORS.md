@@ -1,6 +1,14 @@
 # Contributors
 
-English | [Русский](../doc/CONTRIBUTORS.rus.md)
+<div>
+  <p>
+    English
+    |
+    <a href="../doc/CONTRIBUTORS.rus.md">
+      Русский
+    </a>
+  </p>
+</div>
 
 Detail list of all contributors to IX-Ray project
 
@@ -20,7 +28,6 @@ Detail list of all contributors to IX-Ray project
   - Red Panda (isobolevskiy)
   - LVutner
   - VodkaNET
-  - BigBro
   - St4lker0k765
   - wh1t3lord
   - GladiatorVS
@@ -30,6 +37,7 @@ Detail list of all contributors to IX-Ray project
   - MiX225
   - kola2451
   - FFx0001
+  - Desert Cliff (mrGlock5)
 
 - IX-Ray Partners:
   - _V_O_IN_
@@ -44,6 +52,7 @@ Detail list of all contributors to IX-Ray project
   - after_glow
   - MafiosiGhost
   - Mawrak
+  - BigBro
 
 - IX-Ray Testers:
   - Kystman
@@ -92,6 +101,12 @@ Detail list of all contributors to IX-Ray project
 - xr-Renn
 - rederr404
 - LostAlphaRus
+- BASE1707
+- tabudz
+- openhands
+- Emmis
+- wikiraccoon
+- SaloEater
 
 ## Former Contributors
 

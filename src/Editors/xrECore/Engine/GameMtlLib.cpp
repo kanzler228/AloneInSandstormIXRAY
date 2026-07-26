@@ -1,8 +1,4 @@
-#pragma error
-//---------------------------------------------------------------------------
 #include "stdafx.h"
-
-
 #include "GameMtlLib.h"
 
 CGameMtlLibrary GMLib;
@@ -133,7 +129,10 @@ void CGameMtlLibrary::Load()
     if (OBJ){
         u32				count;
         for (IReader* O = OBJ->open_chunk_iterator(count); O; O = OBJ->open_chunk_iterator(count,O)) {
-        	SGameMtlPair* M	= new SGameMtlPair (this);
+            SGameMtlPair* M	= new SGameMtlPair (this);
+#ifdef GM_NON_GAME
+            M->EditorProp = new SGameMtlPair::EditorProperties;
+#endif
 	        M->Load		(*O);
         	material_pairs.push_back(M);
         }
@@ -161,15 +160,15 @@ void SGameMtlPair::Load(IReader& fs)
     else							OwnProps.assign	(own_mask);
 
 	R_ASSERT(fs.find_chunk(GAMEMTLPAIR_CHUNK_BREAKING));
-	fs.r_stringZ		(buf); 	BreakingSounds	= buf.size()?*buf:"";
+	fs.r_stringZ		(buf); 	EditorProp->BreakingSounds	= buf.size()?*buf:"";
 
 	R_ASSERT(fs.find_chunk(GAMEMTLPAIR_CHUNK_STEP));
-	fs.r_stringZ		(buf);	StepSounds		= buf.size()?*buf:"";
+	fs.r_stringZ		(buf);	EditorProp->StepSounds		= buf.size()?*buf:"";
 
 	R_ASSERT(fs.find_chunk(GAMEMTLPAIR_CHUNK_COLLIDE));
-	fs.r_stringZ		(buf);	CollideSounds	= buf.size()?*buf:"";
-	fs.r_stringZ		(buf);	CollideParticles= buf.size()?*buf:"";
-	fs.r_stringZ		(buf);	CollideMarks	= buf.size()?*buf:"";
+	fs.r_stringZ		(buf);	EditorProp->CollideSounds	= buf.size()?*buf:"";
+	fs.r_stringZ		(buf);	EditorProp->CollideParticles= buf.size()?*buf:"";
+	fs.r_stringZ		(buf);	EditorProp->CollideMarks	= buf.size()?*buf:"";
 }
 #endif
 
@@ -267,7 +266,7 @@ void SGameMtlPair::Save(IWriter& fs)
         if ((0 != (P = GetLastParentValue(this, flCollideParticles))) && (P != this))
             CollideParticles = P->CollideParticles;
         if ((0 != (P = GetLastParentValue(this, flCollideMarks))) && (P != this))
-            CollideMarks = P->CollideMarks;
+            EditorProp->CollideMarks = P->EditorProp->CollideMarks;
     }
     /*
         else{
@@ -281,17 +280,17 @@ void SGameMtlPair::Save(IWriter& fs)
     */
     // save    
     fs.open_chunk(GAMEMTLPAIR_CHUNK_BREAKING);
-    fs.w_stringZ(BreakingSounds);
+    fs.w_stringZ(EditorProp->BreakingSounds);
     fs.close_chunk();
 
     fs.open_chunk(GAMEMTLPAIR_CHUNK_STEP);
-    fs.w_stringZ(StepSounds);
+    fs.w_stringZ(EditorProp->StepSounds);
     fs.close_chunk();
 
     fs.open_chunk(GAMEMTLPAIR_CHUNK_COLLIDE);
-    fs.w_stringZ(CollideSounds);
-    fs.w_stringZ(CollideParticles);
-    fs.w_stringZ(CollideMarks);
+    fs.w_stringZ(EditorProp->CollideSounds);
+    fs.w_stringZ(EditorProp->CollideParticles);
+    fs.w_stringZ(EditorProp->CollideMarks);
     fs.close_chunk();
 }
 

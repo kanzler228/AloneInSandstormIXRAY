@@ -6,6 +6,7 @@ on:
       - '**'
     paths:
       - '.github/workflows/**'
+      - 'cmake/**'
       - 'gamedata/**'
       - 'sdk/**'
       - 'src/**'
@@ -17,6 +18,7 @@ on:
       - '**'
     paths:
       - '.github/workflows/**'
+      - 'cmake/**'
       - 'gamedata/**'
       - 'sdk/**'
       - 'src/**'
@@ -35,7 +37,7 @@ jobs:
     strategy:
       matrix:
         system:
-          - windows-latest
+          - windows-2022
         preset:
           - Server
         platform:
@@ -49,12 +51,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Cache packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           key: ${{ matrix.preset }}-NuGet-${{ hashFiles('**/Packages.config') }}
           restore-keys: |
@@ -75,7 +77,7 @@ jobs:
             --preset ${{ matrix.preset }}-${{ matrix.platform }}-${{ runner.os }}-${{ matrix.config }}
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-binaries-${{ matrix.system }}-${{ matrix.platform }}-${{ matrix.config }}-${{ github.sha }}
           path: |
@@ -83,7 +85,7 @@ jobs:
             build/${{ matrix.platform }}/${{ matrix.preset }}-${{ runner.os }}/bin/${{ matrix.config }}/*.dll
 
       - name: Upload symbols
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ matrix.config != 'Release' }}
         with:
           name: server-symbols-${{ matrix.system }}-${{ matrix.platform }}-${{ matrix.config }}-${{ github.sha }}
@@ -91,14 +93,14 @@ jobs:
             build/${{ matrix.platform }}/${{ matrix.preset }}-${{ runner.os }}/bin/${{ matrix.config }}/*.pdb
 
       - name: Upload libraries
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-libraries-${{ matrix.system }}-${{ matrix.platform }}-${{ matrix.config }}-${{ github.sha }}
           path: |
             build/${{ matrix.platform }}/${{ matrix.preset }}-${{ runner.os }}/lib/${{ matrix.config }}/
 
       - name: Upload packages
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ (matrix.config == 'Debug' && matrix.platform == 'x64') }}
         with:
           name: server-packages-${{ matrix.system }}-${{ github.sha }}
@@ -114,13 +116,13 @@ jobs:
     strategy:
       matrix:
         system:
-          - windows-latest
+          - windows-2022
 
     runs-on: ${{ matrix.system }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -143,7 +145,7 @@ jobs:
             ${{ github.workspace }}/gamedata
 
       - name: Upload assets
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-assets-${{ github.sha }}
           path: |
@@ -161,7 +163,7 @@ jobs:
     strategy:
       matrix:
         system:
-          - windows-latest
+          - windows-2022
         platform:
           - x64
         preset:
@@ -173,13 +175,13 @@ jobs:
 
     steps:
       - name: Get server
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: server-binaries-${{ matrix.system }}-${{ matrix.platform }}-${{ matrix.config }}-${{ github.sha }}
           path: build/${{ matrix.platform }}/${{ matrix.preset }}-${{ runner.os }}/bin/${{ matrix.config }}/
 
       - name: Get assets
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: server-assets-${{ github.sha }}
           path: ./
@@ -193,7 +195,7 @@ jobs:
             ${{ github.workspace }}/bin
 
       - name: Upload server
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-publish-${{ matrix.system }}-${{ matrix.platform }}-${{ github.sha }}
           path: |

@@ -21,6 +21,8 @@
 #include "game_object_space.h"
 #include "material_manager.h"
 #include "game_base_space.h"
+#include "alife_simulator.h"
+#include "ai_object_location.h"
 
 #define SMALL_ENTITY_RADIUS		0.6f
 #define BLOOD_MARKS_SECT		"bloody_marks"
@@ -93,7 +95,8 @@ void CEntityAlive::Load		(LPCSTR section)
 		LoadFireParticles	("entity_fire_particles");
 
 	//биолог. вид к торому принадлежит монстр или персонаж
-	monster_community->set	(pSettings->r_string(section, "species"));
+	if(pSettings->line_exist(section, "species"))
+		monster_community->set	(pSettings->r_string(section, "species"));
 }
 
 void CEntityAlive::LoadBloodyWallmarks (LPCSTR section)
@@ -206,7 +209,14 @@ void CEntityAlive::reload		(LPCSTR section)
 BOOL	g_fight_fast_respawn = FALSE;
 void CEntityAlive::shedule_Update(u32 dt)
 {
-	PROF_EVENT("CEntityAlive::shedule_Update")
+	PROF_EVENT("CEntityAlive::shedule_Update");
+	if (g_fight_fast_respawn && OnServer() && (!g_Alive() || (cast_stalker() && cast_stalker()->wounded())))
+	{
+		DestroyObject();
+
+		g_ai_space->get_alife()->spawn_item(cNameSect_str(), Position(), ai_location().level_vertex_id(), ai_location().game_vertex_id(), ALife::_OBJECT_ID(-1));
+	}
+
 	inherited::shedule_Update	(dt);
 
 	//condition update with the game time pass
@@ -219,9 +229,6 @@ void CEntityAlive::shedule_Update(u32 dt)
 	UpdateBloodDrops	();
 	//обновить раны
 	conditions().UpdateWounds		();
-
-	if(!g_Alive() && g_fight_fast_respawn && OnServer())
-		DestroyObject();
 
 	//убить сущность
 	if(Local() && !g_Alive() && !AlreadyDie())
@@ -320,11 +327,6 @@ void	CEntityAlive::Hit(SHit* pHDS)
  
 void CEntityAlive::Die	(CObject* who)
 {
-	if (g_fight_fast_respawn && OnServer())
-	{
-  		g_ai_space->get_alife()->spawn_item(cNameSect_str(), Position(), ai_location().level_vertex_id(), ai_location().game_vertex_id(), ALife::_OBJECT_ID(-1));
- 	}
-	
 	if(who)
 		RELATION_REGISTRY().Action(who->cast_entity_alive(), this, RELATION_REGISTRY::KILL);
 
@@ -993,6 +995,21 @@ Fvector CEntityAlive::get_last_local_point_on_mesh	( Fvector const& last_point, 
 		return							inherited::get_last_local_point_on_mesh( last_point, bone_id );
 
 	Fvector result;
+	//костыли для ног
+	if (Level().CurrentViewEntity() == this)
+	{
+		if (CActor* actor = smart_cast<CActor*>(this))
+		{
+			if (actor->active_cam() == eacFirstEye && !actor->Holder() && g_player_hud && g_player_hud->m_legs_model)
+			{
+				PKinematics(Visual())->LL_GetBoneLocalPosition(bone_id, result);
+				result.z -= actor->m_fLegs_shift;
+				actor->XFORM().transform_tiny(result);
+				return result;
+			}
+		}
+	}
+
 	PKinematics(Visual())->LL_GetBoneWorldPosition(bone_id, XFORM(), result);
 	return result;
 }

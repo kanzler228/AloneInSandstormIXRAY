@@ -462,7 +462,10 @@ void CRender::Render()
 			r_dsgraph_render_graph(0);
 		}
 
-		RContext->GenerateMips(Target->rt_Reflection->pTexture->get_SRView());
+		{
+			GPU_EVENT(FORWARD_REFLECTION_MIPS_GEN);
+			RContext->GenerateMips(Target->rt_Reflection->pTexture->get_SRView());
+		}
 
 		RCache.set_xform_project(Device.mProject);
 		RCache.set_xform_view(Device.mView);
@@ -672,7 +675,7 @@ void CRender::Render()
 	}
 
 	static bool UseWinterPass = EngineExternal()[EEngineExternalRender::UseDynamicSnowMask];
-	if(UseWinterPass)
+	if(UseWinterPass && g_pGameLevel->UseSnowmask)
 	{
 		GPU_EVENT(PhaseWinter);
 

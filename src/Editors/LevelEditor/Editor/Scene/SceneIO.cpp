@@ -137,7 +137,7 @@ void st_LevelOptions::ReadLTX(CInifile& ini)
 	{
 		m_mapUsage.m_GameType.set	(eGameIDCaptureTheArtefact,	ini.r_s32(section, "usage_captretheartefact"));
 
-		m_mapUsage.m_GameType.set	(eGameIDTeamDominationZone,	ini.r_s32(section, "usage_team_domination_zone"));
+		m_mapUsage.m_GameType.set	(eGameIDCapturePoints,	ini.r_s32(section, "usage_team_domination_zone"));
 		if(vers_op==0x00000009)
 			m_mapUsage.m_GameType.set(eGameIDDominationZone,		ini.r_s32(section, "domination_zone"));
 		else
@@ -234,8 +234,7 @@ BOOL EScene::LoadLevelPartLTX(ESceneToolBase* M, LPCSTR mn)
 
 		if (guid!=m_GUID)
 		{
-			ELog.DlgMsg		(mtError,"Skipping invalid version of level part: '%s\\%s.part'",EFS.ExtractFileName(map_name).c_str(),M->ClassName());
-			return 			FALSE;
+			ELog.DlgMsg		(mtWarning,"Part GUID doesn't match with level GUID: '%s\\%s.part'.\nUnexpected behavior possible.",EFS.ExtractFileName(map_name).c_str(),M->ClassName());
 		}
 		// read data
 		M->LoadLTX			(ini);
@@ -271,9 +270,7 @@ BOOL EScene::LoadLevelPartStream(ESceneToolBase* M, LPCSTR map_name)
 
 		if (guid != m_GUID)
 		{
-			ELog.DlgMsg(mtError, "Skipping invalid version of level part: '%s\\%s.part'", EFS.ExtractFileName(map_name).c_str(), M->ClassName());
-			FS.r_close(R);
-			return 			FALSE;
+			ELog.DlgMsg(mtWarning, "Part GUID doesn't match with level GUID: '%s\\%s.part'.\nUnexpected behavior possible.", EFS.ExtractFileName(map_name).c_str(), M->ClassName());
 		}
 		// read data
 		IReader* chunk = R->open_chunk(CHUNK_TOOLS_DATA + M->FClassID);
@@ -326,8 +323,26 @@ xr_string EScene::LevelPartPath(LPCSTR full_name)
 
 xr_string EScene::LevelPartName(LPCSTR map_name, ObjClassID cls)
 {
-	return 			LevelPartPath(map_name)+GetTool(cls)->ClassName() + ".part";
+	xr_string path = LevelPartPath(map_name);
+	xr_string class_name = GetTool(cls)->ClassName();
+
+	if (cls == OBJCLASS_AIMAP)
+	{
+		xr_string ixray_name = path + "ai_map_ixray.part";
+		if (FS.TryLoad(ixray_name))
+		{
+			Msg("* [AI MAP] Load: %s", ixray_name.c_str());
+			return ixray_name;
+		}
+		else
+		{
+			Msg("~ [AI MAP] Load Legacy AI-MAP");
+		}
+	}
+
+	return path + class_name + ".part";
 }
+
 
 void EScene::SaveLTX(LPCSTR map_name, bool bForUndo, bool bForceSaveAll)
 {
@@ -395,7 +410,21 @@ void EScene::SaveLTX(LPCSTR map_name, bool bForUndo, bool bForceSaveAll)
 			}else
 			{
 				// !ForUndo
-					xr_string part_name 	= part_prefix + _I->second->ClassName() + ".part";
+				xr_string class_name = _I->second->ClassName();
+
+				xr_string part_name;
+				if (class_name == "ai_map")
+				{
+					part_name = part_prefix + "ai_map_ixray.part";
+					Msg("* [AI MAP] Save: %s", part_name.c_str());
+				}
+				else
+				{
+					part_name = part_prefix + class_name + ".part";
+					Msg("* [SCENE] Save: %s", part_name.c_str());
+				}
+
+
 					if(_I->second->can_use_inifile())
 					{
 						EFS.MarkFile			(part_name.c_str(),true);

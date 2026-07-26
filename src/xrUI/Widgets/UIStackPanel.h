@@ -5,18 +5,35 @@ class UI_API CUIStackPanel :
 	public CUIWindow
 {
 public:
+	enum EStackPanelAlignment
+	{
+		eNone,
+		eLeft,
+		eRight,
+		eTop,
+		eBottom,
+		eCenterHorz,
+		eCenterVert
+	};
+	EStackPanelAlignment SPAlignment;
+
 	virtual void Draw() override;
 
 	void SetRightAlign(bool Val)
 	{
-		AlignLeft = !Val;
+		SPAlignment = Val ? eRight : eLeft;
 	}
 
 	bool IsAlignRight() const
 	{
-		return !AlignLeft;
+		return SPAlignment == eRight;
 	}
 
-public:
-	bool AlignLeft = true;
+	void SetSpacing(float Val)
+	{
+		Spacing = Val;
+	}
+
+protected:
+	float Spacing = 0.0f;
 };

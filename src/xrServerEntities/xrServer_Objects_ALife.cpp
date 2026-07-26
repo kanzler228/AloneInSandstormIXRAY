@@ -150,6 +150,16 @@ void	SFillPropData::load			()
 	for (k = 0; Ini->r_line("levels",k,&N,&V); ++k)
 		level_ids.push_back	(Ini->r_string_wb(N,"caption"));
 
+	std::sort(level_ids.begin(), level_ids.end(), [](shared_str ItemA, shared_str ItemB)
+	{
+		xr_string NameA = ItemA.c_str();
+		xr_string NameB = ItemB.c_str();
+
+		return NameA < NameB;
+	});
+
+	level_ids.insert(level_ids.begin(), "<none>");
+
 	// story names
 	{
 		VERIFY					(story_names.empty());
@@ -314,17 +324,8 @@ void CSE_ALifeGraphPoint::FillProps			(LPCSTR pref, PropItemVec& items)
 	PHelper().CreateRToken8(items, PrepareKey(pref,*s_name,"Location\\3"), &m_tLocations[2], &*fp_data.locations[2].begin(), (u32)fp_data.locations[2].size())->OnChangeEvent = xr_make_delegate(this, &CSE_ALifeGraphPoint::ChangeColorEvent);
 	PHelper().CreateRToken8(items, PrepareKey(pref,*s_name,"Location\\4"), &m_tLocations[3], &*fp_data.locations[3].begin(), (u32)fp_data.locations[3].size())->OnChangeEvent = xr_make_delegate(this, &CSE_ALifeGraphPoint::ChangeColorEvent);
 
-	
-	std::sort(fp_data.level_ids.begin(), fp_data.level_ids.end(), [](shared_str ItemA, shared_str ItemB)
-	{
-		xr_string NameA = ItemA.c_str();
-		xr_string NameB = ItemB.c_str();
-
-		return NameA < NameB;
-	});
-
-	PHelper().CreateRList	 	(items,	PrepareKey(pref,*s_name,"Connection\\Level name"),	&m_caConnectionLevelName,	&*fp_data.level_ids.begin(),	(u32)fp_data.level_ids.size());
-	PHelper().CreateRText	 	(items,	PrepareKey(pref,*s_name,"Connection\\Point name"),	&m_caConnectionPointName);
+	PHelper().CreateRList	 	(items,	PrepareKey(pref,*s_name,"Connection\\Level Name"),	&m_caConnectionLevelName,	&*fp_data.level_ids.begin(),	(u32)fp_data.level_ids.size());
+	PHelper().CreateRText	 	(items,	PrepareKey(pref,*s_name,"Connection\\Point Name"),	&m_caConnectionPointName);
 #	endif // #ifdef XRSE_FACTORY_EXPORTS
 }
 
@@ -1519,7 +1520,7 @@ void CSE_ALifeObjectHangingLamp::FillProps	(LPCSTR pref, PropItemVec& values)
 	PHelper().CreateChoose		(values, PrepareKey(pref,*s_name,"Light\\Main\\Bone"),			&light_main_bone,	smSkeletonBones,0,(void*)visual()->get_visual());
 	if (flags.is(flTypeSpot))
 	{
-		PHelper().CreateAngle	(values, PrepareKey(pref,*s_name,"Light\\Main\\Cone Angle"),	&spot_cone_angle,	deg2rad(1.f), 120);
+		PHelper().CreateAngle	(values, PrepareKey(pref,*s_name,"Light\\Main\\Cone Angle"),	&spot_cone_angle,	deg2rad(1.f), deg2rad(120.f));
 //		PHelper().CreateFlag16	(values, PrepareKey(pref,*s_name,"Light\\Main\\Volumetric"),	&flags,			flVolumetric);
 		P=PHelper().CreateFlag16	(values, PrepareKey(pref,*s_name,"Flags\\Volumetric"),	&flags,			flVolumetric);
 		P->OnChangeEvent.bind	(this,&CSE_ALifeObjectHangingLamp::OnChangeFlag);
@@ -2378,3 +2379,49 @@ void CSE_ALifeInventoryBox::FillProps( LPCSTR pref, PropItemVec& values )
 	inherited::FillProps( pref, values );
 }
 #endif // #ifndef XRGAME_EXPORTS
+
+////////////////////////////////////////////////////////////////////////////
+// CSE_ALifeTeamBaseZone
+////////////////////////////////////////////////////////////////////////////
+#ifndef XRGAME_EXPORTS
+void CSE_ALifeTeamCaptureZone::FillProps(LPCSTR pref, PropItemVec& items)
+{
+	inherited::FillProps(pref, items);
+	PHelper().CreateU8(items, PrepareKey(pref, *s_name, "team"), &m_team, 0, 16);
+	PHelper().CreateRText(items, PrepareKey(pref, *s_name, "point_name"), &m_point_name);
+}
+#endif // #ifndef XRGAME_EXPORTS
+
+CSE_ALifeTeamCaptureZone::CSE_ALifeTeamCaptureZone(LPCSTR caSection) : CSE_ALifeSpaceRestrictor(caSection)
+{
+	m_team = 0;
+	m_point_name = "";
+}
+
+CSE_ALifeTeamCaptureZone::~CSE_ALifeTeamCaptureZone()
+{
+}
+
+void CSE_ALifeTeamCaptureZone::STATE_Read(NET_Packet& tNetPacket, u16 size)
+{
+	inherited::STATE_Read(tNetPacket, size);
+	tNetPacket.r_u8(m_team);
+	tNetPacket.r_stringZ(m_point_name);
+}
+
+void CSE_ALifeTeamCaptureZone::STATE_Write(NET_Packet& tNetPacket)
+{
+	inherited::STATE_Write(tNetPacket);
+	tNetPacket.w_u8(m_team);
+	tNetPacket.w_stringZ(m_point_name);
+}
+
+void CSE_ALifeTeamCaptureZone::UPDATE_Read(NET_Packet& tNetPacket)
+{
+	inherited::UPDATE_Read(tNetPacket);
+}
+
+void CSE_ALifeTeamCaptureZone::UPDATE_Write(NET_Packet& tNetPacket)
+{
+	inherited::UPDATE_Write(tNetPacket);
+}

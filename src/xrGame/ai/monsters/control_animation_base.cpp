@@ -147,8 +147,13 @@ bool CControlAnimationBase::get_animation_info (EMotionAnim anim, u32 index, Mot
 
 	char  index_string_buffer[128];
 	string256 animation_name_buffer = {};
-	xr_strconcat(animation_name_buffer, anim_it->target_name.c_str(), _itoa(index, index_string_buffer, 10));
-
+	if (anim_it->target_name[anim_it->target_name.size() - 1] == '_') {
+		xr_strconcat(animation_name_buffer, anim_it->target_name.c_str(), _itoa(index, index_string_buffer, 10));
+	}
+	else {
+		xr_strconcat(animation_name_buffer, anim_it->target_name.c_str());
+	}
+		
 	IKinematicsAnimated*	animated	=	smart_cast<IKinematicsAnimated*>(m_object->Visual());
 	if ( !animated )
 	{
@@ -236,9 +241,18 @@ void CControlAnimationBase::select_animation(bool anim_end)
 
 	// установить анимацию	
 	string128	s1,s2;
-	MotionID	cur_anim		= smart_cast<IKinematicsAnimated*>(m_object->Visual())->ID_Cycle_Safe(xr_strconcat(s2,*anim_it->target_name,_itoa(index,s1,10)));
+	LPCSTR animation_name_buffer;
+	if (anim_it->target_name[anim_it->target_name.size() - 1] == '_') {
+		animation_name_buffer = xr_strconcat(s2, *anim_it->target_name, itoa(index, s1, 10));
+	}
+	else {
+		animation_name_buffer = anim_it->target_name.c_str();
+	}
+	MotionID	cur_anim		= m_object->Visual()->dcast_PKinematicsAnimated()->ID_Cycle_Safe(animation_name_buffer);
 	if ( !cur_anim.valid() )
-		FATAL							(s2);
+	{
+		FATAL(s2);
+	}
 
 	// Setup Com
 	ctrl_data->global.set_motion (cur_anim);
@@ -505,10 +519,16 @@ void CControlAnimationBase::UpdateAnimCount()
 	xr_vector<u32> subjectsToDelete;
 
 	for (ANIM_ITEM_VECTOR_IT it = m_anim_storage.begin(); it != m_anim_storage.end(); it++)	{
-		if (!(*it)) continue;
+		if (!(*it))
+		{
+			continue;
+		}
 
 		// проверить, были ли уже загружены данные
-		if ((*it)->count != 0) return;
+		if ((*it)->count != 0)
+		{
+			return;
+		}
 
 		string128	s, s_temp; 
 		u8 count = 0;
@@ -523,6 +543,13 @@ void CControlAnimationBase::UpdateAnimCount()
 				AddAnimTranslation(id,name);
 			}
 			else break;
+		}
+		if (!count) {
+			MotionID	id = skel->ID_Cycle_Safe(((*it)->target_name));
+			if (id.valid()) {
+				count++;
+				AddAnimTranslation(id, *((*it)->target_name));
+			}
 		}
 
 		if (count != 0)
@@ -703,19 +730,25 @@ void CControlAnimationBase::check_hit(MotionID motion, float time_perc)
 
 void parse_anim_params(LPCSTR val, SAAParam &anim) 
 {
-	string16			cur_elem;
+	auto ParseFloatLambda = [](const char* str, float& out)
+	{
+		char* end;
+		out = std::strtof(str, &end);
+		return (*end == ',') ? end + 1 : end;
+	};
 
-	_GetItem	(val,0,cur_elem);		anim.time			= float(atof(cur_elem));
-	_GetItem	(val,1,cur_elem);		anim.hit_power		= float(atof(cur_elem));
-	_GetItem	(val,2,cur_elem);		anim.impulse		= float(atof(cur_elem));
-	_GetItem	(val,3,cur_elem);		anim.impulse_dir.x	= float(atof(cur_elem));
-	_GetItem	(val,4,cur_elem);		anim.impulse_dir.y	= float(atof(cur_elem));
-	_GetItem	(val,5,cur_elem);		anim.impulse_dir.z	= float(atof(cur_elem));
-	_GetItem	(val,6,cur_elem);		anim.foh.from_yaw	= float(atof(cur_elem));
-	_GetItem	(val,7,cur_elem);		anim.foh.to_yaw		= float(atof(cur_elem));
-	_GetItem	(val,8,cur_elem);		anim.foh.from_pitch	= float(atof(cur_elem));
-	_GetItem	(val,9,cur_elem);		anim.foh.to_pitch	= float(atof(cur_elem));
-	_GetItem	(val,10,cur_elem);		anim.dist			= float(atof(cur_elem));
+	const char* ptr = val;
+	ptr = ParseFloatLambda(ptr, anim.time);
+	ptr = ParseFloatLambda(ptr, anim.hit_power);
+	ptr = ParseFloatLambda(ptr, anim.impulse);
+	ptr = ParseFloatLambda(ptr, anim.impulse_dir.x);
+	ptr = ParseFloatLambda(ptr, anim.impulse_dir.y);
+	ptr = ParseFloatLambda(ptr, anim.impulse_dir.z);
+	ptr = ParseFloatLambda(ptr, anim.foh.from_yaw);
+	ptr = ParseFloatLambda(ptr, anim.foh.to_yaw);
+	ptr = ParseFloatLambda(ptr, anim.foh.from_pitch);
+	ptr = ParseFloatLambda(ptr, anim.foh.to_pitch);
+	ParseFloatLambda(ptr, anim.dist);
 
 	anim.impulse_dir.normalize();
 

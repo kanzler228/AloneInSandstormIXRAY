@@ -589,14 +589,6 @@ if(!g_dedicated_server)
 	}
 }
 
-void CActor::legs_shift_callback(CBoneInstance* B) {
-	if(Level().CurrentViewEntity() == this && cam_active == eacFirstEye) {
-		if(g_player_hud && g_player_hud->m_legs_model) {
-			B->mTransform.c.mad(B->mTransform.k, m_fLegs_shift);
-		}
-	}
-};
-
 void CActor::PHHit(SHit &H)
 {
 	m_pPhysics_support->in_Hit( H, false );
@@ -1159,6 +1151,8 @@ void CActor::g_Physics			(Fvector& _accel, float jump, float dt)
 		{
 			character_physics_support()->movement()->SetNonInteractive(true);
 			character_physics_support()->movement()->SetVelocity(Fvector().set(0.f,0.f,0.f));
+			mstate_wishful = mcNoMove;
+			mstate_real = mcNoMove;
 		}
 		else if(character_physics_support()->movement()->bNonInteractiveMode)
 				character_physics_support()->movement()->SetNonInteractive(false);
@@ -1208,14 +1202,23 @@ void CActor::g_Physics			(Fvector& _accel, float jump, float dt)
 		}
 	}
 }
-float g_fov = 67.5f;
+
+float g_base_fov = 67.5f;
+float g_fov = g_base_fov;
+
 float CActor::currentFOV()
 {
+	if (IsTalking()) 
+	{
+		return g_fov;
+	}
+
 	const float SprintFov = m_SprintFovFactor * fSprintFactor;
+	g_fov = g_base_fov + SprintFov;
 
 	if (!psHUD_Flags.is(HUD_WEAPON | HUD_WEAPON_RT | HUD_WEAPON_RT2))
 	{
-		return g_fov + SprintFov;
+		return g_fov;
 	}
 	
 	CWeapon* pWeapon = inventory().ActiveItem() ? inventory().ActiveItem()->cast_weapon() : nullptr;
@@ -1235,7 +1238,7 @@ float CActor::currentFOV()
 	}
 	else
 	{
-		return g_fov + SprintFov;
+		return g_fov;
 	}
 }
 
@@ -1271,11 +1274,11 @@ void CActor::PlayRainOnHelmetSound()
 
 	if (factor > EPS_L && g_Alive())
 	{
-		const float* hemiCube = renderable_ROS()->get_luminocity_hemi_cube();
-		float hemiValue = _max(hemiCube[0], hemiCube[1]);
-		hemiValue = _max(hemiValue, hemiCube[2]);
-		hemiValue = _max(hemiValue, hemiCube[3]);
-		hemiValue = _max(hemiValue, hemiCube[5]);
+		const float* hemiCube = g_pGamePersistent->Environment().eff_Rain->Rain_ROS ? g_pGamePersistent->Environment().eff_Rain->Rain_ROS->get_luminocity_hemi_cube() : renderable_ROS()->get_luminocity_hemi_cube();
+		float hemiValue = std::max(hemiCube[0], hemiCube[1]);
+		hemiValue = std::max(hemiValue, hemiCube[2]);
+		hemiValue = std::max(hemiValue, hemiCube[3]);
+		hemiValue = std::max(hemiValue, hemiCube[5]);
 
 		if (m_rainOnHelmetSnd._feedback())
 		{
@@ -1601,6 +1604,8 @@ void CActor::UpdateCL()
 			Device.hudViewportData.isRenderActive = pWeapon->IsScopeAttached() && (pWeapon->GetAimFactor() > 0.0f) && (pWeapon->GetZoomFactor() > 0.0f);
 			Device.hudViewportData.ActorWeaponCondition = pWeapon->GetCondition();
 			Device.hudViewportData.ActorWeaponLoading = 1.0f;
+			Device.hudViewportData.renderScopeBrightnessValue = pWeapon->m_lens_night_brightness.cur_value;
+			Device.hudViewportData.renderScopeBrightnessJitterValue = pWeapon->m_lens_night_brightness.jitter;
 		}
 	}
 	else
@@ -1615,6 +1620,8 @@ void CActor::UpdateCL()
 			Device.hudViewportData.isRenderActive = false;
 			Device.hudViewportData.ActorWeaponCondition = -1.0f;
 			Device.hudViewportData.ActorWeaponLoading = 1.0f;
+			Device.hudViewportData.renderScopeBrightnessValue = 0.0f;
+			Device.hudViewportData.renderScopeBrightnessJitterValue = 0.0f;
 
 			// Switch back to third-person if was forced
 			if (bLook_cam_fp_zoom && cam_active == eacFirstEye) {
@@ -1670,6 +1677,33 @@ void CActor::UpdateCL()
 	else
 		fSprintFactor -= Device.fTimeDelta / 0.1f;
 	clamp(fSprintFactor, 0.0f, 1.0f);
+}
+
+void CActor::UpdatePlayerHud()
+{
+	if (IsFocused())
+	{
+		CInventoryItem* pInvItem = inventory().ActiveItem();
+		if (pInvItem)
+		{
+			CHudItem* pHudItem = smart_cast<CHudItem*>(pInvItem);
+			if (pHudItem)
+			{
+				if (pHudItem->IsHidden())
+				{
+					g_player_hud->detach_item(pHudItem);
+				}
+				else
+				{
+					g_player_hud->attach_item(pHudItem);
+				}
+			}
+		}
+		else
+		{
+			g_player_hud->detach_item_idx(0);
+		}
+	}
 }
 
 void CActor::CheckFlyhack()
@@ -1754,51 +1788,6 @@ void CActor::UpdatePlayerView()
 	}
 
 	setVisible(has_visible, has_shadow_only);
-
-	if (IsFocused())
-	{
-		BOOL bHudView = HUDview();
-		if (bHudView)
-		{
-			CInventoryItem* pInvItem = inventory().ActiveItem();
-			if (pInvItem)
-			{
-				CHudItem* pHudItem = pInvItem->cast_hud_item();
-				if (pHudItem)
-				{
-					if (pHudItem->IsHidden())
-					{
-						g_player_hud->detach_item(pHudItem);
-					}
-					else
-					{
-						g_player_hud->attach_item(pHudItem);
-					}
-				}
-			}
-			else
-			{
-				g_player_hud->detach_item_idx(0);
-			}
-
-			CCustomDevice* pDevice = GetDevice(true);
-			if (pDevice != nullptr)
-			{
-				if (pDevice->IsHidden())
-				{
-					g_player_hud->detach_item(pDevice->cast_hud_item());
-				}
-				else if (!g_player_hud->attached_item(1))
-				{
-					g_player_hud->attach_item(pDevice->cast_hud_item());
-				}
-			}
-		}
-		else
-		{
-			g_player_hud->detach_all_items();
-		}
-	}
 
 	float dt = Device.fTimeDelta;
 
@@ -2045,7 +2034,7 @@ void CActor::shedule_Update	(u32 DT)
 	pCamBobbing->SetState						(mstate_real, conditions().IsLimping(), IsZoomAimingMode());
 
 	//звук тяжелого дыхания при уталости и хромании
-	if(this==Level().CurrentControlEntity() && !g_dedicated_server && Holder() != nullptr)
+	if(this==Level().CurrentControlEntity() && !g_dedicated_server && Holder() == nullptr)
 	{
 		if(conditions().IsLimping() && g_Alive() && !psActorFlags.test(AF_DISABLE_CONDITION_TEST))
 		{
@@ -2250,14 +2239,11 @@ void CActor::shedule_Update	(u32 DT)
 }
 
 #include "debug_renderer.h"
-void CActor::renderable_Render	()
+void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));
-	inherited::renderable_Render			();
-	if(1/*!HUDview()*/)
-	{
-		CInventoryOwner::renderable_Render	();
-	}
+	inherited::renderable_Render();
+	CInventoryOwner::renderable_Render();
 	VERIFY(_valid(XFORM()));
 }
 

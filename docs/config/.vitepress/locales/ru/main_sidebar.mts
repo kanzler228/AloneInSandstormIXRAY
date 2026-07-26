@@ -6,6 +6,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
     collapsed: false,
     items: [
       { text: 'Установка', link: '/main/getting-started' },
+      { text: 'Coding Guidelines', link: '/main/coding-guidelines' },
       { text: 'Интеграции', link: '/main/integrations' },
       { text: 'Ключи запуска', link: '/main/launch-keys' },
       { text: 'Консольные команды', link: '/main/console-commands' },
@@ -56,7 +57,11 @@ export const mainSidebar: DefaultTheme.Sidebar = [
   {
     text: 'Система оружия',
     collapsed: false,
-    items: [{ text: 'Классы оружия', link: '/weapon-system/weapon-classes' }],
+    items: [
+      { text: 'Общие данные', link: '/weapon-system/weapon-classes' },
+      { text: 'Взрывчатка', link: '/weapon-system/explosive-classes' },
+      { text: 'Паттерная отдача', link: '/weapon-system/shot-pattern-system' }
+    ],
   },
   {
     text: 'Анимационная система',
@@ -85,6 +90,22 @@ export const mainSidebar: DefaultTheme.Sidebar = [
       { text: 'Пользовательские атласы иконок', link: '/interface/custom-icon-atlases' },
       { text: 'Шрифты', link: '/interface/fonts' },
       { text: 'XML Expression', link: '/interface/xml-expression' },
+      { text: 'SVG иконки', link: '/interface/svg-icons' },
+      {
+        text: 'Новые возможности UI',
+        collapsed: true,
+        items: [
+          { text: 'Обзор и переключатели', link: '/interface/ui-advanced-features' },
+          { text: 'Горизонтальный компас, миникарта', link: '/interface/hud-compass-minimap-motion-icon' },
+          { text: 'Быстрые слоты', link: '/interface/hud-quick-slots-panel' },
+          { text: 'Навигационная личная метка', link: '/interface/map-personal-navigation-marker' },
+          { text: 'Сортировка инвентаря', link: '/interface/inventory-sort-tabs' },
+          { text: 'Патроны, оружие, режим огня', link: '/interface/hud-weapon-ammo-fire-mode' },
+          { text: 'Состояние предмета и проценты', link: '/interface/item-condition-percent-display' },
+          { text: 'Радиальные индикаторы', link: '/interface/radial-progress-shape' },
+          { text: 'Прогресс бар веса', link: '/interface/weight-progress-bar' },
+        ],
+      },
     ],
   },
   {
@@ -101,13 +122,60 @@ export const mainSidebar: DefaultTheme.Sidebar = [
     ],
   },
   {
+    text: 'IXR Framework (LUA Фреймворк)',
+    collapsed: true,
+    items: [
+      { text: 'Описание основного функционала', link: '/scripting/ixr-framework/general-info' },
+      { text: 'Структура файлов', link: '/scripting/ixr-framework/files' },
+      { text: 'Приступая к работе', link: '/scripting/ixr-framework/guide' },
+      { text: 'Модули', link: '/scripting/ixr-framework/modules' },
+      {
+      items: [
+          { text: 'IXR STORAGE<br>(Модуль хранилища)', link: '/scripting/ixr-framework/modules/ixr_storage' },
+          { text: 'IXR REGISTRY<br>(Модуль реестра)', link: '/scripting/ixr-framework/modules/ixr_registry' },
+          { text: 'IXR AUTOLOADER<br>(Модуль автозагрузки)', link: '/scripting/ixr-framework/modules/ixr_autoloader' },
+          { text: 'IXR SIGNALS<br>(Модуль сигналов)', link: '/scripting/ixr-framework/modules/ixr_signals' },
+          { text: 'IXR OPTIONS<br>(Модуль опций)', link: '/scripting/ixr-framework/modules/ixr_options' },
+          { text: 'IXR TRIGGERS<br>(Модуль триггеров)', link: '/scripting/ixr-framework/modules/ixr_triggers' },
+          { text: 'IXR TIMERS<br>(Модуль таймеров)', link: '/scripting/ixr-framework/modules/ixr_timers' },
+        ],
+      },
+      { text: 'Утилиты', link: '/scripting/ixr-framework/utils' },
+      {
+      items: [
+        { text: 'Callable utils', link: '/scripting/ixr-framework/utils/ffx_callable_utils' },
+        { text: 'Compare utils', link: '/scripting/ixr-framework/utils/ffx_compare_utils' },
+        { text: 'Crypto utils', link: '/scripting/ixr-framework/utils/ffx_crypto_utils' },
+        { text: 'Dump utils', link: '/scripting/ixr-framework/utils/ffx_dump_utils' },
+        { text: 'IO utils', link: '/scripting/ixr-framework/utils/ffx_io_utils' },
+        { text: 'LTX utils', link: '/scripting/ixr-framework/utils/ffx_ltx_utils' },
+        { text: 'Math utils', link: '/scripting/ixr-framework/utils/ffx_math_utils' },
+        { text: 'Object utils', link: '/scripting/ixr-framework/utils/ffx_object_utils' },
+        { text: 'Path utils', link: '/scripting/ixr-framework/utils/ffx_path_utils' },
+        { text: 'Sound utils', link: '/scripting/ixr-framework/utils/ffx_sound_utils' },
+        { text: 'Spawn utils', link: '/scripting/ixr-framework/utils/ffx_spawn_utils' },
+        { text: 'Table utils', link: '/scripting/ixr-framework/utils/ffx_table_utils' },
+        { text: 'Vector utils', link: '/scripting/ixr-framework/utils/ffx_vector_utils' },
+      ]
+    },
+    { text: 'Библиотеки', link: '/scripting/ixr-framework/libs' },
+      {
+      items: [
+        { text: 'Base64', link: '/scripting/ixr-framework/libs/ffx_base64_lib' },
+        { text: 'Json', link: '/scripting/ixr-framework/libs/ffx_json_lib' },
+        { text: 'Random', link: '/scripting/ixr-framework/libs/ffx_random_lib' },
+      ]
+    },
+    ],
+  },
+  {
     text: 'Графика',
     collapsed: false,
     items: [
       { text: 'Общая информация', link: '/graphics/general-information' },
       { text: 'PBR', link: '/graphics/pbr' },
       { text: 'Dynamic Wallmark', link: '/graphics/dynamic-wallmark' },
-      { text: 'Константы шейдеров', link: '/graphics/shader-constants' },
+      { text: 'Волосы', link: '/graphics/hairs' },
       { text: 'Погода', link: '/graphics/weather/main' },
       {
         items: [
@@ -116,6 +184,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
         ],
       },
       { text: 'Опции шейдеров', link: '/graphics/shader-options' },
+      { text: 'Константы шейдеров', link: '/graphics/shader-constants' },
       { text: 'XML Blends', link: '/graphics/xml-blends' },
     ],
   },
@@ -138,6 +207,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
         items: [
           { text: 'Плагины', link: '/editors/plugins' },
           { text: 'Dialog Editor', link: '/editors/dialog-editor' },
+          { text: 'Particles', link: '/editors/particles' },
         ],
       },
     ],
@@ -162,6 +232,10 @@ export const mainSidebar: DefaultTheme.Sidebar = [
       {
         text: 'Clear Sky',
         items: [{ text: 'Технические особенности', link: '/platforms/clear-sky/technical-features' }],
+      },
+      {
+        text: 'Shadow of Chernobyl',
+        items: [{ text: 'Технические особенности', link: '/platforms/shadow-of-chernobyl/technical-features' }],
       },
       {
         text: 'Мультиплеер',
