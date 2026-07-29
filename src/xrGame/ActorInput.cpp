@@ -120,12 +120,12 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	case kCAM_3:	cam_Set			(eacFreeLook);				break;
 	case kNIGHT_VISION:
 		{
-			SwitchNightVision();
+			//SwitchNightVision();
 			break;
 		}
 	case kTORCH:
 		{
-			SwitchTorch();
+			//SwitchTorch();
 			break;
 		}
 	case kCLEARGASMASK:
@@ -168,8 +168,8 @@ void CActor::IR_OnKeyboardPress(int cmd)
 		ActorUse();
 		break;
 	case kDROP:
-		b_DropActivated			= TRUE;
-		f_DropPower				= 0;
+		//b_DropActivated			= TRUE;
+		//f_DropPower				= 0;
 		break;
 	case kNEXT_SLOT:
 		{
@@ -291,7 +291,9 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 		switch(cmd)
 		{
 		case kJUMP:		mstate_wishful &=~mcJump;		break;
-		case kDROP:		if(GAME_PHASE_INPROGRESS == Game().Phase()) g_PerformDrop();				break;
+		case kDROP:		
+			//if(GAME_PHASE_INPROGRESS == Game().Phase()) g_PerformDrop();				
+			break;
 		}
 	}
 }
