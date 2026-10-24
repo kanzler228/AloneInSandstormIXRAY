@@ -11,8 +11,7 @@
 
 class CUIListWnd;
 
-class UI_API CUITreeViewItem:
-	public CUIListItem
+class UI_API CUITreeViewItem: public CUIListItem
 {
 	typedef CUIListItem inherited;
 	// Являемся ли мы началом подыерархии
@@ -34,8 +33,11 @@ public:
 	CUITreeViewItem * GetOwner() const					{ return pOwner; }
 	void			SetOwner(CUITreeViewItem *owner)	{ pOwner = owner; }
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
 	virtual CUIListItem* ui_cast_list_item() { return this; }
 	virtual CUITreeViewItem* ui_cast_tree_view_item() { return this; }
+	virtual CUISelectable* ui_cast_selectable() { return this; }
 
 protected:
 	// Функция вызываемая при изменении свойства рута
@@ -65,7 +67,7 @@ public:
 	void DeleteAllSubItems();
 	// Найти элемент с заданным именем
 	// Return:	указатель на элемент, если нашли, либо NULL в противном случае
-	CUITreeViewItem * Find(LPCSTR text) const;
+	CUITreeViewItem * Find(const char* text) const;
 	// Найти элемент с заданным значением
 	// Return:	указатель на элемент, если нашли, либо NULL в противном случае
 	CUITreeViewItem * Find(int value) const;
@@ -79,7 +81,7 @@ public:
 	// Redefine some stuff
 	// ATTENTION! Для корректного функционирования значков [+-] вызов SetText
 	// Должен предшествовать SetRoot
-	virtual void SetText(LPCSTR str);
+	virtual void SetText(const char* str);
 	virtual void SendMessage(CUIWindow* pWnd, s16 msg, void* pData);
 
 	// Ctor and Dtor
@@ -124,5 +126,5 @@ using GroupTree_it = GroupTree::iterator;
 
 //////////////////////////////////////////////////////////////////////////
 
-UI_API void CreateTreeBranch(shared_str nestingTree, shared_str leafName, CUIListWnd*pListToAdd, int leafProperty,
+UI_API void CreateTreeBranch(shared_str nestingTree, shared_str leafName, CUIListWnd *pListToAdd, int leafProperty,
 					  CGameFont *pRootFont, u32 rootColor, CGameFont *pLeafFont, u32 leafColor, bool markRead);

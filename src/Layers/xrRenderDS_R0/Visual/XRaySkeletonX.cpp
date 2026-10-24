@@ -1,9 +1,9 @@
 #include "stdafx.h"
 
 #include "XRaySkeletonX.h"
-#include "../../xrCore/Collision/xrCDB.h"
 #include "XRayKinematics.h"
-#include "../xrRender/cl_intersect.h"
+#include "../../xrCore/Collision/xrCDB.h"
+#include "../../xrCore/Collision/cl_intersect.h"
 
 #pragma pack(push,2)
 struct vertRender// T&B are not skinned, because in R2 skinning occurs always in hardware
@@ -68,7 +68,7 @@ void CDS0_SkeletonX::_Load(const char* N, IReader* data, size_t& dwVertCount)
 		for (it = 0; it < dwVertCount; ++it)
 		{
 			const vertBoned1W& VB = pVO[it];
-			u16 mid = (u16)VB.matrix;
+			u16 mid = (u16)VB.m;
 
 			if (bids.end() == std::find(bids.begin(), bids.end(), mid))
 				bids.push_back(mid);
@@ -115,14 +115,14 @@ void CDS0_SkeletonX::_Load(const char* N, IReader* data, size_t& dwVertCount)
 		for (it = 0; it < dwVertCount; ++it)
 		{
 			const vertBoned2W& VB = pVO[it];
-			sw_bones_cnt = std::max(sw_bones_cnt, VB.matrix0);
-			sw_bones_cnt = std::max(sw_bones_cnt, VB.matrix1);
+			sw_bones_cnt = std::max(sw_bones_cnt, VB.m[0]);
+			sw_bones_cnt = std::max(sw_bones_cnt, VB.m[1]);
 
-			if (bids.end() == std::find(bids.begin(), bids.end(), VB.matrix0))
-				bids.push_back(VB.matrix0);
+			if (bids.end() == std::find(bids.begin(), bids.end(), VB.m[0]))
+				bids.push_back(VB.m[0]);
 
-			if (bids.end() == std::find(bids.begin(), bids.end(), VB.matrix1))
-				bids.push_back(VB.matrix1);
+			if (bids.end() == std::find(bids.begin(), bids.end(), VB.m[1]))
+				bids.push_back(VB.m[1]);
 		}
 		R_ASSERT(sw_bones_cnt<=hw_bones_cnt);
 		if (sw_bones_cnt <= hw_bones_cnt)
@@ -222,7 +222,7 @@ void CDS0_SkeletonX::_Load(const char* N, IReader* data, size_t& dwVertCount)
 
 inline void 	get_pos_bones(const vertBoned1W& v, Fvector& p, CDS0_Kinematics* Parent)
 {
-	const Fmatrix& xform = Parent->LL_GetBoneInstance((u16)v.matrix).mRenderTransform;
+	const Fmatrix& xform = Parent->LL_GetBoneInstance((u16)v.m).mRenderTransform;
 	xform.transform_tiny(p, v.P);
 }
 
@@ -230,8 +230,8 @@ inline void 	get_pos_bones(const vertBoned2W& vert, Fvector& p, CDS0_Kinematics*
 {
 	Fvector		P0, P1;
 
-	Fmatrix& xform0 = Parent->LL_GetBoneInstance(vert.matrix0).mRenderTransform;
-	Fmatrix& xform1 = Parent->LL_GetBoneInstance(vert.matrix1).mRenderTransform;
+	Fmatrix& xform0 = Parent->LL_GetBoneInstance(vert.m[0]).mRenderTransform;
+	Fmatrix& xform1 = Parent->LL_GetBoneInstance(vert.m[1]).mRenderTransform;
 	xform0.transform_tiny(P0, vert.P);
 	xform1.transform_tiny(P1, vert.P);
 	p.lerp(P0, P1, vert.w);
@@ -271,7 +271,7 @@ inline void 	get_pos_bones(const vertBoned4W& vert, Fvector& p, CDS0_Kinematics*
 	p.add(P3);
 }
 template<typename T_vertex, typename T_buffer >
-inline BOOL pick_bone(T_buffer vertices, CDS0_Kinematics* Parent, IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
+inline bool pick_bone(T_buffer vertices, CDS0_Kinematics* Parent, IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
 {
 
 
@@ -286,33 +286,33 @@ inline BOOL pick_bone(T_buffer vertices, CDS0_Kinematics* Parent, IKinematics::p
 		r.dist = flt_max;
 		if (CDB::TestRayTri(S, D, r.tri, u, v, r.dist, true) && (r.dist < dist)) {
 			r.normal.mknormal(r.tri[0], r.tri[1], r.tri[2]);
-			return TRUE;
+			return true;
 		};
 	}
-	return FALSE;
+	return false;
 }
-BOOL CDS0_SkeletonX::_PickBoneSoft1W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonX::_PickBoneSoft1W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertBoned1W>(Vertices1W, Parent, r, dist, S, D, indices, faces);
 }
 
-BOOL CDS0_SkeletonX::_PickBoneSoft2W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonX::_PickBoneSoft2W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertBoned2W>(Vertices2W, Parent, r, dist, S, D, indices, faces);
 }
 
-BOOL CDS0_SkeletonX::_PickBoneSoft3W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonX::_PickBoneSoft3W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertBoned3W>(Vertices3W, Parent, r, dist, S, D, indices, faces);
 }
 
-BOOL CDS0_SkeletonX::_PickBoneSoft4W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonX::_PickBoneSoft4W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertBoned4W>(Vertices4W, Parent, r, dist, S, D, indices, faces);
 }
 
 
-BOOL CDS0_SkeletonX::has_visible_bones()
+bool CDS0_SkeletonX::has_visible_bones()
 {
 	if (RM_SINGLE == RenderMode)
 	{
@@ -322,9 +322,9 @@ BOOL CDS0_SkeletonX::has_visible_bones()
 	for (u32 it = 0; it < BonesUsed.size(); it++)
 		if (Parent->LL_GetBoneVisible(BonesUsed[it]))
 		{
-			return	TRUE;
+			return	true;
 		}
-	return	FALSE;
+	return	false;
 }
 
 

@@ -3,7 +3,7 @@
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrUI/Widgets/UIProgressBar.h"
 
-class CUICarPanel : public CUIWindow
+class CUICarPanel final : public CUIWindow
 {
 private:
     typedef CUIWindow inherited;
@@ -12,7 +12,7 @@ private:
     CUIProgressBar* UICarHealthBar;
     CUIProgressBar* UICarFuelBar;
 
-    CUITextWnd* UIEngineSpeedMode;
+    CUIStatic* UIEngineSpeedMode;
     CUIStatic* UIEngineLamp;
     CUIStatic* UIEngineLampOff;
 

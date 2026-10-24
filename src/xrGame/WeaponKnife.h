@@ -1,12 +1,12 @@
 #pragma once
 
-#include "WeaponCustomPistol.h"
+#include "Weapon.h"
 #include "../xrScripts/script_export_space.h"
 #include "../xrEngine/xr_collide_form.h"
 
-class CWeaponKnife: public CWeapon {
-private:
-	typedef CWeapon inherited;
+class CWeaponKnife final : public CWeapon
+{
+	using inherited = CWeapon;
 
 protected:
 
@@ -14,15 +14,14 @@ protected:
 	virtual void		switch2_Hiding				();
 	virtual void		switch2_Hidden				();
 	virtual void		switch2_Showing				();
-			void		switch2_Attacking			(u32 state);
+			void		switch2_Attacking			(u8 state);
 
-	virtual void		OnAnimationEnd				(u32 state);
-	virtual void		OnMotionMark				(u32 state, const motion_marks&);
-	virtual void		OnStateSwitch				(u32 S);
+	virtual void		OnAnimationEnd				(u8 state);
+	virtual void		OnMotionMark				(u8 state, const motion_marks&);
+			void		OnKnifeStrike				();
+	virtual void		OnStateSwitch				(u8 S);
 
 	virtual void		UpdateCL					();
-
-	void				state_Attacking				(float dt);
 
 	virtual void		KnifeStrike					(const Fvector& pos, const Fvector& dir);
 
@@ -30,6 +29,10 @@ protected:
 	u16					knife_material_idx;
 
 protected:
+    bool				attackStarted;
+    bool				attackMotionMarksAvailable;
+    bool				oldStrikeMethod;
+
 	ALife::EHitType		m_eHitType;
 
 	ALife::EHitType		m_eHitType_1;
@@ -48,14 +51,19 @@ protected:
 
 	u32					dwUpdateSounds_Frame;
 
-protected:
-	virtual void		LoadFireParams					(LPCSTR section);
-public:
-						CWeaponKnife(); 
-	virtual				~CWeaponKnife(); 
+	bool				UseAlt = false;
 
-	virtual void		Load							(LPCSTR section) override;
-	virtual void		LoadSounds						(LPCSTR section) override;
+protected:
+	virtual void		LoadFireParams					(const char* section);
+
+	virtual void		switch2_Suicide() override;
+	virtual void		switch2_SuicideStop() override;
+public:
+	CWeaponKnife(); 
+	virtual ~CWeaponKnife() = default; 
+
+	virtual void		Load							(const char* section) override;
+	virtual void		LoadSounds						(const char* section) override;
 
 	virtual bool		IsZoomEnabled					()	const	{return false;}
 
@@ -66,17 +74,53 @@ public:
 	virtual bool		Action							(u16 cmd, u32 flags);
 
 	virtual bool		GetBriefInfo					(II_BriefInfo& info);
+	IC		Fvector3	GetHit1SplashDir				()	const	{ return m_Hit1SplashDir; }
+	IC		Fvector3	GetHit2SplashDir				()	const	{ return m_Hit2SplashDir; }
+	IC		void		SetHit1SplashDir				(Fvector3 value)	{ m_Hit1SplashDir = value; }
+	IC		void		SetHit2SplashDir				(Fvector3 value)	{ m_Hit2SplashDir = value; }
+
 	IC		float		GetHit1Dist						()	const	{ return m_Hit1Distance; }
 	IC		float		GetHit2Dist						()	const	{ return m_Hit2Distance; }
+	IC		void		SetHit1Dist						(float value)		{ m_Hit1Distance = value; }
+	IC		void		SetHit2Dist						(float value)		{ m_Hit2Distance = value; }
+
+	IC		float		GetHit1SplashRadius				()	const	{ return m_Hit1SplashRadius; }
+	IC		float		GetHit2SplashRadius				()	const	{ return m_Hit2SplashRadius; }
+	IC		void		SetHit1SplashRadius				(float value)		{ m_Hit1SplashRadius = value; }
+	IC		void		SetHit2SplashRadius				(float value)		{ m_Hit2SplashRadius = value; }
+
+	IC		u32			GetSplash1HitsCount			()	const	{ return m_Splash1HitsCount; }
+	IC		u32			GetSplash2HitsCount			()	const	{ return m_Splash2HitsCount; }
+	IC		void		SetSplash1HitsCount			(u32 value)			{ m_Splash1HitsCount = value; }
+	IC		void		SetSplash2HitsCount			(u32 value)			{ m_Splash2HitsCount = value; }
+
+	IC		u32			GetSplash1PerVictimsHCount	()	const	{ return m_Splash1PerVictimsHCount; }
+	IC		void		SetSplash1PerVictimsHCount	(u32 value)			{ m_Splash1PerVictimsHCount = value; }
+
+	IC		float		GetNextHitDivideFactor			()	const	{ return m_NextHitDivideFactor; }
+	IC		void		SetNextHitDivideFactor			(float value)		{ m_NextHitDivideFactor = value; }
+
 	bool				m_bShowKnifeStats;
 
 	void				FastKick();
 
+	virtual bool WpnCanShoot() const override { return false; }
+
 	virtual CWeaponKnife* cast_weapon_knife() { return this; }
 
-#ifdef DEBUG
-	virtual void		OnRender						();
-#endif
+	virtual float getHitImpulse() const { return fHitImpulse_1; }
+	virtual void setHitImpulse(float value);
+	virtual const Fvector4& getHitPower() const { return fvHitPower_1; }
+	virtual void setHitPower(const Fvector4& vec);
+	virtual const Fvector4& getHitPowerCritical() const { return fvHitPowerCritical_1; }
+	virtual void setHitPowerCritical(const Fvector4& vec);
+
+	float getHitImpulse_2() const { return fHitImpulse_2; }
+	void setHitImpulse_2(float value);
+	const Fvector4& getHitPower_2() const { return fvHitPower_2; }
+	void setHitPower_2(const Fvector4& vec);
+	const Fvector4& getHitPowerCritical_2() const { return fvHitPowerCritical_2; }
+	void setHitPowerCritical_2(const Fvector4& vec);
 
 private:
 	typedef buffer_vector<Fvector>						shot_targets_t;
@@ -98,8 +142,8 @@ private:
 	float			m_Hit1Distance;
 	float			m_Hit2Distance;
 
-	Fvector3		m_Hit1SpashDir;
-	Fvector3		m_Hit2SpashDir;
+	Fvector3		m_Hit1SplashDir;
+	Fvector3		m_Hit2SplashDir;
 	
 	float			m_Hit1SplashRadius;
 	float			m_Hit2SplashRadius;
@@ -126,7 +170,7 @@ private:
 											 Fvector const & dir,
 											 float const dist);
 
-	static BOOL		RayQueryCallback		(collide::rq_result& result, LPVOID this_ptr);
+	static bool		RayQueryCallback		(collide::rq_result& result, LPVOID this_ptr);
 	collide::rq_results				m_ray_query_results;
 	u16								m_except_id;
 	CObject*						m_last_picked_obj;

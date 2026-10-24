@@ -1,8 +1,6 @@
 project(SQL_Gen)
 set(SQL_Gen_SRC_FILES)
 
-#set(USE_NVTT ON)
-
 # Files import
 file(GLOB_RECURSE SQL_Gen_SOURCE_ALL_FILES CONFIGURE_DEPENDS
     "*.cpp"
@@ -28,6 +26,7 @@ list(APPEND SQL_Gen_SRC_FILES ${SQL_Gen_SOURCE_IMGUI_FILES})
 # SQL_Gen project
 add_executable(SQL_Gen WIN32 ${SQL_Gen_SRC_FILES})
 target_include_directories(SQL_Gen PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(SQL_Gen PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../xrCore/")
 target_link_directories(SQL_Gen PUBLIC "${IXRAY_SDK_LIB}/")
 
 # Project defines

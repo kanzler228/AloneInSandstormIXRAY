@@ -13,9 +13,13 @@
 inline CActor* GetActor()
 {
     if (IsGameTypeSingle())
+    {
         return Actor();
+    }
 
-    return smart_cast<CActor*>(Level().CurrentViewEntity());
+    CObject* current_entity = Level().CurrentViewEntity();
+
+    return current_entity != nullptr ? current_entity->cast_actor() : nullptr;
 }
 
 #define DECLARE_OUTFIT_PROTECTION_DELEGATE(protectionType) \
@@ -43,11 +47,9 @@ DECLARE_OUTFIT_PROTECTION_DELEGATE(eHitTypeExplosion);
 #define DECLARE_HELMET_PROTECTION_DELEGATE(protectionType) \
 float GetHelmet##protectionType##Protection() \
 { \
-    PIItem itm = GetActor()->inventory().ItemFromSlot(HELMET_SLOT); \
-    CHelmet* helmet = smart_cast<CHelmet*>(itm); \
-    if (helmet != nullptr) \
+    if (CHelmet* ActorHelmet = GetActor()->GetHelmet()) \
     { \
-        return helmet->GetDefHitTypeProtection(ALife::protectionType); \
+        return ActorHelmet->GetDefHitTypeProtection(ALife::protectionType); \
     } \
     return 0.0f; \
 }
@@ -120,11 +122,16 @@ float GetPlayerPsyHealth()		            { return GetActor() == nullptr ? 0.f : G
 float GetPlayerRad()			            { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetRadiation();			    }
 float GetPlayerPower()			            { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetPower();				    }
 float GetPlayerSatiety()		            { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetSatiety();				    }
+float GetPlayerIntoxication()	            { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetIntoxication();			    }
 float GetPlayerBleedingSpeed()	            { return GetActor() == nullptr ? 0.f : GetActor()->conditions().BleedingSpeed();				}
 float GetPlayerRestoreSpeed()	            { return GetActor() == nullptr ? 0.f : GetActor()->GetRestoreSpeed(ALife::ePowerRestoreSpeed) / GetActor()->conditions().GetMaxPowerRestoreSpeed();}
 float GetOutfiteMaxFireWoundProtection()    { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetMaxFireWoundProtection();	}
 float GetPlayerArmor()                      
 {
+    if (!GetActor())
+    {
+		return 0.f;
+    }
     // P.S. да, знаю что это лютая васня, но что поделать
     if (GetActor()->GetOutfit() != nullptr && GetActor()->GetHelmet() != nullptr)
         return (GetActor()->GetOutfit()->GetCondition() * 0.5f) + (GetActor()->GetHelmet()->GetCondition() * 0.5f);
@@ -135,6 +142,7 @@ float GetPlayerArmor()
     else
         return 0.f;
 }
+float GetHealthRegeneration()    { return GetActor() == nullptr ? 0.f : GetActor()->conditions().GetHealthBoost();	}
 
 void RegisterExpressionDelegates ()
 {
@@ -196,7 +204,9 @@ void RegisterExpressionDelegates ()
     g_uiExpressionMgr->RegisterVariable("fltPlayerPsy",							    GetPlayerPsyHealth);
 	g_uiExpressionMgr->RegisterVariable("fltPlayerPower",							GetPlayerPower);
 	g_uiExpressionMgr->RegisterVariable("fltPlayerSatiety",							GetPlayerSatiety);
+	g_uiExpressionMgr->RegisterVariable("fltPlayerIntoxication",						GetPlayerIntoxication);
 	g_uiExpressionMgr->RegisterVariable("fltPlayerRestoreSpeed",						GetPlayerRestoreSpeed);
 	g_uiExpressionMgr->RegisterVariable("fltPlayerBleedingSpeed",		    		GetPlayerBleedingSpeed);
 	g_uiExpressionMgr->RegisterVariable("fltPlayerArmor",							GetPlayerArmor);
+	g_uiExpressionMgr->RegisterVariable("fltPlayerHealthRegeneration",				GetHealthRegeneration);
 }

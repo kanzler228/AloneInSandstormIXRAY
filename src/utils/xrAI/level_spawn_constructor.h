@@ -7,9 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
-#include "../xrForms/xrThread.h"
-#include "spawn_constructor_space.h"
+#include "game_graph.h"
 
 class CLevelGraph;
 class CGameLevelCrossTable;
@@ -24,7 +22,16 @@ class CSpaceRestrictorWrapper;
 class CPatrolPathStorage;
 class CSE_ALifeDynamicObject;
 
-class CLevelSpawnConstructor : public CThread {
+class CSE_ALifeLevelChanger;
+
+namespace SpawnConstructorSpace
+{
+	typedef xr_vector<CGameGraph::CLevelPoint>	LEVEL_POINT_STORAGE;
+	typedef xr_vector<CSE_ALifeLevelChanger*>	LEVEL_CHANGER_STORAGE;
+};
+
+class CLevelSpawnConstructor
+{
 public:
 	typedef SpawnConstructorSpace::LEVEL_POINT_STORAGE			LEVEL_POINT_STORAGE;
 	typedef SpawnConstructorSpace::LEVEL_CHANGER_STORAGE		LEVEL_CHANGER_STORAGE;

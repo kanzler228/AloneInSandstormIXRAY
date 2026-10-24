@@ -15,18 +15,13 @@
 #define CAbstractObjectManager CObjectManager<T>
 
 TEMPLATE_SPECIALIZATION
-CAbstractObjectManager::CObjectManager				()
-{
-//	m_objects.reserve		(100);
-}
+CAbstractObjectManager::CObjectManager				() = default;
 
 TEMPLATE_SPECIALIZATION
-CAbstractObjectManager::~CObjectManager				()
-{
-}
+CAbstractObjectManager::~CObjectManager				() = default;
 
 TEMPLATE_SPECIALIZATION
-void CAbstractObjectManager::Load					(LPCSTR section)
+void CAbstractObjectManager::Load					(const char* section)
 {
 }
 
@@ -38,7 +33,7 @@ void CAbstractObjectManager::reinit					()
 }
 
 TEMPLATE_SPECIALIZATION
-void CAbstractObjectManager::reload					(LPCSTR section)
+void CAbstractObjectManager::reload					(const char* section)
 {
 }
 
@@ -71,7 +66,7 @@ bool CAbstractObjectManager::is_useful				(T *object) const
 	if (!self)
 		return				(false);
 
-	if ((object->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) != STYPE_VISIBLEFORAI)
+	if ((object->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) == ESPATIAL_TYPE::NONE)
 		return				(false);
 
 	return					(true);

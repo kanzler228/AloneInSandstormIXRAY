@@ -6,8 +6,10 @@
 #include "../../xrEngine/IGame_Actor.h"
 #include "../../xrEngine/IGame_UICustom.h"
 #include "../xrEngine/xr_level_controller.h"
-#include "../xrEngine/CustomHud.h"
+#include "../xrEngine/CustomHUD.h"
 #include "../xrEngine/xr_object.h"
+#include "../../xrEngine/GamepadService.h"
+#include "Widgets/UIStatic.h"
 
 dlgItem::dlgItem(CUIWindow* pWnd)
 {
@@ -60,7 +62,7 @@ void CDialogHolder::StartMenu(CUIDialogWnd* pDialog, bool bDoHideIndicators)
 		m_input_receivers.back().m_flags.set(recvItem::eIndicators, b);
 		
 		if(bDoHideIndicators){
-			psHUD_Flags.set				(HUD_CROSSHAIR_RT, FALSE);
+			psHUD_Flags.set				(HUD_CROSSHAIR_RT, false);
 			g_pGameCustom->ShowGameIndicators(false);
 		}
 	}
@@ -69,18 +71,15 @@ void CDialogHolder::StartMenu(CUIDialogWnd* pDialog, bool bDoHideIndicators)
 	if( pDialog->NeedCursor() )
 		GetUICursor().Show();
 
-	if(g_pGameLevel)
-	{
-		IGame_Actor* A	= g_pIGameActor == (void*)g_pGameLevel->CurrentViewEntity() ? g_pIGameActor : nullptr;
-		if ( A && pDialog->StopAnyMove() )
+	if (g_pGameLevel && GActorInterface)
+	{	
+		if (pDialog->StopAnyMove())
 		{
-			A->StopAnyMove				();
-		};
-		if(A)
-		{	
-			A->IR_OnKeyboardRelease		(kWPN_ZOOM);
-			A->IR_OnKeyboardRelease		(kWPN_FIRE);
+			GActorInterface->StopAnyMove();
 		}
+
+		GActorInterface->IR_OnKeyboardRelease(get_action_dik(kWPN_ZOOM));
+		GActorInterface->IR_OnKeyboardRelease(get_action_dik(kWPN_FIRE));
 	}
 }
 
@@ -120,6 +119,7 @@ void CDialogHolder::StopMenu(CUIDialogWnd* pDialog)
 	RemoveDialogToRender	(pDialog);
 	pDialog->SetHolder		(nullptr);
 
+	GetUICursor().m_static_text->SetText("");
 	if(!TopInputReceiver() || !TopInputReceiver()->NeedCursor() )
 		GetUICursor().Hide();
 }
@@ -174,8 +174,8 @@ void  CDialogHolder::OnExternalHideIndicators()
 	xr_vector<recvItem>::iterator it_e = m_input_receivers.end();
 	for(;it!=it_e;++it)
 	{
-		(*it).m_flags.set(recvItem::eIndicators, FALSE);
-		(*it).m_flags.set(recvItem::eCrosshair, FALSE);
+		(*it).m_flags.set(recvItem::eIndicators, false);
+		(*it).m_flags.set(recvItem::eCrosshair, false);
 	}
 }
 
@@ -297,12 +297,73 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
 			if (IR)
 			{
 				EGameActions action = get_binded_action(dik);
-				if (action != kQUICK_USE_1 && action != kQUICK_USE_2 && action != kQUICK_USE_3 && action != kQUICK_USE_4)
-					IR->IR_OnKeyboardPress(action);
+				if (action != kQUICK_USE_1 && action != kQUICK_USE_2 && action != kQUICK_USE_3 && action != kQUICK_USE_4
+					&& action != kUP && action != kDOWN && action != kLEFT && action != kRIGHT && action != kUSE_MEDKIT && action != kUSE_BANDAGE)
+					IR->IR_OnKeyboardPress(dik);
 			}
 			return false;
 		}
 	}
+	return true;
+}
+
+bool CDialogHolder::IR_UIOnGamepadKeyPress(int id)
+{
+	CUIDialogWnd*	TIR = TopInputReceiver();
+	if(!TIR)				
+		return false;
+
+	if(!TIR->IR_process())	
+		return false;
+
+	if (TIR->OnGamepadKeyAction(id, WINDOW_KEY_PRESSED))
+	{
+		return true;
+	}
+	return true;
+};
+
+bool CDialogHolder::IR_UIOnGamepadUpdateStick(int id, Fvector2 value)
+{
+	CUIDialogWnd*	TIR = TopInputReceiver();
+	if(!TIR)				
+		return false;
+
+	if(!TIR->IR_process())	
+		return false;
+
+	if (TIR->OnGamepadStickAction(id, value, WINDOW_KEY_PRESSED))
+		return true;
+
+	if (!TIR->StopAnyMove() && g_pGameLevel)
+	{
+		CObject* O = g_pGameLevel->CurrentEntity();
+		if (O)
+		{
+			IInputReceiver* IR = O->GetIIR();
+			if (IR)
+			{
+				IR->IR_GamepadUpdateStick(id, value);
+			}
+			return false;
+		}
+	}
+	return true;
+};
+
+bool CDialogHolder::IR_UIOnGamepadKeyHold(int id)
+{
+	CUIDialogWnd* TIR = TopInputReceiver();
+	if (!TIR)				
+		return false;
+
+	if (!TIR->IR_process())	
+		return false;
+
+	if (TIR->OnGamepadKeyHold(id))
+		return true;
+
+	// TODO: add customizable bindings for gamepad
 	return true;
 }
 
@@ -331,7 +392,7 @@ bool CDialogHolder::IR_UIOnKeyboardRelease(int dik)
 		{
 			IInputReceiver* IR = O->GetIIR();
 			if (IR)
-				IR->IR_OnKeyboardRelease(get_binded_action(dik));
+				IR->IR_OnKeyboardRelease(dik);
 			return			(false);
 		}
 	}
@@ -354,7 +415,7 @@ bool CDialogHolder::IR_UIOnKeyboardHold(int dik)
 		{
 			IInputReceiver* IR = O->GetIIR();
 			if(IR)
-				IR->IR_OnKeyboardHold(get_binded_action(dik));
+				IR->IR_OnKeyboardHold(dik);
 			return		false;
 		}
 	}
@@ -378,7 +439,7 @@ bool CDialogHolder::IR_UIOnMouseMove(int dx, int dy)
 	CUIDialogWnd* TIR		= TopInputReceiver();
 	if(!TIR)				return false;
 	if(!TIR->IR_process())	return false;
-	if (GetUICursor().IsVisible())
+	if (GetUICursor().IsVisible() || TIR->ForceCursorInput())
 	{ 
 		GetUICursor().UpdateCursorPosition(dx, dy);
 		Fvector2 cPos			= GetUICursor().GetCursorPosition();
@@ -393,6 +454,72 @@ bool CDialogHolder::IR_UIOnMouseMove(int dx, int dy)
 			if (IR)
 				IR->IR_OnMouseMove	(dx,dy);
 			return			false;
+		}
+	};
+	return true;
+}
+
+bool CDialogHolder::IR_UIOnGyroscopeMove(Fvector3 value)
+{
+	CUIDialogWnd* TIR = TopInputReceiver();
+	if (!TIR)
+	{
+		return false;
+	}
+	if (!TIR->IR_process())
+	{
+		return false;
+	}
+
+	if (TIR->OnGyroscopeAction(value))
+	{
+		return true;
+	}
+
+	if (!TIR->StopAnyMove() && g_pGameLevel)
+	{
+		CObject* O = g_pGameLevel->CurrentEntity();
+		if (O)
+		{
+			IInputReceiver* IR = O->GetIIR();
+			if (IR)
+			{
+				IR->IR_OnGyroscopeMove(value);
+			}
+			return false;
+		}
+	};
+	return true;
+}
+
+bool CDialogHolder::IR_UIOnTouchpadMove(Fvector2 value)
+{
+	CUIDialogWnd* TIR = TopInputReceiver();
+	if (!TIR)
+	{
+		return false;
+	}
+	if (!TIR->IR_process())
+	{
+		return false;
+	}
+
+	if (TIR->OnTouchpadAction(value))
+	{
+		return true;
+	}
+
+	if (!TIR->StopAnyMove() && g_pGameLevel)
+	{
+		CObject* O = g_pGameLevel->CurrentEntity();
+		if (O)
+		{
+			IInputReceiver* IR = O->GetIIR();
+			if (IR)
+			{
+				IR->IR_OnTouchpadMove(value);
+			}
+			return false;
 		}
 	};
 	return true;

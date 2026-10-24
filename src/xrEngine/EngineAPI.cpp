@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "EngineAPI.h"
-#include "../xrCore/Collision/xrXRC.h"
+#include "../xrCore/Collision/xrCDB.h"
 
 #include <filesystem>
 
@@ -44,26 +44,29 @@ ENGINE_API int g_current_renderer = 0;
 
 void CEngineAPI::InitializeNotDedicated()
 {
-	LPCSTR			r2_name	= "xrRender_R2.dll";
-	LPCSTR			r4_name	= "xrRender_R4.dll";
+	const char* r2_name	= "xrRender_R2";
+	const char* r4_name	= "xrRender_R4";
 
-	if (psDeviceFlags.test(rsR4)) {
+	if (psDeviceFlags.test(rsR4))
+	{
 		// try to initialize R4
 		Msg("Loading DLL: %s",	r4_name);
-		hRender			= LoadLibraryA		(r4_name);
+		hRender			= Platform::LoadLibrary(r4_name);
 		if (0==hRender) {
 			// try to load R1
 			Msg			("! ...Failed - incompatible hardware/pre-Vista OS.");
-			psDeviceFlags.set	(rsR2,TRUE);
+			psDeviceFlags.set	(rsR2,true);
 		}
 	}
 
-	if (psDeviceFlags.test(rsR2)) {
+	if (psDeviceFlags.test(rsR2))
+	{
 		// try to initialize R2
-		psDeviceFlags.set	(rsR4,FALSE);
+		psDeviceFlags.set	(rsR4,false);
 		Msg("Loading DLL: %s",	r2_name);
-		hRender			= LoadLibraryA		(r2_name);
-		if (0==hRender) {
+		hRender = Platform::LoadLibrary(r2_name);
+		if (0==hRender)
+		{
 			// try to load R1
 			Msg			("! ...Failed - incompatible hardware.");
 		} else {
@@ -74,19 +77,17 @@ void CEngineAPI::InitializeNotDedicated()
 
 void CEngineAPI::InitializeDedicated()
 {
-	LPCSTR			r1_name	= "xrRender_DS0.dll";
-	psDeviceFlags.set	(rsR4,FALSE);
-	psDeviceFlags.set	(rsR2,FALSE);
+	const char* r1_name	= "xrRender_DS0";
+	psDeviceFlags.set	(rsR4,false);
+	psDeviceFlags.set	(rsR2,false);
 	renderer_value		= 0; //con cmd
 
 	Msg("Loading DLL: %s",	r1_name);
-	hRender			= LoadLibraryA		(r1_name);
+	hRender			= Platform::LoadLibrary(r1_name);
 	if (0==hRender)	R_CHK				(GetLastError());
 	//R_ASSERT		(hRender);
 	g_current_renderer	= 0;
 }
-
-extern ENGINE_API bool g_dedicated_server;
 
 void __cdecl Null_Factory_Destroy(DLL_Pure* O)
 {
@@ -102,7 +103,7 @@ void CEngineAPI::Initialize(void)
 	PROF_EVENT("CEngineAPI::Initialize");
 	//////////////////////////////////////////////////////////////////////////
 	// render
-	LPCSTR			r1_name	= "xrRender_R1.dll";
+	const char* r1_name	= "xrRender_R1";
 
 	if (!g_dedicated_server)
 		InitializeNotDedicated();
@@ -112,13 +113,13 @@ void CEngineAPI::Initialize(void)
 	if (0==hRender)		
 	{
 		// try to load R1
-		psDeviceFlags.set	(rsR4,FALSE);
-		psDeviceFlags.set	(rsR2,FALSE);
+		psDeviceFlags.set	(rsR4,false);
+		psDeviceFlags.set	(rsR2,false);
 		renderer_value		= 0; //con cmd
 
 		Msg("Loading DLL: %s",	r1_name);
-		hRender			= LoadLibraryA		(r1_name);
-		if (0==hRender)	R_CHK				(GetLastError());
+		hRender			= Platform::LoadLibrary(r1_name);
+		if (0==hRender)	R_CHK(GetLastError());
 		//R_ASSERT		(hRender);
 		g_current_renderer	= 1;
 	}
@@ -127,14 +128,10 @@ void CEngineAPI::Initialize(void)
 
 	// game
 	{
-		LPCSTR			g_name	= "xrGame.dll";
-		if (EngineExternal().ShadowOfChernobylMode())
-		{
-			g_name = "xrGameSOC.dll";
-		}
+		const char* g_name	= "xrGame";
 
 		Msg("Loading DLL: %s",g_name);
-		hGame			= LoadLibraryA	(g_name);
+		hGame = Platform::LoadLibrary(g_name);
 		if (0==hGame)	R_CHK			(GetLastError());
 		R_ASSERT2		(hGame,"Game DLL raised exception during loading or there is no game DLL at all");
 
@@ -145,11 +142,11 @@ void CEngineAPI::Initialize(void)
 		}
 		else
 		{
-			pCreate = (Factory_Create*)GetProcAddress(hGame, "xrFactory_Create");		R_ASSERT(pCreate);
-			pDestroy = (Factory_Destroy*)GetProcAddress(hGame, "xrFactory_Destroy");	R_ASSERT(pDestroy);
+			pCreate = (Factory_Create*)Platform::GetAddress(hGame, "xrFactory_Create");		R_ASSERT(pCreate);
+			pDestroy = (Factory_Destroy*)Platform::GetAddress(hGame, "xrFactory_Destroy");	R_ASSERT(pDestroy);
 
 			using xrGameInitialize = void();
-			xrGameInitialize* pxrGameInitialize = (xrGameInitialize*)GetProcAddress(hGame, "xrGameInitialize");
+			xrGameInitialize* pxrGameInitialize = (xrGameInitialize*)Platform::GetAddress(hGame, "xrGameInitialize");
 			R_ASSERT(pxrGameInitialize);
 
 			pxrGameInitialize();
@@ -158,8 +155,8 @@ void CEngineAPI::Initialize(void)
 
 	// GameSpy
 	{
-		LPCSTR g_name = "xrGameSpy.dll";
-		hGameSpy = LoadLibraryA(g_name);
+		const char* g_name = "xrGameSpy";
+		hGameSpy = Platform::LoadLibrary(g_name);
 
 		if (hGameSpy != 0)
 		{
@@ -170,13 +167,24 @@ void CEngineAPI::Initialize(void)
 
 void CEngineAPI::Destroy(void)
 {
-	if (hGame)				{ FreeLibrary(hGame);	hGame	= 0; }
-	if (hRender)			{ FreeLibrary(hRender); hRender = 0; }
+	if (hGame)				
+	{
+		using callback_t = void();
+		callback_t* pShutdownCallback = (callback_t*)Platform::GetAddress(hGame, "xrGameShutdown");
+
+		if (pShutdownCallback)
+		{
+			pShutdownCallback();
+		}
+
+		Platform::FreeLibrary(hGame);
+		hGame	= 0;
+	}
+	if (hRender)			{ Platform::FreeLibrary(hRender); hRender = 0; }
 
 	pCreate					= 0;
 	pDestroy				= 0;
 	g_pEventManager->Event._destroy	();
-	XRC.r_clear_compact		();
 }
 
 void CEngineAPI::CreateRendererList()
@@ -202,9 +210,15 @@ void CEngineAPI::CreateRendererList()
 		bool bSupports_r2 = false;
 		bool bSupports_r4 = false;
 
-		LPCSTR r1_name	= "xrRender_R1.dll";
-		LPCSTR r2_name	= "xrRender_R2.dll";
-		LPCSTR r4_name	= "xrRender_R4.dll";
+#ifdef IXR_WINDOWS
+		const char* r1_name	= "xrRender_R1.dll";
+		const char* r2_name	= "xrRender_R2.dll";
+		const char* r4_name	= "xrRender_R4.dll";
+#else
+		const char* r1_name	= "libxrRender_R1.so";
+		const char* r2_name	= "libxrRender_R2.so";
+		const char* r4_name	= "libxrRender_R4.so";
+#endif
 
 		if (Core.ParamsData.test(ECoreParams::perfhud_hack))
 		{
@@ -222,7 +236,7 @@ void CEngineAPI::CreateRendererList()
 
 		hRender = 0;
 
-		xr_vector<LPCSTR> _tmp;
+		xr_vector<const char*> _tmp;
 		if (bSupports_r1)
 		{
 			_tmp.push_back(xr_strdup("renderer_r1"));
@@ -256,14 +270,14 @@ void CEngineAPI::CreateRendererList()
 	}
 }
 
-APILevel CEngineAPI::GetAPI()
+ERHI_API_LAYER CEngineAPI::GetAPI()
 {
 	if (psDeviceFlags.test(rsR4))
 	{
-		return APILevel::DX11;
+		return ERHI_API_LAYER::D3D11;
 	}
 
-	return APILevel::DX9;
+	return ERHI_API_LAYER::D3D9;
 }
 
 thread_local int SkinningMode = -1;

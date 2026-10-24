@@ -1,39 +1,37 @@
 #include "stdafx.h"
 
-void	CRenderTarget::phase_smap_spot_clear()
+void CRenderTarget::phase_smap_spot_clear()
 {
-	/*
-	if (RImplementation.b_HW_smap)		u_setrt	(rt_smap_surf, nullptr, nullptr, rt_smap_d_depth->pRT);
-	else								u_setrt	(rt_smap_surf, nullptr, nullptr, rt_smap_d_ZB);
-	CHK_DX								(RDevice->Clear( 0L, nullptr, D3DCLEAR_ZBUFFER,	0xffffffff,	1.0f, 0L));
-	*/
 }
 
-void	CRenderTarget::phase_smap_spot		(light* L)
+void CRenderTarget::phase_smap_spot(light* L)
 {
 	// Targets + viewport
-	if (RImplementation.o.HW_smap)		u_setrt	(rt_smap_surf, nullptr, nullptr, rt_smap_depth->pRT);
-	else								u_setrt	(rt_smap_surf, nullptr, nullptr, rt_smap_ZB);
-	D3DVIEWPORT9 VP					=	{L->X.S.posX,L->X.S.posY,L->X.S.size,L->X.S.size,0,1 };
-	CHK_DX								(RDevice->SetViewport(&VP));
+	u_setrt(rt_smap_surf, nullptr, nullptr, rt_smap_depth->pZRT);
+
+	RHIViewport VP = { (float)L->X.S.posX, (float)L->X.S.posY, (float)L->X.S.size, (float)L->X.S.size, 0, 1 };
+	GRHI->SetViewport(VP);
 
 	// Misc		- draw only front-faces //back-faces
-	RCache.set_CullMode					( CULL_CCW	);
-	RCache.set_Stencil					( FALSE		);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+	RCache.set_Stencil(false);
 	// no transparency
-	#pragma todo("can optimize for multi-lights covering more than say 50%...")
-	if (RImplementation.o.HW_smap)		RCache.set_ColorWriteEnable	(FALSE);
-	CHK_DX								(RDevice->Clear( 0L, nullptr, D3DCLEAR_ZBUFFER,	0xffffffff,	1.0f, 0L));
+#pragma todo("can optimize for multi-lights covering more than say 50%...")
+	RCache.set_ColorWriteEnable(false);
+	CHK_DX(RDevice->Clear(0L, nullptr, D3DCLEAR_ZBUFFER, 0xffffffff, 1.0f, 0L));
 }
 
-void	CRenderTarget::phase_smap_spot_tsh	(light* L)
+void CRenderTarget::phase_smap_spot_tsh	(light* L)
 {
-	VERIFY							(RImplementation.o.Tshadows);
-	RCache.set_ColorWriteEnable		();
-	if (IRender_Light::OMNIPART == L->flags.type)	{
+	VERIFY(RImplementation.o.Tshadows);
+	RCache.set_ColorWriteEnable();
+	if (IRender_Light::OMNIPART == L->flags.type)
+	{
 		// omni-part
-		CHK_DX							(RDevice->Clear( 0L, nullptr, D3DCLEAR_TARGET,	0xffffffff,	1.0f, 0L));
-	} else {
+		GRHI->ClearTarget(RCache.get_RT(), ERTColor::Black);
+	}
+	else
+	{
 		// real-spot
 		// Select color-mask
 		ref_shader		shader			= L->s_spot;
@@ -60,6 +58,6 @@ void	CRenderTarget::phase_smap_spot_tsh	(light* L)
 		RCache.set_Geometry				(g_combine);
 
 		// draw
-		RCache.Render					(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render					(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 }

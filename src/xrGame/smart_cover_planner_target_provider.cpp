@@ -21,7 +21,7 @@ using smart_cover::target_idle;
 using smart_cover::target_fire;
 using smart_cover::target_fire_no_lookout;
 
-target_provider::target_provider								(animation_planner *object, LPCSTR name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
+target_provider::target_provider								(animation_planner *object, const char* name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
 	inherited							(object, name),
 	m_world_property					(world_property),
 	m_loophole_value					(loophole_value)
@@ -51,7 +51,7 @@ void target_provider::finalize		()
 //	class target_idle
 ////////////////////////////////////////////////////////////////////////////
 
-target_idle::target_idle			(animation_planner *object, LPCSTR name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
+target_idle::target_idle			(animation_planner *object, const char* name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
 	inherited							(object, name, world_property, loophole_value)
 {
 }
@@ -70,7 +70,7 @@ void target_idle::execute			()
 //	class target_fire
 ////////////////////////////////////////////////////////////////////////////
 
-target_fire::target_fire			(animation_planner *object, LPCSTR name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
+target_fire::target_fire			(animation_planner *object, const char* name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
 	inherited							(object, name, world_property, loophole_value)
 {
 }
@@ -85,32 +85,40 @@ void target_fire::initialize		()
 	inherited::initialize				();
 }
 
-void target_fire::execute			()
+void target_fire::execute()
 {
-	inherited::execute					();
+	inherited::execute();
 
-	if ( !m_inertia_time )
+	if (!m_inertia_time)
+	{
 		return;
+	}
 
-	if ( !completed() )
+	if (!completed())
+	{
 		return;
+	}
 
-	if ( this->m_object->m_object->ready_to_kill() ) {
-		CWeapon			*weapon = smart_cast<CWeapon*>(this->m_object->m_object->m_best_item_to_kill);
-		if ( weapon ) {
-			if ( weapon->GetAmmoElapsed() <= weapon->GetAmmoMagSize()/6 )
+	if (this->m_object->m_object->ready_to_kill())
+	{
+		PIItem item_to_kill = this->m_object->m_object->m_best_item_to_kill;
+		if (CWeapon* weapon = item_to_kill != nullptr ? item_to_kill->cast_weapon() : nullptr)
+		{
+			if (weapon->GetAmmoElapsed() <= weapon->GetAmmoMagSize() / 6)
+			{
 				return;
+			}
 		}
 	}
 
-	m_storage->set_property				(StalkerDecisionSpace::eWorldPropertyLoopholeTooMuchTimeFiring, true);
+	m_storage->set_property(StalkerDecisionSpace::eWorldPropertyLoopholeTooMuchTimeFiring, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////
 //	class target_fire_no_lookout
 ////////////////////////////////////////////////////////////////////////////
 
-target_fire_no_lookout::target_fire_no_lookout					(animation_planner *object, LPCSTR name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
+target_fire_no_lookout::target_fire_no_lookout					(animation_planner *object, const char* name, StalkerDecisionSpace::EWorldProperties const &world_property, u32 const &loophole_value) :
 	inherited							(object, name, world_property, loophole_value)
 {
 }

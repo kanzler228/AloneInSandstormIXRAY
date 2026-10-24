@@ -6,7 +6,9 @@
 #include "Actor.h"
 #include "ActorEffector.h"
 #include "EffectorShot.h"
+#include "ParticlesObject.h"
 #include "Weapon.h"
+#include "../xrEngine/xr_input.h"
 
 const Fvector&	CWeaponStatMgun::get_CurrentFirePoint()
 {
@@ -31,7 +33,6 @@ void CWeaponStatMgun::FireEnd()
 {
 	m_dAngle.set(0.0f,0.0f);
 	inheritedShooting::FireEnd();
-	StopFlameParticles	();
 	RemoveShotEffector ();
 }
 
@@ -39,9 +40,7 @@ void CWeaponStatMgun::UpdateFire()
 {
 	fShotTimeCounter -= Device.fTimeDelta;
 	
-
-	inheritedShooting::UpdateFlameParticles();
-	inheritedShooting::UpdateLight();
+	inheritedShooting::UpdateEffects();
 
 	if (m_overheat_enabled)
 	{
@@ -51,7 +50,7 @@ void CWeaponStatMgun::UpdateFire()
 			if (p_overheat)
 			{
 				if (p_overheat->IsPlaying())
-					p_overheat->Stop(FALSE);
+					p_overheat->Stop(false);
 				Particles::Details::Destroy(p_overheat);
 			}
 			if (m_firing_disabled)
@@ -83,7 +82,7 @@ void CWeaponStatMgun::UpdateFire()
 		{
 			if (!p_overheat)
 			{
-				p_overheat = Particles::Details::Create(m_overheat_particles.c_str(), FALSE);
+				p_overheat = Particles::Details::Create(m_overheat_particles.c_str(), false);
 				Fmatrix	pos;
 				pos.set(get_ParticlesXFORM());
 				pos.c.set(get_CurrentFirePoint());
@@ -118,19 +117,22 @@ void CWeaponStatMgun::OnShot()
 
 	FireBullet(m_fire_pos, m_fire_dir, fireDispersionBase, *m_Ammo, Owner()->ID(), ID(), SendHitAllowed(Owner()));
 
-	StartShotParticles();
-
 	if (m_bLightShotEnabled)
 	{
 		Light_Start();
 	}
 
-	StartFlameParticles();
-	StartSmokeParticles(m_fire_pos, zero_vel);
-	OnShellDrop(m_fire_pos, zero_vel);
+	StartFlameParticle();
+	StartSmokeParticle(zero_vel);
+	StartShellParticle(zero_vel);
 
 	bool b_hud_mode = (Level().CurrentEntity() == Owner()->dcast_CObject());
 	m_sounds_layered.PlaySound("sndShot", m_fire_pos, Owner(), b_hud_mode);
+
+	if (Owner() && Owner() == Level().CurrentControlEntity())
+	{
+		pInput->feedback(65535 * m_vibration_factor_left, 65535 * m_vibration_factor_right, m_vibration_time);
+	}
 
 	AddShotEffector();
 	m_dAngle.set(::Random.randF(-fireDispersionBase, fireDispersionBase),
@@ -144,7 +146,7 @@ void CWeaponStatMgun::AddShotEffector()
 		CCameraShotEffector* S = smart_cast<CCameraShotEffector*>(OwnerActor()->Cameras().GetCamEffector(eCEShot));
 
 		CameraRecoil camera_recoil;
-		// Настройка параметров отдачи для стационарного пулемета
+		// РќР°СЃС‚СЂРѕР№РєР° РїР°СЂР°РјРµС‚СЂРѕРІ РѕС‚РґР°С‡Рё РґР»СЏ СЃС‚Р°С†РёРѕРЅР°СЂРЅРѕРіРѕ РїСѓР»РµРјРµС‚Р°
 		camera_recoil.MaxAngleVert = camMaxAngle;
 		camera_recoil.RelaxSpeed = camRelaxSpeed;
 		camera_recoil.MaxAngleHorz = 0.25f;

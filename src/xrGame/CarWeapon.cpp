@@ -31,7 +31,7 @@ CCarWeapon::CCarWeapon(CPhysicsShellHolder* obj)
 	m_object	= obj;
 	m_Ammo		= new CCartridge();
 
-	IKinematics* K			= smart_cast<IKinematics*>(m_object->Visual());
+	IKinematics* K			= PKinematics(m_object->Visual());
 	CInifile* pUserData		= K->LL_UserData(); 
 
 	m_rotate_x_bone			= K->LL_BoneID	(pUserData->r_string("mounted_weapon_definition","rotate_x_bone"));
@@ -59,8 +59,6 @@ CCarWeapon::CCarWeapon(CPhysicsShellHolder* obj)
 	m_destEnemyDir.setHP				(m_bind_y_rot,m_bind_x_rot);
 	m_object->XFORM().transform_dir		(m_destEnemyDir);
 
-
-	inheritedShooting::Light_Create		();
 	Load								(pUserData->r_string("mounted_weapon_definition","wpn_section"));
 	SetBoneCallbacks					();
 	m_object->processing_activate		();
@@ -75,12 +73,13 @@ CCarWeapon::~CCarWeapon()
 {
 	delete_data(m_Ammo);
 //.	m_object->processing_deactivate		();
+	CShootingObject::DestroyEffects();
 }
 
-void CCarWeapon::Load(LPCSTR section)
+void CCarWeapon::Load(const char* section)
 {
 	inheritedShooting::Load(section);
-    SoundsLayered.LoadSound(section, "snd_shoot", "m_sndShot", false);
+    SoundsLayered.LoadSound(section, "snd_shoot", "m_sndShot", false, -1, st_Shooting);
 	m_Ammo->Load(pSettings->r_string(section, "ammo_class"), 0);
 }
 
@@ -88,9 +87,9 @@ void CCarWeapon::UpdateCL()
 {
 	if(!m_bActive)				return;
 	UpdateBarrelDir				();
-	IKinematics* K				= smart_cast<IKinematics*>(m_object->Visual());
+	IKinematics* K				= PKinematics(m_object->Visual());
 	K->CalculateBones_Invalidate();
-	K->CalculateBones			(TRUE);
+	K->CalculateBones			(true);
 	UpdateFire					();
 }
 
@@ -98,8 +97,7 @@ void CCarWeapon::UpdateFire()
 {
 	fShotTimeCounter -= Device.fTimeDelta;
 
-	inheritedShooting::UpdateFlameParticles();
-	inheritedShooting::UpdateLight();
+	inheritedShooting::UpdateEffects();
 	
 	if(m_bAutoFire){
 		if(m_allow_fire){
@@ -128,27 +126,27 @@ void CCarWeapon::Render_internal()
 
 void CCarWeapon::SetBoneCallbacks()
 {
-//	m_object->PPhysicsShell()->EnabledCallbacks(FALSE);
+//	m_object->PPhysicsShell()->EnabledCallbacks(false);
 	
-	CBoneInstance& biX		= smart_cast<IKinematics*>(m_object->Visual())->LL_GetBoneInstance(m_rotate_x_bone);	
+	CBoneInstance& biX		= PKinematics(m_object->Visual())->LL_GetBoneInstance(m_rotate_x_bone);	
 	biX.set_callback		(bctCustom,BoneCallbackX,this);
-	CBoneInstance& biY		= smart_cast<IKinematics*>(m_object->Visual())->LL_GetBoneInstance(m_rotate_y_bone);	
+	CBoneInstance& biY		= PKinematics(m_object->Visual())->LL_GetBoneInstance(m_rotate_y_bone);
 	biY.set_callback		(bctCustom,BoneCallbackY,this);
 }
 
 void CCarWeapon::ResetBoneCallbacks()
 {
-	CBoneInstance& biX		= smart_cast<IKinematics*>(m_object->Visual())->LL_GetBoneInstance(m_rotate_x_bone);	
+	CBoneInstance& biX		= PKinematics(m_object->Visual())->LL_GetBoneInstance(m_rotate_x_bone);
 	biX.reset_callback		();
-	CBoneInstance& biY		= smart_cast<IKinematics*>(m_object->Visual())->LL_GetBoneInstance(m_rotate_y_bone);	
+	CBoneInstance& biY		= PKinematics(m_object->Visual())->LL_GetBoneInstance(m_rotate_y_bone);
 	biY.reset_callback		();
 
-//	m_object->PPhysicsShell()->EnabledCallbacks(TRUE);
+//	m_object->PPhysicsShell()->EnabledCallbacks(true);
 }
 
 void CCarWeapon::UpdateBarrelDir()
 {
-	IKinematics* K		= smart_cast<IKinematics*>(m_object->Visual());
+	IKinematics* K		= PKinematics(m_object->Visual());
 	m_fire_bone_xform	= K->LL_GetTransform(m_fire_bone);
 
 	m_fire_bone_xform.mulA_43(m_object->XFORM());
@@ -180,7 +178,7 @@ void CCarWeapon::UpdateBarrelDir()
 	m_cur_y_rot		= angle_inertion_var(m_cur_y_rot,m_tgt_y_rot,m_min_gun_speed,m_max_gun_speed,PI,Device.fTimeDelta);
 	static float dir_eps = deg2rad(5.0f);
 	if( !fsimilar(m_cur_x_rot,m_tgt_x_rot,dir_eps)|| !fsimilar(m_cur_y_rot,m_tgt_y_rot,dir_eps))
-		m_allow_fire=FALSE;
+		m_allow_fire=false;
 
 #if (0)
 	if(Device.dwFrame%200==0){
@@ -220,24 +218,21 @@ void CCarWeapon::FireStart()
 void CCarWeapon::FireEnd()	
 {
 	inheritedShooting::FireEnd();
-	StopFlameParticles	();
 }
 
 #include "holder_custom.h"
 void CCarWeapon::OnShot()
 {
-	CHolderCustom* holder = smart_cast<CHolderCustom*>(m_object);
+	CHolderCustom* holder = m_object->cast_holder_custom();
 
 	FireBullet(m_fire_pos, m_fire_dir, fireDispersionBase, *m_Ammo, holder->Engaged() ? 0 : m_object->ID(),
 		m_object->ID(), SendHitAllowed(m_object));
 
-	StartShotParticles();
-
 	if (m_bLightShotEnabled)
 		Light_Start();
 
-	StartFlameParticles();
-	StartSmokeParticles(m_fire_pos, zero_vel);
+	StartFlameParticle();
+	StartSmokeParticle(zero_vel);
 
     SoundsLayered.PlaySound("m_sndShot", m_fire_pos, m_object, false);
 }

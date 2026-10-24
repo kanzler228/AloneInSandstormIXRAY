@@ -32,7 +32,7 @@ namespace
 	shared_str	strDiffuseLight("DiffuseLight");
 }
 
-LPCSTR dx103DFluidRenderer::m_pRTNames[ RRT_NumRT ] = 
+const char* dx103DFluidRenderer::m_pRTNames[ RRT_NumRT ] = 
 {
 	"$user$rayDataTex",
 	"$user$rayDataTexSmall",
@@ -40,7 +40,7 @@ LPCSTR dx103DFluidRenderer::m_pRTNames[ RRT_NumRT ] =
 	"$user$edgeTex"
 };
 
-LPCSTR dx103DFluidRenderer::m_pResourceRTNames[ RRT_NumRT ] = 
+const char* dx103DFluidRenderer::m_pResourceRTNames[ RRT_NumRT ] = 
 {
 	"rayDataTex",
 	"rayDataTexSmall",
@@ -51,10 +51,10 @@ LPCSTR dx103DFluidRenderer::m_pResourceRTNames[ RRT_NumRT ] =
 dx103DFluidRenderer::dx103DFluidRenderer():
 	m_bInited(false)
 {
-	RTFormats[RRT_RayDataTex] = DxgiFormat::DXGI_FORMAT_R32G32B32A32_FLOAT;
-	RTFormats[RRT_RayDataTexSmall] = DxgiFormat::DXGI_FORMAT_R32G32B32A32_FLOAT;
-	RTFormats[RRT_RayCastTex] = DxgiFormat::DXGI_FORMAT_R32G32B32A32_FLOAT;
-	RTFormats[RRT_EdgeTex] = DxgiFormat::DXGI_FORMAT_R32_FLOAT;
+	RTFormats[RRT_RayDataTex] = ERHI_FORMAT::R32G32B32A32_FLOAT;
+	RTFormats[RRT_RayDataTexSmall] = ERHI_FORMAT::R32G32B32A32_FLOAT;
+	RTFormats[RRT_RayCastTex] = ERHI_FORMAT::R32G32B32A32_FLOAT;
+	RTFormats[RRT_EdgeTex] = ERHI_FORMAT::R32_FLOAT;
 }
 
 dx103DFluidRenderer::~dx103DFluidRenderer()
@@ -70,7 +70,7 @@ void dx103DFluidRenderer::Initialize(int gridWidth, int gridHeight, int gridDept
 	m_vGridDim[1] = float(gridHeight);
 	m_vGridDim[2] = float(gridDepth);
 
-	m_fMaxDim = _max( _max( m_vGridDim[0], m_vGridDim[1] ), m_vGridDim[2] );
+	m_fMaxDim = std::max(std::max( m_vGridDim[0], m_vGridDim[1] ), m_vGridDim[2] );
 
 	// Initialize the grid offset matrix
 	{
@@ -160,17 +160,7 @@ void dx103DFluidRenderer::CreateGridBox ()
 	};
 	m_iGridBoxVertNum = sizeof(vertices)/sizeof(vertices[0]);
 
-	//D3D_BUFFER_DESC bd;
-	//bd.Usage = D3D_USAGE_DEFAULT;
-	//bd.ByteWidth = sizeof(vertices);
-	//bd.BindFlags = D3Dxx_BIND_VERTEX_BUFFER;
-	//bd.CPUAccessFlags = 0;
-	//bd.MiscFlags = 0;
-	//D3Dxx_SUBRESOURCE_DATA InitData;
-	//InitData.pSysMem = vertices;
-	//V_RETURN( m_pD3DDevice->CreateBuffer( &bd, &InitData, &pGridBoxVertexBuffer ) );
-
-	CHK_DX(dx10BufferUtils::CreateVertexBuffer(&m_pGridBoxVertexBuffer, vertices, sizeof(vertices)));
+	R_ASSERT(RHIUtils::CreateVertexBuffer(&m_pGridBoxVertexBuffer, vertices, sizeof(vertices)));
 
 
 	// Create index buffer
@@ -187,55 +177,25 @@ void dx103DFluidRenderer::CreateGridBox ()
 	};
 	m_iGridBoxFaceNum = (sizeof(indices)/sizeof(indices[0]))/3;
 
-	//bd.Usage = D3D_USAGE_DEFAULT;
-	//bd.ByteWidth = sizeof(indices);
-	//bd.BindFlags = D3Dxx_BIND_INDEX_BUFFER;
-	//bd.CPUAccessFlags = 0;
-	//bd.MiscFlags = 0;
-	//InitData.pSysMem = indices;
-	//V_RETURN( m_pD3DDevice->CreateBuffer( &bd, &InitData, &pGridBoxIndexBuffer ) );
-
-	CHK_DX(dx10BufferUtils::CreateIndexBuffer	(&m_pGridBoxIndexBuffer, indices, sizeof(indices)));
+	R_ASSERT(RHIUtils::CreateIndexBuffer	(&m_pGridBoxIndexBuffer, indices, sizeof(indices)));
 
 	// Define the input layout
-	//D3Dxx_INPUT_ELEMENT_DESC layout[] =
-	//{
-	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3Dxx_INPUT_PER_VERTEX_DATA, 0 },  
-	//};
-	//UINT numElements = sizeof(layout)/sizeof(layout[0]);
-	static D3DVERTEXELEMENT9 layout[] = 
+	static RHIInputElementDesc layout[] =
 	{
-		{ 0, 0,		D3DDECLTYPE_FLOAT3,		D3DDECLMETHOD_DEFAULT, 	D3DDECLUSAGE_POSITION,		0 },
-		D3DDECL_END()
+		{ "POSITION", 0, ERHI_FORMAT::R32G32B32_FLOAT, 0, 0, ERHI_INPUT_CLASSIFICATION::VERTEX_DATA, 0 }
 	};
 
 	// Create the input layout
-	//D3Dxx_PASS_DESC PassDesc;
-	//pTechnique->GetPassByName("CompRayData_Back")->GetDesc( &PassDesc );
-	//V_RETURN( m_pD3DDevice->CreateInputLayout( layout, numElements, PassDesc.pIAInputSignature, PassDesc.IAInputSignatureSize, &pGridBoxLayout ) );
-
-	m_GeomGridBox.create(layout, m_pGridBoxVertexBuffer, m_pGridBoxIndexBuffer);
+	m_GeomGridBox.create(layout, std::size(layout), m_pGridBoxVertexBuffer, m_pGridBoxIndexBuffer);
 }
 
 void dx103DFluidRenderer::CreateScreenQuad() 
 {
 	// Create our quad input layout
-	//const D3Dxx_INPUT_ELEMENT_DESC quadlayout[] =
-	//{
-	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3Dxx_INPUT_PER_VERTEX_DATA, 0 },
-	//};
-	//UINT numElements = sizeof(quadlayout)/sizeof(quadlayout[0]);
-
-	static D3DVERTEXELEMENT9 quadlayout[] = 
+	static RHIInputElementDesc quadlayout[] =
 	{
-		{ 0, 0,		D3DDECLTYPE_FLOAT3,		D3DDECLMETHOD_DEFAULT, 	D3DDECLUSAGE_POSITION,		0 },
-		D3DDECL_END()
+		{ "POSITION", 0, ERHI_FORMAT::R32G32B32_FLOAT, 0, 0, ERHI_INPUT_CLASSIFICATION::VERTEX_DATA, 0 }
 	};
-
-	// Create the input layout
-	//D3Dxx_PASS_DESC PassDesc;
-	//V_RETURN(pTechnique->GetPassByName("QuadRaycast")->GetDesc( &PassDesc ));
-	//V_RETURN( m_pD3DDevice->CreateInputLayout( quadlayout, numElements, PassDesc.pIAInputSignature, PassDesc.IAInputSignatureSize, &pQuadLayout ) );
 
 	// Create a screen quad for all render to texture operations
 	VsInput svQuad[4];
@@ -244,23 +204,8 @@ void dx103DFluidRenderer::CreateScreenQuad()
 	svQuad[2].pos = XMFLOAT3(-1.0f, -1.0f, 0.0f);
 	svQuad[3].pos = XMFLOAT3(1.0f, -1.0f, 0.0f);
 
-	//D3D_BUFFER_DESC vbdesc =
-	//{
-	//	4*sizeof(VsInput),
-	//	D3D_USAGE_DEFAULT,
-	//	D3Dxx_BIND_VERTEX_BUFFER,
-	//	0,
-	//	0
-	//};
-
-	//D3Dxx_SUBRESOURCE_DATA InitData;
-	//InitData.pSysMem = svQuad;
-	//InitData.SysMemPitch = 0;
-	//InitData.SysMemSlicePitch = 0;
-	//V_RETURN( m_pD3DDevice->CreateBuffer( &vbdesc, &InitData, &pQuadVertexBuffer ) );
-
-	CHK_DX(dx10BufferUtils::CreateVertexBuffer(&m_pQuadVertexBuffer, svQuad, sizeof(svQuad)));
-	m_GeomQuadVertex.create(quadlayout, m_pQuadVertexBuffer, 0);
+	R_ASSERT(RHIUtils::CreateVertexBuffer(&m_pQuadVertexBuffer, svQuad, sizeof(svQuad)));
+	m_GeomQuadVertex.create(quadlayout, std::size(quadlayout), m_pQuadVertexBuffer, 0);
 }
 
 void dx103DFluidRenderer::CreateJitterTexture()
@@ -276,11 +221,9 @@ void dx103DFluidRenderer::CreateJitterTexture()
 	desc.Height = 256;
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
-	//desc.Format = DXGI_FORMAT_R8_TYPELESS;
 	desc.Format = DXGI_FORMAT_R8_UNORM;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
-	//desc.Usage = D3D_USAGE_IMMUTABLE;
 	desc.Usage = D3D11_USAGE_DEFAULT;
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
@@ -292,30 +235,29 @@ void dx103DFluidRenderer::CreateJitterTexture()
 	dataDesc.SysMemPitch = 256;
 
 	ID3DTexture2D* NoiseTexture = nullptr;
-	//ID3DxxShaderResourceView* JitterTextureSRV = nullptr;
-
 	CHK_DX( RDevice->CreateTexture2D(&desc, &dataDesc, &NoiseTexture));
 
-	//( m_pD3DDevice->CreateTexture2D(&desc, &dataDesc, &NoiseTexture) );
-
-	// Create the shader resource view for jittering
-	//D3Dxx_SHADER_RESOURCE_VIEW_DESC descSRV;
-
-	//ZeroMemory( &descSRV, sizeof(descSRV) );
-	//descSRV.Format = DXGI_FORMAT_R8_UNORM;
-	//descSRV.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
-	//descSRV.Texture2D.MipLevels = 1;
-	//descSRV.Texture2D.MostDetailedMip = 0;
-
-	//V( m_pD3DDevice->CreateShaderResourceView( NoiseTexture, &descSRV, &JitterTextureSRV ) );
-	//pEffect->GetVariableByName("jitterTex")->AsShaderResource() -> SetResource (JitterTextureSRV);
-
 	m_JitterTexture = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$NVjitterTex");
-	m_JitterTexture->surface_set(NoiseTexture);
-
+	
+	// Create RHITextureDesc for the texture
+	D3D_TEXTURE2D_DESC desc2D;
+	NoiseTexture->GetDesc(&desc2D);
+	RHITextureDesc rhiDesc;
+	rhiDesc.Width = desc2D.Width;
+	rhiDesc.Height = desc2D.Height;
+	rhiDesc.Depth = 1;
+	rhiDesc.MipLevels = desc2D.MipLevels;
+	rhiDesc.Format = (ERHI_FORMAT)desc2D.Format;
+	rhiDesc.Usage = (ERHI_USAGE)desc.Usage;
+	rhiDesc.BindFlags = (ERHI_BIND_FLAG)desc.BindFlags;
+	rhiDesc.CPUAccessFlags = desc2D.CPUAccessFlags;
+	rhiDesc.MiscFlags = desc2D.MiscFlags;
+	
+	// Use GRHI to create the surface
+	IRHISurface* rhiSurface = GRHI->CreateTextureFromMemory(NoiseTexture, 0, rhiDesc);
+	m_JitterTexture->surface_set(rhiSurface);
 
 	_RELEASE(NoiseTexture);
-	//SAFE_RELEASE(JitterTextureSRV);
 }
 
 namespace
@@ -364,19 +306,10 @@ namespace
 
 void dx103DFluidRenderer::CreateHHGGTexture()
 {
-//	static const int iNumSamples = 256;
 	static const int iNumSamples = 16;
-//	static const int iNumSamples = 1;
 	float data[4*iNumSamples];
 
 	HALF converted[4 * iNumSamples]{};
-
-//	Fvector4 mmin;
-//	Fvector4 mmax;
-
-//	mmin.set(10000, 10000, 10000, 10000);
-//	mmax.set(-10000, -10000, -10000, -10000);
-
 	for (int i = 0; i < iNumSamples; i++)
 	{
 		float a = i / (float)(iNumSamples-1);
@@ -384,12 +317,6 @@ void dx103DFluidRenderer::CreateHHGGTexture()
 		data[4*i+1] = h1texels(a);
 		data[4*i+2] = 1.0f-g0(a);
 		data[4*i+3] = g0(a);
-
-//		for ( int j=0; j < 4; ++j )
-//		{
-//			mmin[j] = _min(mmin[j], data[4*i+j]);
-//			mmax[j] = _max(mmax[j], data[4*i+j]);
-//		}
 	}
 
 	//	Min value is -1
@@ -401,9 +328,7 @@ void dx103DFluidRenderer::CreateHHGGTexture()
 	desc.Width = iNumSamples;
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
-	//desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	//desc.Usage = D3D_USAGE_IMMUTABLE;
 
 	desc.Usage = D3D11_USAGE_DEFAULT;
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -412,8 +337,6 @@ void dx103DFluidRenderer::CreateHHGGTexture()
 	desc.MiscFlags = 0;
 
 	D3D_SUBRESOURCE_DATA dataDesc;
-	//dataDesc.pSysMem = data;
-	//dataDesc.SysMemPitch = sizeof(data);
 	dataDesc.pSysMem = converted;
 	dataDesc.SysMemPitch = sizeof(converted);
 
@@ -422,7 +345,23 @@ void dx103DFluidRenderer::CreateHHGGTexture()
 	CHK_DX( RDevice->CreateTexture1D(&desc, &dataDesc, &HHGGTexture));
 
 	m_HHGGTexture = dxRenderDeviceRender::Instance().Resources->_CreateTexture("$user$NVHHGGTex");
-	m_HHGGTexture->surface_set(HHGGTexture);
+	
+	D3D_TEXTURE1D_DESC desc1D;
+	HHGGTexture->GetDesc(&desc1D);
+
+	RHITextureDesc rhiDesc;
+	rhiDesc.Width = desc1D.Width;
+	rhiDesc.Height = 1;
+	rhiDesc.Depth = 1;
+	rhiDesc.MipLevels = desc1D.MipLevels;
+	rhiDesc.Format = (ERHI_FORMAT)desc1D.Format;
+	rhiDesc.Usage = (ERHI_USAGE)desc.Usage;
+	rhiDesc.BindFlags = (ERHI_BIND_FLAG)desc.BindFlags;
+	rhiDesc.CPUAccessFlags = desc1D.CPUAccessFlags;
+	rhiDesc.MiscFlags = desc1D.MiscFlags;
+	
+	IRHISurface* rhiSurface = GRHI->CreateTextureFromMemory(HHGGTexture, 0, rhiDesc);
+	m_HHGGTexture->surface_set(rhiSurface);
 
 	_RELEASE(HHGGTexture);
 }
@@ -435,7 +374,7 @@ void dx103DFluidRenderer::SetScreenSize( int width, int height )
 void dx103DFluidRenderer::CalculateRenderTextureSize(int screenWidth, int screenHeight)
 {
 	int maxProjectedSide = int(3.0 * _sqrt(3.0)*m_fMaxDim);
-	int maxScreenDim = _max(screenWidth, screenHeight);
+	int maxScreenDim = std::max(screenWidth, screenHeight);
 
 	float screenAspectRatio = ((float)screenWidth)/screenHeight;
 
@@ -476,7 +415,7 @@ void dx103DFluidRenderer::CreateRayDataResources( int width, int height )
 void dx103DFluidRenderer::Draw(const dx103DFluidData &FluidData)
 {
 	//	We don't need ZB anyway
-	RCache.set_ZB(0);
+	GRHI->SetDepthStencilView(0);
 
 	CRenderTarget* pTarget = RImplementation.Target;
 	const dx103DFluidData::Settings &VolumeSettings = FluidData.GetSettings();
@@ -505,8 +444,7 @@ void dx103DFluidRenderer::Draw(const dx103DFluidData &FluidData)
 
 	// Raycast into the temporary render target: 
 	//  raycasting is done at the smaller resolution, using a fullscreen quad
-	float color[4] = { 0.f, 0.f, 0.f, 0.f };
-	RContext->ClearRenderTargetView( RT[RRT_RayCastTex]->pRT, color );
+	GRHI->ClearTarget(RT[RRT_RayCastTex]->pRT);
 	pTarget->u_setrt(RT[RRT_RayCastTex],0,0,0);		// LDR RT
 
 	RImplementation.rmNormal();
@@ -539,8 +477,7 @@ void dx103DFluidRenderer::Draw(const dx103DFluidData &FluidData)
 void dx103DFluidRenderer::ComputeRayData(const dx103DFluidData& FluidData)
 {
 	// Clear the color buffer to 0
-	float blackColor[4] = {0, 0, 0, 0 };
-	RContext->ClearRenderTargetView( RT[RRT_RayDataTex]->pRT, blackColor );
+	GRHI->ClearTarget(RT[RRT_RayDataTex]->pRT);
 	CRenderTarget* pTarget = RImplementation.Target;
 	pTarget->u_setrt(RT[RRT_RayDataTex],0,0,0);		// LDR RT
 	RCache.set_Element(m_RendererTechnique[RS_CompRayData_Back]);
@@ -583,13 +520,13 @@ void dx103DFluidRenderer::ComputeEdgeTexture(const dx103DFluidData& FluidData)
 void dx103DFluidRenderer::DrawScreenQuad()
 {
 	RCache.set_Geometry(m_GeomQuadVertex);
-	RCache.Render( D3DPT_TRIANGLESTRIP, 0, 2);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_STRIP, 0, 2);
 }
 
 void dx103DFluidRenderer::DrawBox()
 {
 	RCache.set_Geometry(m_GeomGridBox);
-	RCache.Render( D3DPT_TRIANGLELIST, 0, 0, m_iGridBoxVertNum ,0, m_iGridBoxFaceNum);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, 0, 0, m_iGridBoxVertNum ,0, m_iGridBoxFaceNum);
 }
 
 void dx103DFluidRenderer::CalculateLighting(const dx103DFluidData &FluidData, FogLighting  &LightData)
@@ -623,7 +560,7 @@ void dx103DFluidRenderer::CalculateLighting(const dx103DFluidData &FluidData, Fo
 		(
 		m_lstRenderables,
 		0, //ISpatial_DB::O_ORDERED,
-		STYPE_LIGHTSOURCE,
+		ESPATIAL_TYPE::LIGHTSOURCE,
 		center,
 		size
 		);
@@ -642,7 +579,7 @@ void dx103DFluidRenderer::CalculateLighting(const dx103DFluidData &FluidData, Fo
 
 		float	d = pLight->position.distance_to(Transform.c);
 
-		float	R = pLight->range + _max(size.x, _max(size.y, size.z));
+		float	R = pLight->range + std::max(size.x, std::max(size.y, size.z));
 		if (d >= R)
 			continue;
 

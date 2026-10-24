@@ -6,7 +6,7 @@
 //	Description : Debug functions for monster "Stalker"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #if USE_OLD_OBJECT_PLANNER
 #include "Legacy/object_handler_planner.h"
@@ -44,7 +44,6 @@
 #include "../../agent_location_manager.h"
 #include "../../cover_point.h"
 #include "../../../xrEngine/CameraBase.h"
-#include "../../mt_config.h"
 #include "../../WeaponMagazined.h"
 #include "../../debug_renderer.h"
 #include "../../CharacterPhysicsSupport.h"
@@ -64,32 +63,30 @@ CActor *g_debug_actor = 0;
 
 void try_change_current_entity()
 {
-	CActor								*actor = smart_cast<CActor*>(Level().CurrentEntity());
+	CActor								*actor = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_actor() : nullptr;
 	VERIFY								(actor);
 	g_debug_actor						= actor;
 
 	CFrustum							frustum;
 	frustum.CreateFromMatrix			(Device.mFullTransform,FRUSTUM_P_LRTB|FRUSTUM_P_FAR);
 
-	typedef xr_vector<ISpatialShared>		OBJECTS;
-	OBJECTS								ISpatialResult;
-	g_SpatialSpace->q_frustum			(ISpatialResult, 0, STYPE_COLLIDEABLE, frustum);
+	static xr_vector<ISpatialShared> ISpatialResult;
+	g_SpatialSpace->q_frustum(ISpatialResult, 0, ESPATIAL_TYPE::MONSTER, frustum);
 
 	float								maxlen = 1000.0f;
-	CCustomMonster*						nearest_agent = 0;
+	CCreature*						nearest_agent = 0;
 
-	OBJECTS::const_iterator				I = ISpatialResult.begin();
-	OBJECTS::const_iterator				E = ISpatialResult.end();
-	for ( ; I != E; ++I) {
-		CCustomMonster					*current = smart_cast<CCustomMonster*>((*I)->dcast_CObject());
+	for (ISpatialShared& spatial_object : ISpatialResult)
+	{
+		CCreature* current = spatial_object->dcast_CObject()->cast_creature();
 		if (!current)					continue;
-		if (Level().CurrentEntity()==current) continue;
+		if (Level().CurrentEntity() == current) continue;
 
-		Fvector							A, B, tmp; 
-		current->Center					(A);
+		Fvector							A, B, tmp;
+		current->Center(A);
 
-		tmp.sub							(A, actor->cam_Active()->vPosition);
-		B.mad							(
+		tmp.sub(A, actor->cam_Active()->vPosition);
+		B.mad(
 			actor->cam_Active()->vPosition,
 			actor->cam_Active()->vDirection,
 			tmp.dotproduct(
@@ -99,7 +96,7 @@ void try_change_current_entity()
 		float len = B.distance_to_sqr(A);
 		if (len > 1) continue;
 
-		if (maxlen>len && !current->getDestroy())
+		if (maxlen > len && !current->getDestroy())
 		{
 			maxlen = len;
 			nearest_agent = current;
@@ -116,13 +113,13 @@ void try_change_current_entity()
 	Engine.Sheduler.Register	(actor);
 	
 	Engine.Sheduler.Unregister	(nearest_agent);
-	Engine.Sheduler.Register	(nearest_agent, TRUE);
+	Engine.Sheduler.Register	(nearest_agent, true);
 }
 
 void restore_actor()
 {
 	VERIFY		(g_debug_actor);
-	VERIFY		(!smart_cast<CActor*>(Level().CurrentEntity()));
+	VERIFY		(Level().CurrentEntity() == nullptr || Level().CurrentEntity()->cast_actor() == nullptr);
 
 	Engine.Sheduler.Unregister	(Level().CurrentEntity());
 	Engine.Sheduler.Register	(Level().CurrentEntity());
@@ -130,11 +127,13 @@ void restore_actor()
 	Level().SetEntity			(g_debug_actor);
 
 	Engine.Sheduler.Unregister	(g_debug_actor);
-	Engine.Sheduler.Register	(g_debug_actor, TRUE);
+	Engine.Sheduler.Register	(g_debug_actor, true);
 
 	g_debug_actor->inventory().Items_SetCurrentEntityHud(true);
 
-	CHudItem* pHudItem = smart_cast<CHudItem*>(g_debug_actor->inventory().ActiveItem());
+	PIItem active_item = g_debug_actor->inventory().ActiveItem();
+
+	CHudItem* pHudItem = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 	if (pHudItem) 
 	{
 		pHudItem->OnStateSwitch(pHudItem->GetState());
@@ -142,7 +141,7 @@ void restore_actor()
 }
 
 template <typename planner_type>
-void draw_planner						(const planner_type &brain, LPCSTR start_indent, LPCSTR indent, LPCSTR planner_id)
+void draw_planner						(const planner_type &brain, const char* start_indent, const char* indent, const char* planner_id)
 {
 #ifdef DEBUG
 	planner_type						&_brain = const_cast<planner_type&>(brain);
@@ -167,7 +166,7 @@ void draw_planner						(const planner_type &brain, LPCSTR start_indent, LPCSTR i
 	typename planner_type::EVALUATORS::const_iterator	I = brain.evaluators().begin();
 	typename planner_type::EVALUATORS::const_iterator	E = brain.evaluators().end();
 	for ( ; I != E; ++I) {
-		auto J = std::lower_bound(brain.current_state().conditions().begin(),brain.current_state().conditions().end(),planner_type::CWorldProperty((*I).first,false));
+		auto J = std::lower_bound(brain.current_state().conditions().begin(),brain.current_state().conditions().end(), CWorldProperty((*I).first,false));
 		char				temp = '?';
 		if ((J != brain.current_state().conditions().end()) && ((*J).condition() == (*I).first)) {
 			temp			= (*J).value() ? '+' : '-';
@@ -178,7 +177,7 @@ void draw_planner						(const planner_type &brain, LPCSTR start_indent, LPCSTR i
 	DBG_OutText	("%s%starget world state",start_indent,indent);
 	I = brain.evaluators().begin();
 	for ( ; I != E; ++I) {
-		auto J = std::lower_bound(brain.target_state().conditions().begin(),brain.target_state().conditions().end(),planner_type::CWorldProperty((*I).first,false));
+		auto J = std::lower_bound(brain.target_state().conditions().begin(),brain.target_state().conditions().end(), CWorldProperty((*I).first,false));
 		char				temp = '?';
 		if ((J != brain.target_state().conditions().end()) && ((*J).condition() == (*I).first)) {
 			temp			= (*J).value() ? '+' : '-';
@@ -188,21 +187,21 @@ void draw_planner						(const planner_type &brain, LPCSTR start_indent, LPCSTR i
 #endif
 }
 
-LPCSTR animation_name(CAI_Stalker *self, const MotionID &animation)
+const char* animation_name(CAI_Stalker *self, const MotionID &animation)
 {
 	if (!animation)
 		return			("");
 #ifdef DEBUG
-	IKinematicsAnimated	*skeleton_animated = smart_cast<IKinematicsAnimated*>(self->Visual());
+	IKinematicsAnimated	*skeleton_animated = self->Visual()->dcast_PKinematicsAnimated();
 	VERIFY				(skeleton_animated);
-	LPCSTR				name = skeleton_animated->LL_MotionDefName_dbg(animation).first;
+	const char*				name = skeleton_animated->LL_MotionDefName_dbg(animation).first;
 	return				(name);
 #else
 	return "";
 #endif
 }
 
-void draw_restrictions(const shared_str &restrictions, LPCSTR start_indent, LPCSTR indent, LPCSTR header)
+void draw_restrictions(const shared_str &restrictions, const char* start_indent, const char* indent, const char* header)
 {
 #ifdef DEBUG
 	DBG_OutText	("%s%s%s",start_indent,indent,header);
@@ -212,7 +211,7 @@ void draw_restrictions(const shared_str &restrictions, LPCSTR start_indent, LPCS
 #endif
 }
 
-LPCSTR movement_type(const MonsterSpace::EMovementType &movement_type)
+const char* movement_type(const MonsterSpace::EMovementType &movement_type)
 {
 	switch (movement_type) {
 		case MonsterSpace::eMovementTypeStand :
@@ -226,7 +225,7 @@ LPCSTR movement_type(const MonsterSpace::EMovementType &movement_type)
 	return				("invalid");
 }
 
-LPCSTR danger_type(const CDangerObject::EDangerType &danger_type)
+const char* danger_type(const CDangerObject::EDangerType &danger_type)
 {
 	switch (danger_type) {
 		case CDangerObject::eDangerTypeBulletRicochet		: return	("bullet ricochet");
@@ -256,7 +255,7 @@ void CAI_Stalker::debug_text			()
 	if (!psAI_Flags.test(aiStalker))
 		return;
 
-	CActor								*actor = smart_cast<CActor*>(Level().Objects.net_Find(0));
+	CActor* actor = Level().Objects.net_Find(0)->cast_actor();
 	if (!actor) {
 		if (!g_debug_actor)
 			return;
@@ -265,7 +264,7 @@ void CAI_Stalker::debug_text			()
 	}
 
 	float								up_indent = 40.f;
-	LPCSTR								indent = "  ";
+	const char*								indent = "  ";
 
 	DBG_TextSetColor(color_xrgb(0, 255, 0));
 	DBG_TextOutSet	(0,up_indent);
@@ -356,15 +355,14 @@ void CAI_Stalker::debug_text			()
 				break;
 			}
 
-		if (g_Alive()) {
-			if ( true || !g_mt_config.test(mtAiVision) )
-				VERIFY						(!memory().visual().visible_now(memory().enemy().selected()) || (fuzzy > 0.f));
+		if (g_Alive())
+		{
 			DBG_OutText("%s%s%svisible   : %s %f",indent,indent,indent,memory().visual().visible_now(memory().enemy().selected()) ? "+" : "-",fuzzy);
 		}
 		DBG_OutText	("%s%s%sobject    : %s",indent,indent,indent,*memory().enemy().selected()->cName());
 		if (g_Alive()) {
 			float								interval = (1.f - panic_threshold())*.25f, left = -1.f, right = -1.f;
-			LPCSTR								description = "invalid";
+			const char*								description = "invalid";
 			u32									result = dwfChooseAction(
 				2000,
 				1.f - interval,
@@ -432,7 +430,10 @@ void CAI_Stalker::debug_text			()
 		if (memory().danger().selected()->dependent_object() && !!memory().danger().selected()->dependent_object()->cName()) {
 			DBG_OutText("%s%s%sdependent : %s",indent,indent,indent,*memory().danger().selected()->dependent_object()->cName());
 			if (g_Alive())
-				DBG_OutText("%s%s%svisible   : %s",indent,indent,indent,memory().visual().visible_now(smart_cast<const CGameObject*>(memory().danger().selected()->dependent_object())) ? "+" : "-");
+			{
+				CObject* dep_obj = const_cast<CObject*>(memory().danger().selected()->dependent_object());
+				DBG_OutText("%s%s%svisible   : %s", indent, indent, indent, memory().visual().visible_now(dep_obj->cast_game_object()) ? "+" : "-");
+			}
 		}
 	}
 
@@ -483,7 +484,7 @@ void CAI_Stalker::debug_text			()
 	DBG_OutText	("%s%sammo in box to spawn: %d",indent,indent,item_to_spawn().size() ? ammo_in_box_to_spawn() : 0);
 	
 #if USE_OLD_OBJECT_PLANNER
-	CWeaponMagazined					*weapon = smart_cast<CWeaponMagazined*>(inventory().ActiveItem());
+	CWeaponMagazined					*weapon = inventory().ActiveItem() != nullptr ? inventory().ActiveItem()->cast_weapon_magazined() : nullptr;
 	if (weapon) {
 		CObjectHandlerPlanner			&planner = CObjectHandler::planner();
 		DBG_OutText("%s%squeue size          : %d",indent,indent,weapon->GetQueueSize());
@@ -502,7 +503,7 @@ void CAI_Stalker::debug_text			()
 	if (inventory().ActiveItem()) {
 		DBG_OutText	("%s%sactive item",indent,indent);
 		DBG_OutText	("%s%s%sobject         : %s",indent,indent,indent,inventory().ActiveItem() ? *inventory().ActiveItem()->object().cName() : "");
-		CWeapon	*weapon_ = smart_cast<CWeapon*>(inventory().ActiveItem());
+		CWeapon	*weapon_ = inventory().ActiveItem() != nullptr ? inventory().ActiveItem()->cast_weapon() : nullptr;
 		if (weapon_) {
 			DBG_OutText("%s%s%sstrapped       : %s",indent,indent,indent,weapon_strapped(weapon_) ? "+" : "-");
 			DBG_OutText("%s%s%sunstrapped     : %s",indent,indent,indent,weapon_unstrapped(weapon_) ? "+" : "-");
@@ -567,7 +568,7 @@ void CAI_Stalker::debug_text			()
 	DBG_OutText	("%smovement",indent);
 	DBG_OutText	("%s%senabled         : %s",indent,indent,movement().enabled() ? "+" : "-");
 
-	LPCSTR								mental_state = "invalid";
+	const char*								mental_state = "invalid";
 	switch (movement().mental_state()) {
 		case MonsterSpace::eMentalStateFree : {
 			mental_state				= "free";
@@ -585,7 +586,7 @@ void CAI_Stalker::debug_text			()
 	}
 	DBG_OutText	("%s%smental state    : %s",indent,indent,mental_state);
 
-	LPCSTR								body_state = "invalid";
+	const char*								body_state = "invalid";
 	switch (movement().body_state()) {
 		case MonsterSpace::eBodyStateStand : {
 			body_state					= "stand";
@@ -601,7 +602,7 @@ void CAI_Stalker::debug_text			()
 	DBG_OutText	("%s%smovement type   : %s (current)",indent,indent,movement_type(movement().movement_type()));
 	DBG_OutText	("%s%smovement type   : %s (target)",indent,indent, movement_type(movement().target_movement_type()));
 
-	LPCSTR						path_type = "invalid";
+	const char*						path_type = "invalid";
 	switch (movement().path_type()) {
 		case MovementManager::ePathTypeGamePath : {
 			path_type			= "game path";
@@ -817,7 +818,7 @@ void CAI_Stalker::debug_text			()
 		xr_vector<CSoundPlayer::CSoundSingle>::const_iterator	E = sound().playing_sounds().end();
 		for ( ; I != E; ++I)
 			DBG_OutText(
-				"%s%s%s[%s]%s",
+				"%s%s%s[%s]",
 				indent,
 				indent,
 				indent,
@@ -826,13 +827,12 @@ void CAI_Stalker::debug_text			()
 				"not yet started"
 				:
 				(
-					(*I).m_sound->_feedback()
+					(*I).m_sound->is_playing()
 					?
 					"playing"
 					:
 					"already played"
-				),
-				(*I).m_sound->_handle() ? (*I).m_sound->_handle()->file_name() : "no source"
+				)
 			);
 	}
 
@@ -840,7 +840,7 @@ void CAI_Stalker::debug_text			()
 	DBG_OutText	(" ");
 	DBG_OutText	("%ssight",indent);
 
-	LPCSTR								sight_type = "invalid";
+	const char*								sight_type = "invalid";
 	switch (sight().current_action().sight_type()) {
 		case SightManager::eSightTypeCurrentDirection : {
 			sight_type					= "current direction";
@@ -954,7 +954,7 @@ void CAI_Stalker::dbg_draw_vision	()
 {
 	VERIFY						(!!psAI_Flags.is(aiVision));
 
-	if (!smart_cast<CGameObject*>(Level().CurrentEntity()))
+	if (Level().CurrentEntity() == nullptr || Level().CurrentEntity()->cast_game_object() == nullptr)
 		return;
 
 	Fvector						shift;
@@ -976,7 +976,7 @@ void CAI_Stalker::dbg_draw_vision	()
 	float						x = (1.f + v_res.x)/2.f * (Device.TargetWidth);
 	float						y = (1.f - v_res.y)/2.f * (Device.TargetHeight);
 
-	CNotYetVisibleObject		*object = memory().visual().not_yet_visible_object(smart_cast<CGameObject*>(Level().CurrentEntity()));
+	CNotYetVisibleObject		*object = memory().visual().not_yet_visible_object(Level().CurrentEntity()->cast_game_object());
 	string64					out_text;
 	xr_sprintf						(out_text,"%.2f",object ? object->m_value : 0.f);
 
@@ -989,7 +989,7 @@ typedef xr_vector<Fvector>	COLLIDE_POINTS;
 
 class ray_query_param	{
 public:
-	CCustomMonster			*m_holder;
+	CCreature			*m_holder;
 	float					m_power;
 	float					m_power_threshold;
 	float					m_pick_distance;
@@ -998,7 +998,7 @@ public:
 	COLLIDE_POINTS			*m_points;
 
 public:
-	IC				ray_query_param		(CCustomMonster *holder, float power_threshold, float distance, const Fvector &start_position, const Fvector &direction, COLLIDE_POINTS &points)
+	IC				ray_query_param		(CCreature *holder, float power_threshold, float distance, const Fvector &start_position, const Fvector &direction, COLLIDE_POINTS &points)
 	{
 		m_holder			= holder;
 		m_power				= 1.f;
@@ -1010,7 +1010,7 @@ public:
 	}
 };
 
-BOOL _ray_query_callback	(collide::rq_result& result, LPVOID params)
+bool _ray_query_callback	(collide::rq_result& result, LPVOID params)
 {
 	ray_query_param						*param = (ray_query_param*)params;
 	param->m_points->push_back			(
@@ -1030,7 +1030,7 @@ BOOL _ray_query_callback	(collide::rq_result& result, LPVOID params)
 	return								(false);
 }
 
-void fill_points			(CCustomMonster *self, const Fvector &position, const Fvector &direction, float distance, collide::rq_results& rq_storage, COLLIDE_POINTS &points, float &pick_distance)
+void fill_points			(CCreature *self, const Fvector &position, const Fvector &direction, float distance, collide::rq_results& rq_storage, COLLIDE_POINTS &points, float &pick_distance)
 {
 	VERIFY							(!fis_zero(direction.square_magnitude()));
 
@@ -1044,7 +1044,7 @@ void fill_points			(CCustomMonster *self, const Fvector &position, const Fvector
 	pick_distance					= params.m_pick_distance;
 }
 
-void draw_visiblity_rays	(CCustomMonster *self, const CObject *object, collide::rq_results& rq_storage)
+void draw_visiblity_rays	(CCreature *self, const CObject *object, collide::rq_results& rq_storage)
 {
 	typedef Feel::Vision::feel_visible_Item		feel_visible_Item;
 	typedef xr_vector<feel_visible_Item>		VISIBLE_ITEMS;
@@ -1206,10 +1206,10 @@ static Fmatrix aim_on_actor		(
 		}
 		else {
 			float const dot_product		= current_direction.dotproduct(target_direction);
-			if (fsimilar(_abs(dot_product), 0.f))
+			if (fsimilar(std::abs(dot_product), 0.f))
 				transform0.identity		();
 			else {
-				VERIFY					(fsimilar(_abs(dot_product), 1.f));
+				VERIFY					(fsimilar(std::abs(dot_product), 1.f));
 				cross_product.crossproduct	(current_direction, direction_target);
 				transform0.rotation		(cross_product.normalize(), dot_product > 0.f ? 0.f : PI);
 			}
@@ -1229,10 +1229,10 @@ static Fmatrix aim_on_actor		(
 		}
 		else {
 			float const dot_product		= current_direction.dotproduct(target_direction);
-			if (fsimilar(_abs(dot_product), 0.f))
+			if (fsimilar(std::abs(dot_product), 0.f))
 				transform1.identity		();
 			else {
-				VERIFY					(fsimilar(_abs(dot_product), 1.f));
+				VERIFY					(fsimilar(std::abs(dot_product), 1.f));
 				transform1.rotation		(target_direction, dot_product > 0.f ? 0.f : PI);
 			}
 		}
@@ -1254,9 +1254,9 @@ static Fmatrix aim_on_actor		(
 	return								(transform);
 }
 
-static void fill_bones				(CAI_Stalker& self, Fmatrix const& transform, IKinematicsAnimated* kinematics_animated, LPCSTR animation_id, bool const local)
+static void fill_bones				(CAI_Stalker& self, Fmatrix const& transform, IKinematicsAnimated* kinematics_animated, const char* animation_id, bool const local)
 {
-	IKinematics*						kinematics = smart_cast<IKinematics*>(kinematics_animated);
+	IKinematics*						kinematics = kinematics_animated->dcast_PKinematics();
 	u16									bone_count = kinematics->LL_BoneCount();
 	MotionID							animation = kinematics_animated->LL_MotionID(animation_id);
 	VERIFY								(animation.valid());
@@ -1276,7 +1276,7 @@ static void fill_bones				(CAI_Stalker& self, Fmatrix const& transform, IKinemat
 		u32 const blend_count			= kinematics_animated->LL_PartBlendsCount(i);
 		for (u32 j=0; j<blend_count; ++j) {
 			CBlend* const blend			= kinematics_animated->LL_PartBlend(i, j);
-			CBlend* const new_blend		= kinematics_animated->LL_PlayCycle( i, blend->motionID, TRUE, 0, 0, 1 );
+			CBlend* const new_blend		= kinematics_animated->LL_PlayCycle( i, blend->motionID, true, 0, 0, 1 );
 			VERIFY						(new_blend);
 			*new_blend					= *blend;
 			new_blend->channel			= 1;
@@ -1371,9 +1371,9 @@ static void draw_bones				(
 }
 #endif // #ifdef DEBUG_RENDER
 
-static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, IKinematicsAnimated* kinematics_animated, LPCSTR animation_id)
+static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, IKinematicsAnimated* kinematics_animated, const char* animation_id)
 {
-	IKinematics* kinematics				= smart_cast<IKinematics*>(kinematics_animated);
+	IKinematics* kinematics				= kinematics_animated->dcast_PKinematics();
 
 	u16									spine_bone_id = 
 		(u16)kinematics->LL_BoneID(
@@ -1408,7 +1408,7 @@ static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, I
 
 #if 0
 	Fmatrix								player_head;
-	IKinematics* actor_kinematics		= smart_cast<IKinematics*>(Actor()->Visual());
+	IKinematics* actor_kinematics		= PKinematics(Actor()->Visual());
 	actor_kinematics->Bone_GetAnimPos	(player_head, actor_kinematics->LL_BoneID("bip01_head"), 1, false);
 	player_head.mulA_43					(Actor()->XFORM());
 	Fvector								target = player_head.c;
@@ -1422,7 +1422,7 @@ static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, I
 	fill_bones							(self, transform, kinematics_animated, animation_id, true);
 
 #ifdef DEBUG_RENDER
-//	self.setVisible						(FALSE);
+//	self.setVisible						(false);
 
 	draw_bones							(
 		*kinematics,
@@ -1438,7 +1438,7 @@ static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, I
 	Fmatrix							spine_bone;
 	spine_bone.mul_43				(transform, g_stalker_skeleton[spine_bone_id]);
 
-	CWeapon* weapon					= smart_cast<CWeapon*>(self.best_weapon());
+	CWeapon* weapon					= self.best_weapon() != nullptr ? self.best_weapon()->cast_weapon() : nullptr;
 	VERIFY							(weapon);
 	
 	Fvector							pos,ypr;
@@ -1580,7 +1580,7 @@ static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, I
 			self.animation().assign_bone_callbacks();
 	}
 
-	kinematics->CalculateBones		(TRUE);
+	kinematics->CalculateBones		(true);
 
 	VERIFY							(!g_stalker_skeleton.empty());
 
@@ -1588,7 +1588,7 @@ static void draw_animation_bones	(CAI_Stalker& self, Fmatrix const& transform, I
 	CDebugRenderer&					renderer = Level().debug_renderer();
 
 	if (self.inventory().ActiveItem()) {
-		CWeapon*					weapon_ = smart_cast<CWeapon*>(self.inventory().ActiveItem());
+		CWeapon*					weapon_ = self.inventory().ActiveItem()->cast_weapon();
 		if (weapon_) {
 			Fvector position		= weapon_->get_LastFP();
 			Fvector direction		= weapon_->get_LastFD();
@@ -1647,7 +1647,7 @@ Fvector	g_debug_position_3		= Fvector().set(0.f, 0.f, 0.f);
 void CAI_Stalker::OnRender				()
 {
 #if 0
-	IKinematicsAnimated*		kinematics = smart_cast<IKinematicsAnimated*>(Visual());
+	IKinematicsAnimated*		kinematics = Visual()->dcast_PKinematicsAnimated();
 	VERIFY						(kinematics);
 //	draw_animation_bones		(*this, XFORM(), kinematics, "loophole_2_no_look_idle_0");
 

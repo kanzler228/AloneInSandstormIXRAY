@@ -25,14 +25,16 @@ struct	SMusicTrack
 #ifdef DEBUG
 	shared_str		m_DbgName;
 #endif
+	ref_sound		m_SourceLeft;
+	ref_sound		m_SourceRight;
 	ref_sound		m_SourceStereo;
 	Ivector2		m_ActiveTime;
 	Ivector2		m_PauseTime;
 	float			m_Volume;
 public:
-	void			Load			(LPCSTR fn, LPCSTR params);
-	BOOL			in				(u32 game_time);
-	BOOL			IsPlaying		();
+	void			Load			(const char* fn, const char* params);
+	bool			in				(u32 game_time);
+	bool			IsPlaying		();
 	void			Play			();
 	void			Stop			();
 	void			SetVolume		(float volume);

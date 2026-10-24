@@ -109,7 +109,7 @@ void SHeightMap::PrecacheRenderData(float scaleY, float cellSize, u32 baseColor,
 			bool isFlat = false, hasHoles = false;
 		};
 
-		std::vector<ChunkInfo> chunkInfos(chunkCountX * chunkCountZ);
+		xr_vector<ChunkInfo> chunkInfos(chunkCountX * chunkCountZ);
 		RenderData.Chunks.reserve(chunkCountX * chunkCountZ);
 
 		float globalMinH = FLT_MAX;
@@ -269,7 +269,7 @@ void SHeightMap::Draw(float scaleY, float cellSize)
 		return;
 
 	DU_impl.DD_DrawFace_begin(false);
-	RCache.set_CullMode(CULL_NONE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
 	EDevice->SetShader(EDevice->m_WireShader);
 
 	CFrustum& frustum = ::Render->ViewBase;

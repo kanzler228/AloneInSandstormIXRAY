@@ -9,14 +9,14 @@
 extern	u32				psSoundModel;
 extern	float			psSoundVEffects;
 
-void CSoundRender_Emitter::set_position(const Fvector &pos)	
-{ 
-	if(source()->channels_num()==1 && _valid(pos))
-		p_source.position	= pos; 
-	else
-		p_source.position.set(0,0,0); 
+void CSoundRender_Emitter::set_position(const Fvector& pos)
+{
+	if (_valid(pos))
+	{
+		p_source.position = pos;
+	}
 
-	bMoved				= TRUE;					
+	bMoved = true;
 }
 
 CSoundRender_Emitter::CSoundRender_Emitter(void)
@@ -37,10 +37,10 @@ CSoundRender_Emitter::CSoundRender_Emitter(void)
 	occluder[2].set				(0,0,0);
 	m_current_state				= stStopped;
 	set_cursor					(0);
-	bMoved						= TRUE;
-	b2D							= FALSE;
-	bStopping					= FALSE;
-	bRewind						= FALSE;
+	bMoved						= true;
+	b2D							= false;
+	bStopping					= false;
+	bRewind						= false;
 	iPaused						= 0;
 	fTimeStarted				= 0.0f;
 	fTimeToStop				= 0.0f;
@@ -81,7 +81,7 @@ void CSoundRender_Emitter::Event_Propagade	()
 	VERIFY						(_valid(p_source.volume));
 	// Calculate range
 	float	clip				= p_source.max_ai_distance*p_source.volume;
-	float	range				= _min(p_source.max_ai_distance,clip);
+	float	range				= std::min(p_source.max_ai_distance,clip);
 	if (range<0.1f)				return;
 
 	// Inform objects
@@ -90,20 +90,20 @@ void CSoundRender_Emitter::Event_Propagade	()
 
 void CSoundRender_Emitter::switch_to_2D()
 {
- 	b2D 						= TRUE;	
+ 	b2D 						= true;	
 	set_priority				(100.f);
 }
 
 void CSoundRender_Emitter::switch_to_Intro()
 {
 	bIntro = true;
-	b2D = TRUE;
+	b2D = true;
 	set_priority(100.f);
 }
 
 void CSoundRender_Emitter::switch_to_3D()						
 { 	
-	b2D 						= FALSE;											
+	b2D 						= false;											
 }
 
 u32	CSoundRender_Emitter::play_time	( )

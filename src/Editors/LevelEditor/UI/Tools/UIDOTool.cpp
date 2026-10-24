@@ -1,84 +1,111 @@
 #include "stdafx.h"
-UIDOTool::UIDOTool()
-{
-	m_DOShuffle = false;
-}
-
-UIDOTool::~UIDOTool()
-{
-}
 
 void UIDOTool::Draw()
 {
-	if (ImGui::Button("First Initialize", ImVec2(-1, 0)))
-	{
-		if (DM->Initialize())
-			Scene->UndoSave();
-	}
+	float ItemSpacingX = ImGui::GetStyle().ItemSpacing.x;
 
-	if (ImGui::Button("Reinitialize All", ImVec2(-1, 0)))
+	if (XRay::ImGui::BeginDarkChild("ObjectToolsBorder", { 0, 0 }, ImGuiChildFlags_AutoResizeY))
 	{
-		if (DM->Reinitialize())
-			Scene->UndoSave();
-	}
+		ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 0.f);
 
-	if (ImGui::Button("Reinitialize Objects Only", ImVec2(-1, 0)))
-	{
-		if (DM->UpdateObjects(true, false))
-			Scene->UndoSave();
-	}
+		ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+		if (XRay::ImGui::BeginExpand("Affect in D3D"))
+		{
+			float SizeX = (ImGui::GetContentRegionAvail().x - ItemSpacingX) / 2;
 
-	if (ImGui::Button("Reinitialize Selected Slot Objects", ImVec2(-1, 0)))
-	{
-		if (DM->UpdateObjects(false, true))
-			Scene->UndoSave();
-	}
-	ImGui::Separator();
+			if (XRay::ImGui::Button("First Init", { SizeX, 0 }))
+			{
+				if (DM->Initialize())
+				{
+					Scene->UndoSave();
+				}
+			}
+			
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Reinit All", { SizeX, 0 }))
+			{
+				if (DM->Reinitialize())
+				{
+					Scene->UndoSave();
+				}
+			}
 
-	if (ImGui::Button("Update Renderer", ImVec2(-1, 0)))
-	{
-		DM->InvalidateCache();
-		Scene->UndoSave();
-	}
-	ImGui::Separator();
+			if (XRay::ImGui::Button("Reinit Objects Only", { SizeX, 0 }))
+			{
+				if (DM->UpdateObjects(true, false))
+				{
+					Scene->UndoSave();
+				}
+			}
+			
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Reinit Selected Slot", { SizeX, 0 }))
+			{
+				if (DM->UpdateObjects(false, true))
+				{
+					Scene->UndoSave();
+				}
+			}
 
-	if (ImGui::Button("Clear Slots", ImVec2(-1, 0)))
-	{
-		if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to reset slots?") == mrYes) {
-			DM->ClearSlots();
-			Scene->UndoSave();
+			XRay::ImGui::Separator();
+
+			if (XRay::ImGui::Button("Clear Slots", { SizeX, 0 }))
+			{
+				if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to reset slots?") == mrYes)
+				{
+					DM->ClearSlots();
+					Scene->UndoSave();
+				}
+			}
+
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Clear Details", { SizeX, 0 }))
+			{
+				if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to clear details?") == mrYes)
+				{
+					ExecCommand(COMMAND_UPDATE_PROPERTIES);
+					DM->Clear();
+					Scene->UndoSave();
+				}
+			}
+
+			XRay::ImGui::Separator();
+
+			if (XRay::ImGui::Button("Object List", { SizeX, 0 }))
+			{
+				m_DOShuffle = true;
+				UIDOShuffle::Show(DM);
+			}
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Update Renderer", { SizeX, 0 }))
+			{
+				DM->InvalidateCache();
+				Scene->UndoSave();
+			}
+
+			XRay::ImGui::Separator();
+
+			XRay::ImGui::TextFramed("Base Texture");
+			ImGui::SameLine(0, ItemSpacingX);
+
+			shared_str StrBaseTextureName = "<none>";
+			if (DM->m_Base.name.size() > 0)
+			{
+				StrBaseTextureName = DM->m_Base.name;
+			}
+
+			if (XRay::ImGui::Button(*StrBaseTextureName, ImVec2(-0.01, 0)))
+			{
+				UIChooseForm::SelectItem(smTexture, 1);
+				IsChooseDraw = true;
+			}
+
+			XRay::ImGui::EndExpand();
 		}
-	}
 
-	if (ImGui::Button("Clear Details", ImVec2(-1, 0)))
-	{
-		if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to clear details?") == mrYes) {
-			ExecCommand(COMMAND_UPDATE_PROPERTIES);
-			DM->Clear();
-			Scene->UndoSave();
-		}
-	}
-	ImGui::Separator();
+		ImGui::PopStyleVar(); // IndentSpacing
 
-	if (ImGui::Button("Object List", ImVec2(-1, 0)))
-	{
-		m_DOShuffle = true;
-		UIDOShuffle::Show(DM);
-	}
-	ImGui::Separator();
-
-	ImGui::Text("Base Texture");
-
-	shared_str StrBaseTextureName = "<none>";
-	if (DM->m_Base.name.size() > 0)
-	{
-		StrBaseTextureName = DM->m_Base.name;
-	}
-
-	if (ImGui::Button(*StrBaseTextureName, ImVec2(-1, 0)))
-	{
-		UIChooseForm::SelectItem(smTexture, 1);
-		IsChooseDraw = true;
+		XRay::ImGui::EndDarkChild();
 	}
 
 	if (IsChooseDraw)

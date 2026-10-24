@@ -18,17 +18,18 @@ public:
 	IC bool operator() (CObject* O) { return cls==O->CLS_ID; }
 };
 #ifdef	DEBUG
-	BOOL debug_destroy = TRUE;
+	bool debug_destroy = true;
 #endif
 
-CObjectList::CObjectList	( ) :
-	m_owner_thread_id		(GetCurrentThreadId())
+CObjectList::CObjectList() :
+	m_owner_thread_id(std::this_thread::get_id())
 {
 	ZeroMemory				(map_NETID, 0xffff*sizeof(CObject*));
 }
 
 CObjectList::~CObjectList	( )
 {
+	Unload();
 	R_ASSERT				( objects_active.empty()	);
 	R_ASSERT				( objects_sleeping.empty()	);
 	R_ASSERT				( destroy_queue.empty()		);
@@ -43,7 +44,7 @@ CObject*	CObjectList::FindObjectByName	( shared_str name )
 		if ((*I)->cName().equal(name))	return (*I);
 	return	nullptr;
 }
-CObject*	CObjectList::FindObjectByName	( LPCSTR name )
+CObject*	CObjectList::FindObjectByName	( const char* name )
 {
 	return	FindObjectByName				(shared_str(name));
 }
@@ -118,7 +119,10 @@ void	CObjectList::SingleUpdate	(CObject* O)
 
 //	Msg							("[%d][0x%08x]IAmNotACrowAnyMore (CObjectList::SingleUpdate)", Device.dwFrame, dynamic_cast<void*>(O));
 
-	O->UpdateCL					();
+	{
+		PROF_MESSAGE(*shared_str().printf("CObjectList::SingleUpdate | Object: %s", *O->cNameSect()));
+		O->UpdateCL();
+	}
 
 	VERIFY3						(O->dbg_update_cl == Device.dwFrame, "Broken sequence of calls to 'UpdateCL'",*O->cName());
 #if 0//ndef DEBUG
@@ -263,23 +267,39 @@ void CObjectList::Update		(bool bForce)
 	{
 		// Info
 		for (Objects::iterator oit=objects_active.begin(); oit!=objects_active.end(); oit++)
-			for (int it = (int)destroy_queue.size()-1; it>=0; it--){
-				(*oit)->net_Relcase		(destroy_queue[it]);
+		{
+			for (int it = (int)destroy_queue.size() - 1; it >= 0; it--)
+			{
+				CObject* obj = destroy_queue[it];
+				(*oit)->net_Relcase(obj);
+				g_pGameLevel->SoundEvent_net_Relcase(obj);
 			}
+		}
 		for (Objects::iterator oit=objects_sleeping.begin(); oit!=objects_sleeping.end(); oit++)
-			for (int it = (int)destroy_queue.size()-1; it>=0; it--)	(*oit)->net_Relcase	(destroy_queue[it]);
+		{
+			for (int it = (int)destroy_queue.size() - 1; it >= 0; it--)
+			{
+				CObject* obj = destroy_queue[it];
+				(*oit)->net_Relcase(obj);
+				g_pGameLevel->SoundEvent_net_Relcase(obj);
+			}
+		}
 
 		for (int it = (int)destroy_queue.size()-1; it>=0; it--)	Sound->object_relcase	(destroy_queue[it]);
 		
 		RELCASE_CALLBACK_VEC::iterator It	= m_relcase_callbacks.begin();
 		RELCASE_CALLBACK_VEC::iterator Ite	= m_relcase_callbacks.end();
-		for(;It!=Ite; ++It)	{
-			VERIFY			(*(*It).m_ID==(It-m_relcase_callbacks.begin()));
+		for(;It!=Ite; ++It)
+		{
+			VERIFY(*(*It).m_ID==(It-m_relcase_callbacks.begin()));
 			Objects::iterator dIt	= destroy_queue.begin();
 			Objects::iterator dIte	= destroy_queue.end();
-			for (;dIt!=dIte; ++dIt) {
-				(*It).m_Callback(*dIt);
-				g_hud->net_Relcase	(*dIt);
+			for (;dIt!=dIte; ++dIt)
+			{
+				CObject* obj = *dIt;
+				(*It).m_Callback(obj);
+				g_hud->net_Relcase(obj);
+				g_pGameLevel->SoundEvent_net_Relcase(obj);
 			}
 		}
 
@@ -455,7 +475,7 @@ void CObjectList::Unload	( )
 	}
 }
 
-CObject*	CObjectList::Create				( LPCSTR	name	)
+CObject*	CObjectList::Create				( const char*	name	)
 {
 	CObject*	O				= g_pGamePersistent->ObjectPool.create(name);
 //	Msg("CObjectList::Create [%x]%s", O, name);
@@ -470,7 +490,7 @@ void		CObjectList::Destroy			( CObject*	O		)
 
 	if ( !Device.Paused() ) {
 		if ( !m_crows[1].empty() ) {
-			Msg								( "assertion !m_crows[1].empty() failed: %d", m_crows[1].size() );
+			Msg								( "assertion !m_crows[1].empty() failed: %zu", m_crows[1].size() );
 
 			Objects::const_iterator i		= m_crows[1].begin( );
 			Objects::const_iterator	const e	= m_crows[1].end( );
@@ -542,7 +562,7 @@ void CObjectList::relcase_unregister	(int* ID)
 	m_relcase_callbacks.pop_back	();
 }
 
-void CObjectList::dump_list(Objects& v, LPCSTR reason)
+void CObjectList::dump_list(Objects& v, const char* reason)
 {
 	Objects::iterator it = v.begin();
 	Objects::iterator it_e = v.end();
@@ -582,7 +602,7 @@ void CObjectList::register_object_to_destroy(CObject *object_to_destroy)
 		if(!O->getDestroy() && O->H_Parent()==object_to_destroy)
 		{
 			Msg("setDestroy called, but not-destroyed child found parent[%d] child[%d]",object_to_destroy->ID(), O->ID(), Device.dwFrame);
-			O->setDestroy(TRUE);
+			O->setDestroy(true);
 		}
 	}
 
@@ -594,7 +614,7 @@ void CObjectList::register_object_to_destroy(CObject *object_to_destroy)
 		if(!O->getDestroy() && O->H_Parent()==object_to_destroy)
 		{
 			Msg("setDestroy called, but not-destroyed child found parent[%d] child[%d]",object_to_destroy->ID(), O->ID(), Device.dwFrame);
-			O->setDestroy(TRUE);
+			O->setDestroy(true);
 		}
 	}
 }

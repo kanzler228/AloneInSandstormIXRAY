@@ -5,7 +5,6 @@
 //	Author		: Dmitriy Iassenev
 //	Description : Object loader
 ////////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
 template <class M, typename P>
@@ -21,7 +20,7 @@ struct CLoader {
 		}
 
 		template <>
-		IC	static void load_data<true>(T &data, M &stream, const P &p)
+		IC void load_data<true>(T &data, M &stream, const P &p)
 		{
 			T* data1 = const_cast<T*>(&data);
 			data1->load	(stream);
@@ -34,16 +33,11 @@ struct CLoader {
 		template <bool pointer>
 		IC	static void load_data(T &data, M &stream, const P &p)
 		{
-			CHelper1<T>::load_data<
-				object_type_traits::is_base_and_derived_or_same_from_template<
-					IPureLoadableObject,
-					T
-				>::value
-			>(data,stream,p);
+			CHelper1<T>::template load_data<object_type_traits::is_base_and_derived_or_same_from_template<IPureLoadableObject, T>::value>(data,stream,p);
 		}
 
 		template <>
-		IC	static void load_data<true>(T &data, M &stream, const P &p)
+		IC void load_data<true>(T &data, M &stream, const P &p)
 		{
 			CLoader<M,P>::load_data	(*(data = new std::remove_pointer<T>::type()),stream,p);
 		}
@@ -62,15 +56,17 @@ struct CLoader {
 		};
 
 		template <typename T>
-		struct is_tree_structure {
-			enum { 
-				value = 
-					has_value_compare<T>::value
+		struct is_tree_structure
+		{
+			enum
+			{ 
+				value = has_value_compare<T>::value
 			};
 		};
 
 		template <typename T1, typename T2>
-		struct add_helper {
+		struct add_helper
+		{
 			template <bool>
 			IC	static void add(T1 &data, T2 &value)
 			{
@@ -78,7 +74,7 @@ struct CLoader {
 			}
 
 			template <>
-			IC	static void add<true>(T1 &data, T2 &value)
+			IC void add<true>(T1 &data, T2 &value)
 			{
 				data.insert		(value);
 			}
@@ -87,7 +83,7 @@ struct CLoader {
 		template <typename T1, typename T2>
 		IC	static void add(T1 &data, T2 &value)
 		{
-			add_helper<T1,T2>::add<is_tree_structure<T1>::value>(data,value);
+			add_helper<T1,T2>::template add<is_tree_structure<T1>::value>(data,value);
 		}
 
 		template <typename T>
@@ -110,17 +106,17 @@ struct CLoader {
 		template <bool a>
 		IC	static void load_data(T &data, M &stream, const P &p)
 		{
-			CHelper<T>::load_data<std::is_pointer<T>::value>	(data,stream,p);
+			CHelper<T>::template load_data<std::is_pointer<T>::value>	(data,stream,p);
 		}
 
 		template <>
-		IC	static void load_data<true>(T &data, M &stream, const P &p)
+		IC void load_data<true>(T &data, M &stream, const P &p)
 		{
 			CHelper3::load_data			(data,stream,p);
 		}
 	};
 
-	IC	static void load_data(LPCSTR &data, M &stream, const P &p)
+	IC	static void load_data(const char* &data, M &stream, const P &p)
 	{
 		NODEFAULT;
 	}
@@ -148,7 +144,7 @@ struct CLoader {
 	IC	static void load_data(std::pair<T1,T2> &data, M &stream, const P &p)
 	{
 		if (p(data,const_cast<std::remove_const<T1>::type&>(data.first),true)) {
-			const bool					value = std::is_same<T1,LPCSTR>::value;
+			const bool					value = std::is_same<T1,const char*>::value;
 			VERIFY						(!value);
 			load_data					(const_cast<std::remove_const<T1>::type&>(data.first),stream,p);
 		}
@@ -176,13 +172,13 @@ struct CLoader {
 	};
 
 	template <typename T, int size>
-	IC	static void load_data(svector<T,size> &data, M &stream, const P &p)
+	IC	static void load_data(FixedVector<T,size> &data, M &stream, const P &p)
 	{
 		if (p.can_clear())
 			data.clear();
 		u32								count = stream.r_u32();
 		for (u32 i=0; i<count; ++i) {
-			typename svector<T,size>::value_type	temp;
+			typename FixedVector<T,size>::value_type	temp;
 			CLoader<M,P>::load_data		(temp,stream,p);
 			if (p(data,temp))
 				data.push_back			(temp);
@@ -261,7 +257,7 @@ struct CLoader {
 	template <typename T>
 	IC	static void load_data(T &data, M &stream, const P &p)
 	{
-		CHelper4<T>::load_data<object_type_traits::is_stl_container<T>::value>	(data,stream,p);
+		CHelper4<T>::template load_data<object_type_traits::is_stl_container<T>::value>(data,stream,p);
 	}
 };
 

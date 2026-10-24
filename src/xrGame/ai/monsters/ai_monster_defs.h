@@ -103,13 +103,18 @@ struct SVelocityParam {
 		max_factor				= 1.0f;
 	}
 
-	void	Load (LPCSTR section, LPCSTR line) {
+	bool	Load (const char* section, const char* line) 
+	{
+		if (!pSettings->line_exist(section, line))
+			return false;
+
 		string32 buffer;
 		velocity.linear			= float(atof(_GetItem(pSettings->r_string(section,line),0,buffer)));
 		velocity.angular_real	= float(atof(_GetItem(pSettings->r_string(section,line),1,buffer)));
 		velocity.angular_path	= float(atof(_GetItem(pSettings->r_string(section,line),2,buffer)));
 		min_factor				= float(atof(_GetItem(pSettings->r_string(section,line),3,buffer)));
 		max_factor				= float(atof(_GetItem(pSettings->r_string(section,line),4,buffer)));
+		return true;
 	}
 };
 
@@ -274,7 +279,7 @@ typedef		shared_str			anim_string;
 struct SAnimItem {
 
 	anim_string		target_name;	// "stand_idle_"
-    bool			target_may_not_exist;
+	bool			target_may_not_exist;
 	int				spec_id;		// (-1) - any,  (0 - ...) - идентификатор 3
 	u8				count;			// количество анимаций : "idle_0", "idle_1", "idle_2" 
 	
@@ -382,8 +387,8 @@ struct SCurrentAnimationInfo {
 	TTime		time_started;
 
 	struct {
-		IC void		_set_current	(float v)			{ current=v; VERIFY2(_abs(v)<1000,"_set_current(). monster speed is too big"); }
-		IC void		_set_target		(float v)			{ target=v;	VERIFY2(_abs(v)<1000,"_set_target(). monster speed is too big");}
+		IC void		_set_current	(float v)			{ current=v; VERIFY2(std::abs(v)<1000,"_set_current(). monster speed is too big"); }
+		IC void		_set_target		(float v)			{ target=v;	VERIFY2(std::abs(v)<1000,"_set_target(). monster speed is too big");}
 		IC float	_get_current	()					{ return current; }
 		IC float	_get_target		()					{ return target; }
 	private:

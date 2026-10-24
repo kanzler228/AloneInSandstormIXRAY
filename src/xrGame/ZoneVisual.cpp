@@ -1,5 +1,5 @@
 #include "StdAfx.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 //#include "../Include/xrRender/KinematicsAnimated.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
 #include "ZoneVisual.h"
@@ -14,10 +14,10 @@ CVisualZone::~CVisualZone						()
 
 }
 
-BOOL CVisualZone::	net_Spawn						(CSE_Abstract* DC)
+bool CVisualZone::	net_Spawn						(CSE_Abstract* DC)
 {
 	if (!inherited::net_Spawn(DC))
-		return					(FALSE);
+		return					(false);
 
 	CSE_Abstract* e = (CSE_Abstract*)(DC);
 	CSE_ALifeZoneVisual* Z = smart_cast<CSE_ALifeZoneVisual*>(e);
@@ -46,9 +46,9 @@ BOOL CVisualZone::	net_Spawn						(CSE_Abstract* DC)
 
 	SA->PlayCycle				(m_idle_animation);
 
-	setVisible					(TRUE);
+	setVisible					(true);
 
-	return						(TRUE);
+	return						(true);
 }
 
 void CVisualZone::SwitchZoneState(EZoneState new_state)
@@ -61,7 +61,7 @@ void CVisualZone::SwitchZoneState(EZoneState new_state)
 	inherited::SwitchZoneState(new_state);
 
 }
-void CVisualZone::Load(LPCSTR section)
+void CVisualZone::Load(const char* section)
 {
 	inherited::Load(section);
 	m_dwAttackAnimaionStart		=pSettings->r_u32(section,"attack_animation_start");

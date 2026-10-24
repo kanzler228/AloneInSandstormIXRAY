@@ -8,9 +8,9 @@
 
 #pragma once
 
-IC	bool CInventoryItem::useful_for_NPC					() const
+IC	bool CInventoryItem::useful_for_NPC() const
 {
-	return				(Useful() && m_flags.test(Fuseful_for_NPC));
+	return Useful() && m_flags.test(Fuseful_for_NPC);
 }
 
 IC CInventoryItem::Upgrades_type const& CInventoryItem::upgardes() const
@@ -18,42 +18,135 @@ IC CInventoryItem::Upgrades_type const& CInventoryItem::upgardes() const
 	return m_upgrades;
 }
 
-template <typename T>
-IC bool CInventoryItem::process_if_exists( LPCSTR section, LPCSTR name, T (CInifile::*method)(LPCSTR, LPCSTR) const, T& value, bool test )
+template <XRay::Concepts::Arithmetic T>
+IC bool CInventoryItem::process_if_exists(const char* section, const char* name, T& value, bool test)
 {
-	if ( !pSettings->line_exist( section, name ) )
-	{
-		return false;
-	}
-	LPCSTR str = pSettings->r_string( section, name );
-	if ( !str || !xr_strlen(str) )
+	static_assert(!std::is_same_v<T, char> && !std::is_same_v<T, double>, "process_if_exists: type bool, char or double is not allowed");
+
+	if (!pSettings->line_exist(section, name))
 	{
 		return false;
 	}
 
-	if ( !test )
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
 	{
-		value = value + (pSettings->*method)( section, name ); // add
+		return false;
 	}
+
+	if (!test)
+	{
+		value += pSettings->read<T>(section, name); // add
+	}
+
 	return true;
 }
 
-template <typename T>
-IC bool CInventoryItem::process_if_exists_set( LPCSTR section, LPCSTR name, T (CInifile::*method)(LPCSTR, LPCSTR) const, T& value, bool test )
+template <XRay::Concepts::Arithmetic T>
+IC bool CInventoryItem::process_if_exists_set(const char* section, const char* name, T& value, bool test)
 {
-	if ( !pSettings->line_exist( section, name ) )
-	{
-		return false;
-	}
-	LPCSTR str = pSettings->r_string( section, name );
-	if ( !str || !xr_strlen(str) )
+	static_assert(!std::is_same_v<T, char> && !std::is_same_v<T, double>, "process_if_exists_set: type bool, char or double is not allowed");
+
+	if (!pSettings->line_exist(section, name))
 	{
 		return false;
 	}
 
-	if ( !test )
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
 	{
-		value = (pSettings->*method)( section, name );    // set
+		return false;
 	}
+
+	if (!test)
+	{
+		value = pSettings->read<T>(section, name);    // set
+	}
+
+	return true;
+}
+
+IC bool CInventoryItem::process_if_exists_set(const char* section, const char* name, shared_str& value, bool test)
+{
+	if (!pSettings->line_exist(section, name))
+	{
+		return false;
+	}
+
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
+	{
+		return false;
+	}
+
+	if (!test)
+	{
+		value._set(str);
+	}
+
+	return true;
+}
+
+IC bool CInventoryItem::process_if_exists_set(const char* section, const char* name, const char*& value, bool test)
+{
+	if (!pSettings->line_exist(section, name))
+	{
+		return false;
+	}
+
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
+	{
+		return false;
+	}
+
+	if (!test)
+	{
+		value = str;
+	}
+
+	return true;
+}
+
+IC bool CInventoryItem::process_if_exists_set(const char* section, const char* name, xr_string& value, bool test)
+{
+	if (!pSettings->line_exist(section, name))
+	{
+		return false;
+	}
+
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
+	{
+		return false;
+	}
+
+	if (!test)
+	{
+		value = str;
+	}
+
+	return true;
+}
+
+template <XRay::Concepts::FloatPoint T>
+IC bool CInventoryItem::process_if_exists_deg2rad(const char* section, const char* name, T& value, bool test)
+{
+	if (!pSettings->line_exist(section, name))
+	{
+		return false;
+	}
+
+	const char* str = pSettings->r_string(section, name);
+	if (!str || !xr_strlen(str))
+	{
+		return false;
+	}
+
+	if (!test)
+	{
+		value += deg2rad(pSettings->r_float(section, name));
+	}
+
 	return true;
 }

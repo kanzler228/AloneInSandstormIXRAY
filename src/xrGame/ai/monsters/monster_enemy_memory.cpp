@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "monster_enemy_memory.h"
 #include "basemonster/base_monster.h"
@@ -19,9 +19,7 @@ CMonsterEnemyMemory::CMonsterEnemyMemory()
 	time_memory		= 15000; 
 }
 
-CMonsterEnemyMemory::~CMonsterEnemyMemory()
-{
-}
+CMonsterEnemyMemory::~CMonsterEnemyMemory() = default;
 
 void CMonsterEnemyMemory::init_external(CBaseMonster *M, TTime mem_time) 
 {
@@ -43,9 +41,9 @@ void CMonsterEnemyMemory::update()
 
 	if ( monster_hit_memory.is_hit() && time() < monster_hit_memory.get_last_hit_time() + 1000 )
 	{
-		if ( CEntityAlive* enemy = smart_cast<CEntityAlive*>(monster->HitMemory.get_last_hit_object()) )
+		if (CEntityAlive* enemy = monster->HitMemory.get_last_hit_object() != nullptr ? monster->HitMemory.get_last_hit_object()->cast_entity_alive() : nullptr)
 		{
-			if ( monster->CCustomMonster::useful(&monster->memory().enemy(), enemy) && 
+			if ( monster->CCreature::useful(&monster->memory().enemy(), enemy) && 
 				 monster->Position().distance_to(enemy->Position()) 
 				                        < 
 				 monster->get_feel_enemy_who_just_hit_max_distance() )
@@ -67,14 +65,15 @@ void CMonsterEnemyMemory::update()
 		SoundElem sound;
 		bool dangerous;
 		monster->SoundMemory.GetSound(sound, dangerous);
-		if ( dangerous && Device.dwTimeGlobal < sound.time + 2000 )
+		if ( g_actor && dangerous && Device.dwTimeGlobal < sound.time + 2000 )
 		{
-			if ( CEntityAlive const* enemy = smart_cast<CEntityAlive const*>(sound.who) )
+			CObject* cast_who = const_cast<CObject*>(sound.who);
+			if (CEntityAlive const* enemy = cast_who != nullptr ? cast_who->cast_entity_alive() : nullptr)
 			{
 				float const xz_dist	=	monster->Position().distance_to_xz(g_actor->Position());
-				float const y_dist	=	_abs(monster->Position().y - g_actor->Position().y);
+				float const y_dist	= std::abs(monster->Position().y - g_actor->Position().y);
 
-				if ( monster->CCustomMonster::useful(&monster->memory().enemy(), enemy) && 
+				if ( monster->CCreature::useful(&monster->memory().enemy(), enemy) && 
 					 y_dist < 10 &&
 					 xz_dist < monster->get_feel_enemy_who_made_sound_max_distance() &&
 					 g_actor->memory().visual().visible_now(monster)	)
@@ -109,7 +108,7 @@ void CMonsterEnemyMemory::update()
 	if ( g_actor )
 	{
 		float const xz_dist	=	monster->Position().distance_to_xz(g_actor->Position());
-		float const y_dist	=	_abs(monster->Position().y - g_actor->Position().y);
+		float const y_dist	= std::abs(monster->Position().y - g_actor->Position().y);
 
 		if ( xz_dist < feel_enemy_max_distance && 
 			 y_dist < 10 &&
@@ -133,6 +132,11 @@ void CMonsterEnemyMemory::update()
 
 void CMonsterEnemyMemory::add_enemy(const CEntityAlive *enemy)
 {
+	if (enemy->m_bEntityIgnoredByMonsters)
+	{
+		return;
+	}
+
 	SMonsterEnemy enemy_info;
 	enemy_info.position = enemy->Position();
 	enemy_info.vertex   = enemy->ai_location().level_vertex_id();
@@ -151,6 +155,11 @@ void CMonsterEnemyMemory::add_enemy(const CEntityAlive *enemy)
 
 void CMonsterEnemyMemory::add_enemy(const CEntityAlive *enemy, const Fvector &pos, u32 vertex, u32 time)
 {
+	if (enemy->m_bEntityIgnoredByMonsters)
+	{
+		return;
+	}
+
 	SMonsterEnemy enemy_info;
 	enemy_info.position = pos;
 	enemy_info.vertex   = vertex;
@@ -183,6 +192,7 @@ void CMonsterEnemyMemory::remove_non_actual()
 			 it->first->getDestroy()					||
 			 (it->second.time + time_memory < cur_time) ||
 			 (it->first->g_Team() == monster->g_Team()) ||
+			 (it->first->m_bEntityIgnoredByMonsters)	||
 			 !monster->memory().enemy().is_useful(it->first) ) 
 		{
 			m_objects.erase (it);

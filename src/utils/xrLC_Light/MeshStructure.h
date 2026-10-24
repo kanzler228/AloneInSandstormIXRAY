@@ -23,11 +23,6 @@ public:
 	void	OA_Unwarp	(CDeflector * d, xr_vector<type_face*>& affected);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
-	IC void raw_set_vertex( u8 index, type_vertex* _v )
-	{
-		R_ASSERT( index<3 );
-		v[index] = _v;
-	}
 	IC type_vertex*	vertex( u8 index )
 	{
 		R_ASSERT( index<3 );
@@ -84,41 +79,25 @@ public:
 		v[idx]=V;
 		V->prep_add(this);
 	};
+
 	IC void	SetVertices(type_vertex *V1, type_vertex *V2, type_vertex *V3)
 	{
 		SetVertex(0,V1);
 		SetVertex(1,V2);
 		SetVertex(2,V3);
 	};
-	IC BOOL isDegenerated()
+	IC bool isDegenerated()
 	{
 		return (v[0]==v[1] || v[0]==v[2] || v[1]==v[2]);
 	};
-	IC float	EdgeLen			(int edge) const
-	{
-		type_vertex* V1 = v[edge2idx[edge][0]];
-		type_vertex* V2 = v[edge2idx[edge][1]];
-		return V1->P.distance_to(V2->P);
-	};
+
 	IC void	EdgeVerts		(int e, type_vertex** A, type_vertex** B) const
 	{
 		*A = v[edge2idx[e][0]];
 		*B = v[edge2idx[e][1]];
 	}
 
-	BOOL			isEqual		(type_face& F)
-	{
-		// Test for 6 variations
-		if ((v[0]==F.v[0]) && (v[1]==F.v[1]) && (v[2]==F.v[2])) return true;
-		if ((v[0]==F.v[0]) && (v[2]==F.v[1]) && (v[1]==F.v[2])) return true;
-		if ((v[2]==F.v[0]) && (v[0]==F.v[1]) && (v[1]==F.v[2])) return true;
-		if ((v[2]==F.v[0]) && (v[1]==F.v[1]) && (v[0]==F.v[2])) return true;
-		if ((v[1]==F.v[0]) && (v[0]==F.v[1]) && (v[2]==F.v[2])) return true;
-		if ((v[1]==F.v[0]) && (v[2]==F.v[1]) && (v[0]==F.v[2])) return true;
-		return false;
-	}
-
-
+	// Calculate Normal
 	void	CalcNormal	()
 	{
 		Fvector t1,t2;
@@ -175,6 +154,7 @@ public:
 		}
 	}
 
+	// UV, Deflector
 	float CalcArea() const
 	{
 		auto e1 = Fvector().sub(v[0]->P, v[1]->P);
@@ -182,16 +162,8 @@ public:
 		float area = Fvector().crossproduct(e1, e2).magnitude() / 2;
 		return area;
 	}
-	float CalcMaxEdge()
-	{
-		float	e1 = v[0]->P.distance_to(v[1]->P);
-		float	e2 = v[0]->P.distance_to(v[2]->P);
-		float	e3 = v[1]->P.distance_to(v[2]->P);
 
-		if (e1>e2 && e1>e3) return e1;
-		if (e2>e1 && e2>e3) return e2;
-		return e3;
-	}
+	// xrSubdivide used
 	void	CalcCenter	(Fvector &C)
 	{
 		C.set(v[0]->P);
@@ -218,16 +190,12 @@ struct MESHSTRUCTURE_API Tvertex: public DataVertexType
 	Tvertex();
  	~Tvertex();
 
-	size_t used_memory() { return (72) + (m_adjacents.size()*8); };
-
 /*	FUNCTIONS MAIN */
 	Tvertex* CreateCopy_NOADJ(v_vertices& vertises_storage) const;
 
 
 	v_faces m_adjacents;
- 
-
-	IC	type_vertex* CreateCopy(v_vertices& vertises_storage)
+ 	IC	type_vertex* CreateCopy(v_vertices& vertises_storage)
 	{
 		type_vertex* V = CreateCopy_NOADJ(vertises_storage);
 		V->m_adjacents = m_adjacents;
@@ -259,67 +227,30 @@ struct MESHSTRUCTURE_API Tvertex: public DataVertexType
 	}
 
 };
-
-
-
+ 
 template<typename typeVertex>
 IC  void   _destroy_vertex( typeVertex* &v, bool unregister )
 {
 	destroy_vertex( v, unregister );
 }
-
-
+  
 template<typename typeVertex>
-struct remove_pred
+IC void isolate_vertices(bool bProgress, xr_vector<typeVertex*> &vertices )
 {
-	bool operator() ( typeVertex* &v )
-	{
-		if (v && v->m_adjacents.empty())
-		{
-			_destroy_vertex( v, false );
-			return true;
-		}
-		return false;
-	}
-} ;
- 
-template<typename typeVertex>
-IC void isolate_vertices(BOOL bProgress, xr_vector<typeVertex*> &vertices )
-{
- 	Status		("Isolating vertices...");
-
- 	const u32 verts_old		= (u32)vertices.size();
+   	const u32 verts_old		= (u32)vertices.size();
 	u32 vRemoveReal = 0;
 
  	for (auto it = 0; it < verts_old; it++)
 	{
-		Progress	(float(it)/float(verts_old));
-
-		if (vertices[it] && vertices[it]->m_adjacents.empty())
+ 		if (vertices[it] && vertices[it]->m_adjacents.empty())
 		{
 			_destroy_vertex(vertices[it], false);
 			vRemoveReal++;
 		}
 	}
-	//);
-	VERIFY( verts_old == vertices.size() );
+ 	VERIFY( verts_old == vertices.size() );
 
 	auto _end	= std::remove	(vertices.begin(),vertices.end(),(typeVertex*)0);
  	vertices.erase	(_end,vertices.end());
 	vertices.shrink_to_fit();
- 	
-	
-	// 13080 (Ориг нормали) если capacity 12750mb
-	Memory.mem_compact	();
-	
-	if (bProgress)	
-		Progress	(1.f);
-
-	u32 verts_new		= (u32)vertices.size();
-	u32	_count			= verts_old-verts_new;
-	
-	if	(_count)		
-		clMsg	("::compact:: %d verts removed",_count);
-
-	Status(":: compacting vertex: %u, capacity: %u", vertices.size(), vertices.capacity());
 }

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "anti_aim_ability.h"
 #include "basemonster/base_monster.h"
 #include "../../Actor.h"
@@ -10,12 +10,12 @@
 
 namespace detail
 {
-	static pcstr const	s_anti_aim_timeout_string				=	"anti_aim_timeout";
-	static pcstr const	s_anti_aim_effectors_string				=	"anti_aim_effectors";
-	static pcstr const	s_anti_aim_freeze_time_string			=	"anti_aim_freeze_time";
-	static pcstr const	s_anti_aim_max_angle_string				=	"anti_aim_max_angle";
-	static pcstr const	s_anti_aim_detection_gain_speed_string	=	"anti_aim_detection_gain_speed";
-	static pcstr const	s_anti_aim_detection_loose_speed_string	=	"anti_aim_detection_loose_speed";
+	static const char* const	s_anti_aim_timeout_string				=	"anti_aim_timeout";
+	static const char* const	s_anti_aim_effectors_string				=	"anti_aim_effectors";
+	static const char* const	s_anti_aim_freeze_time_string			=	"anti_aim_freeze_time";
+	static const char* const	s_anti_aim_max_angle_string				=	"anti_aim_max_angle";
+	static const char* const	s_anti_aim_detection_gain_speed_string	=	"anti_aim_detection_gain_speed";
+	static const char* const	s_anti_aim_detection_loose_speed_string	=	"anti_aim_detection_loose_speed";
 
 } // namespace detail
 
@@ -34,7 +34,7 @@ anti_aim_ability::~anti_aim_ability ()
 	do_deactivate						();
 }
 
-void   anti_aim_ability::load_from_ini (CInifile const* ini, pcstr const section)
+void   anti_aim_ability::load_from_ini (CInifile const* ini, const char* const section)
 {
 	using namespace						::detail;
 
@@ -43,7 +43,7 @@ void   anti_aim_ability::load_from_ini (CInifile const* ini, pcstr const section
 	m_max_angle						=	READ_IF_EXISTS(ini, r_float, section, s_anti_aim_max_angle_string, 0.5f);
 	m_detection_gain_speed			=	READ_IF_EXISTS(ini, r_float, section, s_anti_aim_detection_gain_speed_string, 1.f);
 	m_detection_loose_speed			=	READ_IF_EXISTS(ini, r_float, section, s_anti_aim_detection_loose_speed_string, 0.1f);
-	pcstr effectors					=	READ_IF_EXISTS(ini, r_string, section, s_anti_aim_effectors_string, nullptr);
+	const char* effectors					=	READ_IF_EXISTS(ini, r_string, section, s_anti_aim_effectors_string, nullptr);
 
 	if ( effectors )
 	{
@@ -172,7 +172,7 @@ void   anti_aim_ability::start_camera_effector ()
 {
 	VERIFY								(!m_effector_id);
 	VERIFY								(m_effectors.size());
-	pcstr const effector_name		=	m_effectors[rand() % m_effectors.size()].c_str();
+	const char* const effector_name		=	m_effectors[rand() % m_effectors.size()].c_str();
 		
 	m_effector_id					=	Actor()->Cameras().RequestCamEffectorId();
 
@@ -185,11 +185,11 @@ void   anti_aim_ability::start_camera_effector ()
 		cam_eff->SetHudAffect			( !!pSettings->r_bool(effector_name, "cam_eff_hud_affect") );
 	}
 
-	LPCSTR fn = pSettings->r_string		(effector_name,"cam_eff_name");
+	const char* fn = pSettings->r_string		(effector_name,"cam_eff_name");
 	cam_eff->Start						(fn);
 
 	m_camera_effector_end_tick		=	Device.dwTimeGlobal + (TTime)(cam_eff->GetAnimatorLength()*1000);
-	m_camera_effector_end_tick		=	_max(m_camera_effector_end_tick, m_animation_end_tick);
+	m_camera_effector_end_tick		= std::max(m_camera_effector_end_tick, m_animation_end_tick);
 
 	Actor()->Cameras().AddCamEffector	(cam_eff);
 	
@@ -257,7 +257,7 @@ float   anti_aim_ability::calculate_angle () const
 	float	const max_deviation		=	angle_between_vectors(to_monster_center, to_monster_head);
 	float	const deviation			=	angle_between_vectors(to_monster_center, self_dir);
 
-	return _max							(0.f, deviation - max_deviation);
+	return std::max(0.f, deviation - max_deviation);
 }
 
 #include "../../level_debug.h"
@@ -269,12 +269,15 @@ bool   anti_aim_ability::check_update_condition () const
 	if ( !m_object->g_Alive() || !Actor() || !Actor()->g_Alive() )
 		return							false;
 	
-	const CActor* actor = smart_cast<const CActor*>(m_object->EnemyMan.get_enemy());
+	CEntityAlive* get_enemy = const_cast<CEntityAlive*>((m_object->EnemyMan.get_enemy()));
+	const CActor* actor = get_enemy != nullptr ? get_enemy->cast_actor() : nullptr;
 
 	if ( !actor )
 		return							false;
 
-	if ( !smart_cast<CWeapon*>(Actor()->inventory().ActiveItem()) )
+	PIItem active_item = Actor()->inventory().ActiveItem();
+
+	if (active_item != nullptr && active_item->cast_weapon() == nullptr)
 		return							false;
 
 	return								true;
@@ -341,7 +344,7 @@ void   anti_aim_ability::update_schedule ()
 	m_last_detection_tick			=	Device.dwTimeGlobal;
 
 	float const angle				=	calculate_angle();
-	float const average_angle		=	_min(m_max_angle, (angle + m_last_angle) / 2);
+	float const average_angle		= std::min(m_max_angle, (angle + m_last_angle) / 2);
 	float const relative_angle		=	(m_max_angle-average_angle) / m_max_angle; 
 	float const detect_speed		=	can_detect() ? _sqr(relative_angle) * m_detection_gain_speed : 0;
 

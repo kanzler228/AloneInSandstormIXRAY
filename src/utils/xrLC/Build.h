@@ -4,6 +4,7 @@
 #pragma once
 #include "../xrDXT/xrDXT.h"
 #include "../../xrCore/FS.h"
+#include "../../xrCore/Collision/xrCDB.h"
 #include "../Shader_xrLC.h"
 
 #include "../xrLC_Light/b_build_texture.h"
@@ -12,6 +13,8 @@
 class xrLC_GlobalData;
 class xrMU_Model;
 class xrMU_Reference;
+class CSector;
+
 extern "C" XRLC_LIGHT_API xrLC_GlobalData*	lc_global_data();
 //////////////////////////////////////////////////////////////////////////
 // tesselator callbacks
@@ -24,7 +27,8 @@ typedef void	tesscb_vertex		(Vertex*	V);	// new vertex
 
 class  base_lighting;
 extern size_t GetHeapMemory();
-  
+extern size_t GetHeapMemoryIXray();
+
 //////////////////////////////////////////////////////////////////////////
 class CBuild  
 {
@@ -42,8 +46,8 @@ public:
 	xr_vector<b_portal>				portals;
 	xr_vector<b_lod>				lods;
 	string_path						path;
-	xr_vector<LPCSTR>				g_Shaders;
-
+	xr_vector<const char*>				g_Shaders;
+	CDB::CollectorPacked			CL;
 
 	xr_vector<b_material>			&materials()	;
 	xr_vector<b_BuildTexture>		&textures()	;
@@ -53,21 +57,18 @@ public:
 
 	Shader_xrLC_LIB					&shaders();
 
-
-	void	mem_Compact				();
- 
 public:
-//	void	GetMemoryUsedStorage();
-
 	void	Load					(const b_params& P, const IReader&  fs);
-	void	Run						(LPCSTR path);
-	void	StartMu					();
+  	void	Run						(const char* path);
+ 
 	void	RunAfterLight			( IWriter* fs	);
-	void	Tesselate				();
 	void	PreOptimize				();
 	void	CorrectTJunctions		();
 
-	void	xrPhase_AdaptiveHT		();
+	void	xrPhase_AdaptiveHT_tessalte		();
+	void	xrPhase_AdaptiveHT_calculate	();
+
+
 	void	u_Tesselate				(tesscb_estimator* E, tesscb_face* F, tesscb_vertex* V);
 	void	u_SmoothVertColors		(int count);
 
@@ -76,36 +77,32 @@ public:
 	void	xrPhase_TangentBasis	();
 
 	void	BuildCForm				();
-	void	BuildPortals			(IWriter &fs);
-
- 	void	BuildRapid				(BOOL bSave);
-
-	void	xrPhase_Radiosity		();
+ 	void	BuildPortals			(IWriter &fs);
+	 
 		
-	void	IsolateVertices			(BOOL bProgress);
+	void	IsolateVertices			(bool bProgress);
 	void	xrPhase_ResolveMaterials();
 	void	xrPhase_UVmap			();
 	void	xrPhase_Subdivide		();
 	void	ImplicitLighting		();
 
-	void	BuildAdaptiveHT(); 
-	void	Light_prepare			();
-	void	Light					();
-	void	LMapsLocal				();
-	void	LMaps					();
-	//void	Light_R2				();
-	void	LightVertex				();
-	void	xrPhase_MergeLM			();
-	void	xrPhase_SaveLmaps		();
+	// Lighting Functions
+ 	void	Light_prepare			();
+ 	void	Light					();
+ 
 
+	// Lmaps Processing 
+ 	void	LMaps					();
+  	void	LightVertex				();
+	void	xrPhase_MergeLM			();
+ 
 	void	xrPhase_MergeGeometry	();
 
+	// Converting OGF
 	void	Flex2OGF				();
-	void	SaveOGF();
-	size_t	GetTreeSize();
-
 	void	BuildSectors			();
-
+	
+	// Saving
 	void	SaveLights				(IWriter &fs);
 	void	SaveTREE				(IWriter &fs);
 	void	SaveSectors				(IWriter &fs);
@@ -115,9 +112,12 @@ public:
 	void	CheckBeforeSave			( u32 stage );
 	void	TempSave				( u32 stage );
  
+	xr_vector<CSector*>	g_sectors;
 
 	CBuild	();
 	~CBuild	();
+
+	int lmapNameID = 0;
 };
 
 extern CBuild*		pBuild;			;

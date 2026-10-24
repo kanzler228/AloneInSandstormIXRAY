@@ -5,23 +5,20 @@
 //	Author		: Dmitriy Iassenev
 //	Description : Base action inline function
 ////////////////////////////////////////////////////////////////////////////
-
 #pragma once
-
 #include "Level.h"
 
 #define TEMPLATE_SPECIALIZATION template <typename _object_type>
 #define CBaseAction				CActionBase<_object_type>
 
 TEMPLATE_SPECIALIZATION
-IC	CBaseAction::CActionBase		(const xr_vector<COperatorCondition> &conditions, const xr_vector<COperatorCondition> &effects, _object_type *object, LPCSTR action_name) :
-	inherited			(conditions,effects)
+IC CBaseAction::CActionBase(const xr_vector<COperatorCondition> &conditions, const xr_vector<COperatorCondition> &effects, _object_type *object, const char* action_name)
 {
-	init				(object,action_name);
+	init(object,action_name);
 }
 
 TEMPLATE_SPECIALIZATION
-IC	CBaseAction::CActionBase		(_object_type *object, LPCSTR action_name)
+IC	CBaseAction::CActionBase		(_object_type *object, const char* action_name)
 {
 	init				(object,action_name);
 }
@@ -32,18 +29,16 @@ CBaseAction::~CActionBase		()
 }
 
 TEMPLATE_SPECIALIZATION
-void CBaseAction::init			(_object_type *object, LPCSTR action_name)
+void CBaseAction::init			(_object_type *object, const char* action_name)
 {
 	m_storage			= 0;
 	m_object			= object;
-	m_weight			= _edge_value_type(1);
+	m_weight			= u16(1);
 
 #ifdef LOG_ACTION
 	m_use_log			= false;
 	m_action_name		= action_name;
 	m_switched			= false;
-//	if (xr_strlen(m_action_name))
-//		debug_log		(eActionStateConstructed);
 #endif
 }
 
@@ -157,37 +152,37 @@ IC	void CBaseAction::set_use_log		(bool value)
 #endif
 
 TEMPLATE_SPECIALIZATION
-IC	void CBaseAction::set_property	(const _condition_type &condition_id, const _value_type &value)
+IC	void CBaseAction::set_property	(const u32 &condition_id, const bool&value)
 {
 	VERIFY					(m_storage);
 	m_storage->set_property	(condition_id,value);
 }
 
 TEMPLATE_SPECIALIZATION
-IC	const typename CBaseAction::_value_type	&CBaseAction::property	(const _condition_type &condition_id) const
+IC	const bool& CBaseAction::property	(const u32 &condition_id) const
 {
-	VERIFY					(m_storage);
-	return					(m_storage->property(condition_id));
+	VERIFY(m_storage);
+	return (m_storage->property(condition_id));
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CBaseAction::set_weight	(const _edge_value_type &weight)
+IC	void CBaseAction::set_weight	(const u16 &weight)
 {
-	m_weight				= _max(min_weight(),weight);
+	m_weight = std::max(min_weight(),weight);
 }
 
 TEMPLATE_SPECIALIZATION
-typename CBaseAction::_edge_value_type CBaseAction::weight	(const CSConditionState &condition0, const CSConditionState &condition1) const
+u16 CBaseAction::weight	(const CSConditionState &condition0, const CSConditionState &condition1) const
 {
-	_edge_value_type		_min_weight = min_weight();
+	u16 _min_weight = min_weight();
 	if (m_weight < _min_weight)
-		m_weight			= _min_weight;
-	return					(m_weight);
+		m_weight = _min_weight;
+	return (m_weight);
 }
 
 #ifdef LOG_ACTION
 TEMPLATE_SPECIALIZATION
-IC	void CBaseAction::show			(LPCSTR offset)
+IC	void CBaseAction::show			(const char* offset)
 {
 }
 #endif

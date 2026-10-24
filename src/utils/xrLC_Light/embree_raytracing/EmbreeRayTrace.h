@@ -1,126 +1,130 @@
 #pragma once
-
-#include "R_light.h"
-#include "base_lighting.h"
-#include "base_color.h"
-#include "../../xrCore/Collision/xrCDB.h"
-
-#include "xrFace.h"
 #include <embree4/rtcore.h>
-
-struct FaceDataIntel
-{
-	Fvector v1, v2, v3;
-	void* ptr;
-};
-
-struct VertexEmbree
-{
-	typedef VertexEmbree Self;
-	float x, y, z;
-
-	void Set(Fvector& vertex);
-	Fvector Get();
-
-	bool Simular(Self& v)
-	{
-		return _abs(x - v.x) < EPS_S && _abs(y - v.y) < EPS_S && _abs(z - v.z) < EPS_S;
-	}
-};
-
-struct TriEmbree
-{
-	u32 point1, point2, point3;
-	void SetVertexes(CDB::TRI& triangle, Fvector* verts, VertexEmbree* emb_verts, size_t& last_index);
-	CDB::TRI Get()
-	{
-		CDB::TRI tri;
-		tri.verts[0] = point1;
-		tri.verts[1] = point2;
-		tri.verts[2] = point3;
-		return tri;
-	}
-
-	void Set(CDB::TRI& T)
-	{
- 		point1 = T.verts[0];
-		point2 = T.verts[1];
-		point3 = T.verts[2];
-	}
-};
+#include "EmbreeGeometryBuilder.h"
+#include "xrRaysDefines.h"
 
 // ВАЖНЫЙ ПАРАМЕТР TNEAR Для пересечения с водой
-void SetRay1(RTCRay& rayhit, Fvector& pos, Fvector& dir, float near_, float range);
-void SetRay1(RTCRayHit& rayhit, Fvector& pos, Fvector& dir, float near_, float range);
+void SetRay1(RTCRay& rayhit, const Fvector& pos, const Fvector& dir, float near_, float range);
+void SetRay4(RTCRay4& rayhit, u32 IDX, const Fvector& pos, const Fvector& dir, float near_, float range);
+void SetRay8(RTCRay8& rayhit, u32 IDX, const Fvector& pos, const Fvector& dir, float near_, float range);
+ 
+// Vertex, Tri Buffers
+extern RTCDevice	EmbreeDevice;
+static bool	isDeviceInitialized = false;
 
-struct TriangleContainer
+const char* GetDeviceConfig();
+void InitializeEmbreeDevice();
+
+
+static void ConvertMatrix(const Fmatrix& M, float out[16])
 {
-	// HASH MAP VertexInumerate
-	struct Compare
-	{
-		VertexEmbree V;
-		u32 vertID;
-	};
-	std::unordered_map<size_t, xr_vector<Compare>> hashTable;
-	Fvector VMmin, VMscale, scale;
+	// Embree expects COLUMN MAJOR
+ 	out[0] = M._11;
+	out[1] = M._12;
+	out[2] = M._13;
+	out[3] = M._14;
 
-	xr_vector<VertexEmbree> verts_v;
-	xr_vector<TriEmbree>	faces_v;
-	xr_vector<Face*>		dummy;
-   
-	xr_vector<VertexEmbree>& vertex() { return verts_v; }
-	xr_vector<TriEmbree>& faces() { return faces_v; }
-	u32 vertex_cnt() { return verts_v.size(); }
-	u32 faces_cnt() { return faces_v.size(); }
+	out[4] = M._21;
+	out[5] = M._22;
+	out[6] = M._23;
+	out[7] = M._24;
 
-	u32 find_or_add(Fvector v);
-	u32 find_or_add(VertexEmbree v);
+	out[8] = M._31;
+	out[9] = M._32;
+	out[10] = M._33;
+	out[11] = M._34;
 
-	void AddFace(void* F, Fvector& v1, Fvector& v2, Fvector& v3);
- 	void AddFaceCopy(int Index, TriangleContainer& container);
+	out[12] = M._41;
+	out[13] = M._42;
+	out[14] = M._43;
+	out[15] = M._44;
+}
 
-	void AddOther(TriangleContainer& container);
-
-	void ClearAll();
-
-
+// Packed Rays Structure!
+ 
+struct RayQueryContext : RTCRayQueryContext
+{
+	alignas(32) void* skip[8];
+	alignas(32) float energy[8];
+	alignas(32) u8	  hits_result[8];
 };
 
-// Vertex, Tri Buffers
-class EmbreeData
+struct alignas(32) UserGeomData
+{
+	u32 DummyType = 0;
+ 	xr_vector<void*> dummys; // точно ли оно удаляется??
+};
+
+
+class EmbreeInstancedModel
+{
+	RTCScene    InstaceScene	= nullptr;
+	RTCGeometry GeometryTransp  = nullptr;
+	RTCGeometry GeometryOpacue  = nullptr;
+public:
+	EmbreeInstancedModel() 
+	{
+		InstaceScene = nullptr;
+		GeometryTransp = nullptr;
+		GeometryOpacue = nullptr;
+	};
+	~EmbreeInstancedModel()
+	{
+		if (InstaceScene)
+		{
+			rtcReleaseScene(InstaceScene);
+			InstaceScene = nullptr;
+		}
+	}
+	void InitializeModel(xr_vector<FaceDataEmbree>& faces);
+	void SetInstance(RTCScene scene, Fmatrix& xform, int& LastID);
+};
+
+
+class EmbreeRayTraceModel
 {
 public:
-	/** NORMAL GEOM **/
-	
-
-	size_t BVH_size;
-	size_t Static_size;
-	size_t MU_size;
-
-	TriangleContainer			static_geom;
-	TriangleContainer			static_geom_transp;
-
-	TriangleContainer			murefs_geom;
-	TriangleContainer			murefs_geom_transp;
+	RTCScene					IntelScene			= nullptr;	
  
- 	void GetGlobalData(size_t& static_mem, size_t& murefs_mem);
-	void BuildRcast();
+protected:
+	RTCSceneFlags				scene_flags			= RTC_SCENE_FLAG_NONE;
+	RTCBuildQuality				scene_quality		= RTC_BUILD_QUALITY_HIGH;
 
-	
+	int							LastGeomID			= 0;
+	RTCGeometry					IntelGeometryNormal = nullptr;
+	RTCGeometry					IntelGeometryTransp = nullptr;
+
+	/** NORMAL GEOM **/
+	TriangleContainer			transp_geom;
+	TriangleContainer			opacue_geom;
+  
+	void BuildRayTraceModel();
+	void BuildRayTraceModel_Instaced();
+
+	// Details Model
+public:
 	// Loading 
-	bool isInitialized = false;
-	void RemoveGeometry(bool isDealloc);
-	float RaytraceEmbreeProcess(R_Light& L, Fvector& P, Fvector& N, float range, void* skip);
-	void InitializeGeometry(size_t& geom_static, size_t& geom_murefs);
+ 	float RaytraceEmbreeProcess( Fvector& P, Fvector& N, float range, void* skip);
+	void  RaytrraceRayPack(xr_vector< RayTask >& rays);
 
-	bool isAttached = false;
-	size_t AttachGeometrys(bool addMU);
+  
+	void  AttachGeomToScene(bool isMain, u8 uDataType);
+	void  InitializeGeometry();		// Rcast-model
+	void  InitializeGeometry_Model(xr_vector<FaceDataEmbree>& faces); // Single-Models (xrMU-Model)
+	
+	void  InitializeDetails(xr_vector<FaceDataEmbree>& faces);
 
-	void IntializeDevice();
-	void IntelEmbereLOAD();
-	void IntelEmbereUNLOAD();
+ 	void  IntelEmbereUnloadAll();
+	void  RemoveGeometry();
+
+	// Details Loading 
+ 	// void InitEmbreeDetails();
+	
+	// Instances
+	xr_vector<EmbreeInstancedModel*> instances;
+ 	void UpdateSceneFlags();
 };
 
-extern EmbreeData EmbreeMain;
+extern EmbreeRayTraceModel EmbreeMain;
  
-void GetEmbreeDeviceProperty(LPCSTR msg, RTCDevice& device, RTCDeviceProperty prop);
+void GetEmbreeDeviceProperty(const char* msg, RTCDevice& device, RTCDeviceProperty prop);

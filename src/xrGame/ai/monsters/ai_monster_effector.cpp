@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_monster_effector.h"
 
 #define MONSTER_EFFECTOR_TYPE_ID 5
@@ -21,7 +21,7 @@ CMonsterEffector::CMonsterEffector(const SPPInfo &ppi, float life_time, float at
 	VERIFY(!fis_zero(m_attack));
 }
 
-BOOL CMonsterEffector::Process(SPPInfo& pp)
+bool CMonsterEffector::Process(SPPInfo& pp)
 {
 	inherited::Process(pp);
 
@@ -39,7 +39,7 @@ BOOL CMonsterEffector::Process(SPPInfo& pp)
 	clamp(factor,0.01f,1.0f);
 
 	pp.lerp				(pp_identity, state, factor * m_spec_factor);
-	return TRUE;
+	return true;
 }
 
 
@@ -59,9 +59,9 @@ CMonsterEffectorHit::CMonsterEffectorHit(float time, float amp, float periods, f
 	offset.set		(Random.randF(1,2),Random.randF(1,6),Random.randF(1,6));
 }
 
-BOOL CMonsterEffectorHit::ProcessCam(SCamEffectorInfo& info)
+bool CMonsterEffectorHit::ProcessCam(SCamEffectorInfo& info)
 {
-	fLifeTime -= Device.fTimeDelta; if(fLifeTime<0) return FALSE;
+	fLifeTime -= Device.fTimeDelta; if(fLifeTime<0) return false;
 
 	// процент оставшегося времени
 	float time_left_perc = fLifeTime / total;
@@ -79,9 +79,9 @@ BOOL CMonsterEffectorHit::ProcessCam(SCamEffectorInfo& info)
 
 	
 	Fvector dangle;
-	dangle.x = cur_amp/offset.x	* _sin(period_all/offset.x	* (1.0f - time_left_perc));
-	dangle.y = cur_amp/offset.y	* _cos(period_all/offset.y	* (1.0f - time_left_perc));
-	dangle.z = cur_amp/offset.z	* _sin(period_all/offset.z	* (1.0f - time_left_perc));
+	dangle.x = cur_amp/offset.x	* std::sin(period_all/offset.x	* (1.0f - time_left_perc));
+	dangle.y = cur_amp/offset.y	* std::cos(period_all/offset.y	* (1.0f - time_left_perc));
+	dangle.z = cur_amp/offset.z	* std::sin(period_all/offset.z	* (1.0f - time_left_perc));
 
 	// Установить углы смещения
 	Fmatrix			R;
@@ -93,6 +93,6 @@ BOOL CMonsterEffectorHit::ProcessCam(SCamEffectorInfo& info)
 	info.d.set		(mR.k);
 	info.n.set		(mR.j);
 
-	return TRUE;
+	return true;
 }
 

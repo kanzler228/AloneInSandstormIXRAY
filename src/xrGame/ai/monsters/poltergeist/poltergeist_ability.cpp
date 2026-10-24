@@ -1,27 +1,31 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "poltergeist.h"
 #include "../../../../xrPhysics/PhysicsShell.h"
 #include "../../../Level.h"
 #include "../../../material_manager.h"
 #include "../../../level_debug.h"
+#include "../../../ParticlesObject.h"
 
-
-CPolterSpecialAbility::CPolterSpecialAbility(CPoltergeist *polter)
+IPolter::IPolter(CPoltergeist* polter) : m_particles_hidden(nullptr),
+                                         m_particles_damage(nullptr),
+                                         m_particles_death(nullptr),
+                                         m_particles_idle(nullptr),
+                                         m_last_hit_frame(0)
 {
-	m_object					= polter;
+	poltergeist = polter;
 
-	m_particles_object			= 0;
-	m_particles_object_electro	= 0;
+	m_particles_object = nullptr;
+	m_particles_object_electro = nullptr;
 }
 
 
-CPolterSpecialAbility::~CPolterSpecialAbility()
+IPolter::~IPolter()
 {
 	Particles::Details::Destroy	(m_particles_object);
 	Particles::Details::Destroy	(m_particles_object_electro);
 }
 
-void CPolterSpecialAbility::load(LPCSTR section)
+void IPolter::load(const char* section)
 {
 	m_particles_hidden					= pSettings->r_string(section,"Particles_Hidden");
 	m_particles_damage					= pSettings->r_string(section,"Particles_Damage");
@@ -33,61 +37,61 @@ void CPolterSpecialAbility::load(LPCSTR section)
 	m_last_hit_frame					= 0;
 }
 
-void CPolterSpecialAbility::update_schedule()
+void IPolter::update_schedule()
 {
-	if (m_object->g_Alive()) {
-		if (!m_sound_base._feedback()) m_sound_base.play_at_pos(m_object, m_object->Position());
-		else m_sound_base.set_position(m_object->Position());
+	if (poltergeist->g_Alive()) {
+		if (!m_sound_base.is_playing()) m_sound_base.play_at_pos(poltergeist, poltergeist->Position());
+		else m_sound_base.set_position(poltergeist->Position());
 	}
 }
 
-void CPolterSpecialAbility::on_hide()
+void IPolter::on_hide()
 {
 	VERIFY(m_particles_object == 0);
-	if (!m_object->g_Alive())
+	if (!poltergeist->g_Alive())
 		return;
 
- 	m_particles_object			= m_object->PlayParticles	(m_particles_hidden, m_object->Position(),Fvector().set(0.0f,0.1f,0.0f), false);
- 	m_particles_object_electro	= m_object->PlayParticles	(m_particles_idle, m_object->Position(),Fvector().set(0.0f,0.1f,0.0f), false);
+ 	m_particles_object			= poltergeist->PlayParticles	(m_particles_hidden, poltergeist->Position(),Fvector().set(0.0f,0.1f,0.0f), false);
+ 	m_particles_object_electro	= poltergeist->PlayParticles	(m_particles_idle, poltergeist->Position(),Fvector().set(0.0f,0.1f,0.0f), false);
 }
 
-void CPolterSpecialAbility::on_show()
+void IPolter::on_show()
 {
 	if (m_particles_object)			Particles::Details::Destroy(m_particles_object);
 	if (m_particles_object_electro) Particles::Details::Destroy(m_particles_object_electro);
 }
 
-void CPolterSpecialAbility::update_frame()
+void IPolter::update_frame()
 {
-	if (m_particles_object)			m_particles_object->SetXFORM		(m_object->XFORM());
-	if (m_particles_object_electro)	m_particles_object_electro->SetXFORM(m_object->XFORM());
+	if (m_particles_object)			m_particles_object->SetXFORM		(poltergeist->XFORM());
+	if (m_particles_object_electro)	m_particles_object_electro->SetXFORM(poltergeist->XFORM());
 }
 
-void CPolterSpecialAbility::on_die()
+void IPolter::on_die()
 {
-	Fvector particles_position	= m_object->m_current_position;
-	particles_position.y		+= m_object->target_height;
+	Fvector particles_position	= poltergeist->m_current_position;
+	particles_position.y		+= poltergeist->target_height;
 
-	m_object->PlayParticles			(m_particles_death, particles_position, Fvector().set(0.0f,1.0f,0.0f), TRUE, FALSE);
+	poltergeist->PlayParticles			(m_particles_death, particles_position, Fvector().set(0.0f,1.0f,0.0f), true, false);
 
 	Particles::Details::Destroy		(m_particles_object_electro);
 	Particles::Details::Destroy		(m_particles_object);
 }
 
-void CPolterSpecialAbility::on_hit(SHit* pHDS)
+void IPolter::on_hit(SHit* pHDS)
 {
-	if (m_object->g_Alive() && (pHDS->hit_type == ALife::eHitTypeFireWound) && (Device.dwFrame != m_last_hit_frame)) {
+	if (poltergeist->g_Alive() && (pHDS->hit_type == ALife::eHitTypeFireWound) && (Device.dwFrame != m_last_hit_frame)) {
 		if(BI_NONE != pHDS->bone()) {
 
 			//вычислить координаты попадания
-			IKinematics* V = smart_cast<IKinematics*>(m_object->Visual());
+			IKinematics* V = PKinematics(poltergeist->Visual());
 
 			Fvector start_pos = pHDS->bone_space_position();
 			Fmatrix& m_bone = V->LL_GetBoneInstance(pHDS->bone()).mTransform;
 			m_bone.transform_tiny	(start_pos);
-			m_object->XFORM().transform_tiny	(start_pos);
+			poltergeist->XFORM().transform_tiny	(start_pos);
 
-			m_object->PlayParticles(m_particles_damage, start_pos, Fvector().set(0.f,1.f,0.f));
+			poltergeist->PlayParticles(m_particles_damage, start_pos, Fvector().set(0.f,1.f,0.f));
 		}
 	} 
 
@@ -99,22 +103,19 @@ void CPolterSpecialAbility::on_hit(SHit* pHDS)
 // Other
 //////////////////////////////////////////////////////////////////////////
 
-
-#define IMPULSE					10.f
-#define IMPULSE_RADIUS			5.f
-#define TRACE_DISTANCE			10.f
-#define TRACE_ATTEMPT_COUNT		3
-
 void CPoltergeist::PhysicalImpulse	(const Fvector &position)
 {
-	m_nearest.resize(0);
-	Level().ObjectSpace.GetNearest	(m_nearest,position, IMPULSE_RADIUS, nullptr); 
-	//xr_vector<CObject*> &m_nearest = Level().ObjectSpace.q_nearest;
-	if (m_nearest.empty())			return;
+	g_SpatialSpace->q_sphere(m_nearest,0,ESPATIAL_TYPE::COLLIDEABLE,position,IMPULSE_RADIUS);
+	if (m_nearest.empty()) return;
 	
-	u32 index = Random.randI		(m_nearest.size());
+	u32 index = Random.randI(m_nearest.size());
+
+	ISpatial* S = m_nearest[index].get();
+	if (!S) return;
+	CObject* O = S->dcast_CObject();
+	if (!O || O->getDestroy()) return;
 	
-	CPhysicsShellHolder  *obj = smart_cast<CPhysicsShellHolder *>(m_nearest[index]);
+	CPhysicsShellHolder  *obj = O->cast_physics_shell_holder();
 	if (!obj || !obj->m_pPhysicsShell) return;
 
 	Fvector dir;
@@ -128,7 +129,7 @@ void CPoltergeist::PhysicalImpulse	(const Fvector &position)
 
 void CPoltergeist::StrangeSounds(const Fvector &position)
 {
-	if (m_strange_sound._feedback()) return;
+	if (m_strange_sound.is_playing()) return;
 	
 	for (u32 i = 0; i < TRACE_ATTEMPT_COUNT; i++) {
 		Fvector dir;
@@ -139,8 +140,8 @@ void CPoltergeist::StrangeSounds(const Fvector &position)
 			if (l_rq.range < TRACE_DISTANCE) {
 
 				// Получить пару материалов
-				CDB::TRI*	pTri	= Level().ObjectSpace.GetStaticTris() + l_rq.element;
-				SGameMtlPair* mtl_pair = GMLib.GetMaterialPair(material().self_material_idx(),pTri->material);
+				CDB::TRI&	pTri	= Level().ObjectSpace.GetStaticTris()[l_rq.element];
+				SGameMtlPair* mtl_pair = GMLib.GetMaterialPair(material().self_material_idx(),pTri.material);
 				if (!mtl_pair) continue;
 
 				// Играть звук

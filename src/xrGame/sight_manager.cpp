@@ -32,7 +32,7 @@ CSightManager::CSightManager		(CAI_Stalker *object) :
 {
 }
 
-void CSightManager::Load			(LPCSTR section)
+void CSightManager::Load			(const char* section)
 {
 }
 
@@ -48,7 +48,7 @@ void CSightManager::reinit			()
 	m_current.m_spine.m_factor		= s_free_factors.z;
 }
 
-void CSightManager::reload			(LPCSTR section)
+void CSightManager::reload			(const char* section)
 {
 	m_max_left_angle			= deg2rad(READ_IF_EXISTS(pSettings,r_float,section,"max_left_torso_angle",90.f));
 	m_max_right_angle			= deg2rad(READ_IF_EXISTS(pSettings,r_float,section,"max_right_torso_angle",60.f));
@@ -61,20 +61,20 @@ void CSightManager::vfValidateAngleDependency(float x1, float &x2, float x3)
 	if (_x2*_x3 >= 0.f)
 		return;
 	
-	if ( _abs(_x2) + _abs(_x3) <= PI )
+	if (std::abs(_x2) + std::abs(_x3) <= PI )
 		return;
 
 	x2							= x3;
 }
 
 #ifdef DEBUG
-BOOL g_ai_dbg_sight = 0;
+bool g_ai_dbg_sight = 0;
 #endif // #ifdef DEBUG
 
 float g_ai_aim_min_speed = 31;
 float g_ai_aim_min_angle = 0;
 float g_ai_aim_max_angle = 31;
-BOOL  g_ai_aim_use_smooth_aim = 1;
+bool  g_ai_aim_use_smooth_aim = 1;
 
 static inline float	select_speed(float const distance, float const speed, float const min_speed, float const min_distance, float const max_distance)
 {
@@ -159,7 +159,7 @@ void CSightManager::Exec_Look(float time_delta)
 
 	Fmatrix& m = m_object->XFORM();
 	float h = -body.current.yaw;
-	float _sh = _sin(h), _ch = _cos(h);
+	float _sh = std::sin(h), _ch = std::cos(h);
 	m.i.set(_ch, 0.f, _sh); m._14_ = 0.f;
 	m.j.set(0.f, 1.f, 0.f); m._24_ = 0.f;
 	m.k.set(-_sh, 0.f, _ch); m._34_ = 0.f;
@@ -230,12 +230,15 @@ Fvector CSightManager::object_position				() const
 	Fvector				look_pos;
 
 	if (const_cast<CGameObject*>(object)->cast_actor())
-		object->Visual()->dcast_PKinematics()->CalculateBBox(FALSE);
+		object->Visual()->dcast_PKinematics()->CalculateBBox(false);
 
 	object->Center		(look_pos);
 
-	const CEntityAlive	*entity_alive = smart_cast<const CEntityAlive*>(object);
-	if (!entity_alive || entity_alive->g_Alive()) {
+	CGameObject* cast_game_object = const_cast<CGameObject*>(object);
+
+	const CEntityAlive	*entity_alive = cast_game_object->cast_entity_alive();
+	if (!entity_alive || entity_alive->g_Alive())
+	{
 		look_pos.x		= object->Position().x;
 		look_pos.z		= object->Position().z;
 	}
@@ -257,7 +260,7 @@ Fvector	CSightManager::aiming_position				() const
 
 #if 0
 	Fmatrix								player_head;
-	IKinematics* actor_kinematics		= smart_cast<IKinematics*>(Actor()->Visual());
+	IKinematics* actor_kinematics		= PKinematics(Actor()->Visual());
 	actor_kinematics->Bone_GetAnimPos	(player_head, actor_kinematics->LL_BoneID("bip01_head"), 1, false);
 	player_head.mulA_43					(Actor()->XFORM());
 	return								( player_head.c );
@@ -624,7 +627,8 @@ void CSightManager::compute_aiming					(float const time_delta, float const angu
 			bool backward_blend_callbacks	= object().animation().backward_blend_callbacks();
 			object().animation().remove_bone_callbacks();
 			VERIFY				(object().best_weapon());
-			VERIFY				(smart_cast<CWeapon const*>(object().best_weapon()));
+			PIItem best_weapon = object().best_weapon();
+			VERIFY				(best_weapon->cast_weapon());
 			VERIFY			( _valid(aiming_position()) );
 			aimers::weapon		aimer(
 				&object(),
@@ -635,7 +639,7 @@ void CSightManager::compute_aiming					(float const time_delta, float const angu
 				pSettings->r_string(object().cNameSect().c_str(),"bone_shoulder"),
 				pSettings->r_string(object().cNameSect().c_str(),"weapon_bone0"),
 				pSettings->r_string(object().cNameSect().c_str(),"weapon_bone2"),
-				*smart_cast<CWeapon const*>(object().best_weapon())
+				*best_weapon->cast_weapon()
 			);
 			if (forward_blend_callbacks)
 				object().animation().assign_bone_blend_callbacks(true);
@@ -676,7 +680,7 @@ void CSightManager::compute_aiming					(float const time_delta, float const angu
 
 			VERIFY				(m_animation_id.size());
 			VERIFY				(m_animation_frame != animation_frame_none);
-			LPCSTR	bones[]		=
+			const char*	bones[]		=
 			{
 				pSettings->r_string(object().cNameSect().c_str(),"bone_spin"),
 				pSettings->r_string(object().cNameSect().c_str(),"bone_shoulder"),
@@ -755,7 +759,7 @@ static void slerp_rotations							(float const time_delta, float const angular_s
 		return;
 	}
 
-	float const test_angle		= clampr(_abs(angle), EPS_L, PI);
+	float const test_angle		= clampr(std::abs(angle), EPS_L, PI);
 	float speed					= angular_speed;
 	float const test_speed		= PI/36.f;
 	float const min_speed		= PI/180.f;

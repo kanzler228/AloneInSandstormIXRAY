@@ -11,12 +11,13 @@
 //инициализация и загрузка YAML файла
 CYaml::CYaml(const char* path, const char* FileName)
 {
-	string_path m2SharedFileName;
-	xr_strconcat(m2SharedFileName, path, FileName, ".yml");
-	mFileName = m2SharedFileName;
+	xr_path Path = path;
+	Path.append(FileName);
+
+	mFileName = Path.xstring();
 
 	// Load and parse YAML file
-	R_ASSERT3(FS.exist(mFileName.c_str()), "YAML: File not found! File name: ", mFileName.c_str());
+	// R_ASSERT3(FS.exist(mFileName.c_str()), "YAML: File not found! File name: ", mFileName.c_str());
 	mRootNode = YAML::LoadFile(mFileName.c_str());
 }
 
@@ -28,7 +29,6 @@ YAML::Node CYaml::NavigateToNode(const YAML::Node& BaseNode, const char* ChildNo
 
 	// mRootNode returns object anyway. Need check by bool operator overload
 	const YAML::Node& ChildNode = BaseNode[ChildNodeName];
-
 	if (!ChildNode)
 	{
 		for (const auto& Iter : BaseNode)
@@ -53,6 +53,16 @@ const char* CYaml::GetString(const YAML::Node& BaseNode, const char* ChildNodeNa
 {
 	const YAML::Node node = NavigateToNode(BaseNode, ChildNodeName);
 	return node && !node.IsNull() ? node.as<std::string>().c_str() : DefaultStr;
+}
+
+xr_string CYaml::GetStringRoot(const YAML::Node& BaseNode, const char* ChildNodeName, const char* DefaultStr)
+{
+	const YAML::Node node = GetRootNode()[ChildNodeName];
+	if (node && !node.IsNull())
+	{
+		return node.as<std::string>().c_str();
+	}
+	return DefaultStr;
 }
 
 int CYaml::GetInt(const YAML::Node& BaseNode, const char* ChildNodeName, int DefaultValue)

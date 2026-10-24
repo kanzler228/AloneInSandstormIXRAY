@@ -18,9 +18,9 @@
 #include "physics_game.h"
 extern	pureFrame*				g_pNetProcessor;
 
-BOOL CLevel::net_Start_client	( LPCSTR options )
+bool CLevel::net_Start_client	( const char* options )
 {
-	return FALSE;
+	return false;
 }
 #include "../xrEngine/string_table.h"
 bool	CLevel::net_start_client1				()
@@ -80,9 +80,9 @@ bool	CLevel::net_start_client3				()
 	PROF_EVENT("CLevel::net_start_client3");
 	if(connected_to_server)
 	{
-		LPCSTR					level_name = nullptr;
-		LPCSTR					level_ver = nullptr;
-		LPCSTR					download_url = nullptr;
+		const char*					level_name = nullptr;
+		const char*					level_ver = nullptr;
+		const char*					download_url = nullptr;
 
 		if (psNET_direct_connect)	//single
 		{
@@ -102,7 +102,7 @@ bool	CLevel::net_start_client3				()
 		{
 			Disconnect			();
 
-			connected_to_server = FALSE;
+			connected_to_server = false;
 			Msg("! Level (name:%s), (version:%s), not found, try to download from:%s",
 				level_name, level_ver, download_url);
 			map_data.m_name					= level_name;
@@ -119,7 +119,7 @@ bool	CLevel::net_start_client3				()
 		map_data.m_map_download_url		= download_url;
 		map_data.m_map_loaded			= true;
 		
-		deny_m_spawn			= FALSE;
+		deny_m_spawn			= false;
 		// Load level
 		R_ASSERT2				(Load(level_id),"Loading failed.");
 		map_data.m_level_geom_crc32 = 0;
@@ -175,56 +175,48 @@ void CLevel::ClientSendProfileData	()
 	NET_Packet								NP;
 	NP.w_begin								(M_CREATE_PLAYER_STATE);
 	game_PlayerState	tmp_player_state	(nullptr);
-	tmp_player_state.net_Export				(NP, TRUE);
-	SecureSend								(NP,net_flags(TRUE, TRUE, TRUE, TRUE));
+	tmp_player_state.net_Export				(NP, true);
+	SecureSend								(NP,net_flags(true, true, true, true));
 }
 
-
-bool	CLevel::net_start_client5				()
+bool CLevel::net_start_client5()
 {
 	PROF_EVENT("CLevel::net_start_client5");
-	if(connected_to_server){
-		// HUD
-
-		// Textures
-		if	(!g_dedicated_server)
+	if (connected_to_server)
+	{
+		if (!g_dedicated_server)
 		{
 			g_pGamePersistent->SetLoadStageTitle("st_loading_textures");
-			g_pGamePersistent->LoadTitle		();
-			//Device.Resources->DeferredLoad	(FALSE);
-			Device.m_pRender->DeferredLoad		(FALSE);
-			//Device.Resources->DeferredUpload	();
+			g_pGamePersistent->LoadTitle();
+			Device.m_pRender->DeferredLoad(false);
 			Device.m_pRender->ResourcesDeferredUpload();
-			LL_CheckTextures					();
 		}
-		sended_request_connection_data	= FALSE;
-		deny_m_spawn					= TRUE;
+		sended_request_connection_data = false;
+		deny_m_spawn = true;
 	}
+
 	return true;
 }
 
-bool	CLevel::net_start_client6				()
+bool CLevel::net_start_client6()
 {
 	PROF_EVENT("CLevel::net_start_client6");
-	if (connected_to_server) {
+	if (connected_to_server)
+	{
 		// Sync
-		if (!synchronize_map_data				())
+		if (!synchronize_map_data())
 			return false;
 
 		if (!game_configured)
 		{
-			pApp->LoadEnd						(); 
+			pApp->LoadEnd();
 			return true;
 		}
 		if (!g_dedicated_server)
 		{
-			g_hud->Load						();
-			g_hud->OnConnected				();
+			g_hud->Load();
+			g_hud->OnConnected();
 		}
-
-#ifdef DEBUG
-		Msg("--- net_start_client6");
-#endif // #ifdef DEBUG
 
 		if (game)
 		{
@@ -241,14 +233,12 @@ bool	CLevel::net_start_client6				()
 
 		g_pGamePersistent->SetLoadStageTitle("st_client_synchronising");
 		pApp->LoadForceFinish();
-		g_pGamePersistent->LoadTitle		();
-		Device.PreCache						(60, true, true);
-		net_start_result_total				= TRUE;
-
-	}else{
-		net_start_result_total				= FALSE;
+		g_pGamePersistent->LoadTitle();
+		Device.PreCache(60, true, true);
 	}
 
-	pApp->LoadEnd							(); 
+	net_start_result_total = connected_to_server;
+
+	pApp->LoadEnd();
 	return true;
 }

@@ -8,8 +8,7 @@
 
 #include "../xrPhysics/PhysicsShell.h"
 #include "Entity.h"
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 
 //для вызова статических функций поражения осколками
 #include "Weapon.h"
@@ -62,9 +61,9 @@ CExplosive::CExplosive(void)
 	m_explosion_flags.assign(0);
 	m_vExplodeSize.set		(0.001f,0.001f,0.001f);
 
-	m_bHideInExplosion	= TRUE;
+	m_bHideInExplosion	= true;
 	m_fExplodeHideDurationMax = 0;
-	m_bDynamicParticles		= FALSE;
+	m_bDynamicParticles		= false;
 	m_pExpParticle			= nullptr;
 }
 
@@ -83,12 +82,12 @@ CExplosive::~CExplosive(void)
 {
 }
 
-void CExplosive::Load(LPCSTR section) 
+void CExplosive::Load(const char* section) 
 {
 	Load				(pSettings,section);
 }
 
-void CExplosive::Load(CInifile const *ini,LPCSTR section)
+void CExplosive::Load(CInifile const *ini,const char* section)
 {
 	m_bDisableEffector = READ_IF_EXISTS(pSettings, r_bool, section, "disable_effector", false);
 	m_fBlastHit			= ini->r_float(section,"blast");
@@ -119,6 +118,10 @@ void CExplosive::Load(CInifile const *ini,LPCSTR section)
 	m_fFragmentSpeed			= ini->r_float	(section,"fragment_speed"				);
 
 	m_layered_sounds.LoadSound(ini, section, "snd_explode", "sndExplode", false, m_eSoundExplode);
+	if (ini->line_exist(section, "snd_explode_indoor"))
+	{
+		m_layered_sounds.LoadSound(ini, section, "snd_explode_indoor", "sndExplodeIndoor", false, m_eSoundExplode);
+	}
 
 	m_fExplodeDurationMax	= ini->r_float(section, "explode_duration");
 
@@ -130,18 +133,10 @@ void CExplosive::Load(CInifile const *ini,LPCSTR section)
 		m_wallmark_manager.Load(ini->r_string(section, "wallmark_section"));
 	}
 
-	m_bHideInExplosion = TRUE;
-	if (ini->line_exist(section, "hide_in_explosion"))
-	{
-		m_bHideInExplosion = ini->r_bool(section, "hide_in_explosion");
-		m_fExplodeHideDurationMax = 0;
-		if (ini->line_exist(section, "explode_hide_duration"))
-		{
-			m_fExplodeHideDurationMax = ini->r_float(section, "explode_hide_duration");
-		}
-	}
+	m_bHideInExplosion = READ_IF_EXISTS(ini, r_bool, section, "hide_in_explosion", true);
+	m_fExplodeHideDurationMax = READ_IF_EXISTS(ini, r_float, section, "explode_hide_duration", 0);
 
-	m_bDynamicParticles	 = READ_IF_EXISTS(ini, r_bool, section, "dynamic_explosion_particles", FALSE);
+	m_bDynamicParticles	 = READ_IF_EXISTS(ini, r_bool, section, "dynamic_explosion_particles", false);
 
 	m_bIsGasExplosive = READ_IF_EXISTS(pSettings, r_bool, section, "is_gas_explosive", false);
 	m_sBlastActorCallback = READ_IF_EXISTS(pSettings, r_string, section, "actor_blast_callback", "");
@@ -181,7 +176,7 @@ struct SExpQParams
 	float		shoot_factor		;
 };
 //проверка на попадание "осколком" по объекту
-ICF static BOOL grenade_hit_callback(collide::rq_result& result, LPVOID params)
+ICF static bool grenade_hit_callback(collide::rq_result& result, LPVOID params)
 {
 	SExpQParams& ep	= *(SExpQParams*)params;
 	u16 mtl_idx			= GAMEMTL_NONE_IDX;
@@ -193,8 +188,8 @@ ICF static BOOL grenade_hit_callback(collide::rq_result& result, LPVOID params)
 		}
 	}else{
 		//получить треугольник и узнать его материал
-		CDB::TRI* T		= Level().ObjectSpace.GetStaticTris()+result.element;
-		mtl_idx			= T->material;
+		CDB::TRI& T		= Level().ObjectSpace.GetStaticTris()[result.element];
+		mtl_idx			= T.material;
 	}	
 	SGameMtl* mtl		= GMLib.GetMaterialByIdx(mtl_idx);
 	float shoot_factor = 1.f - mtl->fShootFactor;
@@ -224,7 +219,7 @@ float CExplosive::ExplosionEffect(collide::rq_results& storage, CExplosive*exp_o
 										return 1.f;
 	Fvector l_c, l_d;l_b1.get_CD(l_c,l_d);
 	float effective_volume=l_d.x*l_d.y*l_d.z;
-	float max_s=effective_volume/(_min(_min(l_d.x,l_d.y),l_d.z));
+	float max_s=effective_volume/(std::min(std::min(l_d.x,l_d.y),l_d.z));
 	if(blasted_obj->PPhysicsShell()&&blasted_obj->PPhysicsShell()->isActive())
 	{
 		float ph_volume=blasted_obj->PPhysicsShell()->getVolume();
@@ -267,7 +262,7 @@ float CExplosive::ExplosionEffect(collide::rq_results& storage, CExplosive*exp_o
 #endif
 		
 #ifdef DEBUG
-		float l_S=effective_volume*(_abs(l_dir.dotproduct(obj_xform.i))/l_d.x+_abs(l_dir.dotproduct(obj_xform.j))/l_d.y+_abs(l_dir.dotproduct(obj_xform.k))/l_d.z);
+		float l_S=effective_volume*(std::abs(l_dir.dotproduct(obj_xform.i))/l_d.x+ std::abs(l_dir.dotproduct(obj_xform.j))/l_d.y+ std::abs(l_dir.dotproduct(obj_xform.k))/l_d.z);
 		float add_eff=_sqrt(l_S/max_s)*TestPassEffect(l_source_p,l_dir,mag,expl_radius,storage,blasted_obj);
 		effect+=add_eff;
 		if(ph_dbg_draw_mask.test(phDbgDrawExplosions))
@@ -278,7 +273,7 @@ float CExplosive::ExplosionEffect(collide::rq_results& storage, CExplosive*exp_o
 			Msg("dist/overlap effect, %f",add_eff/_sqrt(l_S/max_s));
 		}
 #else
-		float l_S=effective_volume*(_abs(l_dir.dotproduct(obj_xform.i))/l_d.x+_abs(l_dir.dotproduct(obj_xform.j))/l_d.y+_abs(l_dir.dotproduct(obj_xform.k))/l_d.z);
+		float l_S=effective_volume*(std::abs(l_dir.dotproduct(obj_xform.i))/l_d.x+std::abs(l_dir.dotproduct(obj_xform.j))/l_d.y+std::abs(l_dir.dotproduct(obj_xform.k))/l_d.z);
 		effect+=_sqrt(l_S/max_s)*TestPassEffect(l_source_p,l_dir,mag,expl_radius,storage,blasted_obj);
 #endif
 
@@ -319,7 +314,7 @@ void CExplosive::Explode()
 	VERIFY(m_explosion_flags.test(flReadyToExplode));//m_bReadyToExplode
 	VERIFY(!physics_world()->Processing());
 	//m_bExploding = true;
-	m_explosion_flags.set(flExploding,TRUE);
+	m_explosion_flags.set(flExploding,true);
 	cast_game_object()->processing_activate();
 
 	Fvector& pos = m_vExplodePos;
@@ -338,7 +333,15 @@ void CExplosive::Explode()
 	if (Initiator() != ALife::_OBJECT_ID(-1)) {
 		who = Level().Objects.net_Find(Initiator());
 	}
-	m_layered_sounds.PlaySound("sndExplode", pos, who, false, false, true, (u8)-1);
+
+	if (Sound->object_in_audiozone(pos) && m_layered_sounds.FindSoundItem("sndExplodeIndoor", false))
+	{
+		m_layered_sounds.PlaySound("sndExplodeIndoor", pos, who, false, false, true, (u8)-1);
+	}
+	else
+	{
+		m_layered_sounds.PlaySound("sndExplode", pos, who, false, false, true, (u8)-1);
+	}
 
 	//показываем эффекты
 
@@ -384,12 +387,11 @@ void CExplosive::Explode()
 		CCartridge cartridge;
 		cartridge.param_s.kDist				= 1.f;
 		cartridge.param_s.kHit				= 1.f;
-//.		cartridge.param_s.kCritical			= 1.f;
 		cartridge.param_s.kImpulse			= 1.f;
 		cartridge.param_s.kAP				= 1.f;
 		cartridge.param_s.fWallmarkSize		= fWallmarkSize;
 		cartridge.bullet_material_idx		= GMLib.GetMaterialIdx(WEAPON_MATERIAL_NAME);
-		cartridge.m_flags.set				(CCartridge::cfTracer,FALSE);
+		cartridge.m_flags.set				(CCartridge::cfTracer,false);
 
 		Level().BulletManager().AddBullet(	pos, frag_dir, m_fFragmentSpeed,
 											m_fFragHit, m_fFragHitImpulse, Initiator(),
@@ -403,8 +405,8 @@ void CExplosive::Explode()
 	//взрывная волна
 	////////////////////////////////
 	//---------------------------------------------------------------------
-	xr_vector<ISpatialShared> ISpatialResult;
-	g_SpatialSpace->q_sphere(ISpatialResult,0,STYPE_COLLIDEABLE,pos,m_fBlastRadius);
+	static xr_vector<ISpatialShared> ISpatialResult;
+	g_SpatialSpace->q_sphere(ISpatialResult,0, ESPATIAL_TYPE::COLLIDEABLE,pos,m_fBlastRadius);
 
 	m_blasted_objects.clear	();
 	for (u32 o_it=0; o_it<ISpatialResult.size(); o_it++)
@@ -479,14 +481,14 @@ void CExplosive::UpdateCL()
 	{
 		CGameObject* go=cast_game_object();
 		go->processing_deactivate();
-		m_explosion_flags.set(flExploding,FALSE);//m_bExploding = false;
+		m_explosion_flags.set(flExploding,false);//m_bExploding = false;
 		OnAfterExplosion();
 		return;
 	}
 	//время вышло, убираем объект взрывчатки
 	if(m_fExplodeDuration < 0.f&&m_blasted_objects.empty()) 
 	{
-		m_explosion_flags.set(flExploded,TRUE);
+		m_explosion_flags.set(flExploded,true);
 		
 		
 		StopLight();
@@ -534,7 +536,7 @@ void CExplosive::UpdateCL()
 				m_uLastBlastUpdateTime = Device.dwTimeGlobal + m_uBlastUpdateTime;
 
 				xr_vector<ISpatialShared> ISpatialResult;
-				g_SpatialSpace->q_sphere(ISpatialResult, 0, STYPE_COLLIDEABLE, m_vExplodePos, m_fBlastRadius);
+				g_SpatialSpace->q_sphere(ISpatialResult, 0, ESPATIAL_TYPE::COLLIDEABLE, m_vExplodePos, m_fBlastRadius);
 
 				for (u32 o_it = 0; o_it < ISpatialResult.size(); ++o_it)
 				{
@@ -592,8 +594,8 @@ void CExplosive::OnBeforeExplosion()
 void CExplosive::HideExplosive()
 {
 	CGameObject	*GO=cast_game_object();
-	GO->setVisible(FALSE);
-	GO->setEnabled(FALSE);
+	GO->setVisible(false);
+	GO->setEnabled(false);
 	CPhysicsShell* phshell = GO->cast_physics_shell_holder()->PPhysicsShell();
 	if(phshell)
 	{
@@ -630,7 +632,7 @@ void CExplosive::ExplodeParams(const Fvector& pos,
 								const Fvector& dir)
 {
 	//m_bReadyToExplode = true;
-	m_explosion_flags.set	(flReadyToExplode,TRUE);
+	m_explosion_flags.set	(flReadyToExplode,true);
 	m_vExplodePos			= pos;
 	m_vExplodePos.y			+= 0.1f;// fake
 	m_vExplodeDir			= dir;
@@ -653,7 +655,7 @@ void CExplosive::GenExplodeEvent (const Fvector& pos, const Fvector& normal)
 	cast_game_object()->u_EventSend		(P);
 
 	//m_bExplodeEventSent = true;
-	m_explosion_flags.set(flExplodEventSent,TRUE);
+	m_explosion_flags.set(flExplodEventSent,true);
 }
 
 void CExplosive::FindNormal(Fvector& normal)
@@ -664,17 +666,18 @@ void CExplosive::FindNormal(Fvector& normal)
 	dir.set(0,-1.f,0);
 	cast_game_object()->Center(pos);
 
-	BOOL result = Level().ObjectSpace.RayPick(pos, dir, cast_game_object()->Radius(), 
+	bool result = Level().ObjectSpace.RayPick(pos, dir, cast_game_object()->Radius(), 
 											 collide::rqtBoth, RQ, nullptr);
 	if(!result || RQ.O){
 		normal.set(0,1,0);
 	//если лежим на статике
 	//найти треугольник и вычислить нормаль по нему
-	}else
+	}
+	else
 	{
-		Fvector*	pVerts	= Level().ObjectSpace.GetStaticVerts();
-		CDB::TRI*	pTri	= Level().ObjectSpace.GetStaticTris() + RQ.element;
-		normal.mknormal	(pVerts[pTri->verts[0]],pVerts[pTri->verts[1]],pVerts[pTri->verts[2]]);
+		xr_vector<Fvector>& pVerts	= Level().ObjectSpace.GetStaticVerts();
+		CDB::TRI& pTri = Level().ObjectSpace.GetStaticTris()[RQ.element];
+		normal.mknormal	(pVerts[pTri.verts[0]],pVerts[pTri.verts[1]],pVerts[pTri.verts[2]]);
 	}
 }
 

@@ -5,7 +5,7 @@
 //	---------------------------------------------------------------------------
 //  Multiplayer game log window
 //=============================================================================
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIGameLog.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "UIPdaMsgListItem.h"
@@ -19,9 +19,9 @@ CUIGameLog::CUIGameLog()
 	m_pFont = nullptr;
 }
 
-CUITextWnd* CUIGameLog::AddLogMessage(LPCSTR msg)
+CUIStatic* CUIGameLog::AddLogMessage(const char* msg)
 {
-	CUITextWnd* pItem = nullptr;
+	CUIStatic* pItem = nullptr;
 	ADD_TEXT_TO_VIEW3(msg, pItem, this);
 	pItem->SetFont(m_pFont);
 	pItem->SetTextColor(txt_color);
@@ -52,23 +52,23 @@ CUIPdaKillMessage* CUIGameLog::AddLogMessage(KillMessageStruct& msg)
 	return pItem;
 }
 
-void CUIGameLog::AddChatMessage(LPCSTR msg, LPCSTR author)
+void CUIGameLog::AddChatMessage(const char* msg, const char* author)
 {
 	string256 fullLine;
 	xr_strconcat(fullLine, author, " ", msg);
 
 	_TrimRight(fullLine);
-
-	CUITextWnd* pItem = new CUITextWnd();
-	pItem->SetTextComplexMode(true);
-	pItem->SetText(fullLine);
-	pItem->SetCutWordsMode(true);
-	pItem->SetFont(m_pFont);
-	pItem->SetTextColor(txt_color);
-	pItem->SetColorAnimation("ui_main_msgs_short", LA_ONLYALPHA | LA_TEXTCOLOR, 5000.0f);
-	pItem->SetWidth(this->GetDesiredChildWidth());
-	pItem->AdjustHeightToText();
-	AddWindow(pItem, true);
+    
+	CUIStatic* pItem			= new CUIStatic();
+	pItem->SetTextComplexMode	(true);
+	pItem->SetText				(fullLine);
+    pItem->TextItemControl()->SetCutWordsMode		(true);
+	pItem->SetFont				(m_pFont);
+	pItem->SetTextColor			(txt_color);
+	pItem->SetColorAnimation	("ui_main_msgs_short", LA_ONLYALPHA|LA_TEXTCOLOR, 5000.0f);
+	pItem->SetWidth				(this->GetDesiredChildWidth());
+	pItem->AdjustHeightToText	();
+	AddWindow					(pItem, true);	
 }
 
 void CUIGameLog::SetTextAtrib(CGameFont* pFont, u32 color)

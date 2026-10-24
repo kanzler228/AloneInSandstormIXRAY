@@ -1,9 +1,9 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIBuyWndShared.h"
 #include "UIMpTradeWnd.h"
 
 
-extern LPCSTR _list_names[];
+extern const char* _list_names[];
 
 void CItemMgr::Load(const shared_str& sect_cost)
 {	
@@ -14,7 +14,7 @@ void CItemMgr::Load(const shared_str& sect_cost)
 	{
 		_i&		val			= m_items[it->first]; 
 		val.slot_idx		= 0xff;
-		int c = sscanf		(it->second.c_str(),"%d,%d,%d,%d,%d",&val.cost[0],&val.cost[1],&val.cost[2],&val.cost[3],&val.cost[4]);
+		int c = sscanf		(it->second.c_str(),"%u,%u,%u,%u,%u",&val.cost[0],&val.cost[1],&val.cost[2],&val.cost[3],&val.cost[4]);
 		VERIFY				(c>0);
 
 		while(c<_RANK_COUNT)

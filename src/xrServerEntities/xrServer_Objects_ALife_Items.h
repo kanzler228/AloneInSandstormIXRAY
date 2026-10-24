@@ -13,7 +13,6 @@
 #include "PHSynchronize.h"
 #include "inventory_space.h"
 
-#include "character_info_defs.h"
 #include "InfoPortionDefs.h"
 
 #pragma warning(push)
@@ -49,20 +48,22 @@ public:
 	xr_vector<shared_str>			m_upgrades;
 
 public:
-									CSE_ALifeInventoryItem	(LPCSTR caSection);
+									CSE_ALifeInventoryItem	(const char* caSection);
 	virtual							~CSE_ALifeInventoryItem	();
 	// we need this to prevent virtual inheritance :-(
-	virtual CSE_Abstract			*base					() = 0;
-	virtual const CSE_Abstract		*base					() const = 0;
+	virtual CSE_Abstract			*base					() { return nullptr; }
+	virtual const CSE_Abstract		*base					() const { return nullptr; }
 	virtual CSE_Abstract			*init					();
 	virtual CSE_Abstract			*cast_abstract			() {return 0;};
 	virtual CSE_ALifeInventoryItem	*cast_inventory_item	() {return this;};
 	virtual	u32						update_rate				() const;
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 
 			bool					has_upgrade				(const shared_str& upgrade_id);
 			void					add_upgrade				(const shared_str& upgrade_id);
-
+			void					SetCondition(float cond) {
+				m_fCondition = cond;
+			}
 private:
 	bool							prev_freezed;
 	bool							freezed;
@@ -89,14 +90,14 @@ SERVER_ENTITY_DECLARE_END
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeItem,CSE_ALifeDynamicObjectVisual,CSE_ALifeInventoryItem)
 	bool							m_physics_disabled;
 
-									CSE_ALifeItem	(LPCSTR caSection);
+									CSE_ALifeItem	(const char* caSection);
 	virtual							~CSE_ALifeItem	();
 	virtual CSE_Abstract			*base			();
 	virtual const CSE_Abstract		*base			() const;
 	virtual CSE_Abstract			*init					();
 	virtual CSE_Abstract			*cast_abstract			() {return this;};
 	virtual CSE_ALifeInventoryItem	*cast_inventory_item	() {return this;};
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 	virtual void					OnEvent					(NET_Packet &tNetPacket, u16 type, u32 time, ClientID sender );
 SERVER_ENTITY_DECLARE_END
 
@@ -110,9 +111,9 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemTorch,CSE_ALifeItem)
 	bool							m_active;
 	bool							m_nightvision_active;
 	bool							m_attached;
-									CSE_ALifeItemTorch	(LPCSTR caSection);
+									CSE_ALifeItemTorch	(const char* caSection);
     virtual							~CSE_ALifeItemTorch	();
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 
 SERVER_ENTITY_DECLARE_END
 
@@ -120,7 +121,7 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemAmmo,CSE_ALifeItem)
 	u16								a_elapsed;
 	u16								m_boxSize;
 
-									CSE_ALifeItemAmmo	(LPCSTR caSection);
+									CSE_ALifeItemAmmo	(const char* caSection);
 	virtual							~CSE_ALifeItemAmmo	();
 	virtual CSE_ALifeItemAmmo		*cast_item_ammo		()  {return this;};
 	virtual bool					can_switch_online	() const;
@@ -144,45 +145,53 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeapon,CSE_ALifeItem)
 	EWeaponAddonStatus				m_grenade_launcher_status;
 
 	u32								timestamp;
-	u8								wpn_flags;
-	u8								wpn_state;
-	u8								ammo_type;
+	u8								wpn_flags = 0;
+	u8								wpn_state = 0;
 	u8								chamber_ammo_type = 0;
-	u16								a_current;
-	u16								a_elapsed;
+	u16								a_current = 0;
 	u16								a_chamber_elapsed = 0;
-	u8								misfire;
-	float							rt_zoom_factor;
-	u8								cur_scope;
+	u8								misfire = 0;
+	float							rt_zoom_factor = 0.0f;
+	u8								cur_scope = 0;
 
-	//count of grenades to spawn in grenade launcher [ttcccccc]
-	//WARNING! hight 2 bits (tt bits) indicate type of grenade, so maximum grenade count is 2^6 = 64
-	struct grenade_count_t
+	struct ammo_elapsed_t
 	{
-		u8	grenades_count	:	6;
-		u8	grenades_type	:	2;
-		u8	pack_to_byte() const
+		union
 		{
-			return (grenades_type << 6) | grenades_count;
-		}
-		void unpack_from_byte(u8 const b)
+			u16 data = 0;
+
+			struct
+			{
+				u16 MagazineElapsed : 8;
+				u16 GrenadesElapsed : 8;
+			};
+		};
+	} a_elapsed;
+
+	struct ammo_type_t
+	{
+		union
 		{
-			grenades_type	=	(b >> 6);
-			grenades_count	=	b & 0x3f; //111111
-		}
-	}; //struct grenade_count_t
-	grenade_count_t					a_elapsed_grenades;
+			u8 data = 0;
+
+			struct
+			{
+				u8 MagazinedType : 4;
+				u8 GrenadeType : 4;
+			};
+		};
+	} a_ammo_type;
 
 	float							m_fHitPower;
 	ALife::EHitType					m_tHitType;
-	LPCSTR							m_caAmmoSections;
+	const char*							m_caAmmoSections;
 	u32								m_dwAmmoAvailable;
 	Flags8							m_addon_flags;
-	u8								m_bZoom;
+	u8								m_bZoom = false;
 	u32								m_ef_main_weapon_type;
 	u32								m_ef_weapon_type;
 
-									CSE_ALifeItemWeapon	(LPCSTR caSection);
+									CSE_ALifeItemWeapon	(const char* caSection);
 	virtual							~CSE_ALifeItemWeapon();
 	virtual void					OnEvent				(NET_Packet& P, u16 type, u32 time, ClientID sender );
 	virtual u32						ef_main_weapon_type	() const;
@@ -195,37 +204,43 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeapon,CSE_ALifeItem)
 	void							clone_addons		(CSE_ALifeItemWeapon* parent);
 	void							clone_upgrades		(CSE_ALifeItemWeapon* parent);
 
-	virtual BOOL					Net_Relevant		();
+	virtual bool					Net_Relevant		();
 
 	virtual CSE_ALifeItemWeapon		*cast_item_weapon	() {return this;}
+
+#ifndef XRGAME_EXPORTS
+	void OnEditorMagazineTypeChanged(PropValue*);
+	void OnEditorMagazineElapsedChanged(PropValue*);
+#endif // #ifndef XRGAME_EXPORTS
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeaponMagazined,CSE_ALifeItemWeapon)
 u8			m_u8CurFireMode;
-CSE_ALifeItemWeaponMagazined(LPCSTR caSection);
+CSE_ALifeItemWeaponMagazined(const char* caSection);
 virtual							~CSE_ALifeItemWeaponMagazined();
 
 virtual CSE_ALifeItemWeapon		*cast_item_weapon	() {return this;}
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeaponMagazinedWGL, CSE_ALifeItemWeaponMagazined)
-bool			m_bGrenadeMode;
-CSE_ALifeItemWeaponMagazinedWGL(LPCSTR caSection);
+bool			m_bGrenadeMode = false;
+CSE_ALifeItemWeaponMagazinedWGL(const char* caSection);
 virtual							~CSE_ALifeItemWeaponMagazinedWGL();
 
 virtual CSE_ALifeItemWeapon		*cast_item_weapon	() {return this;}
+virtual CSE_ALifeItemWeaponMagazinedWGL	*cast_item_weapon_magazined_wgl	() {return this;}
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeaponShotGun,CSE_ALifeItemWeaponMagazined)
 	xr_vector<u8>				m_AmmoIDs;
-								CSE_ALifeItemWeaponShotGun(LPCSTR caSection);
+								CSE_ALifeItemWeaponShotGun(const char* caSection);
 virtual							~CSE_ALifeItemWeaponShotGun();
 
 virtual CSE_ALifeItemWeapon		*cast_item_weapon	() {return this;}
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemWeaponAutoShotGun,CSE_ALifeItemWeaponShotGun)
-								CSE_ALifeItemWeaponAutoShotGun(LPCSTR caSection);
+								CSE_ALifeItemWeaponAutoShotGun(const char* caSection);
 virtual							~CSE_ALifeItemWeaponAutoShotGun();
 
 virtual CSE_ALifeItemWeapon		*cast_item_weapon	() {return this;}
@@ -233,7 +248,7 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemDetector,CSE_ALifeItem)
 	u32								m_ef_detector_type;
-									CSE_ALifeItemDetector(LPCSTR caSection);
+									CSE_ALifeItemDetector(const char* caSection);
 	virtual							~CSE_ALifeItemDetector();
 	virtual u32						ef_detector_type() const;
 	virtual CSE_ALifeItemDetector	*cast_item_detector		() {return this;}
@@ -241,9 +256,9 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemArtefact,CSE_ALifeItem)
 	float							m_fAnomalyValue;
-									CSE_ALifeItemArtefact	(LPCSTR caSection);
+									CSE_ALifeItemArtefact	(const char* caSection);
 	virtual							~CSE_ALifeItemArtefact	();
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemPDA,CSE_ALifeItem)
@@ -251,32 +266,32 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemPDA,CSE_ALifeItem)
 	shared_str						m_specific_character;
 	shared_str						m_info_portion;
 
-									CSE_ALifeItemPDA(LPCSTR caSection);
+									CSE_ALifeItemPDA(const char* caSection);
 	virtual							~CSE_ALifeItemPDA();
 	virtual CSE_ALifeItemPDA		*cast_item_pda				() {return this;};
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemDocument,CSE_ALifeItem)
 	shared_str							m_wDoc;
-									CSE_ALifeItemDocument(LPCSTR caSection);
+									CSE_ALifeItemDocument(const char* caSection);
 	virtual							~CSE_ALifeItemDocument();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemGrenade,CSE_ALifeItem)
 	u32								m_ef_weapon_type;
-									CSE_ALifeItemGrenade	(LPCSTR caSection);
+									CSE_ALifeItemGrenade	(const char* caSection);
 	virtual							~CSE_ALifeItemGrenade	();
 	virtual u32						ef_weapon_type			() const;
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemExplosive,CSE_ALifeItem)
-									CSE_ALifeItemExplosive(LPCSTR caSection);
+									CSE_ALifeItemExplosive(const char* caSection);
 	virtual							~CSE_ALifeItemExplosive();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemBolt,CSE_ALifeItem)
 	u32								m_ef_weapon_type;
-									CSE_ALifeItemBolt	(LPCSTR caSection);
+									CSE_ALifeItemBolt	(const char* caSection);
 	virtual							~CSE_ALifeItemBolt	();
 	virtual bool					can_save			() const;
 	virtual bool					used_ai_locations	() const;
@@ -285,7 +300,7 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemsNotSave, CSE_ALifeItem)
 	u32								m_ef_weapon_type;
-									CSE_ALifeItemsNotSave(LPCSTR caSection);
+									CSE_ALifeItemsNotSave(const char* caSection);
 	virtual							~CSE_ALifeItemsNotSave();
 	virtual bool					can_save() const;
 	virtual bool					used_ai_locations() const;
@@ -294,16 +309,16 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemCustomOutfit,CSE_ALifeItem)
 	u32								m_ef_equipment_type;
-									CSE_ALifeItemCustomOutfit	(LPCSTR caSection);
+									CSE_ALifeItemCustomOutfit	(const char* caSection);
 	virtual							~CSE_ALifeItemCustomOutfit	();
 	virtual u32						ef_equipment_type			() const;
-	virtual BOOL					Net_Relevant				();
+	virtual bool					Net_Relevant				();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeItemHelmet,CSE_ALifeItem)
-									CSE_ALifeItemHelmet	(LPCSTR caSection);
+									CSE_ALifeItemHelmet	(const char* caSection);
 	virtual							~CSE_ALifeItemHelmet	();
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 SERVER_ENTITY_DECLARE_END
 
 #pragma warning(pop)

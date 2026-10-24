@@ -6,10 +6,11 @@ class CUIXml;
 class CUITabButtonMP;
 class CUICellItem;
 
-class CStoreHierarchy
+class CStoreHierarchy final
 {
 public:
-	struct item :public IPureDestroyableObject
+	struct item :
+		public IPureDestroyableObject
 	{
 								item				():m_parent(NULL),m_button(NULL){}
 	virtual void				destroy				();
@@ -37,7 +38,7 @@ public:
 							CStoreHierarchy		();
 							~CStoreHierarchy	();
 					
-	void					Init				(CUIXml& xml, LPCSTR path);
+	void					Init				(CUIXml& xml, const char* path);
 	void					InitItemsInGroup	(const shared_str& sect, item* =NULL);
 	const item&				GetRoot				()								{VERIFY(m_root); return *m_root;};
 	void					Reset				()								{VERIFY(m_root); m_current_level = m_root;};

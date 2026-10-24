@@ -150,6 +150,7 @@
 #define CLSID_Z_FRYUP  				MK_CLSID('Z','_','F','R','Y','U','P ',' ')
 #define CLSID_Z_DEAD  				MK_CLSID('Z','_','D','E','A','D',' ',' ')
 #define CLSID_LEVEL_CHANGER			MK_CLSID('L','V','L','C','H','N','G','R')
+#define CLSID_LEVEL_CHANGER_LEGACY	MK_CLSID('L','V','L','_','C','H','N','G')
 #define CLSID_SCRIPT_ZONE			MK_CLSID('S','C','R','I','P','T','Z','N')
 #define CLSID_Z_TEAM_BASE  			MK_CLSID('Z','_','T','E','A','M','B','S')
 #define CLSID_Z_TORRID  			MK_CLSID('Z','_','T','O','R','R','I','D')
@@ -186,11 +187,18 @@
 #define CLSID_IITEM_ANTIRAD			MK_CLSID('I','I','_','A','N','T','I','R')
 #define CLSID_IITEM_EXPLOSIVE		MK_CLSID('I','I','_','E','X','P','L','O')
 
+#define CLSID_IITEM_ANTIGAS_FILTER	MK_CLSID('A','T','G','_','F','L','T','R')
+
 // Info Document
 #define CLSID_IITEM_DOCUMENT		MK_CLSID('I','I','_','D','O','C',' ',' ')
 
 #define CLSID_IITEM_ATTACH			MK_CLSID('I','I','_','A','T','T','C','H')
+#define CLSID_INTERACTIVE_OBJ		MK_CLSID('I','N','T','E','R','A','C','T')
 
+#define CLSID_IITEM_POWER_CELL		MK_CLSID('P','W','R','_','C','E','L','L')
+#define CLSID_IITEM_POWER_BANK		MK_CLSID('P','W','R','_','B','A','N','K')
+
+#define CLSID_IITEM_NIGHT_VISION	MK_CLSID('D','_','N','V','G',' ',' ',' ')
 
 // Grenades
 #define CLSID_GRENADE_F1			MK_CLSID('G','_','F','1',' ',' ',' ',' ')
@@ -236,3 +244,8 @@
 #define CLSID_ONLINE_OFFLINE_GROUP		MK_CLSID('O','N','_','O','F','F','_','G')
 
 #define CLSID_EQUIPMENT_BACKPACK MK_CLSID('E', 'Q', '_', 'B', 'A', 'K', 'P', 'K')
+
+
+#define CLSID_SMART_TERRAIN				MK_CLSID('S','M','R','T','T','R','R','N')
+#define CLSID_SMART_COVER				MK_CLSID('S','M','R','T','_','C','_','S')
+#define CLSID_SIM_FACTION				MK_CLSID('S','F','A','C','T','I','O','N')

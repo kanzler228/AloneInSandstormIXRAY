@@ -1,26 +1,4 @@
---news = {}
---[[
-tips_icons = {
-	default  = { 0, 658},      -- ui_iconsTotal_grouping
-	trader	 = { 332, 893},    -- ui_iconsNpc_trader
-	dolg     = { 0, 658},
-	freedom  = { 0, 658},
-	ecolog   = { 498, 0},      -- ui_iconsNpc_ecolog
-	army     = { 332, 141},    -- ui_iconsNpc_stalker_neytral_balon_6
-	stalker  = { 0, 658},
-	csky  	 = { 0, 658},
-	krot     = { 332, 47},     -- ui_iconsNpc_stalker_neytral_rukzak_4
-	barman   = { 332, 235},    -- ui_iconsNpc_barman
-	wolf	 = { 332, 940},    -- ui_iconsNpc_stalker_neytral_balon_1
-	o_soznanie = { 498, 893},
-	monolith = { 0, 658},
-	saharov  = { 332, 470},    -- ui_iconsNpc_ucheniy_2
-	prizrak  = { 0, 658},
-	killer   = { 0, 658},
-	bandit   = { 0, 658},
-	renegade = { 0, 658}
-}
-]]
+subtitles_enabled = true
 
 -- ToDo - Need Pioneer icon here!
 tips_icons = {
@@ -101,8 +79,8 @@ function send_tip(actor, news_id, timeout, sender, showtime, sender_id)
 			texture = sender:character_icon()
 		end
 	end
-	local news_caption = game.translate_string("st_tip")
-	local news_text = game.translate_string(news_id)
+	local news_caption = "st_tip"	--MTB_Jakub_Jurek
+	local news_text = news_id		--MTB_Jakub_Jurek
 --	actor:give_game_news(news_caption, news_text, texture, timeout*1000, showtime)
 	actor:give_game_news(news_caption, news_text, texture, timeout*1000, showtime, 0)
 
@@ -111,7 +89,12 @@ end
 
 
 function send_sound(npc, faction, point, str, str2, delay_sound)
-	--callstack()
+	if not subtitles_enabled then
+		return
+	end
+	if delay_sound == nil then
+		delay_sound = 0
+	end
 	if faction ~= nil then
 		--printf("---------------------")
 		--printf(tostring(faction))
@@ -121,7 +104,17 @@ function send_sound(npc, faction, point, str, str2, delay_sound)
 			if smart then
 				point_name = smart_names.get_smart_terrain_name(smart.smrt)
 			else
-				point_name = game.translate_string(point)
+				--MTB_Jakub_Jurek JUD-894
+				-- try finding terain name by id, if filed returns id back
+				local name = smart_names.get_smart_terrain_name_by_id(point)
+				if (name ~= point) then
+					point_name = name
+			     else
+					if game.translate_string(point) ~= point then
+						point_name = point
+					end
+				end
+				--MTB_Jakub_Jurek JUD-894 end
 			end
 		end
 		--printf(point_name)
@@ -134,10 +127,12 @@ function send_sound(npc, faction, point, str, str2, delay_sound)
 		end
 		--printf("--->"..tostring(txt))
 
-		local news_text = game.translate_string(txt)
-		if news_text == txt then
+		-- MTB_Jakub_Jurek [JUD-139]
+		local news_text = txt
+		if game.translate_string(txt) == txt then
 			return
 		end
+		-- MTB_Jakub_Jurek [JUD-139]
 
 
 --		callstack()
@@ -156,16 +151,15 @@ function send_sound(npc, faction, point, str, str2, delay_sound)
 			end
 		end
 --		printf("--->texture="..tostring(texture))
-		local news_caption = game.translate_string("st_tip").." "..game.translate_string(faction)
+		local news_caption = "#st_tip#".." #"..faction.."#" -- MTB_Jakub_Jurek [JUD-139]
 		if point_name ~= "" then
-			news_caption = news_caption..". "..point_name..":"
+			news_caption = news_caption..". #"..point_name.."#:"
 		else
 			news_caption = news_caption..":"
 		end
 
 
 --		db.actor:give_game_news(news_caption, news_text, texture, 1000, 5000)
---		give_game_news(LPCSTR caption, LPCSTR news, LPCSTR texture_name, int delay, int show_time)
 		db.actor:give_game_news(news_caption, news_text, texture, delay_sound+1000, 5000, 1)
 
 		return true
@@ -198,8 +192,8 @@ function send_task(actor, type, task)
 		time_on_screen = 5000
 	end
 	xr_sound.set_sound_play(db.actor:id(), "pda_task")
-	local news_caption = game.translate_string(action_descr_by_type[type])
-	local news_text = game.translate_string(task:get_title())
+	local news_caption = action_descr_by_type[type] --MTB_Jakub_Jurek
+	local news_text = "#"..task:get_title().."#" --MTB_Jakub_Jurek
 	local icon = task:get_icon_name()
 	if(icon==nil) then
 		icon = "ui_iconsTotal_storyline"
@@ -216,12 +210,12 @@ end
 function send_treasure(param)
 	local news_caption = ""
 	if(param==0) then
-		news_caption = game.translate_string("st_found_new_treasure")
+		news_caption = "st_found_new_treasure" --MTB_Jakub_Jurek
 	elseif(param==1) then
-		news_caption = game.translate_string("st_got_treasure")
+		news_caption = "st_got_treasure" --MTB_Jakub_Jurek
 		xr_sound.set_sound_play(db.actor:id(), "pda_tips")
 	elseif(param==2) then
-		news_caption = game.translate_string("st_found_old_treasure")
+		news_caption = "st_found_old_treasure" --MTB_Jakub_Jurek
 	end
 
 	if db.actor:is_talking() then
@@ -245,11 +239,11 @@ function relocate_item(actor, type, item, amount)
 	local news_text = ""
 	if type == "in" then
 		if amount == 1 then
-			news_caption = game.translate_string("general_in_item")
-			news_text = game.translate_string(get_inv_name(item))
+			news_caption = "general_in_item" --MTB_Jakub_Jurek
+			news_text = get_inv_name(item) --MTB_Jakub_Jurek
 		else
-			news_caption = game.translate_string("general_in_item")
-			news_text = game.translate_string(get_inv_name(item)).." x"..amount
+			news_caption = "general_in_item" --MTB_Jakub_Jurek
+			news_text = "#"..get_inv_name(item).."# x"..amount --MTB_Jakub_Jurek
 		end
 		if db.actor:is_talking() then
 			db.actor:give_talk_message2(news_caption, news_text, "ui_inGame2_Predmet_poluchen", "iconed_answer_item")
@@ -258,11 +252,11 @@ function relocate_item(actor, type, item, amount)
 		end
 	elseif type == "out" then
 		if amount == 1 then
-			news_caption = game.translate_string("general_out_item")
-			news_text = game.translate_string(get_inv_name(item))
+			news_caption = "general_out_item" --MTB_Jakub_Jurek
+			news_text = get_inv_name(item) --MTB_Jakub_Jurek
 		else
-			news_caption = game.translate_string("general_out_item")
-			news_text = game.translate_string(get_inv_name(item)).." x"..amount
+			news_caption = "general_out_item" --MTB_Jakub_Jurek
+			news_text = "#"..get_inv_name(item).."# x"..amount --MTB_Jakub_Jurek
 		end
 		if db.actor:is_talking() then
 			db.actor:give_talk_message2(news_caption, news_text, "ui_inGame2_Predmet_otdan", "iconed_answer_item")
@@ -276,8 +270,8 @@ function relocate_money(actor, type, amount)
 	if db.actor == nil then return false end
 	--' Играем дефолтный звук
 	if type == "in" then
-		local news_caption = game.translate_string("general_in_money")
-		local news_text = game.translate_string(tostring(amount))
+		local news_caption = "general_in_money" --MTB_Jakub_Jurek
+		local news_text = tostring(amount) --MTB_Jakub_Jurek
 
 		if db.actor:is_talking() then
 			db.actor:give_talk_message2(news_caption, news_text, "ui_inGame2_Dengi_polucheni", "iconed_answer_item")
@@ -285,8 +279,8 @@ function relocate_money(actor, type, amount)
 			db.actor:give_game_news(news_caption, news_text, "ui_inGame2_Dengi_polucheni", 0, 3000)
 		end
 	elseif type == "out" then
-		local news_caption = game.translate_string("general_out_money")
-		local news_text = game.translate_string(tostring(amount))
+		local news_caption = "general_out_money" --MTB_Jakub_Jurek
+		local news_text = tostring(amount) --MTB_Jakub_Jurek
 
 		if db.actor:is_talking() then
 			db.actor:give_talk_message2(news_caption, news_text, "ui_inGame2_Dengi_otdani", "iconed_answer_item")

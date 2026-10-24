@@ -11,18 +11,13 @@
 #include "UIListWnd.h"
 #include "../../xrEngine/string_table.h"
 
-
 #define UNREAD_COLOR	0xff00ff00
 #define READ_COLOR		0xffffffff
 
 //////////////////////////////////////////////////////////////////////////
-
 // Смещение относительно родителя
 const int				subShift					= 1;
 const char * const		treeItemBackgroundTexture	= "ui\\ui_pda_over_list";
-// Цвет непрочитанного элемента
-static const u32		unreadColor					= 0xff00ff00;
-
 //////////////////////////////////////////////////////////////////////////
 
 CUITreeViewItem::CUITreeViewItem()
@@ -35,8 +30,12 @@ CUITreeViewItem::CUITreeViewItem()
 {
 	AttachChild(&UIBkg);
 	UIBkg.InitTexture(treeItemBackgroundTexture);
+	Fvector2 sz{256.f, 32.f};
+	sz.x *= UI().get_current_kx();
+	UIBkg.SetStretchTexture(true);
+	UIBkg.SetWndSize(sz);
 	UIBkg.TextureOff();
-	UIBkg.SetTextureOffset(-20, 0);
+	UIBkg.SetTextureOffset(-20 * UI().get_current_kx(), 0);
 	EnableTextHighlighting(false);
 
 	m_bManualSetColor = false;
@@ -239,7 +238,7 @@ void CUITreeViewItem::SetRoot(bool set)
 
 //////////////////////////////////////////////////////////////////////////
 
-void CUITreeViewItem::SetText(LPCSTR str)
+void CUITreeViewItem::SetText(const char* str)
 {
 	xr_string s = str;
 	xr_string::size_type pos = s.find_first_not_of(" +-");
@@ -295,7 +294,7 @@ void CUITreeViewItem::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 
 //////////////////////////////////////////////////////////////////////////
 
-CUITreeViewItem * CUITreeViewItem::Find(LPCSTR text) const
+CUITreeViewItem * CUITreeViewItem::Find(const char* text) const
 {
 	// Пробегаемся по списку подчиненных элементов, и ищем элемент с заданным текстом
 	// Если среди подч. эл-тов есть root'ы, то ищем рекурсивно в них
@@ -416,19 +415,19 @@ void CUITreeViewItem::MarkArticleAsRead(bool value)
 
 //////////////////////////////////////////////////////////////////////////
 
-void CUITreeViewItem::CheckParentMark(CUITreeViewItem *pOwner)
+void CUITreeViewItem::CheckParentMark(CUITreeViewItem *pOwner_)
 {
 	// Берем рута, смотрим на его чилдов, и если среди них есть хоть 1
 	// непрочитанный, то маркаем себя как непрочитанный, и  говорим провериться выше.
 	bool f = false;
-	if (pOwner && pOwner->IsRoot())
+	if (pOwner_ && pOwner_->IsRoot())
 	{
-		for (SubItems_it it = pOwner->vSubItems.begin(); it != pOwner->vSubItems.end(); ++it)
+		for (SubItems_it it = pOwner_->vSubItems.begin(); it != pOwner_->vSubItems.end(); ++it)
 		{
 			if (!(*it)->IsArticleReaded())
 			{
-				pOwner->m_bArticleRead = false;
-				pOwner->SetItemColor();
+				pOwner_->m_bArticleRead = false;
+				pOwner_->SetItemColor();
 				f = true;
 			}
 		}
@@ -436,11 +435,11 @@ void CUITreeViewItem::CheckParentMark(CUITreeViewItem *pOwner)
 		if (!f)
 		{
 			// Если мы тут, то все артиклы прочитанны, и можно маркнуть себя как прочитанная ветвь
-			pOwner->m_bArticleRead = true;
-			pOwner->SetItemColor();
+			pOwner_->m_bArticleRead = true;
+			pOwner_->SetItemColor();
 		}
 
-		pOwner->CheckParentMark(pOwner->GetOwner());
+		pOwner_->CheckParentMark(pOwner_->GetOwner());
 	}
 }
 

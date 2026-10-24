@@ -18,7 +18,7 @@ s16 q_P(float v)
 	return s16(_v);
 }
 
-u8 q_N(float v)
+constexpr u8 q_N(float v)
 {
 	int _v =  clampr(iFloor((v + 1.f) * 127.5f), 0, 255);
 	return u8(_v);
@@ -662,27 +662,6 @@ void CDS0_SkeletonXExt::_Load_hw(CDS0_FVisual& V, void* _verts_)
 // Wallmarks
 //-----------------------------------------------------------------------------------------------------
 
-#ifdef DEBUG
-
-template <typename vertex_type>
-static void verify_vertex(const vertex_type& v, const CDS0_FVisual* V, const CDS0_Kinematics* Parent, u32 OffsetIndex, u32 CountIndex, const u16* indices, u32 vertex_idx, u32 idx)
-{
-	VERIFY(Parent);
-
-	for (u8 i = 0; i < vertex_type::bones_count; ++i)
-		if (v.get_bone_id(i) >= Parent->LL_BoneCount())
-		{
-			/*Msg("v.get_bone_id(i): %d, Parent->LL_BoneCount() %d ", v.get_bone_id(i), Parent->LL_BoneCount());
-			Msg("&v: %p, &V: %p, indices: %p", &v, V, indices);
-			Msg(" OffsetIndex: %d, CountIndex: %d, V->OffsetIndex %d, V->CountIndex %d, V->OffsetVertex: %d,  V->CountVertex  %d, vertex_idx: %d, idx: %d", OffsetIndex, CountIndex, V->OffsetIndex, V->CountIndex, V->OffsetVertex, V->CountVertex, vertex_idx, idx);
-			Msg(" v.P: %s , v.N: %s, v.T: %s, v.B: %s", get_string(v.P).c_str(), get_string(v.N).c_str(), get_string(v.T).c_str(), get_string(v.B).c_str());
-			Msg("Parent->dbg_name: %s ", Parent->dbg_name.c_str());*/
-
-			FATAL("v.get_bone_id(i) >= Parent->LL_BoneCount()");
-		}
-}
-#endif
-
 void CDS0_SkeletonXExt::_CollectBoneFaces(CDS0_FVisual* V, size_t OffsetIndex, size_t CountIndex)
 {
 	u16* indices = 0;
@@ -698,12 +677,7 @@ void CDS0_SkeletonXExt::_CollectBoneFaces(CDS0_FVisual* V, size_t OffsetIndex, s
 			for (u32 idx = 0; idx < CountIndex; idx++)
 			{
 				vertBoned1W& v = vertices[V->OffsetVertex + indices[idx]];
-#ifdef DEBUG
-				verify_vertex(v, V, Parent, OffsetIndex, CountIndex, indices, V->OffsetVertex + indices[idx], idx);
-#endif
-				CBoneData& BD = Parent->LL_GetData((u16)v.matrix);
-
-				BD.AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m).AppendFace(ChildIDX, (u16)(idx / 3));
 			}
 		}
 		else if (*Vertices2W)
@@ -713,13 +687,8 @@ void CDS0_SkeletonXExt::_CollectBoneFaces(CDS0_FVisual* V, size_t OffsetIndex, s
 			for (u32 idx = 0; idx < CountIndex; ++idx)
 			{
 				vertBoned2W& v = vertices[V->OffsetVertex + indices[idx]];
-#ifdef DEBUG
-				verify_vertex(v, V, Parent, OffsetIndex, CountIndex, indices, V->OffsetVertex + indices[idx], idx);
-#endif
-				CBoneData& BD0 = Parent->LL_GetData((u16)v.matrix0);
-				BD0.AppendFace(ChildIDX, (u16)(idx / 3));
-				CBoneData& BD1 = Parent->LL_GetData((u16)v.matrix1);
-				BD1.AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[0]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[1]).AppendFace(ChildIDX, (u16)(idx / 3));
 			}
 		}
 		else if (*Vertices3W)
@@ -729,15 +698,9 @@ void CDS0_SkeletonXExt::_CollectBoneFaces(CDS0_FVisual* V, size_t OffsetIndex, s
 			for (u32 idx = 0; idx < CountIndex; ++idx)
 			{
 				vertBoned3W& v = vertices[V->OffsetVertex + indices[idx]];
-#ifdef DEBUG
-				verify_vertex(v, V, Parent, OffsetIndex, CountIndex, indices, V->OffsetVertex + indices[idx], idx);
-#endif
-				CBoneData& BD0 = Parent->LL_GetData((u16)v.m[0]);
-				BD0.AppendFace(ChildIDX, (u16)(idx / 3));
-				CBoneData& BD1 = Parent->LL_GetData((u16)v.m[1]);
-				BD1.AppendFace(ChildIDX, (u16)(idx / 3));
-				CBoneData& BD2 = Parent->LL_GetData((u16)v.m[2]);
-				BD2.AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[0]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[1]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[2]).AppendFace(ChildIDX, (u16)(idx / 3));
 			}
 		}
 		else if (*Vertices4W)
@@ -747,18 +710,10 @@ void CDS0_SkeletonXExt::_CollectBoneFaces(CDS0_FVisual* V, size_t OffsetIndex, s
 			for (u32 idx = 0; idx < CountIndex; ++idx)
 			{
 				vertBoned4W& v = vertices[V->OffsetVertex + indices[idx]];
-#ifdef DEBUG
-				verify_vertex(v, V, Parent, OffsetIndex, CountIndex, indices, V->OffsetVertex + indices[idx], idx);
-#endif
-				CBoneData& BD0 = Parent->LL_GetData((u16)v.m[0]);
-				BD0.AppendFace(ChildIDX, (u16)(idx / 3));
-				CBoneData& BD1 = Parent->LL_GetData((u16)v.m[1]);
-				BD1.AppendFace(ChildIDX, (u16)(idx / 3));
-
-				CBoneData& BD2 = Parent->LL_GetData((u16)v.m[2]);
-				BD2.AppendFace(ChildIDX, (u16)(idx / 3));
-				CBoneData& BD3 = Parent->LL_GetData((u16)v.m[3]);
-				BD3.AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[0]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[1]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[2]).AppendFace(ChildIDX, (u16)(idx / 3));
+				Parent->LL_GetData((u16)v.m[3]).AppendFace(ChildIDX, (u16)(idx / 3));
 			}
 		}
 		else
@@ -786,39 +741,39 @@ IC void get_pos_bones(const T& v, Fvector& p, CDS0_Kinematics* Parent)
 	v.get_pos_bones(p, Parent);
 }
 template<typename T>
-BOOL pick_bone(CDS0_Kinematics* Parent, IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
+bool pick_bone(CDS0_Kinematics* Parent, IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
 {
 	VERIFY(!"Not implemented");
-	return FALSE;
+	return false;
 }
-BOOL CDS0_SkeletonXExt::_PickBoneHW1W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonXExt::_PickBoneHW1W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertHW_1W>(Parent, r, dist, S, D, V, indices, faces);
 }
 
-BOOL CDS0_SkeletonXExt::_PickBoneHW2W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonXExt::_PickBoneHW2W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertHW_2W>(Parent, r, dist, S, D, V, indices, faces);
 }
 
-BOOL CDS0_SkeletonXExt::_PickBoneHW3W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonXExt::_PickBoneHW3W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertHW_3W>(Parent, r, dist, S, D, V, indices, faces);
 }
 
-BOOL CDS0_SkeletonXExt::_PickBoneHW4W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
+bool CDS0_SkeletonXExt::_PickBoneHW4W(IKinematics::pick_result& r, float dist, const Fvector& S, const Fvector& D, CDS0_FVisual* V, u16* indices, CBoneData::FacesVec& faces)
 {
 	return pick_bone<vertHW_4W>(Parent, r, dist, S, D, V, indices, faces);
 }
 
-BOOL CDS0_SkeletonXExt::_PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, CDS0_FVisual* V, u16 bone_id, size_t OffsetIndex, size_t CountIndex)
+bool CDS0_SkeletonXExt::_PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, CDS0_FVisual* V, u16 bone_id, size_t OffsetIndex, size_t CountIndex)
 {
 	VERIFY(Parent && (ChildIDX != u16(-1)));
 
 	CBoneData& BD = Parent->LL_GetData(bone_id);
 	CBoneData::FacesVec* faces = &BD.child_faces[ChildIDX];
 
-	BOOL result = FALSE;
+	bool result = false;
 	u16* indices = 0;
 
 	indices = *m_Indices;
@@ -864,7 +819,7 @@ void CDS0_SkeletonXExt::UpdateUniform(void* ptr)
 	}
 }
 
-BOOL CDS0_SkeletonX_ST::PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id)
+bool CDS0_SkeletonX_ST::PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id)
 {
 	return inherited2::_PickBone(r, dist, start, dir, this, bone_id, OffsetIndex, CountIndex);
 }
@@ -887,7 +842,7 @@ void CDS0_SkeletonX_PM::UpdateUniform(CDS0_UniformAllocator::EUniformType Type, 
 }
 #endif
 
-BOOL CDS0_SkeletonX_PM::PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id)
+bool CDS0_SkeletonX_PM::PickBone(IKinematics::pick_result& r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id)
 {
 	FSlideWindow& SW = nSWI.sw[0];
 	return inherited2::_PickBone(r, dist, start, dir, this, bone_id, OffsetIndex + SW.offset, SW.num_tris * 3);
@@ -914,10 +869,7 @@ IC void TEnumBoneVertices(vertex_buffer_type vertices, u16* indices, CBoneData::
 
 		for (u32 k = 0; k < 3; k++)
 		{
-			Fvector P;
-			vertices[indices[idx + k]].get_pos(P);
-
-			C(P);
+			C(vertices[indices[idx + k]].P);
 		}
 	}
 }

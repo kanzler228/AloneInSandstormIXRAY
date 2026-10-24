@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "AnimNotifyDisableInfo.h"
 
 #include "alife_registry_container.h" // without this not compiles
@@ -8,7 +8,7 @@
 #include "InfoPortionDefs.h"
 #include "Level.h"
 
-void CAnimNotifyDisableInfo::Construct(const CInifile& ini, LPCSTR sect)
+void CAnimNotifyDisableInfo::Construct(const CInifile& ini, const char* sect)
 {
     Info = ini.r_string(sect, "Info");
 }

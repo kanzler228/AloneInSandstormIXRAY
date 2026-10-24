@@ -16,12 +16,12 @@ namespace inventory::upgrade
 	class Upgrade;
 }
 
-class CUITextWnd;
+class CUIStatic;
 class CUIFrameWindow;
 class UIInvUpgPropertiesWnd;
 class CInventoryItem;
 
-class UIInvUpgradeInfo: public CUIWindow
+class UIInvUpgradeInfo final : public CUIWindow
 {
 private:
 	using inherited = CUIWindow;
@@ -31,7 +31,7 @@ public:
 	UIInvUpgradeInfo();
 	virtual ~UIInvUpgradeInfo() = default;
 
-	void init_from_xml(LPCSTR xml_name);
+	void init_from_xml(const char* xml_name);
 	bool init_upgrade(Upgrade_type* upgr, CInventoryItem* inv_item);
 	bool is_upgrade() { return (m_upgrade != NULL); }
 	IC Upgrade_type const* get_upgrade() const { return m_upgrade; }
@@ -46,10 +46,10 @@ protected:
 
 	UIInvUpgPropertiesWnd* m_properties_wnd = nullptr;
 
-	CUITextWnd* m_name = nullptr;
-	CUITextWnd* m_cost = nullptr;
-	CUITextWnd* m_desc = nullptr;
-	CUITextWnd* m_prereq = nullptr;
+	CUIStatic* m_name = nullptr;
+	CUIStatic* m_cost = nullptr;
+	CUIStatic* m_desc = nullptr;
+	CUIStatic* m_prereq = nullptr;
 	bool m_legacy_mode = false;
 
 }; // class UIInvUpgradeInfo

@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "UIProgressShape.h"
 
 #include "UIStatic.h"
@@ -126,8 +126,8 @@ void CUIProgressShape::Draw()
 	float		radius_tex			= tex_rect.width()/2.0f;
 
 	float		curr_angle			=  m_angle_begin;
-	float		sin_a				= _sin(curr_angle);
-	float		cos_a				= _cos(curr_angle);
+	float		sin_a				= std::sin(curr_angle);
+	float		cos_a				= std::cos(curr_angle);
 	Fvector2	start_pos_pt,	prev_pos_pt;
 	Fvector2	start_tex_pt,	prev_tex_pt;
 	
@@ -150,10 +150,23 @@ void CUIProgressShape::Draw()
 		angle_range = abs( m_angle_end - m_angle_begin );
 	}
 	
-	for ( u32 i = 0; i < m_sectorCount; ++i )
+	float colorR = 1.0f;
+	float colorG = 1.0f;
+	float colorB = 1.0f;
+	float colorA = 1.0f;
+	if (m_pTexture)
 	{
-		float ffff					= calc_color		(i+1, m_sectorCount, m_stage, 1.0f, m_blend);
-		u32 color					= color_argb_f		(ffff,1.0f,1.0f,1.0f); 
+		u32 textureColor = m_pTexture->GetTextureColor();
+		colorR = color_get_R(textureColor) / 255.0f;
+		colorG = color_get_G(textureColor) / 255.0f;
+		colorB = color_get_B(textureColor) / 255.0f;
+		colorA = color_get_A(textureColor) / 255.0f;
+	}
+
+	for (u32 i = 0; i < m_sectorCount; ++i)
+	{
+		float sectorAlpha = calc_color(i + 1, m_sectorCount, m_stage, 1.0f, m_blend);
+		u32 color = color_argb_f(sectorAlpha * colorA, colorR, colorG, colorB);
 
 		UIRender->PushPoint(center_pos.x, center_pos.y, 0, color, center_tex.x, center_tex.y);
 
@@ -172,8 +185,8 @@ void CUIProgressShape::Draw()
 
 		curr_angle					+= angle_range/float(m_sectorCount);
 
-		sin_a						= _sin(curr_angle);
-		cos_a						= _cos(curr_angle);
+		sin_a						= std::sin(curr_angle);
+		cos_a						= std::cos(curr_angle);
 
 		_make_rot_tex(prev_pos_pt, start_pos_pt.y, sin_a, cos_a);
 		_make_rot_tex(prev_tex_pt, start_tex_pt.y, sin_a, cos_a);

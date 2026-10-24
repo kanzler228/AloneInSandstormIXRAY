@@ -91,7 +91,7 @@ public:
 	IntVec			vindices;
 	IntVec			pindices;
 public:
-	st_VMap			(LPCSTR nm=0, u8 t=vmtUV, bool pm=false)
+	st_VMap			(const char* nm=nullptr, u8 t=vmtUV, bool pm=false)
 	{
 		type		= t;
 		polymap		= pm;
@@ -110,7 +110,7 @@ public:
 	IC int			VIdatasize	()						{return vindices.size()*sizeof(int);}
 	IC int*			getPIdata	()						{return &*pindices.begin();}
 	IC int			PIdatasize	()						{return pindices.size()*sizeof(int);}
-	IC int			size		()						{return vm.size()/dim;}
+	IC int			size		() const				{return vm.size()/dim;}
 	IC void			resize		(int cnt)				{vm.resize(cnt*dim);vindices.resize(cnt);if (polymap) pindices.resize(cnt); }
 	IC void			appendUV	(const float u, const float v)	{vm.push_back(u);vm.push_back(v);}
 	IC void			appendUV	(const Fvector2& uv)			{appendUV(uv.x,uv.y);}
@@ -138,7 +138,7 @@ struct ECORE_API st_SVert{
 		bone		(){w=0.f;id=BI_NONE;}
 		bool		similar		(const bone& b){return (id==b.id) && fsimilar(w,b.w,EPS_L);}
 	};
-	svector<bone,4> bones;
+	FixedVector<bone,4> bones;
 	protected:
 		static bool compare_by_weight(const bone& a, const bone& b)
 		{
@@ -198,7 +198,7 @@ class CSector;
 		u32			dwStartVertex;
 		u32			dwNumVertex;
 		ref_geom 	pGeom;
-		st_RenderBuffer	(u32 sv, u32 nv):dwStartVertex(sv),dwNumVertex(nv),pGeom(0){;}
+		st_RenderBuffer	(u32 sv, u32 nv):dwStartVertex(sv),dwNumVertex(nv),pGeom(nullptr){;}
 	};
 	using RBVector = xr_vector<st_RenderBuffer>;
 	using RBVecIt = RBVector::iterator;
@@ -230,7 +230,7 @@ class ECORE_API CEditableMesh
 	void			UnloadCForm     	();
 
 public:
-	static 			BOOL m_bDraftMeshMode;
+	static 			bool m_bDraftMeshMode;
 
 	void 			GenerateRenderBuffers();
 	void 			UnloadRenderBuffers();
@@ -265,7 +265,6 @@ public:
 	st_Face* m_Faces;    // + some array size!!!
 	Fvector* m_Vertices;	// |
 
-protected:
 	Fbox			m_Box;
 
 	int				m_FNormalsRefs;
@@ -300,7 +299,7 @@ protected:
 	bool 			OptimizeFace			(st_Face& face);
 public:
 	void			RecomputeBBox			();
-	void 			OptimizeMesh			(BOOL NoOpt);
+	void 			OptimizeMesh			(bool NoOpt);
 public:
 					CEditableMesh			(CEditableObject* parent){m_Parent=parent;Construct();}
 	virtual         ~CEditableMesh			();
@@ -308,14 +307,14 @@ public:
 	void			Clear					();
 	void			Create					(st_Face* faces, u32 face_count, Fvector* vertices, u32 vertex_count, Fvector* normals, u32 normal_count);
 
-	IC void			SetName					(LPCSTR name){m_Name=name;}
+	IC void			SetName					(const char* name){m_Name=name;}
 	IC shared_str	Name					(){return m_Name;}
 	void            GetBox					(Fbox& box){box.set(m_Box);}
 	CSurface*		GetSurfaceByFaceID		(u32 fid);
 	void			GetFaceTC				(u32 fid, const Fvector2* tc[3]);
 	void			GetFacePT				(u32 fid, const Fvector* pt[3]);
-	IC BOOL 		Visible					(){return m_Flags.is(flVisible); }
-	IC void 		Show					(BOOL bVisible){m_Flags.set(flVisible,bVisible);}
+	IC bool 		Visible					(){return m_Flags.is(flVisible); }
+	IC void 		Show					(bool bVisible){m_Flags.set(flVisible,bVisible);}
 
 	// mesh modify routine
 	void            Transform				(const Fmatrix& parent);
@@ -334,7 +333,7 @@ public:
 	IC const st_SVert*	GetSVertices		(){ VERIFY(0!=m_SVertices);return m_SVertices;	}
 	IC const Fvector*	GetNormals			(){ VERIFY(0!=m_Normals); return m_Normals; }
 	// pick routine
-	bool            RayPick					(float& dist, const Fvector& start, const Fvector& dir, const Fmatrix& inv_parent, SRayPickInfo* pinf = NULL);
+	bool            RayPick					(float& dist, const Fvector& start, const Fvector& dir, const Fmatrix& inv_parent, SRayPickInfo* pinf = nullptr);
 #if 1
 	void            RayQuery				(SPickQuery& pinf);
 	void            RayQuery				(const Fmatrix& parent, const Fmatrix& inv_parent, SPickQuery& pinf);
@@ -363,17 +362,6 @@ public:
 	// IO - routine
 	void			SaveMesh				(IWriter&);
 	bool 			LoadMesh				(IReader&);
-
-	// debug
-	void			DumpAdjacency			();
-
-	// convert
-#ifdef _MAX_EXPORT
-	void			FlipFaces				();
-	TriObject*		ExtractTriObject		(INode *node, int &deleteIt);
-	bool			Convert					(INode *node);
-	bool			Convert					(CExporter* exporter);
-#endif
 
 	int				FindSimilarUV			(st_VMap* vmap, Fvector2& _uv);
 	int				FindSimilarWeight		(st_VMap* vmap, float _w);

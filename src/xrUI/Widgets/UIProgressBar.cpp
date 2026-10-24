@@ -102,7 +102,15 @@ void CUIProgressBar::Update()
 		}
 		else
 		{
-			SetProgressPos(Result.Flt);
+			using Type = ExpressionVarVariadic::EVariadicType;
+			switch (Result.VarType)
+			{
+			case Type::eFloat: SetProgressPos(Result.Flt); break;
+			case Type::eInt: SetProgressPos(static_cast<float>(Result.Int)); break;
+			case Type::eUint: SetProgressPos(static_cast<float>(Result.UInt)); break;
+			case Type::eBool: SetProgressPos(Result.Boolean ? 1.f : 0.f); break;
+			default: break;
+			}
 		}
 	}
 
@@ -114,7 +122,7 @@ void CUIProgressBar::Update()
 		float _length			= (m_MaxPos-m_MinPos);
 		float _val				= _length*(1.0f-m_inertion)*Device.fTimeDelta;
 
-		_val					= _min(_abs(_val), _abs(_diff) );
+		_val					= std::min(std::abs(_val), std::abs(_diff) );
 		_val					*= _sign(_diff);
 		m_ProgressPos.x			+= _val;
 		UpdateProgressBar		();

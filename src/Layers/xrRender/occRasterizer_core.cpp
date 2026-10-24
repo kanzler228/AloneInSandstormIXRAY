@@ -53,15 +53,15 @@ IC void Vclamp(int& v, int a, int b)
 {
 	if (v<a)	v=a; else if (v>=b) v=b-1;
 }
-IC BOOL shared(occTri* T1, occTri* T2)
+IC bool shared(occTri* T1, occTri* T2)
 {
-	if (T1==T2)					return TRUE;
-	if (T1->adjacent[0]==T2)	return TRUE;
-	if (T1->adjacent[1]==T2)	return TRUE;
-	if (T1->adjacent[2]==T2)	return TRUE;
-	return FALSE;
+	if (T1==T2)					return true;
+	if (T1->adjacent[0]==T2)	return true;
+	if (T1->adjacent[1]==T2)	return true;
+	if (T1->adjacent[2]==T2)	return true;
+	return false;
 }
-IC BOOL lesser(float& a, float& b)
+IC bool lesser(float& a, float& b)
 {
 	u32* A = (u32*)(&a);
 	u32* B = (u32*)(&b);
@@ -107,7 +107,7 @@ void i_scan		(int curY, float leftX, float lhx, float rightX, float rhx, float s
 
 	// Move to far my dz/5 to place the pixel at the center of face that it covers. 
 	// This will make sure that objects will not be clipped for just standing next to the home from outside.
-	Z				+= 0.5f*_abs(dZ);
+	Z				+= 0.5f* std::abs(dZ);
 
 	// gain access to buffers
 	occTri** pFrame	= Raster.get_frame();
@@ -122,7 +122,7 @@ void i_scan		(int curY, float leftX, float lhx, float rightX, float rhx, float s
 		if (shared(currentTri,pFrame[i-1])) 
 		{
 			//float ZR = (Z+2*pDepth[i-1])*one_div_3;
-			if (Z<pDepth[i])	{ pFrame[i]	= currentTri; pDepth[i]	= __max(Z,pDepth[i-1]); dwPixels++; }
+			if (Z<pDepth[i])	{ pFrame[i]	= currentTri; pDepth[i]	= std::max(Z,pDepth[i-1]); dwPixels++; }
 		}
 	}
 
@@ -142,7 +142,7 @@ void i_scan		(int curY, float leftX, float lhx, float rightX, float rhx, float s
 		if (shared(currentTri,pFrame[i+1])) 
 		{
 			//float ZR = (Z+2*pDepth[i+1])*one_div_3;
-			if (Z<pDepth[i])	{ pFrame[i]	= currentTri; pDepth[i]	= __max(Z,pDepth[i+1]); dwPixels++; }
+			if (Z<pDepth[i])	{ pFrame[i]	= currentTri; pDepth[i]	= std::max(Z,pDepth[i+1]); dwPixels++; }
 		}
 	}
 }
@@ -174,8 +174,8 @@ void i_test		( int x, int y)
 
 void i_edge		( int x1, int y1, int x2, int y2)
 {
-    int dx	= _abs(x2 - x1);
-    int dy	= _abs(y2 - y1);
+    int dx	= std::abs(x2 - x1);
+    int dy	= std::abs(y2 - y1);
 
     int sx = x2 >= x1 ? 1 : -1;
     int sy = y2 >= y1 ? 1 : -1;
@@ -213,7 +213,7 @@ p2.y >= p1.y, p1, p2 are start/end vertices
 E1 E2 are the triangle edge differences of the 2 bounding edges for this section
 */
 
-IC void i_section	(int Sect, BOOL bMiddle)
+IC void i_section	(int Sect, bool bMiddle)
 {
 	// Find the start/end Y pixel coord, set the starting pts for scan line ends
 	int		startY, endY;

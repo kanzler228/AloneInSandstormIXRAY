@@ -1,11 +1,13 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.26)
 project(IXRay)
 
 # CMake options
 option(IXRAY_UTILS "Apply utils to solution" OFF)
+option(IXRAY_TESTS "Apply tests to solution" OFF)
+option(IXRAY_UTILS_OPTIX "Enable NVIDIA OptiX support" OFF)
 option(IXRAY_EDITORS "Apply editors to solution" OFF)
 option(IXRAY_MP "Apply multiplayer xrGame and multiplayer utilities to solution" OFF)
-option(IXRAY_MP_SQL "Use SQL Database system for FreeMP mode" ON)
+option(IXRAY_MP_SQL "Use SQL Database system for FreeMP mode" OFF)
 option(IXRAY_PLUGINS "Enable X-Ray Plugins" OFF)
 option(IXRAY_ASAN "Enable Address Sanitizer" OFF)
 option(IXRAY_LDEBUG "Enable LUA_DEBUG mode" OFF)
@@ -13,17 +15,16 @@ option(IXRAY_USE_R1 "Enable DirectX 9 static render" ON)
 option(IXRAY_USE_R2 "Enable DirectX 9 dynamic render" ON)
 option(IXRAY_USE_COMPRESSOR "Enable xrCompresor" ON)
 option(IXRAY_UNITYBUILD "Enable UnityBuild for xrGame" ON)
-option(IXRAY_PROFILER "Enable Optick for perf debug" OFF)
+option(IXRAY_PROFILER "Enable Optick for perf debug" ON)
+option(IXRAY_PROFILER_TRACY "Enable Tracy for perf debug" OFF)
+option(IXRAY_CROSS_COMPILATION "Enable cross-compilation" OFF)
+
+set(IXRAY_BUILD_BATCH_SIZE "32" CACHE STRING "UNITY_BUILD_BATCH_SIZE")
 
 # CI trash
 option(IXRAY_COMPRESSOR_ONLY "Build only compressor" OFF)
 option(IXRAY_CI "GitHub Actions build" OFF)
 set(IXR_TEST_CI NOT IXRAY_UTILS OR NOT IXRAY_CI)
-
-# SDL stuff
-set(SDL_STATIC OFF)
-set(SDL_TEST_LIBRARY OFF)
-set(SDL_SHARED ON)
 
 # CMake Dev options
 option(DEVIXRAY_ENABLE_SHIPPING "Enable shipping build cfg" OFF)
@@ -34,10 +35,12 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (MSVC)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR APPLE)
+	include("cmake/clang.cmake")
+elseif (MSVC)
     include("cmake/msvc.cmake")
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR NOT WIN32)
-    include("cmake/clang.cmake")
+else()
+    include("cmake/gcc.cmake")
 endif()
 
 # Add new build types
@@ -62,47 +65,36 @@ if (DEVIXRAY_ENABLE_SHIPPING)
     add_compile_definitions("$<$<CONFIG:Shipping>:SHIPPING_BUILD>")
 endif()
 
-# Download API from GitHub Releases
-include("cmake/github.cmake")
-
 # Help functions
-function(target_copy_dependency TARGET_NAME FILE_PATH)
-    if(WIN32)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${FILE_PATH}
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-        )
-    else()
-        get_filename_component(FILE_NAME ${FILE_PATH} NAME)
-    
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E echo "Copying ${FILE_NAME}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different 
-                ${FILE_PATH} 
-                $<TARGET_FILE_DIR:${TARGET_NAME}>/${FILE_NAME}
-            COMMENT "Copying ${FILE_NAME} to output directory"
-        )
-    endif()
-endfunction()
+include("cmake/functions.cmake")
 
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules" ${CMAKE_MODULE_PATH})
-
-# Configure NuGet
+# Configure Package Manager
 if (WIN32)
-    include("cmake/windows/nuget.cmake")
-else()
-    include("cmake/linux/nuget.cmake")
+	include("cmake/packages/nuget/nuget.cmake")
+elseif (LINUX)
+	include("cmake/packages/linux/manager.cmake")
+endif()
+
+# Formatter
+if (NOT IXRAY_CI)
+    include("cmake/clangtidy.cmake")
 endif()
 
 # SDK folders
 set(IXRAY_SDK_LIB ${CMAKE_CURRENT_SOURCE_DIR}/sdk/libraries/${CMAKE_VS_PLATFORM_NAME}/)
 set(IXRAY_SDK_BIN ${CMAKE_CURRENT_SOURCE_DIR}/sdk/binaries/${CMAKE_VS_PLATFORM_NAME}/)
 set(IXRAY_SDK_INC ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include/)
-set(IXRAY_OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/)
 
-include("${CMAKE_MODULE_PATH}/FindSDL3.cmake")
-include("${CMAKE_MODULE_PATH}/FindLuaBind.cmake")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	set(IXRAY_OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+else()
+	set(IXRAY_OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/)
+endif()
+
+# Modules (Nuget or Src)
+set(EXTERNAL_INCLUDE_DIR ${CMAKE_BINARY_DIR}/_deps_header_only/)
+file(MAKE_DIRECTORY "${EXTERNAL_INCLUDE_DIR}")
+include("cmake/modules.cmake")
 
 # CMake targets
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -116,6 +108,11 @@ add_subdirectory("src")
 # Plugins 
 if (IXRAY_PLUGINS)
     add_subdirectory("src/plugins")
+endif()
+
+# Test 
+if (IXRAY_TESTS)
+	add_subdirectory("src/test")
 endif()
 
 # Utils

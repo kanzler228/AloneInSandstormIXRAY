@@ -15,8 +15,9 @@ class CUI3tButton;
 class CUICheckButton;
 class CUIFrameLineWnd;
 class UIHint;
+class CPdaUiSounds;
 
-class UIMapLegend : public CUIWindow
+class UIMapLegend final : public CUIWindow
 {
 private:
 	typedef CUIWindow	inherited;
@@ -25,7 +26,8 @@ public:
 					UIMapLegend			() = default;
 	virtual			~UIMapLegend		();
 
-			void	init_from_xml		( CUIXml& xml, LPCSTR path );
+			void	init_from_xml		( CUIXml& xml, const char* path );
+			void	SetUiSounds			(CPdaUiSounds* uiSounds) { m_pUiSounds = uiSounds; }
 
 	virtual void	Show				( bool status );
 	virtual void	SendMessage			( CUIWindow* pWnd, s16 msg, void* pData );
@@ -38,12 +40,13 @@ private: // m_
 
 	CUIStatic*			m_caption;
 	CUI3tButton*		m_btn_close;
+	CPdaUiSounds*		m_pUiSounds = nullptr;
 
 }; // class UIMapLegend
 
 // -------------------------------------------------------------------------------------------------
 
-class UIMapLegendItem : public CUIWindow
+class UIMapLegendItem final : public CUIWindow
 {
 private:
 	typedef CUIWindow	inherited;

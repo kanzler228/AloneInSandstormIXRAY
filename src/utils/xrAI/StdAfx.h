@@ -17,7 +17,7 @@
 #include "../../xrEngine/defines.h"
 #include "../xrForms/cl_log.h"
 #include "../../xrCore/Collision/xrCDB.h"
-#include "_d3d_extensions.h"
+#include "../../xrEngine/_d3d_extensions.h"
 #include "../../xrEngine/stdafx.h"
 #include <fcntl.h>
 #include <sys/types.h>
@@ -31,7 +31,7 @@
 #undef		THROW
 
 #if XRAY_EXCEPTIONS
-IC	xr_string string2xr_string(LPCSTR s) {return s ? s : "";}
+IC	xr_string string2xr_string(const char* s) {return s ? s : "";}
 #	define	THROW(xpr)				if (!(xpr)) {throw __FILE__LINE__"\""#xpr"\"";}
 #	define	THROW2(xpr,msg0)		if (!(xpr)) {throw *shared_str(xr_string(__FILE__LINE__).append(" \"").append(#xpr).append(string2xr_string(msg0)).c_str());}
 #	define	THROW3(xpr,msg0,msg1)	if (!(xpr)) {throw *shared_str(xr_string(__FILE__LINE__).append(" \"").append(#xpr).append(string2xr_string(msg0)).append(", ").append(string2xr_string(msg1)).c_str());}

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pseudodog.h"
 #include "pseudodog_state_manager.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
@@ -44,11 +44,10 @@ void CAI_PseudoDog::reinit()
 	m_time_became_angry				= 0;
 	time_growling					= 0;
 
-	if(CCustomMonster::use_simplified_visual())	return;
 	com_man().add_rotation_jump_data	("1","2","3","4", deg(90));
 }
 
-void CAI_PseudoDog::Load(LPCSTR section)
+void CAI_PseudoDog::Load(const char* section)
 {
 	inherited::Load	(section);
 
@@ -137,15 +136,15 @@ void CAI_PseudoDog::Load(LPCSTR section)
 }
 
 
-void CAI_PseudoDog::reload(LPCSTR section)
+void CAI_PseudoDog::reload(const char* section)
 {
 	inherited::reload			(section);
-
-	if(CCustomMonster::use_simplified_visual())	return;
 	
 	// load additional sounds
-	sound().add					(pSettings->r_string(section,"sound_psy_attack"), DEFAULT_SAMPLE_COUNT,	SOUND_TYPE_MONSTER_ATTACKING,	MonsterSound::eHighPriority+3,	MonsterSound::eBaseChannel,	ePsyAttack, "bip01_head");
-	
+	if (g_Alive())
+	{	
+		sound().add(pSettings->r_string(section,"sound_psy_attack"), DEFAULT_SAMPLE_COUNT,	SOUND_TYPE_MONSTER_ATTACKING,	MonsterSound::eHighPriority+3,	MonsterSound::eBaseChannel,	ePsyAttack, "bip01_head");
+	}
 	// load jump params
 	com_man().load_jump_data			(0,"run_jamp_0", "run_jamp_1", "run_jamp_2", MonsterMovement::eVelocityParameterRunNormal,MonsterMovement::eVelocityParameterRunNormal,0);
 

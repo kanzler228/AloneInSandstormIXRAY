@@ -14,7 +14,7 @@
 const	float		P_distance		= 50;					// switch distance between LOW-q light and HIGH-q light
 const	float		P_cam_dist		= 200;
 const	float		P_cam_range		= 7.f;
-const	D3DFORMAT	P_rtf			= D3DFMT_A8R8G8B8;
+const	ERHI_FORMAT	P_rtf			= ERHI_FORMAT::B8G8R8A8_UNORM;
 const	float		P_blur_kernel	= .5f;
 const	int			time_min		= 30*1000	;
 const	int			time_max		= 90*1000	;
@@ -69,15 +69,24 @@ void CLightProjector::set_object	(IRenderable* O)
 		if (D < clipD(R))	current	= O;
 		else				current = 0;
 		
-		if (current)				{
-			ISpatial*	spatial		= O->SpatialComponent.get();
-			if	(0==spatial) current= 0;
-			else					{
-				spatial->spatial_updatesector	();
-				if (0==spatial->spatial.sector)	{
-					CObject*		obj = dynamic_cast<CObject*>(O);
-					if (obj)		Msg	("! Invalid object '%s' position. Outside of sector structure.",obj->cName().c_str());
-					current			= 0;
+		if (current)
+		{
+			ISpatial* spatial = O->SpatialComponent.get();
+			if (0 == spatial)
+			{
+				current = 0;
+			}
+			else
+			{
+				spatial->spatial_updatesector();
+				if (0 == spatial->sector)
+				{
+					CObject* obj = dynamic_cast<CObject*>(O);
+					if (obj)
+					{
+						Msg("! Invalid object '%s' position. Outside of sector structure.", obj->cName().c_str());
+					}
+					current = 0;
 				}
 			}
 		}
@@ -128,19 +137,19 @@ void CLightProjector::calculate	()
 	for (u32 r_it=0; r_it<receivers.size(); r_it++)
 	{
 		// validate
-		BOOL				bValid	= TRUE;
+		bool bValid	= true;
 		IRenderable*		O		= receivers[r_it];
 		CROS_impl*			LT		= (CROS_impl*)O->renderable_ROS();
 		int					slot	= LT->shadow_recv_slot;
-		if (slot<0 || slot>=P_o_count)								bValid = FALSE;	// invalid slot
-		else if (cache[slot].O!=O)									bValid = FALSE;	// not the same object
+		if (slot<0 || slot>=P_o_count)								bValid = false;	// invalid slot
+		else if (cache[slot].O!=O)									bValid = false;	// not the same object
 		else {
 			// seems to be valid
 			Fbox	bb;		bb.xform		(O->renderable.visual->getVisData().box,O->renderable.xform);
 			if (cache[slot].BB.contains(bb))	{
 				// inside, but maybe timelimit exceeded?
-				if (Device.dwTimeGlobal > cache[slot].dwTimeValid)	bValid = FALSE;	// timeout
-			} else													bValid = FALSE;	// out of bounds
+				if (Device.dwTimeGlobal > cache[slot].dwTimeValid)	bValid = false;	// timeout
+			} else													bValid = false;	// out of bounds
 		}
 
 		// 
@@ -156,7 +165,7 @@ void CLightProjector::calculate	()
 	// Begin
 	Device.Statistic->RenderDUMP_Pcalc.Begin	();
 	RCache.set_RT				(RT->pRT);
-	RCache.set_ZB				(RImplementation.Target->pTempZB);
+	GRHI->SetDepthStencilView	(RImplementation.Target->pTempZB);
 	CHK_DX(RDevice->Clear(0, 0, D3DCLEAR_ZBUFFER | (Caps.bStencil ? D3DCLEAR_STENCIL : 0), 0, 1, 0));
 	RCache.set_xform_world		(Fidentity);
 
@@ -252,8 +261,8 @@ void CLightProjector::calculate	()
 		// Select slot, set viewport
 		int		s_x				=	c_it%P_o_line;
 		int		s_y				=	c_it/P_o_line;
-		D3DVIEWPORT9 VP			=	{ (unsigned long) s_x*P_o_size, (unsigned long) s_y*P_o_size,P_o_size,P_o_size,0,1 };
-		CHK_DX					(RDevice->SetViewport(&VP));
+		RHIViewport VP = { (float)s_x * P_o_size, (float)s_y * P_o_size, (float)P_o_size, (float)P_o_size, 0, 1 };
+		GRHI->SetViewport(VP);
 
 		// Clear color to ambience
 		Fvector&	cap			=	LT->get_approximate();
@@ -290,9 +299,9 @@ void CLightProjector::calculate	()
 		ISpatial*	spatial		= O->SpatialComponent.get();
 		if (spatial)			{
 			spatial->spatial_updatesector			();
-			if (spatial->spatial.sector)			RImplementation.r_dsgraph_render_R1_box	(spatial->spatial.sector,BB,SE_R1_LMODELS);
+			if (spatial->sector)			RImplementation.r_dsgraph_render_R1_box	(spatial->sector,BB,SE_R1_LMODELS);
 		}
-		//if (spatial)		RImplementation.r_dsgraph_render_subspace	(spatial->spatial.sector,mCombine,v_C,FALSE);
+		//if (spatial)		RImplementation.r_dsgraph_render_subspace	(spatial->spatial.sector,mCombine,v_C,false);
 	}
 
 	// Blur

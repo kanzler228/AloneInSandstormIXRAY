@@ -1,13 +1,15 @@
 #pragma once
 
 #include "../../xrUI/Widgets/UIStatic.h"
+#include "../../xrUI/Widgets/UI3dStatic.h"
 #include "../../xrUI/Widgets/UIDialogWnd.h"
+#include "../../xrUI/xrUIXmlParser.h"
 
 class CUIDragItem;
 class CUIDragDropListEx;
 class CUICellItem;
 class CUIProgressBar;
-
+class CUIItemStateDisplay;
 class ICustomDrawCellItem
 {
 public:
@@ -22,15 +24,18 @@ public:
 	virtual void		OnDraw					(CUIDragItem* drag_item)	= 0;
 };
 
-class CUICellItem :public CUIStatic
+class CUICellItem :public CUI3dStatic
 {
 private:
-	typedef		CUIStatic	inherited;
+	typedef		CUI3dStatic	inherited;
+	CUIXml		uiXml;
 protected:
 	xr_vector<CUICellItem*> m_childs;
 
 	CUIDragDropListEx*		m_pParentList;
-	CUIProgressBar*			m_pConditionState;
+	u32						m_ownerContentGeneration;
+	CUIItemStateDisplay*	m_pConditionState;
+	CUIProgressBar*			m_pConditionState_filter;
 	Ivector2				m_grid_size;
 	ICustomDrawCellItem*	m_custom_draw;
 	int						m_accelerator;
@@ -40,9 +45,20 @@ protected:
 	CUIStatic*				m_custom_text;
 	Fvector2				m_custom_text_pos;
 	CUIStatic*				m_custom_mark;
+	CUIStatic*				m_filter_icon;
 	Fvector2				m_custom_mark_pos;
+	xr_vector<CUIProgressBar*> m_pCellsConditions;
+
+	bool					m_text_use_anchor;
+	u8						m_text_anchor;
+	Fvector2				m_text_anchor_inset;
+
+	bool					m_condition_use_anchor;
+	u8						m_condition_anchor;
+	Fvector2				m_condition_anchor_inset;
 
 	virtual void			UpdateItemText			();
+			void			UpdateItemTextAnchor	();
 			void			init					();
 public:
 							CUICellItem				();
@@ -69,6 +85,9 @@ public:
 
 	CUIDragDropListEx*		OwnerList				()						{return m_pParentList;}
 				void		SetOwnerList			(CUIDragDropListEx* p);
+				bool		HasValidInventoryBinding() const;
+				bool		IsOwnerListValid		() const;
+				u32			OwnerContentGeneration	() const { return m_ownerContentGeneration; }
 				void		UpdateConditionProgressBar();
 				void		SetCustomDraw			(ICustomDrawCellItem* c);
 				void		Mark					(bool status);
@@ -80,7 +99,7 @@ public:
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIStatic* ui_cast_static() { return this; }
 	virtual CUICellItem* ui_cast_cell_item() { return this; }
-
+	CUIXml& GetXml() { return uiXml;};
 public:
 	static CUICellItem*		m_mouse_selected_item;
 				void*		m_pData;
@@ -96,21 +115,23 @@ public:
 				bool		m_with_custom_mark;
 };
 
-class CUIDragItem: public CUIWindow, public pureRender, public pureFrame
+class CUIDragItem final: public CUIWindow, public pureRender, public pureFrame
 {
 	typedef		CUIWindow	inherited;
-	CUIStatic				m_static;
+	CUI3dStatic				m_static;
 	CUICellItem*			m_pParent;
 	Fvector2				m_pos_offset;
 	CUIDragDropListEx*		m_back_list;
 	ICustomDrawDragItem*	m_custom_draw;
+	bool					_deviceSequencesRegistered = false;
 public:
 							CUIDragItem(CUICellItem* parent);
 	virtual		void		Init(const ui_shader& sh, const Frect& rect, const Frect& text_rect);
 	virtual					~CUIDragItem();
 				void		SetCustomDraw			(ICustomDrawDragItem* c);
+				void		UnregisterDeviceSequences();
 
-			CUIStatic*		wnd						() {return &m_static;}
+			CUI3dStatic*	wnd						() {return &m_static;}
 	virtual		bool		OnMouseAction					(float x, float y, EUIMessages mouse_action);
 	virtual		void		Draw					();
 

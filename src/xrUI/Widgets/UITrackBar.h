@@ -27,11 +27,11 @@ public:
 	virtual void	SaveOptValue			();	// current->opt
 	virtual void	UndoOptValue			();	// backup->current
 	virtual bool	IsChangedOptValue		() const;	// backup!=current
-	
+
 	virtual void	Draw					();
 	virtual void	Update					();
 	virtual bool	OnMouseAction			(float x, float y, EUIMessages mouse_action);
-	virtual	void 	OnMessage				(LPCSTR message);
+	virtual	void 	OnMessage				(const char* message);
 
 	// CUIWindow
 			void	InitTrackBar			(Fvector2 pos, Fvector2 size);
@@ -63,8 +63,14 @@ ETrackBarMode		GetTrackBarMode			() const { return m_mode; }
 			int		CurrentID				() const { return (m_i_val - 1); }
 			void	SetCurrentID			(int val_id) { m_i_val = val_id + 1;}
 
+			void	StepLeft				();
+			void	StepRight				();
+
+	virtual void 	OnFocusLost				();
+			void	SetHighlighted			(bool value);
 public:
-		IC	void	SetDrawingValue			(bool value) { m_b_draw_value = value; }
+		IC				void	SetDrawingValue			(bool value) { m_b_draw_value = value; }
+			bool	IsMouseCapturing		() const { return m_b_mouse_capturer; }
 
 		virtual CUIWindow* ui_cast_window() { return this; }
 

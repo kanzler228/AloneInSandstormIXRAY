@@ -167,6 +167,8 @@ unsigned int query_processor_info(processor_info* pinfo)
 		pinfo->features |= static_cast<unsigned>(CPUFeature::AVX512ER);
 	if (f_1_EBX[28])
 		pinfo->features |= static_cast<unsigned>(CPUFeature::AVX512CD);
+	if (f_1_ECX[12]||f_81_ECX[16])
+		pinfo->features |= static_cast<unsigned>(CPUFeature::FMA);
 	//End
 
 	//Edit sv3nk
@@ -192,6 +194,4 @@ processor_info::processor_info()
 	features = query_processor_info(&*this);
 }
 
-processor_info::~processor_info()
-{
-}
+processor_info::~processor_info() = default;

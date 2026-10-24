@@ -9,18 +9,20 @@
 #include <time.h>
 
 #include "Blender.h"
+#include "../r__types.h"
 
-void CBlender_DESC::Setup	(LPCSTR N)
+void CBlender_DESC::Setup(const char* N)
 {
 	// Name
-	VERIFY(xr_strlen(N)<128);
-	VERIFY(0==strchr(N,'.'));
-	xr_strcpy(cName,N);
+	VERIFY(xr_strlen(N) < 128);
+	VERIFY(0 == strchr(N, '.'));
+	xr_strcpy(cName, N);
 	_strlwr(cName);
-	
-	xr_strcpy(cComputer,Core.CompName);			// Computer
-	_tzset(); _time32((__time32_t*)&cTime);	// Time
-};
+
+	xr_strcpy(cComputer, Core.CompName);			// Computer
+
+	Platform::GetCurrentUnixTime32((__time32_t*)&cTime);
+}
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -67,6 +69,8 @@ void	IBlender::Load(	IReader& fs, u16  )
 	xrPREAD_PROP	(fs,xrPID_MATRIX,	oT_xform);
 }
 
-void IBlender::Compile(CBlender_Compile& C) {
+void IBlender::Compile(CBlender_Compile& C) 
+{
 	C.SetParams(oPriority.value, oStrictSorting.value ? true : false);
+	C.bHudElement = (C.iElement == SE_R2_HUD);
 }

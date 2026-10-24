@@ -12,25 +12,25 @@
 
 //-------------------------------------------------------
 extern	s32		g_sv_dm_dwFragLimit;
-extern	BOOL	g_sv_dm_bPDAHunt;
+extern	bool	g_sv_dm_bPDAHunt;
 //-------------------------------------------------------
-BOOL		g_sv_tdm_bAutoTeamBalance		= FALSE;
-BOOL		g_sv_tdm_bAutoTeamSwap			= TRUE;
-BOOL		g_sv_tdm_bFriendlyIndicators	= FALSE;
-BOOL		g_sv_tdm_bFriendlyNames			= FALSE;
+bool		g_sv_tdm_bAutoTeamBalance		= false;
+bool		g_sv_tdm_bAutoTeamSwap			= true;
+bool		g_sv_tdm_bFriendlyIndicators	= false;
+bool		g_sv_tdm_bFriendlyNames			= false;
 float		g_sv_tdm_fFriendlyFireModifier	= 1.0f;
 //-------------------------------------------------------
 int			g_sv_tdm_iTeamKillLimit			= 3;
-int			g_sv_tdm_bTeamKillPunishment	= TRUE;
+bool		g_sv_tdm_bTeamKillPunishment	= true;
 //-------------------------------------------------------
-BOOL	game_sv_TeamDeathmatch::isFriendlyFireEnabled	()	{return (int(g_sv_tdm_fFriendlyFireModifier*100.0f) > 0);};
+bool	game_sv_TeamDeathmatch::isFriendlyFireEnabled	()	{return (int(g_sv_tdm_fFriendlyFireModifier*100.0f) > 0);};
 float	game_sv_TeamDeathmatch::GetFriendlyFire			()	{ return (int(g_sv_tdm_fFriendlyFireModifier*100.0f) > 0) ? g_sv_tdm_fFriendlyFireModifier : 0.0f;};
-BOOL	game_sv_TeamDeathmatch::Get_AutoTeamBalance		()	{return g_sv_tdm_bAutoTeamBalance		; };
-BOOL	game_sv_TeamDeathmatch::Get_AutoTeamSwap		()	{return g_sv_tdm_bAutoTeamSwap			; };
-BOOL	game_sv_TeamDeathmatch::Get_FriendlyIndicators	()	{return g_sv_tdm_bFriendlyIndicators	; };
-BOOL	game_sv_TeamDeathmatch::Get_FriendlyNames		()	{return g_sv_tdm_bFriendlyNames			; };
+bool	game_sv_TeamDeathmatch::Get_AutoTeamBalance		()	{return g_sv_tdm_bAutoTeamBalance		; };
+bool	game_sv_TeamDeathmatch::Get_AutoTeamSwap		()	{return g_sv_tdm_bAutoTeamSwap			; };
+bool	game_sv_TeamDeathmatch::Get_FriendlyIndicators	()	{return g_sv_tdm_bFriendlyIndicators	; };
+bool	game_sv_TeamDeathmatch::Get_FriendlyNames		()	{return g_sv_tdm_bFriendlyNames			; };
 int		game_sv_TeamDeathmatch::Get_TeamKillLimit		()	{return g_sv_tdm_iTeamKillLimit			; };
-BOOL	game_sv_TeamDeathmatch::Get_TeamKillPunishment	()	{return g_sv_tdm_bTeamKillPunishment	; };
+bool	game_sv_TeamDeathmatch::Get_TeamKillPunishment	()	{return g_sv_tdm_bTeamKillPunishment	; };
 //-------------------------------------------------------
 void	game_sv_TeamDeathmatch::Create					(shared_str& options)
 {
@@ -234,7 +234,7 @@ void game_sv_TeamDeathmatch::OnPlayerConnect	(ClientID id_who)
 
 	xrClientData* xrCData	=	m_server->ID_to_client(id_who);
 	game_PlayerState*	ps_who	=	get_id	(id_who);
-//	LPCSTR	options				=	get_name_id	(id_who);
+//	const char*	options				=	get_name_id	(id_who);
 	ps_who->team				=	AutoTeam();//u8(get_option_i(options,"team",AutoTeam()));
 
 
@@ -270,7 +270,7 @@ void	game_sv_TeamDeathmatch::OnPlayerConnectFinished	(ClientID id_who)
 	SpawnPlayer					(id_who, "spectator");
 	Send_Anomaly_States			(id_who);
 
-	xrCData->net_Ready			= TRUE;	
+	xrCData->net_Ready			= true;	
 };
 
 void game_sv_TeamDeathmatch::OnPlayerSelectTeam		(NET_Packet& P, ClientID sender)
@@ -306,7 +306,7 @@ void game_sv_TeamDeathmatch::OnPlayerChangeTeam(ClientID id_who, s16 team)
 	Px.w_u32(GAME_EVENT_PLAYER_GAME_MENU_RESPOND);
 	Px.w_u8(PLAYER_CHANGE_TEAM);
 	Px.w_s16(team);
-	m_server->SendTo(id_who,Px,net_flags(TRUE,TRUE));
+	m_server->SendTo(id_who,Px,net_flags(true,true));
 	//-----------------------------------------------------
 	if (ps_who->team == team) return;
 	//-----------------------------------------------------
@@ -479,8 +479,8 @@ u32 game_sv_TeamDeathmatch::RP_2_Use(CSE_Abstract* E)
 
 void game_sv_TeamDeathmatch::OnPlayerHitPlayer_Case(game_PlayerState* ps_hitter, game_PlayerState* ps_hitted, SHit* pHitS)
 {
-	//if (pHitS->hit_type != ALife::eHitTypePhysicStrike)
-	//{
+	if (pHitS->hit_type != ALife::eHitTypePhysicStrike)
+	{
 		if (ps_hitter && ps_hitted)
 		{
 			if (ps_hitter->team == ps_hitted->team && ps_hitter != ps_hitted)
@@ -489,7 +489,7 @@ void game_sv_TeamDeathmatch::OnPlayerHitPlayer_Case(game_PlayerState* ps_hitter,
 				pHitS->impulse *= (GetFriendlyFire()>1.0f) ? GetFriendlyFire() : 1.0f;
 			}
 		}
-//	}	
+	}	
 	inherited::OnPlayerHitPlayer_Case(ps_hitter, ps_hitted, pHitS);
 };
 
@@ -529,7 +529,7 @@ void game_sv_TeamDeathmatch::Update()
 		} break;
 	};
 }
-extern INT g_sv_Skip_Winner_Waiting;
+extern int g_sv_Skip_Winner_Waiting;
 bool game_sv_TeamDeathmatch::HasChampion()
 {
 	return (GetTeamScore(0)!=GetTeamScore(1) || g_sv_Skip_Winner_Waiting);
@@ -599,7 +599,7 @@ void	game_sv_TeamDeathmatch::AutoSwapTeams			()
 	teams_swaped = true;
 }
 
-void game_sv_TeamDeathmatch::WriteGameState(CInifile& ini, LPCSTR sect, bool bRoundResult)
+void game_sv_TeamDeathmatch::WriteGameState(CInifile& ini, const char* sect, bool bRoundResult)
 {
 	inherited::WriteGameState(ini, sect, bRoundResult);
 
@@ -611,7 +611,7 @@ void game_sv_TeamDeathmatch::WriteGameState(CInifile& ini, LPCSTR sect, bool bRo
 	}
 }
 
-BOOL game_sv_TeamDeathmatch::OnTouchItem(CSE_ActorMP *actor, CSE_Abstract *item)
+bool game_sv_TeamDeathmatch::OnTouchItem(CSE_ActorMP *actor, CSE_Abstract *item)
 {
 	VERIFY(actor);
 	VERIFY(item);
@@ -633,7 +633,7 @@ BOOL game_sv_TeamDeathmatch::OnTouchItem(CSE_ActorMP *actor, CSE_Abstract *item)
 				CSE_Abstract *e_child_item = get_entity_from_eid(item->children.back());
 				if (e_child_item)
 				{
-					if (!OnTouch(actor->ID, e_child_item->ID, FALSE))
+					if (!OnTouch(actor->ID, e_child_item->ID, false))
 					{
 						NET_Packet P;
 						u_EventGen(P,GE_OWNERSHIP_REJECT, item->ID);
@@ -663,11 +663,11 @@ BOOL game_sv_TeamDeathmatch::OnTouchItem(CSE_ActorMP *actor, CSE_Abstract *item)
 		};
 				
 		//-------------------------------
-		return FALSE;
+		return false;
 		
 	};
 	//---------------------------------------------------------------
-	return TRUE;
+	return true;
 }
 
 void game_sv_TeamDeathmatch::OnDetachItem(CSE_ActorMP *actor, CSE_Abstract *item)
@@ -743,15 +743,15 @@ void game_sv_TeamDeathmatch::OnDetachItem(CSE_ActorMP *actor, CSE_Abstract *item
 }
 
 
-BOOL game_sv_TeamDeathmatch::OnTouch(u16 eid_who, u16 eid_what, BOOL bForced)
+bool game_sv_TeamDeathmatch::OnTouch(u16 eid_who, u16 eid_what, bool bForced)
 {
 	CSE_ActorMP *e_who = smart_cast<CSE_ActorMP*>(m_server->ID_to_entity(eid_who));
 	if (!e_who)
-		return FALSE;
+		return false;
 	
 	CSE_Abstract *e_entity = m_server->ID_to_entity(eid_what);
 	if (!e_entity )
-		return FALSE;
+		return false;
 
 	return OnTouchItem(e_who, e_entity);
 }
@@ -776,7 +776,7 @@ void game_sv_TeamDeathmatch::OnObjectEnterTeamBase(u16 id, u16 zone_team)
 	CSE_ALifeCreatureActor* eActor	= smart_cast<CSE_ALifeCreatureActor*>(e_who);
 	if (eActor)
 	{
-		game_cl_mp*	tmp_cl_game = smart_cast<game_cl_mp*>(&Game());
+		game_cl_mp*	tmp_cl_game = Game().cast_game_cl_mp();
 		s16 mteam				= tmp_cl_game->ModifyTeam(s16(zone_team));
 		game_PlayerState* ps = eActor->owner->ps;
 		if (ps && (ps->team == mteam))
@@ -796,7 +796,7 @@ void game_sv_TeamDeathmatch::OnObjectLeaveTeamBase(u16 id, u16 zone_team)
 	CSE_ALifeCreatureActor* eActor	= smart_cast<CSE_ALifeCreatureActor*>(e_who);
 	if (eActor)
 	{
-		game_cl_mp*	tmp_cl_game = smart_cast<game_cl_mp*>(&Game());
+		game_cl_mp*	tmp_cl_game = Game().cast_game_cl_mp();
 		s16 mteam				= tmp_cl_game->ModifyTeam(s16(zone_team));
 		game_PlayerState* ps = eActor->owner->ps;
 		if (ps && (ps->team == mteam))

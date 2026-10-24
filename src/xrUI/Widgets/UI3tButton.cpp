@@ -1,8 +1,9 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "UI3tButton.h"
 #include "UIXmlInit.h"
 #include "UIHint.h"
 #include "UIStatic.h"
+#include "../../xrEngine/xr_input.h"
 
 CUI3tButton::CUI3tButton()
 {
@@ -24,7 +25,7 @@ CUI3tButton::CUI3tButton()
 
 	m_BtnStatic								= nullptr;
 	m_BtnStaticParams.m_bNeedClrChanging	= false;
-	u32 def_clr								= color_rgba(255, 255, 255, 255);
+	constexpr u32 def_clr = color_rgba(255, 255, 255, 255);
 	m_BtnStaticParams.m_ClrStateE			= def_clr;
 	m_BtnStaticParams.m_ClrStateD			= def_clr;
 	m_BtnStaticParams.m_ClrStateT			= def_clr;
@@ -74,25 +75,25 @@ void CUI3tButton::OnFocusReceive()
 	PlaySoundH					();
 }
 
-void CUI3tButton::InitSoundH(LPCSTR sound_file)
+void CUI3tButton::InitSoundH(const char* sound_file)
 {
 	::Sound->create		(m_sound_h, sound_file,st_Effect,sg_SourceType);
 }
 
-void CUI3tButton::InitSoundT(LPCSTR sound_file)
+void CUI3tButton::InitSoundT(const char* sound_file)
 {
 	::Sound->create		(m_sound_t, sound_file,st_Effect,sg_SourceType); 
 }
 
 void CUI3tButton::PlaySoundT()
 {
-	if (m_sound_t._handle())
+	if (m_sound_t.handle())
 		m_sound_t.play(nullptr, sm_2D);
 }
 
 void CUI3tButton::PlaySoundH()
 {
-	if (m_sound_h._handle())
+	if (m_sound_h.handle())
 		m_sound_h.play(nullptr, sm_2D);
 }
 void CUI3tButton::InitButton(Fvector2 pos, Fvector2 size)
@@ -150,7 +151,7 @@ void CUI3tButton::SetHeight(float height)
 	else if ( m_back_framewindow )	{	m_back_framewindow->SetHeight(height);	}
 }
 
-bool CUI3tButton::InitTexture(LPCSTR tex_name, bool fatal)
+bool CUI3tButton::InitTexture(const char* tex_name, bool fatal)
 {
 	string_path 		tex_enabled;
 	string_path 		tex_disabled;
@@ -177,10 +178,10 @@ bool CUI3tButton::InitTexture(LPCSTR tex_name, bool fatal)
 	return true;
 }
 
-void CUI3tButton::InitTexture(LPCSTR tex_enabled, 
-							  LPCSTR tex_disabled, 
-							  LPCSTR tex_touched, 
-							  LPCSTR tex_highlighted,
+void CUI3tButton::InitTexture(const char* tex_enabled, 
+							  const char* tex_disabled, 
+							  const char* tex_touched, 
+							  const char* tex_highlighted,
 							  bool fatal)
 {
 	if ( m_background )
@@ -259,7 +260,7 @@ void CUI3tButton::Update()
 			else if ( m_back_frameline )	{	m_back_frameline->SetCurrentState( S_Touched );	}
 			else if ( m_back_framewindow )	{	m_back_framewindow->SetCurrentState( S_Touched );	}
 		}
-		else if ( m_bCursorOverWindow )
+		else if ( (m_bCursorOverWindow && !pInput->GetControllerMode()) || m_bForceHighlight )
 		{
 			if ( m_background )				{	m_background->SetCurrentState( S_Highlighted );		}
 			else if ( m_back_frameline )	{	m_back_frameline->SetCurrentState( S_Highlighted );	}
@@ -285,9 +286,15 @@ void CUI3tButton::Update()
 	{
 		if (m_BtnStatic && m_BtnStaticParams.m_bNeedClrChanging)
 			m_BtnStatic->TextItemControl()->SetTextColor(m_BtnStaticParams.m_ClrStateT);
-		textColor = m_bUseTextColor[S_Touched] ? m_dwTextColor[S_Touched] : m_dwTextColor[S_Enabled];
+
+		if (pInput->GetControllerMode() && m_bForceHighlight && m_bUseTextColor[S_Highlighted])
+		{
+			textColor = m_dwTextColor[S_Highlighted];
+		}
+		else
+			textColor = m_bUseTextColor[S_Touched] ? m_dwTextColor[S_Touched] : m_dwTextColor[S_Enabled];
 	}
-	else if (m_bCursorOverWindow)
+	else if ((m_bCursorOverWindow && !pInput->GetControllerMode()) || m_bForceHighlight)
 	{
 		if (m_BtnStatic && m_BtnStaticParams.m_bNeedClrChanging)
 			m_BtnStatic->TextItemControl()->SetTextColor(m_BtnStaticParams.m_ClrStateH);
@@ -305,7 +312,7 @@ void CUI3tButton::Update()
 
 void CUI3tButton::SetBtnStaticClrE(u32 clr)
 {
-	m_BtnStaticParams.m_ClrStateD = clr;
+	m_BtnStaticParams.m_ClrStateE = clr;
 }
 
 void CUI3tButton::SetBtnStaticClrD(u32 clr)
@@ -321,4 +328,9 @@ void CUI3tButton::SetBtnStaticClrT(u32 clr)
 void CUI3tButton::SetBtnStaticClrH(u32 clr)
 {
 	m_BtnStaticParams.m_ClrStateH = clr;
+}
+
+void CUI3tButton::SetHighlighted(bool val)
+{
+	m_bForceHighlight = val;
 }

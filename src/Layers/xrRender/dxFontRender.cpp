@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "dxFontRender.h"
 #include "dxRenderDeviceRender.h"
-
+#include "../../xrEngine/IGame_Persistent.h"
 #include "../../xrEngine/GameFont.h"
 
 extern ENGINE_API xr_atomic_bool g_bRendering;
@@ -27,6 +27,60 @@ void dxFontRender::OnRender(CGameFont& owner)
 {
 	VERIFY(g_bRendering);
 
+	RenderBase(owner);
+
+	for (GamepadIcon s : IconsToRender)
+	{
+		RenderIcon(s);
+	}
+	IconsToRender.clear();
+}
+
+bool dxFontRender::GetAtlasTexSize(u32& outW, u32& outH) const
+{
+	if (!pTexture)
+	{
+		return false;
+	}
+
+	outW = pTexture->get_Width();
+	outH = pTexture->get_Height();
+	return outW > 0 && outH > 0;
+}
+
+void dxFontRender::CreateFontAtlas(u32 width, u32 height, const char* name, void* bitmap)
+{
+	PROF_EVENT("dxFontRender::CreateFontAtlas");
+
+	// Заполняем описание текстуры
+	RHITextureDesc rhiDesc = {};
+	rhiDesc.Width = width;
+	rhiDesc.Height = height;
+	rhiDesc.Depth = 1;
+	rhiDesc.MipLevels = 1;
+	rhiDesc.Format = ERHI_FORMAT::B8G8R8A8_UNORM;
+	rhiDesc.Usage = ERHI_USAGE::USAGE_DEFAULT;
+	rhiDesc.BindFlags = ERHI_BIND_FLAG::SHADER_RESOURCE;
+	rhiDesc.CPUAccessFlags = 0;
+	rhiDesc.MiscFlags = 0;
+
+	RHISubResource FontData;
+	FontData.Data = bitmap;
+	FontData.DataSize = width * 4;
+
+	IRHISurface* rhiSurface = GRHI->CreateTexture2D(rhiDesc, FontData);
+	if (!rhiSurface)
+	{
+		Msg("! Failed to create font atlas texture");
+		return;
+	}
+
+	pTexture.create(name);
+	pTexture->surface_set(rhiSurface);
+}
+
+void dxFontRender::RenderBase(CGameFont& owner)
+{
 	if(pShader != nullptr) {
 		RCache.set_Shader(pShader);
 	}
@@ -42,8 +96,15 @@ void dxFontRender::OnRender(CGameFont& owner)
 		{
 			// lock AGP memory
 			u32	vOffset;
-			FVF::TL* vertexes = (FVF::TL*)RCache.Vertex.Lock(length * 4, pGeom.stride(), vOffset);
-			FVF::TL* start = vertexes;
+			struct TLF
+			{
+				struct
+				{
+					Fvector4 p; u32 color; Fvector2	uv;
+				} buff[4];
+			};
+			TLF* vertexes = (TLF*)RCache.Vertex.Lock(length * 4, pGeom.stride(), vOffset);
+			TLF* start = vertexes;
 
 			float X = float(iFloor(str.x));
 			float Y = float(iFloor(str.y));
@@ -73,7 +134,7 @@ void dxFontRender::OnRender(CGameFont& owner)
 			Y -= 0.5f;
 			Y2 -= 0.5f;
 
-			xr_special_char* UniStr = nullptr; 
+			const xr_special_char* UniStr = nullptr; 
 			bool IsUTF8Str = IsUTF8(str.string);
 			if (IsUTF8Str)
 			{
@@ -90,12 +151,66 @@ void dxFontRender::OnRender(CGameFont& owner)
 
 				if (!IsUTF8Str)
 				{
-					glyphInfo = const_cast<CGameFont::Glyph*>(owner.GetGlyphInfo((u8)str.string[i]));
+					const unsigned char* s = (const unsigned char*)&str.string[i];
+
+					// проверка на UTF-8 PUA (EE 80 80–FF)
+					if (s[0] == 0xEE && (s[1] >= 0x80 && s[1] <= 0x82) &&
+						(s[2] >= 0x80 && s[2] <= 0xFF))
+					{
+						u32 cp = 0xE000 + (s[1] - 0x80 == 0 ? 0 : s[1] - 0x41) + (s[2] - 0x80);
+
+						glyphInfo = const_cast<CGameFont::Glyph*>(owner.GetGlyphInfo(cp));
+
+						i += 2;
+						if (shared_str texName = g_FontManager->GamepadButtonMappings[cp])
+						{
+							Frect rect;
+							shared_str fileName;
+							g_pGamePersistent->GetTextureParams(texName, rect, fileName);
+							GamepadIcon icon;
+							icon.texture_name = texName;
+							icon.file_name = fileName;
+							icon.rect = rect;
+							icon.pos = {X, Y};
+							icon.sz = owner.sizeOfImage(rect);
+							icon.alpha = color_get_A(owner.dwCurrentColor);
+
+							IconsToRender.push_back(icon);
+
+							X += icon.sz.x + owner.GetLetterSpacing();
+							continue;
+						}
+					}
+					else
+					{
+						glyphInfo = const_cast<CGameFont::Glyph*>(owner.GetGlyphInfo((u8)s[0]));
+					}
 				}
 
 				if (glyphInfo == nullptr) 
 				{
 					glyphInfo = const_cast<CGameFont::Glyph*>(owner.GetGlyphInfo(UniStr[i]));
+					if (UniStr[i] >= GAMEPAD_GLYPH_START && UniStr[i] <= GAMEPAD_GLYPH_END)
+					{
+						if (shared_str texName = g_FontManager->GamepadButtonMappings[UniStr[i]])
+						{
+							Frect rect;
+							shared_str fileName;
+							g_pGamePersistent->GetTextureParams(texName, rect, fileName);
+							GamepadIcon icon;
+							icon.texture_name = texName;
+							icon.file_name = fileName;
+							icon.rect = rect;
+							icon.pos = {X, Y};
+							icon.sz = owner.sizeOfImage(rect);
+							icon.alpha = color_get_A(owner.dwCurrentColor);
+
+							IconsToRender.push_back(icon);
+
+							X += icon.sz.x + owner.GetLetterSpacing();
+							continue;
+						}
+					}
 					if (glyphInfo == nullptr)
 					{
 						continue;
@@ -109,7 +224,7 @@ void dxFontRender::OnRender(CGameFont& owner)
 				float GlyphY = Y + glyphInfo->yOffset;
 				float GlyphY2 = Y2 + glyphInfo->yOffset;
 
-				float X2 = X + glyphInfo->Abc.abcB;
+				float X2 = X + (glyphInfo->Abc.abcB * owner.GetWidthCoef());
 
 				float u1 = float(glyphInfo->TextureCoord.left) / fWidth;
 				float u2 = float(glyphInfo->TextureCoord.right) / fWidth;
@@ -119,103 +234,106 @@ void dxFontRender::OnRender(CGameFont& owner)
 
 				if (str.gradientMode == CGameFont::gm_horz)
 				{ 
-					vertexes->set(X, GlyphY2, clr, u1, v2);
-					++vertexes;
-					vertexes->set(X, GlyphY, clr, u1, v1);
-					++vertexes;
-					vertexes->set(X2, GlyphY2, clr2, u2, v2);
-					++vertexes;
-					vertexes->set(X2, GlyphY, clr2, u2, v1);
-					++vertexes;
+					*vertexes =
+					{ 
+						Fvector4{X, GlyphY2,.0001f,.9999f}, clr, Fvector2{u1, v2},
+						Fvector4{X, GlyphY,.0001f,.9999f}, clr, Fvector2{u1, v1},
+						Fvector4{X2, GlyphY2,.0001f,.9999f}, clr2, Fvector2{u2, v2},
+						Fvector4{X2, GlyphY,.0001f,.9999f}, clr2, Fvector2{u2, v1},
+					};
 				}
 				else if (str.gradientMode == CGameFont::gm_back)
 				{
-					vertexes->set(X, GlyphY2, clr2, u1, v2);
-					++vertexes;
-					vertexes->set(X, GlyphY, clr2, u1, v1);
-					++vertexes;
-					vertexes->set(X2, GlyphY2, clr, u2, v2);
-					++vertexes;
-					vertexes->set(X2, GlyphY, clr, u2, v1);
-					++vertexes;
+					*vertexes =
+					{
+						Fvector4{X, GlyphY2,.0001f,.9999f}, clr2, Fvector2{u1, v2},
+						Fvector4{X, GlyphY,.0001f,.9999f}, clr2, Fvector2{u1, v1},
+						Fvector4{X2, GlyphY2,.0001f,.9999f}, clr, Fvector2{u2, v2},
+						Fvector4{X2, GlyphY,.0001f,.9999f}, clr, Fvector2{u2, v1}
+					};
 				}
 				else if (str.gradientMode == CGameFont::gm_down)
 				{
-					vertexes->set(X, GlyphY2, clr, u1, v2);
-					++vertexes;
-					vertexes->set(X, GlyphY, clr2, u1, v1);
-					++vertexes;
-					vertexes->set(X2, GlyphY2, clr, u2, v2);
-					++vertexes;
-					vertexes->set(X2, GlyphY, clr2, u2, v1);
-					++vertexes;
+					*vertexes =
+					{
+						Fvector4{X, GlyphY2,.0001f,.9999f}, clr, Fvector2{u1, v2},
+						Fvector4{X, GlyphY,.0001f,.9999f}, clr2, Fvector2{u1, v1},
+						Fvector4{X2, GlyphY2,.0001f,.9999f}, clr, Fvector2{u2, v2},
+						Fvector4{X2, GlyphY,.0001f,.9999f}, clr2, Fvector2{u2, v1}
+					};
 				}
 				else
 				{
-					vertexes->set(X, GlyphY2, clr2, u1, v2);
-					++vertexes;
-					vertexes->set(X, GlyphY, clr, u1, v1);
-					++vertexes;
-					vertexes->set(X2, GlyphY2, clr2, u2, v2);
-					++vertexes;
-					vertexes->set(X2, GlyphY, clr, u2, v1);
-					++vertexes;
+					*vertexes =
+					{
+						Fvector4{X, GlyphY2,.0001f,.9999f}, clr2, Fvector2{u1, v2},
+						Fvector4{X, GlyphY,.0001f,.9999f}, clr, Fvector2{u1, v1},
+						Fvector4{X2, GlyphY2,.0001f,.9999f}, clr2, Fvector2{u2, v2},
+						Fvector4{X2, GlyphY,.0001f,.9999f}, clr, Fvector2{u2, v1}
+					};
 				}
+				++vertexes;
 				X = X2 + glyphInfo->Abc.abcC + owner.GetLetterSpacing();
 			}
 
 			// Unlock and draw
-			u32 vertexesCount = (u32)(vertexes - start);
+			u32 vertexesCount = (u32)(vertexes - start) * 4;
 			RCache.Vertex.Unlock(vertexesCount, pGeom.stride());
 
-			if(vertexesCount > 0) {
-				RCache.set_Geometry(pGeom);
-				RCache.Render(D3DPT_TRIANGLELIST, vOffset, 0, vertexesCount, 0, vertexesCount / 2);
-			}
+			RCache.set_Geometry(pGeom);
+			RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, vOffset, 0, vertexesCount, 0, vertexesCount / 2);
 		}
 	}
 }
 
-void dxFontRender::CreateFontAtlas(u32 width, u32 height, const char* name, void* bitmap) {
-	ID3DTexture2D* pSurface = nullptr;
-	PROF_EVENT("dxFontRender::CreateFontAtlas");
-#ifdef USE_DX11
-	D3D_TEXTURE2D_DESC descFontAtlas;
-	ZeroMemory(&descFontAtlas, sizeof(D3D_TEXTURE2D_DESC));
-	descFontAtlas.Width = width;
-	descFontAtlas.Height = height;
-	descFontAtlas.MipLevels = 1;
-	descFontAtlas.ArraySize = 1;
-	descFontAtlas.SampleDesc.Count = 1;
-	descFontAtlas.SampleDesc.Quality = 0;
-	descFontAtlas.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	descFontAtlas.Usage = D3D_USAGE_DEFAULT;
-	descFontAtlas.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	descFontAtlas.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	descFontAtlas.MiscFlags = 0;
-
-	D3D_SUBRESOURCE_DATA FontData;
-	FontData.pSysMem = bitmap;
-	FontData.SysMemSlicePitch = 0;
-	FontData.SysMemPitch = width * 4;
-
-	if(RDevice->CreateTexture2D(&descFontAtlas, &FontData, &pSurface) != S_OK) {
-		Msg("! D3D_USAGE_DEFAULT may not be working");
-		_RELEASE(pSurface); descFontAtlas.Usage = D3D_USAGE_DYNAMIC;
-		R_CHK(RDevice->CreateTexture2D(&descFontAtlas, &FontData, &pSurface));
+void dxFontRender::RenderIcon(GamepadIcon icon)
+{
+	if (!icon.shader)
+	{
+		icon.shader.create("hud\\default", icon.file_name.c_str());
 	}
-#else
-	D3DLOCKED_RECT LockedRect = {};
-	R_CHK(RDevice->CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &pSurface, nullptr));
-	R_CHK(pSurface->LockRect(0, &LockedRect, nullptr, 0));
+	RCache.set_Shader(icon.shader);
 
-	memcpy(LockedRect.pBits, bitmap, width * height * 4);
+	float fWidth = RCache.get_ActiveTexture(0)->get_Width();
+	float fHeight = RCache.get_ActiveTexture(0)->get_Height();
 
-	R_CHK(pSurface->UnlockRect(0));
-#endif
+	// lock AGP memory
+	u32	vOffset;
+	struct TLF
+	{
+		struct
+		{
+			Fvector4 p; u32 color; Fvector2	uv;
+		} buff[4];
+	};
+	TLF* vertexes = (TLF*)RCache.Vertex.Lock(4, pGeom.stride(), vOffset);
+	TLF* start = vertexes;
 
-	pTexture.create(name);
-	pTexture->surface_set(pSurface);
+	float Y2 = icon.pos.y + icon.sz.y;
 
-	_RELEASE(pSurface);
+	u32	clr = color_argb(icon.alpha, 255, 255, 255);
+
+	float X2 = icon.pos.x + icon.sz.x;
+
+	float u1 = float(icon.rect.left) / fWidth;
+	float u2 = float(icon.rect.right) / fWidth;
+
+	float v1 = float(icon.rect.top) / fHeight;
+	float v2 = float(icon.rect.bottom) / fHeight;
+
+	*vertexes =
+	{
+		Fvector4{icon.pos.x, Y2,.0001f,.9999f}, clr, Fvector2{u1, v2},
+		Fvector4{icon.pos.x, icon.pos.y,.0001f,.9999f}, clr, Fvector2{u1, v1},
+		Fvector4{X2, Y2,.0001f,.9999f}, clr, Fvector2{u2, v2},
+		Fvector4{X2, icon.pos.y,.0001f,.9999f}, clr, Fvector2{u2, v1}
+	};
+	++vertexes;
+
+	// Unlock and draw
+	u32 vertexesCount = (u32)(vertexes - start) * 4;
+	RCache.Vertex.Unlock(vertexesCount, pGeom.stride());
+
+	RCache.set_Geometry(pGeom);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, vOffset, 0, vertexesCount, 0, vertexesCount / 2);
 }

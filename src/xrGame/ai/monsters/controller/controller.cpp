@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "controller.h"
 #include "controller_state_manager.h"
 #include "../controlled_entity.h"
@@ -73,9 +73,10 @@ CController::~CController()
 {
 	xr_delete(StateMan);
 	xr_delete(m_psy_hit);
+	xr_delete(m_aura);
 }
 
-void CController::Load(LPCSTR section)
+void CController::Load(const char* section)
 {
 	inherited::Load	(section);
 
@@ -98,7 +99,7 @@ void CController::Load(LPCSTR section)
 	anim().AddReplacedAnim(&m_bDamaged, eAnimWalkFwd,	eAnimWalkDamaged);
 
 	// Load control postprocess --------------------------------------------------------
-	LPCSTR ppi_section = pSettings->r_string(section, "control_effector");
+	const char* ppi_section = pSettings->r_string(section, "control_effector");
 	m_control_effector.ppi.duality.h		= pSettings->r_float(ppi_section,"duality_h");
 	m_control_effector.ppi.duality.v		= pSettings->r_float(ppi_section,"duality_v");
 	m_control_effector.ppi.gray				= pSettings->r_float(ppi_section,"gray");
@@ -232,11 +233,16 @@ void CController::Load(LPCSTR section)
 	particles_fire		= pSettings->r_string(section,"Control_Hit");
 	
 	m_tube_damage		= pSettings->r_float(section,"tube_damage");
-	m_tube_at_once		= !!pSettings->r_bool(section,"tube_at_once");
 
-	LPCSTR tube_see_duration_line           = "tube_condition_see_duration";
-	LPCSTR tube_condition_min_delay_line    = "tube_condition_min_delay";
-	LPCSTR tube_condition_min_distance_line = "tube_condition_min_distance";
+	if (pSettings->line_exist(section, "aura_effector"))
+	{
+		m_aura = new CControllerAura(this);
+		m_aura->load(section);
+	}
+
+	const char* tube_see_duration_line           = "tube_condition_see_duration";
+	const char* tube_condition_min_delay_line    = "tube_condition_min_delay";
+	const char* tube_condition_min_distance_line = "tube_condition_min_distance";
 
 	using namespace controller::detail;
 	m_tube_condition_see_duration = pSettings->line_exist(section, tube_see_duration_line) ?
@@ -257,9 +263,9 @@ void CController::Load(LPCSTR section)
 	PostLoad						(section);
 }
 
-void CController::load_friend_community_overrides(LPCSTR section)
+void CController::load_friend_community_overrides(const char* section)
 {
-	LPCSTR src = pSettings->r_string(section,"Friend_Community_Overrides");
+	const char* src = pSettings->r_string(section,"Friend_Community_Overrides");
 	
 	// parse src
 	int item_count = _GetItemCount(src);
@@ -273,7 +279,8 @@ void CController::load_friend_community_overrides(LPCSTR section)
 
 bool CController::is_community_friend_overrides(const CEntityAlive *entity_alive) const
 {
-	const CInventoryOwner	*IO = smart_cast<const CInventoryOwner*>(entity_alive);
+	CEntityAlive* cast_entity_alive = const_cast<CEntityAlive*>(entity_alive);
+	const CInventoryOwner* IO = cast_entity_alive != nullptr ? cast_entity_alive->cast_inventory_owner() : nullptr;
 	if (!IO) return false;
 	if (const_cast<CEntityAlive *>(entity_alive)->cast_base_monster()) return false;
 	
@@ -288,12 +295,12 @@ bool CController::is_community_friend_overrides(const CEntityAlive *entity_alive
 	);
 }
 
-BOOL CController::net_Spawn(CSE_Abstract *DC)
+bool CController::net_Spawn(CSE_Abstract *DC)
 {
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 
-	return (TRUE);
+	return (true);
 }
 
 
@@ -336,7 +343,7 @@ void CController::CheckSpecParams(u32 spec_params)
 void CController::InitThink()
 {
 	for	(u32 i=0; i<m_controlled_objects.size(); i++) {	
-		CBaseMonster *base = smart_cast<CBaseMonster*>(m_controlled_objects[i]);
+		CBaseMonster *base = m_controlled_objects[i] != nullptr ? m_controlled_objects[i]->cast_base_monster() : nullptr;
 		if (!base) continue;
 		if (base->EnemyMan.get_enemy()) 
 			EnemyMemory.add_enemy  (base->EnemyMan.get_enemy(), 
@@ -352,7 +359,7 @@ void CController::play_control_sound_start()
 	Fvector pos = EnemyMan.get_enemy()->Position();
 	pos.y += 1.5f;
 
-	if (control_start_sound._feedback()) control_start_sound.stop();
+	if (control_start_sound.is_playing()) control_start_sound.stop();
 	control_start_sound.play_at_pos(const_cast<CEntityAlive*>(EnemyMan.get_enemy()),pos);
 }
 
@@ -361,11 +368,11 @@ void CController::play_control_sound_hit()
 	Fvector pos = EnemyMan.get_enemy()->Position();
 	pos.y += 1.5f;
 	
-	if (control_hit_sound._feedback()) control_hit_sound.stop();
+	if (control_hit_sound.is_playing()) control_hit_sound.stop();
 	control_hit_sound.play_at_pos(const_cast<CEntityAlive*>(EnemyMan.get_enemy()),pos);
 }
 
-void CController::reload(LPCSTR section)
+void CController::reload(const char* section)
 {
 	inherited::reload			(section);
 	com_man().ta_fill_data(anim_triple_control,	"stand_sit_down_attack_0",	"control_attack_0",	"sit_stand_up_attack_0", true, false);
@@ -385,7 +392,7 @@ void CController::reinit()
 	control().path_builder().detail().add_velocity(MonsterMovement::eControllerVelocityParameterMoveFwd,	CDetailPathManager::STravelParams(m_velocity_move_fwd.velocity.linear,	m_velocity_move_fwd.velocity.angular_path,	m_velocity_move_fwd.velocity.angular_real));
 	control().path_builder().detail().add_velocity(MonsterMovement::eControllerVelocityParameterMoveBkwd,	CDetailPathManager::STravelParams(m_velocity_move_bkwd.velocity.linear,	m_velocity_move_bkwd.velocity.angular_path, m_velocity_move_bkwd.velocity.angular_real));
 
-	m_sndShockEffector		 = 0;
+	DestroyComponent<TSndShockEffector>();
 	active_control_fx		 = false;
 }
 
@@ -393,8 +400,10 @@ void CController::control_hit()
 {
 	Hit_Psy						(const_cast<CEntityAlive*>(EnemyMan.get_enemy()), 30.f);
 	
+	CEntityAlive* enemy = const_cast<CEntityAlive*>(EnemyMan.get_enemy());
+
 	// start postprocess
-	CActor *pA = const_cast<CActor *>(smart_cast<const CActor *>(EnemyMan.get_enemy()));
+	CActor *pA = enemy != nullptr ? enemy->cast_actor() : nullptr;
 	if (!pA) return;
 	
 	Actor()->Cameras().AddCamEffector(new CMonsterEffectorHit(m_control_effector.ce_time,m_control_effector.ce_amplitude,m_control_effector.ce_period_number,m_control_effector.ce_power));
@@ -413,11 +422,13 @@ void CController::UpdateCL()
 {
 	inherited::UpdateCL();
 	
-	if(m_sndShockEffector)
+	if(TSndShockEffector* ShockEffect = GetComponent<TSndShockEffector>())
 	{
-		m_sndShockEffector->Update();
-		if(!m_sndShockEffector->InWork()) 
-			xr_delete(m_sndShockEffector);
+		ShockEffect->Update();
+		if (!ShockEffect->InWork())
+		{
+			DestroyComponent<TSndShockEffector>();
+		}
 	}
 
 	if (active_control_fx) {
@@ -452,6 +463,10 @@ void CController::UpdateCL()
 			CurrentGameUI()->RemoveCustomStatic("controller_fx2");
 		}
 	}
+	if (m_aura)
+	{
+		m_aura->update_frame();
+	}
 }
 
 void CController::shedule_Update(u32 dt)
@@ -465,6 +480,11 @@ void CController::shedule_Update(u32 dt)
 
 	// DEBUG
 	test_covers();
+
+	if (m_aura)
+	{
+		m_aura->update_schedule();
+	}
 }
 
 void CController::Die(CObject* who)
@@ -472,6 +492,10 @@ void CController::Die(CObject* who)
 	inherited::Die(who);
 	FreeFromControl();
 	
+	if (m_aura)
+	{
+		m_aura->on_death();
+	}
 	m_psy_hit->on_death	();
 }
 
@@ -479,6 +503,10 @@ void CController::net_Destroy()
 {
 	inherited::net_Destroy();
 
+	if (m_aura)
+	{
+		m_aura->on_death();
+	}
 	FreeFromControl		();
 }
 
@@ -602,11 +630,11 @@ void CController::tube_fire()
 
 bool CController::can_tube_fire()
 {
-	using namespace controller::detail;
+	static const bool IsSuicideLogic = EngineExternal()[EEngineExternalGame::EnableSuicideByController];
 
-	if ( 0 && m_tube_at_once )
+	if (IsSuicideLogic)
 	{
-		if ( EnemyMan.get_enemy() && EnemyMan.see_enemy_now() && m_psy_hit->check_start_conditions() )
+		if (EnemyMan.get_enemy() && m_psy_hit->check_start_conditions())
 		{
 			return true;
 		}
@@ -614,17 +642,25 @@ bool CController::can_tube_fire()
 		return false;
 	}
 
-	if ( !EnemyMan.get_enemy() )
+	if (!EnemyMan.get_enemy())
+	{
 		return false;
-	
-	if ( EnemyMan.see_enemy_duration() < m_tube_condition_see_duration ) 
-		return false;
+	}
 
-	if ( !m_psy_hit->check_start_conditions() )
+	if (EnemyMan.see_enemy_duration() < m_tube_condition_see_duration)
+	{
 		return false;
+	}
 
-	if ( EnemyMan.get_enemy()->Position().distance_to(Position()) < m_tube_condition_min_distance ) 
+	if (!m_psy_hit->check_start_conditions())
+	{
 		return false;
+	}
+
+	if (EnemyMan.get_enemy()->Position().distance_to(Position()) < m_tube_condition_min_distance)
+	{
+		return false;
+	}
 
 	return true;
 }
@@ -777,7 +813,7 @@ void CController::OnEvent(NET_Packet& P, u16 type)
 				float const base_fov = g_fov;
 				float const dest_fov = g_fov - (g_fov - 10.f) * actor_psy_immunity;
 
-				IKinematicsAnimated* skel = smart_cast<IKinematicsAnimated*>(Visual());
+				IKinematicsAnimated* skel = Visual()->dcast_PKinematicsAnimated();
 
 				Actor()->Cameras().AddCamEffector(new CControllerPsyHitCamEffector(eCEControllerPsyHit, src_pos, target_pos,
 					control().animation().motion_time(skel->ID_Cycle_Safe("psy_attack_1"), Visual()),
@@ -786,7 +822,7 @@ void CController::OnEvent(NET_Packet& P, u16 type)
 				Fvector pos = Actor()->Position();
 				pos.y += 1.5f;
 
-				if (control_hit_sound._feedback()) control_hit_sound.stop();
+				if (control_hit_sound.is_playing()) control_hit_sound.stop();
 				control_hit_sound.play_at_pos(Actor(), pos);
 
 				dir.sub(src_pos, target_pos);
@@ -796,7 +832,7 @@ void CController::OnEvent(NET_Packet& P, u16 type)
 				dir.setHP(h, p + PI_DIV_3);
 				Actor()->character_physics_support()->movement()->ApplyImpulse(dir, Actor()->GetMass() * 530.f);
 
-				if (m_sound_tube_prepare._feedback())	m_sound_tube_prepare.stop();
+				if (m_sound_tube_prepare.is_playing())	m_sound_tube_prepare.stop();
 
 				m_sound_tube_start.play_at_pos(Actor(), Fvector().set(0.f, 0.f, 0.f), sm_2D);
 				m_sound_tube_pull.play_at_pos(Actor(), Fvector().set(0.f, 0.f, 0.f), sm_2D);
@@ -852,9 +888,9 @@ void CController::OnEvent(NET_Packet& P, u16 type)
 
 		if (state == 3 && Actor()->ID() == actor_id)
 		{
-			if (m_sound_tube_start._feedback())	m_sound_tube_start.stop();
-			if (m_sound_tube_pull._feedback())	m_sound_tube_pull.stop();
-			if (m_sound_tube_prepare._feedback())	m_sound_tube_prepare.stop();
+			if (m_sound_tube_start.is_playing())	m_sound_tube_start.stop();
+			if (m_sound_tube_pull.is_playing())	m_sound_tube_pull.stop();
+			if (m_sound_tube_prepare.is_playing())	m_sound_tube_prepare.stop();
 		}
 		break;
 	}

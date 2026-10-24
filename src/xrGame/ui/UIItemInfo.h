@@ -4,7 +4,7 @@
 
 class CInventoryItem;
 class CUIStatic;
-class CUITextWnd;
+class CUI3dStatic;
 class CUIScrollView;
 class CUIProgressBar;
 class CUIConditionParams;
@@ -16,10 +16,11 @@ class UIInvUpgPropertiesWnd;
 class CUIOutfitInfo;
 class CUIBoosterInfo;
 class CUICellItem;
+class CUIGrenadeParams;
 
 extern const char * const 		fieldsCaptionColor;
 
-class CUIItemInfo: public CUIWindow
+class CUIItemInfo final : public CUIWindow
 {
 private:
 	typedef CUIWindow inherited;
@@ -35,19 +36,22 @@ public:
 						CUIItemInfo			();
 	virtual				~CUIItemInfo		();
 	CInventoryItem*		CurrentItem			() const {return m_pInvItem;}
-	void				InitItemInfo		(Fvector2 pos, Fvector2 size, LPCSTR xml_name);
-	bool				InitItemInfo		(LPCSTR xml_name);
-	void				InitItem			(CUICellItem* pCellItem, CInventoryItem* pCompareItem = NULL, u32 item_price=u32(-1), LPCSTR trade_tip=NULL);
+	void				InitItemInfo		(Fvector2 pos, Fvector2 size, const char* xml_name);
+	bool				InitItemInfo		(const char* xml_name);
+	void				InitItem			(CUICellItem* pCellItem, CInventoryItem* pCompareItem = NULL, u32 item_price=u32(-1), const char* trade_tip=NULL, bool overrideCorrectionByWeight = false);
 
 
 	void				TryAddConditionInfo	(CInventoryItem& pInvItem, CInventoryItem* pCompareItem);
 	void				TryAddWpnInfo		(CInventoryItem& pInvItem, CInventoryItem* pCompareItem);
 	void				TryAddKnifeInfo		(CInventoryItem& pInvItem, CInventoryItem* pCompareItem);
+	void				TryAddGrenadeInfo	(CInventoryItem& pInvItem, CInventoryItem* pCompareItem);
 	void				TryAddArtefactInfo	(CInventoryItem& pInvItem);
 	void				TryAddOutfitInfo	(CInventoryItem& pInvItem, CInventoryItem* pCompareItem);
 	void				TryAddUpgradeInfo	(CInventoryItem& pInvItem);
 	void				TryAddBoosterInfo	(CInventoryItem& pInvItem);
-	
+	void				ScrollDown			();
+	void				ScrollUp			();
+
 	virtual CUIWindow* ui_cast_window() { return this; }
 
 	virtual void		Draw				();
@@ -55,10 +59,10 @@ public:
 	u32					delay;
 	
 	CUIFrameWindow*		UIBackground;
-	CUITextWnd*			UIName;
-	CUITextWnd*			UIWeight;
-	CUITextWnd*			UICost;
-	CUITextWnd*			UITradeTip;
+	CUIStatic*			UIName;
+	CUIStatic*			UIWeight;
+	CUIStatic*			UICost;
+	CUIStatic*			UITradeTip;
 //	CUIStatic*			UIDesc_line;
 	CUIScrollView*		UIDesc;
 	bool				m_complex_desc;
@@ -72,7 +76,12 @@ public:
 	UIInvUpgPropertiesWnd*	UIProperties;
 	CUIOutfitInfo*			UIOutfitInfo;
 	CUIBoosterInfo*			UIBoosterInfo;
+	CUIGrenadeParams*		UIGrenadeParams;
+	// legacy
+	CUIStatic*				UICondition;
+	CUIProgressBar*			UICondProgresBar;
+	CUIProgressBar*			UIFilterCondProgresBar;
 
 	Fvector2			UIItemImageSize; 
-	CUIStatic*			UIItemImage;
+	CUI3dStatic*		UIItemImage;
 };

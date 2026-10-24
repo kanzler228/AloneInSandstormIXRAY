@@ -27,12 +27,19 @@ function on_game_start()
 	
 	destroy_dynamic_news()
 	
-	if (axr_main.config:r_value("mm_options","enable_dynamic_news",1,true) == false) then
+	if not GetRegistryValue("coc_core", "coc_dynamic_news", true) then
 		return 
 	end
 		
 	local function on_game_load()
 		get_dynamic_news()
+		
+		local comm = db.actor:character_community()
+		if (comm ~= "actor") then 
+			comm = comm:sub(7) -- remove 'actor_' prefix
+		end
+		get_dynamic_news().channel_status["monolith"] = (comm == "monolith")
+		get_dynamic_news().channel_status["army"] = (comm == "army")
 	end 
 	RegisterScriptCallback("on_game_load",on_game_load)
 end
@@ -40,18 +47,12 @@ end
 ----------------------------------------------------------------------------------------------------
 class "DynamicNewsManager"
 function DynamicNewsManager:__init()
-
-	local comm = db.actor:character_community()
-	if (comm ~= "actor") then 
-		comm = comm:sub(7) -- remove 'actor_' prefix
-	end
-	
 	self.channel_status = {
 		["general"]			= true,
 		["stalker"]  		= true,
-		["monolith"] 		= (comm == "monolith"),
+		["monolith"] 		= true,
 		["csky"]   			= true,
-		["army"] 			= (comm == "army"),
+		["army"] 			= true,
 		["killer"]   		= true,
 		["ecolog"]   		= true,
 		["dolg"]    		= true,
@@ -96,7 +97,7 @@ function DynamicNewsManager:destroy()
 end
 
 function DynamicNewsManager:NewsTick()
-	if (axr_main.config:r_value("mm_options","enable_dynamic_news",1,true) == false) then
+	if not GetRegistryValue("coc_core", "coc_dynamic_news", true) then
 		return true
 	end
 	
@@ -125,7 +126,7 @@ function DynamicNewsManager:NewsTick()
 end
 
 function DynamicNewsManager:TickSpecialEvent()
-	if (axr_main.config:r_value("mm_options","enable_dynamic_news",1,true) == false) then
+	if not GetRegistryValue("coc_core", "coc_dynamic_news", true) then
 		return true
 	end
 

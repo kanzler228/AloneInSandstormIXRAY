@@ -6,7 +6,7 @@
 //	Description : XRay Script Engine export
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 
 #include "script_engine_export.h"
@@ -14,21 +14,28 @@
 #include "alife_human_brain.h"
 #include "alife_monster_brain.h"
 
-#ifdef XRSE_FACTORY_EXPORTS
-
-#else
+#ifndef XRSE_FACTORY_EXPORTS
 #	include "FreeMP/ScriptEvents.h"
 #	include "PHSimpleCalls.h"
 #	include "eatable_item.h"
 #	include "RadioactiveZone.h"
 #	include "ZoneCampfire.h"
 #	include "alife_online_offline_group_brain.h"
-#	include "ui/FractionState.h"
 #	include "../../xrUI/Widgets/UIListBox.h"
 #	include "ai/crow/ai_crow.h"
 #	include "ui/UIActorMenu.h"
 #	include	"ActorCondition.h"
+#	include "ScriptsSubsystems/Condlist/script_xr_logic.h"
+#	include "ScriptsSubsystems/StoryID/StoryIDManager.h"
+#	include "ScriptsSubsystems/Compability/EnhancementEditionLuaLayer.h"
+#	include "ScriptsSubsystems/Crypto/Crypto_script.h"
+#	include "InteractiveObject.h"
+#	include "antigas_filter.h"
+#	include "PowerCell.h"
+#	include "nvg.h"
 #endif
+
+extern void CompatibilityBringeExport(lua_State*);
 
 void export_classes	(lua_State *L)
 {
@@ -96,7 +103,7 @@ void export_classes	(lua_State *L)
 	//CSE_ALifeStationaryMgun::script_register(L);
 	CSE_ALifeTraderAbstract::script_register(L);
 	CSE_ALifeTrader::script_register(L);
-	CSE_ALifeCustomZone::script_register(L);
+	CSE_ALifeAnomalyZone::script_register(L);
 	CSE_ALifeAnomalousZone::script_register(L);
 	CSE_ALifeTorridZone::script_register(L);
 	CSE_ALifeZoneVisual::script_register(L);
@@ -113,7 +120,9 @@ void export_classes	(lua_State *L)
 	CSE_ALifeHumanStalker::script_register(L);
 	CSE_ALifeOnlineOfflineGroup::script_register(L);
 	CSE_SmartCover::script_register(L);
-	
+
+	fs_registrator::script_register(L);
+
 #ifdef XRSE_FACTORY_EXPORTS
 	CScriptPropertiesListHelper::script_register(L);
 #else
@@ -134,7 +143,6 @@ void export_classes	(lua_State *L)
 	demo_player_info::script_register(L);
 	demo_info::script_register(L);
 	CEF_Storage::script_register(L);
-	fs_registrator::script_register(L);
 	CGameTask::script_register(L);
 	DLL_PureScript::script_register(L);
 	ISheduledScript::script_register(L);
@@ -201,26 +209,14 @@ void export_classes	(lua_State *L)
 	CStalkerOutfit::script_register(L);
 	CTorch::script_register(L);
 	FactionState::script_register(L);
-	FractionState::script_register(L);
-	CWeaponAK74::script_register(L);
+	CWeapon::script_register(L);
 	CWeaponBinoculars::script_register(L);
 	CWeaponBM16::script_register(L);
-	CWeaponFN2000::script_register(L);
-	CWeaponFORT::script_register(L);
-	CWeaponGroza::script_register(L);
-	CWeaponHPSA::script_register(L);
 	CWeaponKnife::script_register(L);
-	CWeaponLR300::script_register(L);
-	CWeaponPM::script_register(L);
 	CWeaponRG6::script_register(L);
 	CWeaponRPG7::script_register(L);
-	CWeaponShotgun::script_register(L);
 	CWeaponSVD::script_register(L);
-	CWeaponSVU::script_register(L);
-	CWeaponUSP45::script_register(L);
-	CWeaponVal::script_register(L);
-	CWeaponVintorez::script_register(L);
-	CWeaponWalther::script_register(L);
+	CWeaponShotgun::script_register(L);
 	CZoneCampfire::script_register(L);
 
 	CArtefact::script_register(L);
@@ -259,7 +255,7 @@ void export_classes	(lua_State *L)
 	CAntirad::script_register(L);
 	CBottleItem::script_register(L);
 	CCustomOutfit::script_register(L);
-	CCustomZone::script_register(L);
+	CAnomalyZone::script_register(L);
 	CFoodItem::script_register(L);
 	CHudItem::script_register(L);
 	CInventoryItem::script_register(L);
@@ -268,5 +264,30 @@ void export_classes	(lua_State *L)
 	CPhysicsShellHolder::script_register(L);
 	CWeaponAmmo::script_register(L);
 	CGameTaskManager::script_register(L);
+
+	RPoint::script_register(L);
+	game_PlayerState::script_register(L);
+	game_GameState::script_register(L);
+	SZoneMapEntityData::script_register(L);
+	game_cl_mp::script_register(L);
+	game_cl_mp_script::script_register(L);
+	game_sv_GameState::script_register(L);
+	game_sv_Deathmatch::script_register(L);
+	game_sv_mp::script_register(L);
+	game_sv_mp_script::script_register(L);
+	CScriptXRParser::script_register(L);
+	CInteractiveObject::script_register(L);
+
+	AntigasFilter::script_register(L);
+	PowerCell::script_register(L);
+	CNVG::script_register(L);
+	CFFxCrypto::script_register(L);
+
+	// Ехидна Эдишен
+	ExportEELayer(L);
+	CompatibilityBringeExport(L);
+	if (EngineExternal()[EEngineExternalSystem::EngineScriptStoryID]){
+		CScriptStoryIDManager::script_register(L); //-> Конфликт с оригинальные скриптами
+    }
 #endif
 }

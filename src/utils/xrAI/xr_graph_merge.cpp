@@ -16,15 +16,15 @@
 #include "level_graph.h"
 #include "object_broker.h"
 #include "xr_graph_merge.h"
-#include "spawn_constructor_space.h"
+#include "level_spawn_constructor.h"
 #include "game_graph_builder.h"
 #include <direct.h>
 #include <random>
 
 thread_local std::mt19937 rng = std::mt19937(std::random_device()());
 
-extern LPCSTR GAME_CONFIG;
-extern LPCSTR LEVEL_GRAPH_NAME;
+extern const char* GAME_CONFIG;
+extern const char* LEVEL_GRAPH_NAME;
 
 using namespace SpawnConstructorSpace;
 using namespace ALife;
@@ -43,15 +43,15 @@ CGameGraph::CHeader				tGraphHeader;
 
 class CCompareVertexPredicate {
 public:
-	IC bool operator()(LPCSTR S1, LPCSTR S2) const
+	IC bool operator()(const char* S1, const char* S2) const
 	{
 		return(xr_strcmp(S1,S2) < 0);
 	}
 };
 
-u32 dwfGetIDByLevelName(CInifile *Ini, LPCSTR caLevelName)
+u32 dwfGetIDByLevelName(CInifile *Ini, const char* caLevelName)
 {
-	LPCSTR				N,V;
+	const char*				N,*V;
 	for (u32 k = 0; Ini->r_line("levels",k,&N,&V); k++) {
 		R_ASSERT3		(Ini->section_exist(N),"Fill section properly!",N);
 		R_ASSERT3		(Ini->line_exist(N,"caption"),"Fill section properly!",N);
@@ -97,10 +97,10 @@ public:
 	CMemoryWriter				m_cross_table;
 
 								CLevelGameGraph	(
-									LPCSTR graph_file_name,
-									LPCSTR raw_cross_table_file_name,
+									const char* graph_file_name,
+									const char* raw_cross_table_file_name,
 									CGameGraph::SLevel *tLevel,
-									LPCSTR S,
+									const char* S,
 									u32 dwOffset,
 									u32 dwLevelID,
 									CInifile *Ini
@@ -395,7 +395,7 @@ public:
 
 		std::shuffle		(l_dwaNodes.begin(),l_dwaNodes.end(), rng);
 
-		u32 m = (u32)l_dwaNodes.size() > 10 ? _min(iFloor(.1f * l_dwaNodes.size()), 255) : l_dwaNodes.size(), l_dwStartIndex = (u32)m_tpLevelPoints.size();
+		u32 m = (u32)l_dwaNodes.size() > 10 ? std::min(iFloor(.1f * l_dwaNodes.size()), 255) : l_dwaNodes.size(), l_dwStartIndex = (u32)m_tpLevelPoints.size();
 		m_tpLevelPoints.resize	(l_dwStartIndex + m);
 		LEVEL_POINT_STORAGE::iterator I = m_tpLevelPoints.begin() + l_dwStartIndex;
 		LEVEL_POINT_STORAGE::iterator E = m_tpLevelPoints.end();
@@ -415,15 +415,15 @@ public:
 class CGraphMerger {
 public:
 	CGraphMerger(
-		LPCSTR game_graph_id,
-		LPCSTR name,
+		const char* game_graph_id,
+		const char* name,
 		bool rebuild
 	);
 };
 
-void read_levels(CInifile *Ini, xr_set<CLevelInfo> &levels, bool rebuild_graph, xr_vector<LPCSTR> *needed_levels)
+void read_levels(CInifile *Ini, xr_set<CLevelInfo> &levels, bool rebuild_graph, xr_vector<const char*> *needed_levels)
 {
-	LPCSTR				_N,V;
+	const char*				_N,*V;
 	string_path			caFileName, file_name;
 	for (u32 k = 0; Ini->r_line("levels",k,&_N,&V); k++) {
 		string256		N;
@@ -451,15 +451,15 @@ void read_levels(CInifile *Ini, xr_set<CLevelInfo> &levels, bool rebuild_graph, 
 		}
 
 		u8				id = Ini->r_u8(N,"id");
-		LPCSTR			_S = Ini->r_string(N,"name");
+		const char*			_S = Ini->r_string(N,"name");
 		string256		S;
 		xr_strcpy		(S,_S);
 		_strlwr			(S);
 
 		if (needed_levels) {
 			bool		found = false;
-			xr_vector<LPCSTR>::const_iterator	I = needed_levels->begin();
-			xr_vector<LPCSTR>::const_iterator	E = needed_levels->end();
+			xr_vector<const char*>::const_iterator	I = needed_levels->begin();
+			xr_vector<const char*>::const_iterator	E = needed_levels->end();
 			for ( ; I != E; ++I)
 				if (!xr_strcmp(*I,S)) {
 					found	= true;
@@ -518,9 +518,9 @@ void read_levels(CInifile *Ini, xr_set<CLevelInfo> &levels, bool rebuild_graph, 
 	}
 }
 
-extern void xrBuildGraph(LPCSTR name);
+extern void xrBuildGraph(const char* name);
 
-LPCSTR generate_temp_file_name	(LPCSTR header0, LPCSTR header1, string_path& buffer)
+const char* generate_temp_file_name	(const char* header0, const char* header1, string_path& buffer)
 {
 	string_path			path;
 	FS.update_path		(path,"$app_data_root$","temp");
@@ -532,7 +532,7 @@ LPCSTR generate_temp_file_name	(LPCSTR header0, LPCSTR header1, string_path& buf
 	return				(buffer);
 }
 
-void fill_needed_levels	(LPSTR levels, xr_vector<LPCSTR> &result)
+void fill_needed_levels	(LPSTR levels, xr_vector<const char*> &result)
 {
 	LPSTR					I = levels;
 	for (LPSTR J = I; ; ++I) {
@@ -550,38 +550,32 @@ void fill_needed_levels	(LPSTR levels, xr_vector<LPCSTR> &result)
 	}
 }
 
-CGraphMerger::CGraphMerger(
-		LPCSTR game_graph_id,
-		LPCSTR name,
-		bool rebuild
-	)
+CGraphMerger::CGraphMerger(const char* game_graph_id, const char* name, bool rebuild)
 {
 	// load all the graphs
 	Phase("Processing level graphs");
-	
-	CInifile *Ini = new CInifile(INI_FILE);
-	if (!Ini->section_exist("levels"))
-		THROW(false);
-	R_ASSERT						(Ini->section_exist("levels"));
 
-	tGraphHeader.m_guid				= generate_guid();
+	CInifile* Ini = new CInifile(INI_FILE);
+	R_ASSERT(Ini->section_exist("levels"));
 
-	GRAPH_P_MAP						tpGraphs;
-	string4096						S1, S2;
-	CGameGraph::SLevel				tLevel;
-	u32								dwOffset = 0;
-	u32								l_dwPointOffset = 0;
-	LEVEL_POINT_STORAGE				l_tpLevelPoints;
-	l_tpLevelPoints.clear			();
+	tGraphHeader.m_guid = generate_guid();
 
-	xr_set<CLevelInfo>				levels;
-	xr_vector<LPCSTR>				needed_levels;
-	string4096						levels_string;
-	xr_strcpy						(levels_string,name);
-	_strlwr							(levels_string);
-	fill_needed_levels				(levels_string,needed_levels);
+	GRAPH_P_MAP tpGraphs;
+	string4096 S1, S2;
+	CGameGraph::SLevel tLevel;
+	u32 dwOffset = 0;
+	u32 l_dwPointOffset = 0;
+	LEVEL_POINT_STORAGE l_tpLevelPoints;
+	l_tpLevelPoints.clear();
 
-	read_levels						(
+	xr_set<CLevelInfo> levels;
+	xr_vector<const char*> needed_levels;
+	string4096 levels_string;
+	xr_strcpy(levels_string, name);
+	_strlwr(levels_string);
+	fill_needed_levels(levels_string, needed_levels);
+
+	read_levels(
 		Ini,
 		levels,
 		rebuild,
@@ -590,160 +584,160 @@ CGraphMerger::CGraphMerger(
 
 	xr_set<CLevelInfo>::const_iterator	I = levels.begin();
 	xr_set<CLevelInfo>::const_iterator	E = levels.end();
-	for ( ; I != E; ++I) {
-		tLevel.m_offset				= (*I).m_offset;
-		tLevel.m_name				= (*I).m_name;
-		xr_strcpy					(S1,sizeof(S1),*(*I).m_name);
+	for (; I != E; ++I)
+	{
+		tLevel.m_offset = (*I).m_offset;
+		tLevel.m_name = (*I).m_name;
+		xr_strcpy(S1, sizeof(S1), *(*I).m_name);
 		xr_strconcat(S2, name, S1);
-		xr_strconcat(S1,S2,"\\");
-		tLevel.m_id					= (*I).m_id;
-		tLevel.m_section			= (*I).m_section;
-		Msg							("%9s %2d %s","level",tLevel.id(),*tLevel.m_name);
+		xr_strconcat(S1, S2, "\\");
+		tLevel.m_id = (*I).m_id;
+		tLevel.m_section = (*I).m_section;
+		Msg("%9s %2d %s", "level", tLevel.id(), *tLevel.m_name);
 		string_path					path0, path1;
-		generate_temp_file_name		("local_graph_",*tLevel.m_name, path0);
-		generate_temp_file_name		("raw_cross_table_",*tLevel.m_name, path1);
+		generate_temp_file_name("local_graph_", *tLevel.m_name, path0);
+		generate_temp_file_name("raw_cross_table_", *tLevel.m_name, path1);
 		string_path					level_folder;
-		FS.update_path				(level_folder,"$game_levels$",*tLevel.m_name);
-		xr_strcat						(level_folder,"\\");
-		CGameGraphBuilder().build_graph	(path0, path1,level_folder);
-		::CLevelGameGraph			*tpLevelGraph = new ::CLevelGameGraph(
-			path0,
-			path1,
-			&tLevel,
-			level_folder,
-			dwOffset,
-			tLevel.id(),
-			Ini
-		);
-		dwOffset					+= tpLevelGraph->m_tpGraph->header().vertex_count();
-		R_ASSERT2					(tpGraphs.find(tLevel.id()) == tpGraphs.end(),"Level ids _MUST_ be different!");
-		tpGraphs.insert				(std::make_pair(tLevel.id(),tpLevelGraph));
-		tGraphHeader.m_levels.insert(std::make_pair(tLevel.id(),tLevel));
+		FS.update_path(level_folder, "$game_levels$", *tLevel.m_name);
+		xr_strcat(level_folder, "\\");
+		CGameGraphBuilder().build_graph(path0, path1, level_folder);
+
+		::CLevelGameGraph* tpLevelGraph = new ::CLevelGameGraph(path0, path1, &tLevel, level_folder, dwOffset, tLevel.id(), Ini);
+
+		dwOffset += tpLevelGraph->m_tpGraph->header().vertex_count();
+		R_ASSERT2(tpGraphs.find(tLevel.id()) == tpGraphs.end(), "Level ids _MUST_ be different!");
+		tpGraphs.insert(std::make_pair(tLevel.id(), tpLevelGraph));
+		tGraphHeader.m_levels.insert(std::make_pair(tLevel.id(), tLevel));
 	}
-	
-	R_ASSERT(tpGraphs.size());
-	
+
+	if (!I_ASSERT(tpGraphs.size()))
+	{
+		return;
+	}
+
 	Phase("Adding interconnection points");
 	{
-		GRAPH_P_PAIR_IT				I_ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT				E_ = tpGraphs.end();
-		for ( ; I_ != E_; I_++) {
-			VERTEX_PAIR_IT			i = (*I_).second->m_tVertexMap.begin();
-			VERTEX_PAIR_IT			e = (*I_).second->m_tVertexMap.end();
-			for ( ; i != e; i++)
-				if ((*i).second.caConnectName[0]) {
-					GRAPH_P_PAIR_IT				K;
-					VERTEX_PAIR_IT				M;
-					CGameGraph::CEdge			tGraphEdge;
-					SConnectionVertex			&tConnectionVertex = (*i).second;
-					K							= tpGraphs.find(tConnectionVertex.dwLevelID);
-					if (K == tpGraphs.end()) {
-						Msg						("Cannot find level with level_id %d. Connection point will not be generated!",tConnectionVertex.dwLevelID);
+		GRAPH_P_PAIR_IT I_ = tpGraphs.begin();
+		GRAPH_P_PAIR_IT E_ = tpGraphs.end();
+		for (; I_ != E_; I_++)
+		{
+			VERTEX_PAIR_IT i = (*I_).second->m_tVertexMap.begin();
+			VERTEX_PAIR_IT e = (*I_).second->m_tVertexMap.end();
+			for (; i != e; i++)
+			{
+				if ((*i).second.caConnectName[0])
+				{
+					GRAPH_P_PAIR_IT K;
+					VERTEX_PAIR_IT M;
+					CGameGraph::CEdge tGraphEdge;
+					SConnectionVertex& tConnectionVertex = (*i).second;
+					K = tpGraphs.find(tConnectionVertex.dwLevelID);
+
+					if (K == tpGraphs.end())
+					{
+						Msg("Cannot find level with level_id %d. Connection point will not be generated!", tConnectionVertex.dwLevelID);
 						continue;
 					}
-					R_ASSERT					(K != tpGraphs.end());
-					M							= (*K).second->m_tVertexMap.find(tConnectionVertex.caConnectName);
-					if (M == (*K).second->m_tVertexMap.end()) {
-						Msg						("Level %s with id %d has an INVALID connection point %s,\nwhich references to graph point %s on the level %s with id %d\n",*(*I_).second->m_tLevel.name(),(*I_).second->m_tLevel.id(),(*i).first,tConnectionVertex.caConnectName,*(*K).second->m_tLevel.name(),(*K).second->m_tLevel.id());
-						R_ASSERT				(M != (*K).second->m_tVertexMap.end());
+
+					R_ASSERT(K != tpGraphs.end());
+					M = (*K).second->m_tVertexMap.find(tConnectionVertex.caConnectName);
+
+					if (M == (*K).second->m_tVertexMap.end())
+					{
+						Msg("Level %s with id %d has an INVALID connection point %s,\nwhich references to graph point %s on the level %s with id %d\n", *(*I_).second->m_tLevel.name(), (*I_).second->m_tLevel.id(), (*i).first, tConnectionVertex.caConnectName, *(*K).second->m_tLevel.name(), (*K).second->m_tLevel.id());
+						R_ASSERT(M != (*K).second->m_tVertexMap.end());
 					}
 
-					Msg							("Level %s with id %d has VALID connection point %s,\nwhich references to graph point %s on the level %s with id %d\n",*(*I_).second->m_tLevel.name(),(*I_).second->m_tLevel.id(),(*i).first,tConnectionVertex.caConnectName,*(*K).second->m_tLevel.name(),(*K).second->m_tLevel.id());
+					Msg("Level %s with id %d has VALID connection point %s,\nwhich references to graph point %s on the level %s with id %d\n", *(*I_).second->m_tLevel.name(), (*I_).second->m_tLevel.id(), (*i).first, tConnectionVertex.caConnectName, *(*K).second->m_tLevel.name(), (*K).second->m_tLevel.id());
 
-					VERIFY						(((*M).second.tGraphID + (*K).second->m_dwOffset) < (u32(1) << (8*sizeof(GameGraph::_GRAPH_ID))));
-					tGraphEdge.m_vertex_id		= (GameGraph::_GRAPH_ID)((*M).second.tGraphID + (*K).second->m_dwOffset);
-					VERIFY3						(tConnectionVertex.tGraphID < (*I_).second->m_tpVertices.size(),"Rebuild graph for the level",*(*I_).second->m_tLevel.name());
-					VERIFY3						((*M).second.tGraphID < (*K).second->m_tpVertices.size(),"Rebuild graph for the level",*(*K).second->m_tLevel.name());
-					tGraphEdge.m_path_distance	= (*I_).second->m_tpVertices[tConnectionVertex.tGraphID].tGlobalPoint.distance_to((*K).second->m_tpVertices[(*M).second.tGraphID].tGlobalPoint);
-					(*I_).second->vfAddEdge		((*i).second.tGraphID,tGraphEdge);
-//					tGraphEdge.dwVertexNumber	= (*i).second.tGraphID + (*I).second->m_dwOffset;
-//					(*K).second->vfAddEdge		((*M).second.tGraphID,tGraphEdge);
+					VERIFY(((*M).second.tGraphID + (*K).second->m_dwOffset) < (u32(1) << (8 * sizeof(GameGraph::_GRAPH_ID))));
+					tGraphEdge.m_vertex_id = (GameGraph::_GRAPH_ID)((*M).second.tGraphID + (*K).second->m_dwOffset);
+					VERIFY3(tConnectionVertex.tGraphID < (*I_).second->m_tpVertices.size(), "Rebuild graph for the level", *(*I_).second->m_tLevel.name());
+					VERIFY3((*M).second.tGraphID < (*K).second->m_tpVertices.size(), "Rebuild graph for the level", *(*K).second->m_tLevel.name());
+					tGraphEdge.m_path_distance = (*I_).second->m_tpVertices[tConnectionVertex.tGraphID].tGlobalPoint.distance_to((*K).second->m_tpVertices[(*M).second.tGraphID].tGlobalPoint);
+					(*I_).second->vfAddEdge((*i).second.tGraphID, tGraphEdge);
 				}
+			}
 		}
 	}
 	// counting edges
 	{
-		tGraphHeader.m_edge_count			= 0;
-		tGraphHeader.m_death_point_count	= 0;
+		tGraphHeader.m_edge_count = 0;
+		tGraphHeader.m_death_point_count = 0;
 		GRAPH_P_PAIR_IT						I__ = tpGraphs.begin();
 		GRAPH_P_PAIR_IT						E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++) {
-			VERIFY							((u32(tGraphHeader.m_edge_count) + (*I__).second->dwfGetEdgeCount()) < (u32(1) << (8*sizeof(GameGraph::_GRAPH_ID))));
-			tGraphHeader.m_edge_count		+= (GameGraph::_GRAPH_ID)(*I__).second->dwfGetEdgeCount();
-			tGraphHeader.m_death_point_count+= (*I__).second->dwfGetDeathPointCount();
+		for (; I__ != E__; I__++) {
+			VERIFY((u32(tGraphHeader.m_edge_count) + (*I__).second->dwfGetEdgeCount()) < (u32(1) << (8 * sizeof(GameGraph::_GRAPH_ID))));
+			tGraphHeader.m_edge_count += (GameGraph::_GRAPH_ID)(*I__).second->dwfGetEdgeCount();
+			tGraphHeader.m_death_point_count += (*I__).second->dwfGetDeathPointCount();
 		}
 	}
 
 	///////////////////////////////////////////////////
-	
+
 	// save all the graphs
 	Phase("Saving graph being merged");
 	CMemoryWriter				F;
-	tGraphHeader.m_version		= XRAI_CURRENT_VERSION;
-	VERIFY						(dwOffset < (u32(1) << (8*sizeof(GameGraph::_GRAPH_ID))));
-	tGraphHeader.m_vertex_count	= (GameGraph::_GRAPH_ID)dwOffset;
-	tGraphHeader.save			(&F);
+	tGraphHeader.m_version = XRAI_CURRENT_VERSION;
+	VERIFY(dwOffset < (u32(1) << (8 * sizeof(GameGraph::_GRAPH_ID))));
+	tGraphHeader.m_vertex_count = (GameGraph::_GRAPH_ID)dwOffset;
+	tGraphHeader.save(&F);
 
-	u32							vertex_count = 0;
-	dwOffset					*= sizeof(CGameGraph::CVertex);
-	u32							l_dwOffset = F.size();
-	l_dwPointOffset				= dwOffset + tGraphHeader.edge_count()*sizeof(CGameGraph::CEdge);
-	u32							l_dwStartPointOffset = l_dwPointOffset;
+	u32 vertex_count = 0;
+	dwOffset *= sizeof(CGameGraph::CVertex);
+
+	u32 l_dwOffset = F.size();
+	l_dwPointOffset = dwOffset + tGraphHeader.edge_count() * sizeof(CGameGraph::CEdge);
+	u32 l_dwStartPointOffset = l_dwPointOffset;
+
+	for (auto& [ID, Graph] : tpGraphs)
 	{
-		GRAPH_P_PAIR_IT			I__ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT			E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++) {
-			(*I__).second->vfSaveVertices	(F,dwOffset,l_dwPointOffset,&l_tpLevelPoints);
-			vertex_count		+= (*I__).second->m_tpGraph->header().vertex_count();
-		}
+		Graph->vfSaveVertices(F, dwOffset, l_dwPointOffset, &l_tpLevelPoints);
+		vertex_count += Graph->m_tpGraph->header().vertex_count();
 	}
+
+	for (auto& [ID, Graph] : tpGraphs)
 	{
-		GRAPH_P_PAIR_IT			I__ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT			E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++)
-			(*I__).second->vfSaveEdges(F);
+		Graph->vfSaveEdges(F);
 	}
+
+	l_tpLevelPoints.clear();
+
+	for (auto& [ID, Graph] : tpGraphs)
 	{
-		l_tpLevelPoints.clear	();
-		GRAPH_P_PAIR_IT			I__ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT			E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++)
-			l_tpLevelPoints.insert(l_tpLevelPoints.end(),(*I__).second->m_tpLevelPoints.begin(),(*I__).second->m_tpLevelPoints.end());
+		l_tpLevelPoints.insert(l_tpLevelPoints.end(), Graph->m_tpLevelPoints.begin(), Graph->m_tpLevelPoints.end());
 	}
-	R_ASSERT2						(l_dwStartPointOffset == F.size() - l_dwOffset,"Graph file format is corrupted");
+
+	R_ASSERT2(l_dwStartPointOffset == F.size() - l_dwOffset, "Graph file format is corrupted");
+
+	for (const IGameGraph::CLevelPoint& LevelPoint : l_tpLevelPoints)
 	{
-		LEVEL_POINT_STORAGE::const_iterator	I__ = l_tpLevelPoints.begin();
-		LEVEL_POINT_STORAGE::const_iterator	E__ = l_tpLevelPoints.end();
-		for ( ; I__ != E__; ++I__)
-			save_data				(*I__,F);
+		save_data(LevelPoint, F);
 	}
+
+	for (auto& [ID, Graph] : tpGraphs)
 	{
-		GRAPH_P_PAIR_IT			I__ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT			E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++) {
-			Msg					("cross_table offset: %d",F.size());
-			(*I__).second->save_cross_table	(F);
-		}
+		Msg("cross_table offset: %d", F.size());
+		Graph->save_cross_table(F);
 	}
-	
-	string256						l_caFileName;
-	xr_strcpy							(l_caFileName,game_graph_id);
-	F.save_to						(l_caFileName);
+
+	string256 l_caFileName;
+	xr_strcpy(l_caFileName, game_graph_id);
+	F.save_to(l_caFileName);
 
 	// free all the graphs
 	Phase("Freeing resources being allocated");
+	for (auto& [ID, Graph] : tpGraphs)
 	{
-		GRAPH_P_PAIR_IT				I__ = tpGraphs.begin();
-		GRAPH_P_PAIR_IT				E__ = tpGraphs.end();
-		for ( ; I__ != E__; I__++)
-			xr_free((*I__).second);
+		xr_delete(Graph);
 	}
-	xr_delete						(Ini);
+
+	xr_delete(Ini);
 }
 
 void xrMergeGraphs(
-		LPCSTR game_graph_id,
-		LPCSTR name,
+		const char* game_graph_id,
+		const char* name,
 		bool rebuild
 	)
 {

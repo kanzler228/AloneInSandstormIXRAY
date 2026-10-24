@@ -7,7 +7,7 @@
 #include "game_base.h"
 #include "Level.h"
 
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class UITeamPanels;
 class CUIFrameLineWnd;
@@ -16,7 +16,7 @@ class CUIXml;
 class UIPlayerItem;
 class UITeamHeader;
 
-class UITeamState : public CUIWindow
+class UITeamState final : public CUIWindow
 {
 private:
 	typedef CUIWindow inherited;
@@ -66,7 +66,7 @@ private:
 public:
 	UITeamState(ETeam teamId, UITeamPanels *teamPanels);
 	virtual ~UITeamState();
-	void Init(CUIXml& uiXml, LPCSTR teamNodeName, int index);
+	void Init(CUIXml& uiXml, const char* teamNodeName, int index);
 
 		
 	void		AddPlayer(ClientID const & clientId);

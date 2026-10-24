@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMpTradeWnd.h"
 #include "../inventory_item.h"
 #include "../PhysicsShellHolder.h"
@@ -79,7 +79,7 @@ void SBuyItemInfo::SetState	(const EItmState& s)
 		
 }
 
-LPCSTR _state_names []={
+const char* _state_names []={
 	"e_undefined",
 	"e_bought",
 	"e_sold",
@@ -87,7 +87,7 @@ LPCSTR _state_names []={
 	"e_shop"
 };
 
-LPCSTR SBuyItemInfo::GetStateAsText() const
+const char* SBuyItemInfo::GetStateAsText() const
 {
 	EItmState st = GetState();
 	return _state_names[st];
@@ -845,12 +845,12 @@ struct items_sorter {
 	};
 };
 
-void CUIMpTradeWnd::DumpAllItems(LPCSTR s)
+void CUIMpTradeWnd::DumpAllItems(const char* s)
 {
 	std::sort		(m_all_items.begin(), m_all_items.end(), items_sorter());
 
 #ifndef MASTER_GOLD
-	Msg("CUIMpTradeWnd::DumpAllItems.total[%d] reason [%s]", m_all_items.size(), s);
+	Msg("CUIMpTradeWnd::DumpAllItems.total[%zu] reason [%s]", m_all_items.size(), s);
 	ITEMS_vec_cit it = m_all_items.begin();
 	ITEMS_vec_cit it_e = m_all_items.end();
 	for(;it!=it_e;++it)
@@ -899,7 +899,7 @@ void CUICellItemTradeMenuDraw::OnDraw(CUICellItem* cell)
 			acc = 1;
 		string64							buff;
 
-		xr_sprintf							(buff," %d", acc - SDL_SCANCODE_ESCAPE);
+		xr_sprintf							(buff," %d", acc - SDL_SCANCODE_Z);
 		CGameFont* pFont					= UI().Font().GetFont(LETTERICA16_FONT_NAME);
 		pFont->SetAligment					(CGameFont::alCenter);
 		pFont->SetColor						(color_rgba(135,123,116,255));

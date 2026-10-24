@@ -9,8 +9,7 @@
 #include "alife_space.h"
 #include "../xrEngine/Render.h"
 #include "anticheat_dumpable_object.h"
-#include "../xrParticles/psystem.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "../xrPhysics/DamageSource.h"
 
 class CCartridge;
 class CParticlesObject;
@@ -18,32 +17,32 @@ class IRender_Sector;
 
 #define WEAPON_MATERIAL_NAME "objects\\bullet"
 
-class CShootingObject : public IAnticheatDumpable
+class CShootingObject : 
+	public IAnticheatDumpable,
+	public IDamageSource
 {
 protected:
-			CShootingObject			();
-	virtual ~CShootingObject		();
+	CShootingObject();
+	virtual ~CShootingObject();
 
-	void	reinit	();
-	void	reload	(LPCSTR section) {};
-	void	Load	(LPCSTR section);
-
-	Fvector		m_vCurrentShootDir;
-	Fvector		m_vCurrentShootPos;
+	void	reload(const char* section) {};
+	void	Load(const char* section);
 
 private:
 	float		m_air_resistance_factor;
-
-protected:
-	//ID персонажа который иницировал действие
-	u16			m_iCurrentParentID;
-
-
 //////////////////////////////////////////////////////////////////////////
 // Fire Params
 //////////////////////////////////////////////////////////////////////////
 protected:
-	virtual void			LoadFireParams		(LPCSTR section); 		//сила выстрела
+
+	enum
+	{
+		eDefaultFire = 0,
+		eSilencerFire = 1,
+		eGlauncherFire = 2,
+	} fire_mode = eDefaultFire;
+
+	virtual void			LoadFireParams		(const char* section); 		//сила выстрела
 	virtual bool			SendHitAllowed		(CObject* pUser);
 	virtual void			FireBullet			(const Fvector& pos, 
         										const Fvector& dir, 
@@ -58,9 +57,10 @@ protected:
 	virtual void			FireStart			();
 	virtual void			FireEnd				();
 public:
-	IC BOOL					IsWorking			()	const	{return bWorking;}
-	virtual BOOL			ParentMayHaveAimBullet()		{return FALSE;}
-	virtual BOOL			ParentIsActor()					{return FALSE;}
+	IC bool					IsWorking			()	const	{return bWorking;}
+	void SetWorking(bool status) { bWorking = status; }
+	virtual bool			ParentMayHaveAimBullet()		{return false;}
+	virtual bool			ParentIsActor()					{return false;}
 
 	float getFireDistance(void) const { return fireDistance; }
 	void setFireDistance(float value);
@@ -68,20 +68,23 @@ public:
 	void setFireDispersionBase(float value);
 	float getStartBulletSpeed(void) const { return m_fStartBulletSpeed; }
 	void setStartBulletSpeed(float value);
-	float getHitImpulse(void) const { return fHitImpulse; }
-	void setHitImpulse(float value);
 	float getRPM(void) const { return fOneShotTime; }
 	void setRPM(float value);
-	const Fvector4& getHitPower(void) const { return fvHitPower; }
-	void setHitPower(const Fvector4& vec);
-	const Fvector4& getHitPowerCritical(void) const { return fvHitPowerCritical; }
-	void setHitPowerCritical(const Fvector4& vec);
+
+	virtual float getHitImpulse() const { return fHitImpulse; }
+	virtual void setHitImpulse(float value);
+	virtual const Fvector4& getHitPower() const { return fvHitPower; }
+	virtual void setHitPower(const Fvector4& vec);
+	virtual const Fvector4& getHitPowerCritical() const { return fvHitPowerCritical; }
+	virtual void setHitPowerCritical(const Fvector4& vec);
+	void destroy_particles();
 
 protected:
 	// Weapon fires now
 	bool					bWorking;
 
-	float					fOneShotTime;
+	float					fOneShotTime = 0.0f;
+	float					fOneShotTimeSaved = 0.0f;
 	Fvector4				fvHitPower;
 	Fvector4				fvHitPowerCritical;
 	float					fHitImpulse;
@@ -105,6 +108,7 @@ protected:
 		float	fire_dispersion;
 		float	cam_dispersion;
 		float	cam_disper_inc;
+		float   attached_recoil;
 
 		SilencerKoeffs() { Reset(); }
 		IC void Reset()
@@ -115,18 +119,13 @@ protected:
 			fire_dispersion = 1.0f;
 			cam_dispersion  = 1.0f;
 			cam_disper_inc  = 1.0f;
+			attached_recoil = 1.0f;
 		}
 	};// SilencerKoeffs
 	SilencerKoeffs		m_silencer_koef;
 
 public:
 	SilencerKoeffs		cur_silencer_koef;
-
-protected:
-	//для сталкеров, чтоб они знали эффективные границы использования 
-	//оружия
-	float					m_fMinRadius;
-	float					m_fMaxRadius;
 
 protected:
 	Fcolor					light_base_color;
@@ -139,75 +138,64 @@ protected:
 	float					light_lifetime;
 	u32						light_frame;
 	float					light_time;
-	//включение подсветки во время выстрела
 	bool					m_bLightShotEnabled;
 protected:
-	void					Light_Create		();
-	void					Light_Destroy		();
-
 	void					Light_Start			();
 	void					Light_Render		(const Fvector& P);
 
-	virtual	void			LoadLights			(LPCSTR section, LPCSTR prefix);
-	virtual void			RenderLight			();
-	virtual void			UpdateLight			();
-	virtual void			StopLight			();
-	virtual bool			IsHudModeNow		()=0;
-//////////////////////////////////////////////////////////////////////////
-// партикловая система
-//////////////////////////////////////////////////////////////////////////
-protected:
-	//функции родительского объекта
-	virtual const Fvector&	get_CurrentFirePoint()		= 0;
-	virtual const Fmatrix&	get_ParticlesXFORM()		= 0;
-	virtual void			ForceUpdateFireParticles	(){};
-	
-	////////////////////////////////////////////////
-	//общие функции для работы с партиклами оружия
-			void			StartParticles		(CParticlesObject*& pParticles, LPCSTR particles_name, const Fvector& pos, const Fvector& vel = zero_vel, bool auto_remove_flag = false);
-			void			StopParticles		(CParticlesObject*& pParticles);
-			void			UpdateParticles		(CParticlesObject*& pParticles, const Fvector& pos, const  Fvector& vel = zero_vel);
-
-			void			LoadShellParticles	(LPCSTR section, LPCSTR prefix);
-			void			LoadFlameParticles	(LPCSTR section, LPCSTR prefix);
-	
-	////////////////////////////////////////////////
-	//спецефические функции для партиклов
-	//партиклы огня
-			void			StartFlameParticles	();
-			void			StopFlameParticles	();
-			void			UpdateFlameParticles();
-
-	//партиклы дыма
-			void			StartSmokeParticles	(const Fvector& play_pos, const Fvector& parent_vel);
-
-	//партиклы полосы от пули
-			void			StartShotParticles	();
-
-	//партиклы гильз
-			void			OnShellDrop			(const Fvector& play_pos, const Fvector& parent_vel);
-protected:
-	//имя пратиклов для гильз
-	shared_str				m_sShellParticles;
+			void			LoadLights			(const char* section, const char* prefix);
+			void			RenderLight			();
+			void			UpdateEffects		();
+			void			DestroyEffects		();
+			void			StopLight			();
+	virtual bool			IsHudModeNow		() { return false; };
 public:
+	virtual const Fvector&	get_CurrentFirePoint(bool need_invalidate = false)	{ return zero_vel; };
+	virtual const Fvector&	get_CurrentFirePoint2(bool need_invalidate = false) { return get_CurrentFirePoint(need_invalidate); };
+	virtual const Fvector&	get_CurrentShellPoint(bool need_invalidate = false)	{ return get_CurrentFirePoint(need_invalidate); };
+	virtual const Fmatrix&	get_ParticlesXFORM(bool need_invalidate = false)	{ return Fidentity; };
+
+			void			StartFlameParticle();
+			void			StartSmokeParticle(const Fvector& parent_vel);
+			void			StartShellParticle(const Fvector& parent_vel);
+			void			StartShellEjection(const Fvector& parent_vel, const shared_str& section);
 	Fvector					vLoadedShellPoint;
 	float					m_fPredBulletTime;
 	float					m_fTimeToAim;
-	BOOL					m_bUseAimBullet;
+	bool					m_bUseAimBullet;
 protected:
-	//имя пратиклов для огня
-	shared_str				m_sFlameParticlesCurrent;
-	//для выстрела 1м и 2м видом стрельбы
-	shared_str				m_sFlameParticles;
-	//объект партиклов огня
-	xr_shared_ptr<CParticlesObject>		m_pFlameParticles;
 
-	//имя пратиклов для дыма
-	shared_str				m_sSmokeParticlesCurrent;
-	shared_str				m_sSmokeParticles;
-	
-	//имя партиклов следа от пули
-	shared_str				m_sShotParticles;
+	shared_str m_sShellParticles;
+
+	shared_str m_sSmokeParticles;
+	shared_str m_sSmokeSilencerParticles;
+	shared_str m_sSmokeGlauncherParticles;
+
+	xr_hash_map<u8, shared_str> m_ShellMeshes;
+
+	shared_str m_sShellBone;
+	Fmatrix m_mShellBone;
+
+	Fvector m_vShellDir;
+
+	bool m_bSpawnShellOnLastShot;
+	float m_fShellEjectionSpeed;
+	float m_fShellEjectionDispersionAngle;
+	float m_fShellTime;
+
+	shared_str m_sFlameParticles;
+	shared_str m_sFlameSilencerParticles;
+	shared_str m_sFlameGlauncherParticles;
+
+	xr_vector<xr_shared_ptr<CParticlesObject>> smoke_particles;
+	xr_vector<xr_shared_ptr<CParticlesObject>> flame_particles;
+
+	ALife::_OBJECT_ID initiator_id;
+
 public:
-	virtual void				DumpActiveParams		(shared_str const & section_name, CInifile & dst_ini) const;
+	virtual void DumpActiveParams(shared_str const& section_name, CInifile& dst_ini) const;
+
+	void SetInitiator(ALife::_OBJECT_ID id) override { initiator_id = id; }
+	u16 Initiator() override { return initiator_id; }
+	IDamageSource* cast_IDamageSource() override { return this; }
 };

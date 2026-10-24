@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "PHGeometryOwner.h"
 #include "PHWorld.h"
 
@@ -155,7 +155,7 @@ void CPHGeometryOwner::SetMaterial(u16 m)
 	for(;i!=e;++i) (*i)->set_material(m);
 }
 
-void CPHGeometryOwner::SetMaterial(LPCSTR m)
+void CPHGeometryOwner::SetMaterial(const char* m)
 {
 	SetMaterial(GMLibrary().GetMaterialIdx(m));
 }

@@ -24,12 +24,12 @@ private:
 	EDetailManager* DM;
 
 	UIPropertiesForm* m_Props;
-	xr_vector<UIDOOneColor*> m_color_indices;
+	xr_vector<UIDOOneColor> m_color_indices;
 
 	EImageThumbnail* m_Thm;
 	ref_texture m_TextureNull;
-	ImTextureID m_Texture;
-	ImTextureID m_RealTexture;
+	ref_texture m_Texture;
+	ref_texture m_RealTexture;
 	ref_texture m_MaskTexture;
 
 	U8Vec Pixels;

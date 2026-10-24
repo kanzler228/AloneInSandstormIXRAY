@@ -10,7 +10,7 @@
 
 #include "random32.h"
 #include "../xrSound/ai_sounds.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class CSoundPlayer : public CRandom32 {
 public:
@@ -18,6 +18,7 @@ public:
 		u32										m_priority;
 		u32										m_synchro_mask;
 		shared_str								m_bone_name;
+		bool									m_script_sound = false;
 	};
 
 	struct CSoundCollectionParams {
@@ -57,7 +58,7 @@ public:
 
 							CSoundCollection	(const CSoundCollectionParams &params);
 							~CSoundCollection	();
-		IC	ref_sound		*add				(ESoundTypes type, LPCSTR name) const;
+		IC	ref_sound		*add				(ESoundTypes type, const char* name) const;
 			const ref_sound	&random				(const u32 &id);
 	};
 
@@ -76,7 +77,7 @@ public:
 				void	destroy					()
 		{
 			VERIFY								(m_sound);
-			if (m_sound->_feedback())
+			if (m_sound->is_playing())
 				m_sound->stop					();
 
 			xr_delete							(m_sound);
@@ -107,7 +108,7 @@ public:
 			bool		result = 
 				(sound.m_synchro_mask & m_sound_mask) || 
 				(
-					!sound.m_sound->_feedback() && 
+					!sound.m_sound->is_playing() && 
 					(sound.m_stop_time <= Device.dwTimeGlobal)
 				);
 			if (result)
@@ -136,9 +137,9 @@ public:
 						CSoundPlayer				(CObject *object);
 	virtual				~CSoundPlayer				();
 	virtual	void		reinit						();
-	virtual	void		reload						(LPCSTR section);
+	virtual	void		reload						(const char* section);
 			void		unload						();
-			u32			add							(LPCSTR prefix, u32 max_count, ESoundTypes type, u32 priority, u32 mask, u32 internal_type, LPCSTR bone_name, CSound_UserDataPtr data = 0);
+			u32			add							(const char* prefix, u32 max_count, ESoundTypes type, u32 priority, u32 mask, u32 internal_type, const char* bone_name, CSound_UserDataPtr data = 0, bool isScripted = false);
 			void		remove						(u32 internal_type);
 			void		clear						();
 			void		play						(u32 internal_type, u32 max_start_time = 0, u32 min_start_time = 0, u32 max_stop_time = 0, u32 min_stop_time = 0, u32 id = u32(-1));
@@ -147,6 +148,7 @@ public:
 	IC		void		remove_active_sounds		(u32 sound_mask);
 	IC	const xr_vector<CSoundSingle>&playing_sounds() const;
 	IC		u32			active_sound_count			(bool only_playing = false) const;
+	IC		u32			active_sound_count_script	(bool only_playing = false) const;
 			bool		need_bone_data				() const;
 	IC	const SOUND_COLLECTIONS &objects			() const;
 	IC		bool		active_sound_type			(u32 synchro_mask) const;

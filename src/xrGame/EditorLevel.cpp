@@ -26,7 +26,7 @@ static void build_callback(Fvector* V, size_t Vcnt, CDB::TRI* T, size_t Tcnt, vo
 	g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);
 }
 
-BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
+bool CLevelEditor::net_Start(const char* op_server, const char* op_client)
 {
 	auto& p = g_pGamePersistent->m_game_params;
 	xr_strcpy(p.m_game_type, "single");
@@ -66,9 +66,9 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 
 	if (connected_to_server)
 	{
-		LPCSTR					level_name = NULL;
-		LPCSTR					level_ver = NULL;
-		LPCSTR					download_url = NULL;
+		const char*					level_name = NULL;
+		const char*					level_ver = NULL;
+		const char*					download_url = NULL;
 
 		if (psNET_direct_connect)	//single
 		{
@@ -89,7 +89,7 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 		map_data.m_map_download_url = download_url;
 		map_data.m_map_loaded = true;
 
-		deny_m_spawn = FALSE;
+		deny_m_spawn = false;
 		Device.seqRender.Add(this);
 		Device.seqFrame.Add(this);
 		R_ASSERT(Load_GameSpecific_Before());
@@ -137,8 +137,8 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 		}
 	}
 
-	deny_m_spawn = TRUE;
-	sended_request_connection_data = FALSE;
+	deny_m_spawn = true;
+	sended_request_connection_data = false;
 
 	{
 		IReader F(nullptr, 0, 0);
@@ -169,20 +169,20 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 
 		g_pGamePersistent->LoadTitle();
 		Device.PreCache(60, true, true);
-		net_start_result_total = TRUE;
+		net_start_result_total = true;
 
 	}
 	else
 	{
-		net_start_result_total = FALSE;
+		net_start_result_total = false;
 	}
 
 	if (net_start_result_total)
 	{
 		NET_Packet		NP;
 		NP.w_begin(M_CLIENTREADY);
-		Game().local_player->net_Export(NP, TRUE);
-		Send(NP, net_flags(TRUE, TRUE));
+		Game().local_player->net_Export(NP, true);
+		Send(NP, net_flags(true, true));
 
 		if (OnClient() && Server)
 		{
@@ -198,8 +198,9 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 	{
 		if (strstr(Core.Params, "-$"))
 		{
-			string256 buf, cmd, param;
-			sscanf(strstr(Core.Params, "-$") + 2, "%[^ ] %[^ ] ", cmd, param);
+			string512 buf;
+			string256 cmd = {}, param = {};
+			sscanf(strstr(Core.Params, "-$") + 2, "%255[^ ] %255[^ ] ", cmd, param);
 			xr_strconcat(buf, cmd, " ", param);
 			Console->Execute(buf);
 		}
@@ -213,14 +214,14 @@ BOOL CLevelEditor::net_Start(LPCSTR op_server, LPCSTR op_client)
 	if (CurrentGameUI())
 		CurrentGameUI()->OnConnected();
 
-	return TRUE;
+	return true;
 }
 
 void CLevelEditor::LoadEditor(shared_str LevelName)
 {
+	map_data.m_name = LevelName;
 	string_path fn_game;
 	// loading sound environment
-
 	xr_string File = LevelName.c_str();
 
 	if (FS.exist(fn_game, "$level$", (File + "\\level.snd_env").c_str()))

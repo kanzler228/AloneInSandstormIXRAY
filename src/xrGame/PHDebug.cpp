@@ -67,7 +67,7 @@ struct SPHDBGOutText : public SPHDBGDrawAbsract
 {
 	string1024 s;
 	bool	 rendered;
-	SPHDBGOutText(LPCSTR t)
+	SPHDBGOutText(const char* t)
 	{
 		xr_strcpy(s, t);
 		rendered = false;
@@ -122,7 +122,7 @@ void DBG_TextOutSet(float x, float y)
 	DBG_DrawPHAbstruct(new SPHDBGTextOutSet(x, y));
 }
 
-void _cdecl DBG_OutText(LPCSTR s, ...)
+void _cdecl DBG_OutText(const char* s, ...)
 {
 	string1024 t;
 	va_list   marker;
@@ -161,7 +161,7 @@ void _cdecl DBG_OutText(LPCSTR s, ...)
 Flags32		ph_dbg_draw_mask						;
 Flags32		ph_dbg_draw_mask1						;
 
-//LPCSTR	dbg_trace_object_name					=nullptr;
+//const char*	dbg_trace_object_name					=nullptr;
 string64 s_dbg_trace_obj_name					="none";
 CObject	 *trace_object							= nullptr;
 u32	 	dbg_bodies_num							=0;
@@ -184,7 +184,7 @@ struct SPHObjDBGDraw:public SPHDBGDrawAbsract
 	SPHObjDBGDraw(const CPHObject* obj)
 	{
 		AABB.set(obj->AABB);
-		AABB_center.set(obj->SpatialComponent->spatial.sphere.P);
+		AABB_center.set(obj->SpatialComponent->sphere.P);
 	}
 	void render		( )
 	{
@@ -197,39 +197,29 @@ void DBG_DrawPHObject(const CPHObject* obj)
 {
 	DBG_DrawPHAbstruct(new SPHObjDBGDraw( obj ));
 }
-struct SPHContactDBGDraw :public SPHDBGDrawAbsract
+struct SPHContactDBGDraw : public SPHDBGDrawAbsract
 {
-	//int geomClass;
+	// int geomClass;
 	bool is_cyl;
 	Fvector norm;
 	Fvector pos;
 	float depth;
+
 	SPHContactDBGDraw(const dContact& c)
 	{
-		
-		//if(dGeomGetBody(c.geom.g1))
-		//{
-		//	geomClass =dGeomGetClass(retrieveGeom(c.geom.g1));
-		//}
-		//else
-		//{
-		//	geomClass=dGeomGetClass(retrieveGeom(c.geom.g2));
-		//}
-
-		//is_cyl= (geomClass==dCylinderClassUser);
 		is_cyl = IsCyliderContact(c);
 		norm.set(cast_fv(c.geom.normal));
 		pos.set(cast_fv(c.geom.pos));
-		depth=c.geom.depth;
+		depth = c.geom.depth;
 	}
-	void render		( )
+
+	void render()
 	{
-			//bool is_cyl= (geomClass==dCylinderClassUser);
 		Level().debug_renderer().draw_aabb(pos, .01f, .01f, .01f, color_xrgb(255 * is_cyl, 0, 255 * !is_cyl));
-			Fvector dir;
-			dir.set(norm);
-			dir.mul(depth*100.f);
-			dir.add(pos);
+		Fvector dir;
+		dir.set(norm);
+		dir.mul(depth * 100.f);
+		dir.add(pos);
 		Level().debug_renderer().draw_line(Fidentity, pos, dir, color_xrgb(255 * is_cyl, 0, 255 * !is_cyl));
 	}
 };
@@ -733,7 +723,7 @@ bool CFunctionGraph::IsActive()
 	return !!m_stat_graph;
 }
 
-LPCSTR PH_DBG_ObjectTrackName()
+const char* PH_DBG_ObjectTrackName()
 {
 	return s_dbg_trace_obj_name;
 }
@@ -744,13 +734,13 @@ void PH_DBG_SetTrackObject()
 		trace_object = Level().Objects.FindObjectByName(PH_DBG_ObjectTrackName());
 }
 
-static LPCSTR name_bool( BOOL v )
+static const char* name_bool( bool v )
 {
 	static  xr_token token_bool[] = { { "false", 0 }, { "true", 1 } };
 	return get_token_name( token_bool, v );
 }
 
-static LPCSTR name_blend_type( CBlend::ECurvature blend )
+static const char* name_blend_type( CBlend::ECurvature blend )
 {
 	static xr_token token_blend[] = 
 	{
@@ -769,7 +759,7 @@ void DBG_AnimBlend(IKinematicsAnimated& ka, const CBlend& B)
 	DBG_OutText("-------------------------------------");
 	if (dbg_track_obj_flags.test(dbg_track_obj_blends_motion_name))
 	{
-		std::pair< LPCSTR, LPCSTR > motion = ka.LL_MotionDefName_dbg(B.motionID);
+		std::pair< const char*, const char* > motion = ka.LL_MotionDefName_dbg(B.motionID);
 		DBG_OutText("motion : name %s, set: %s ", motion.first, motion.second);
 	}
 	if (dbg_track_obj_flags.test(dbg_track_obj_blends_time))
@@ -808,7 +798,7 @@ void DBG_AnimState( IKinematicsAnimated &ka )
 	if( dbg_track_obj_flags.test(dbg_track_obj_blends_dump) )
 	{
 		ka.LL_DumpBlends_dbg();
-		dbg_track_obj_flags.set( dbg_track_obj_blends_dump, FALSE );
+		dbg_track_obj_flags.set( dbg_track_obj_blends_dump, false );
 	}
 	for(u16 i = 0; i<MAX_PARTS; ++ i )
 		DBG_AnimPartState( ka, i );
@@ -839,7 +829,7 @@ static void DBG_DrawTarckObj()
 	if( !v )
 		return;
 	DBG_OutText( "visual name: %s ", *trace_object->cNameVisual() );
-	IKinematics *k = smart_cast<IKinematics *>( v );
+	IKinematics *k = PKinematics( v );
 	if( !k )
 		return;
 	IKinematicsAnimated* ka = smart_cast<IKinematicsAnimated*>( k );
@@ -1108,7 +1098,7 @@ class CPHDebugOutput :
 		::DBG_DrawMatrix(m, size, a);
 	}
 
-	virtual	void _cdecl DBG_OutText(LPCSTR s, ...)
+	virtual	void _cdecl DBG_OutText(const char* s, ...)
 	{
 		string1024 t;
 		va_list   marker;
@@ -1133,7 +1123,7 @@ class CPHDebugOutput :
 		::PH_DBG_Clear();
 	}
 
-	virtual	LPCSTR PH_DBG_ObjectTrackName()
+	virtual	const char* PH_DBG_ObjectTrackName()
 	{
 		return ::PH_DBG_ObjectTrackName();
 	}

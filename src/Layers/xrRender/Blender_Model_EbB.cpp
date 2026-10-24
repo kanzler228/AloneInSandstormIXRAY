@@ -18,7 +18,7 @@ CBlender_Model_EbB::CBlender_Model_EbB	()
 	description.version	= 0x1;
 	xr_strcpy				(oT2_Name,	"$null");
 	xr_strcpy				(oT2_xform,	"$null");
-	oBlend.value		= FALSE;
+	oBlend.value		= false;
 }
 
 CBlender_Model_EbB::~CBlender_Model_EbB	()
@@ -54,9 +54,9 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 	if (C.bEditor)	{
 		//C.PassBegin		();
 		//{
-		//	if (oBlend.value)	{ C.PassSET_ZB		(TRUE,FALSE);	C.PassSET_Blend_BLEND	(); }
-		//	else				{ C.PassSET_ZB		(TRUE,TRUE);	C.PassSET_Blend_SET		(); }
-		//	C.PassSET_LightFog	(TRUE,TRUE);
+		//	if (oBlend.value)	{ C.PassSET_ZB		(true,false);	C.PassSET_Blend_BLEND	(); }
+		//	else				{ C.PassSET_ZB		(true,true);	C.PassSET_Blend_SET		(); }
+		//	C.PassSET_LightFog	(true,true);
 		//	
 		//	// Stage1 - Env texture
 		//	C.StageBegin		();
@@ -88,23 +88,31 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 			RImplementation.addShaderOption("FORWARD_ONLY", "1");
 		}
 
-		uber_deffer(C, true, "deffer_model", "deffer_base", false, 0, true);
+		uber_deffer(C, true, "deffer_model", "deffer_base", false, nullptr, true);
 
 		if(oBlend.value) {
-			C.PassSET_ZB(TRUE, FALSE);
-			C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
+			C.PassSET_ZB(true, false);
+			C.PassSET_Blend(true, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
 		}
 
 		C.r_End();
 	} else {
-		LPCSTR	vsname			= 0;
-		LPCSTR	psname			= 0;
+		const char*	vsname			= nullptr;
+		const char*	psname			= nullptr;
 		switch (C.iElement)
 		{
+		case SE_R1_UI:
+			vsname = psname =	"model_env_hq"; 
+			if (oBlend.value)	C.r_Pass	(vsname,"model_env_sl",true,true,false,true,D3DBLEND_SRCALPHA,	D3DBLEND_INVSRCALPHA,	true,0);
+			else				C.r_Pass	(vsname,"model_env_sl",true);
+			C.r_Sampler			("s_base",	C.L_textures[0]);
+			C.r_Sampler			("s_env",	oT2_Name,false,D3DTADDRESS_CLAMP);
+			C.r_End				();
+			break;
 		case SE_R1_NORMAL_HQ:	
 			vsname = psname =	"model_env_hq"; 
-			if (oBlend.value)	C.r_Pass	(vsname,psname,TRUE,TRUE,FALSE,TRUE,D3DBLEND_SRCALPHA,	D3DBLEND_INVSRCALPHA,	TRUE,0);
-			else				C.r_Pass	(vsname,psname,TRUE);
+			if (oBlend.value)	C.r_Pass	(vsname,psname,true,true,false,true,D3DBLEND_SRCALPHA,	D3DBLEND_INVSRCALPHA,	true,0);
+			else				C.r_Pass	(vsname,psname,true);
 			C.r_Sampler			("s_base",	C.L_textures[0]);
 			C.r_Sampler			("s_env",	oT2_Name,false,D3DTADDRESS_CLAMP);
 			C.r_Sampler_clf		("s_lmap",	"$user$projector",true);
@@ -112,8 +120,8 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 			break;
 		case SE_R1_NORMAL_LQ:
 			vsname = psname =	"model_env_lq"; 
-			if (oBlend.value)	C.r_Pass	(vsname,psname,TRUE,TRUE,FALSE,TRUE,D3DBLEND_SRCALPHA,	D3DBLEND_INVSRCALPHA,	TRUE,0);
-			else				C.r_Pass	(vsname,psname,TRUE);
+			if (oBlend.value)	C.r_Pass	(vsname,psname,true,true,false,true,D3DBLEND_SRCALPHA,	D3DBLEND_INVSRCALPHA,	true,0);
+			else				C.r_Pass	(vsname,psname,true);
 			C.r_Sampler			("s_base",	C.L_textures[0]);
 			C.r_Sampler			("s_env",	oT2_Name,false,D3DTADDRESS_CLAMP);
 			C.r_End				();
@@ -121,7 +129,7 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 		case SE_R1_LPOINT:
 			vsname				= "model_def_point";
 			psname				= "add_point";
-			C.r_Pass			(vsname,psname,FALSE,TRUE,FALSE,TRUE,D3DBLEND_ONE, D3DBLEND_ONE,TRUE);
+			C.r_Pass			(vsname,psname,false,true,false,true,D3DBLEND_ONE, D3DBLEND_ONE,true);
 			C.r_Sampler			("s_base",	C.L_textures[0]);
 			C.r_Sampler_clf		("s_lmap",	TEX_POINT_ATT);
 			C.r_Sampler_clf		("s_att",	TEX_POINT_ATT);
@@ -130,7 +138,7 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 		case SE_R1_LSPOT:
 			vsname				= "model_def_spot";
 			psname				= "add_spot";
-			C.r_Pass			(vsname,psname,FALSE,TRUE,FALSE,TRUE,D3DBLEND_ONE, D3DBLEND_ONE,TRUE);
+			C.r_Pass			(vsname,psname,false,true,false,true,D3DBLEND_ONE, D3DBLEND_ONE,true);
 			C.r_Sampler			("s_base",	C.L_textures[0]);
 			C.r_Sampler_clf		("s_lmap",	"internal\\internal_light_att",		true);
 			C.r_Sampler_clf		("s_att",	TEX_SPOT_ATT);
@@ -139,7 +147,7 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 		case SE_R1_LMODELS:
 			vsname				= "model_def_shadow";
 			psname				= "model_shadow";
-			C.r_Pass			(vsname,psname,FALSE,FALSE,FALSE,TRUE,D3DBLEND_ZERO,D3DBLEND_SRCCOLOR,FALSE,0);
+			C.r_Pass			(vsname,psname,false,false,false,true,D3DBLEND_ZERO,D3DBLEND_SRCCOLOR,false,0);
 			C.r_End				();
 			break;
 		}
@@ -154,18 +162,9 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 		switch(C.iElement) {
 			case SE_R2_NORMAL_HQ:
 			case SE_R2_NORMAL_LQ:
-			uber_deffer(C, SE_R2_NORMAL_HQ == C.iElement, "deffer_model", "forward_base", false, 0, true);
-
-			C.PassSET_ZB(TRUE, FALSE);
-			C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
-
-			C.r_Sampler("s_material", r2_material);
-			C.r_Sampler("env_s0", r2_T_envs0);
-			C.r_Sampler("env_s1", r2_T_envs1);
-			C.r_Sampler("sky_s0", r2_T_sky0);
-			C.r_Sampler("sky_s1", r2_T_sky1);
-
-			C.r_End();
+			{
+				uber_forward(C, SE_R2_NORMAL_HQ == C.iElement, "deffer_model", "forward_base", false, true, 0);
+			}
 			break;
 		}
 	}
@@ -181,7 +180,7 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 			C.r_End();
 			break;
 			case SE_R2_SHADOW:		// smap
-			C.r_Pass("shadow_model", "shadow_base", FALSE);
+			C.r_Pass("shadow_model", "shadow_base", false);
 			C.r_Sampler("s_base", C.L_textures[0]);
 			C.r_ColorWriteEnable(false, false, false, false);
 			C.r_End();
@@ -191,32 +190,63 @@ void	CBlender_Model_EbB::Compile(CBlender_Compile& C)
 }
 #else
 #include "uber_deffer.h"
-void CBlender_Model_EbB::Compile( CBlender_Compile& C )
+void CBlender_Model_EbB::Compile(CBlender_Compile& C)
 {
 	IBlender::Compile(C);
+
+	if (C.iElement == SE_R2_UI)
+	{
+		RImplementation.addShaderOption("DISABLE_MOTION_VECTORS", "1");
+		uber_deffer(C, false, "deffer_model", "ui_base", false, 0, true);
+		
+		if (oBlend.value)
+		{
+			C.PassSET_ZB(true, false);
+			C.PassSET_Blend(true, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
+		}
+
+		C.r_dx10Texture("env_s0", "shaders\\newsky_viewport#small");
+		C.r_dx10Texture("sky_s0", "shaders\\newsky_viewport");
+
+		C.r_dx10Texture("s_material", r2_material);
+		C.r_dx10Sampler("smp_material");
+		C.r_End();
+
+		return;
+	}
+	else if (C.iElement == SE_R2_REFLECTIONS)
+	{
+		RImplementation.addShaderOption("USE_LENGTH_BUFFER", "1");
+		RImplementation.addShaderOption("DISABLE_MOTION_VECTORS", "1");
+		uber_forward(C, false, "deffer_model", "forward_base", true, false, 0);
+
+		return;
+	}
 
 	if (oBlend.value)	
 	{
 		switch(C.iElement) 
 		{
+		case SE_R2_HUD:
 		case SE_R2_NORMAL_HQ:
 		case SE_R2_NORMAL_LQ:
-			uber_deffer(C, SE_R2_NORMAL_HQ == C.iElement, "deffer_model", "forward_base", true, 0, true);
+		{
+			uber_forward(C, SE_R2_NORMAL_LQ != C.iElement, "deffer_model", "forward_base", true, true);
+			break;
+		}
+		case SE_R2_SHADOW:
+		{
+			RImplementation.addShaderOption("DISABLE_VELOCITY", "1");
+			RImplementation.addShaderOption("USE_TRANSPARENT", "1");
+			C.r_Pass("shadow_model", "shadow_base", false, true, false, true, D3DBLEND_DESTCOLOR, D3DBLEND_ZERO);
 
-			C.PassSET_ZB(TRUE, FALSE);
-			C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
+			C.r_dx10Texture("s_base", C.L_textures[0]);
+			C.r_dx10Sampler("smp_base");
+			C.r_dx10Sampler("smp_linear");
 
-			C.r_dx10Texture("s_material", r2_material);
-			C.r_dx10Texture("env_s0", r2_T_envs0);
-			C.r_dx10Texture("env_s1", r2_T_envs1);
-			C.r_dx10Texture("sky_s0", r2_T_sky0);
-			C.r_dx10Texture("sky_s1", r2_T_sky1);
-
-			C.r_dx10Texture("s_env", r2_RT_env_temp);
-
-			C.r_dx10Sampler("smp_material");
 			C.r_End();
 			break;
+		}
 		}
 	} 
 	else 
@@ -226,19 +256,19 @@ void CBlender_Model_EbB::Compile( CBlender_Compile& C )
 		{
 		case SE_R2_NORMAL_HQ: 	// deffer
 			uber_deffer(C, true, "deffer_model", "deffer_base", false, 0, true);
-			C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+			C.r_Stencil(true, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			C.r_StencilRef(0x01);
 			C.r_End();
 			break;
 		case SE_R2_NORMAL_LQ: 	// deffer
 			uber_deffer(C, false, "deffer_model", "deffer_base", false, 0, true);
-			C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+			C.r_Stencil(true, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			C.r_StencilRef(0x01);
 			C.r_End();
 			break;
 		case SE_R2_SHADOW:		// smap
 			RImplementation.addShaderOption("DISABLE_VELOCITY", "1");
-			C.r_Pass("shadow_model", "shadow_base", FALSE);
+			C.r_Pass("shadow_model", "shadow_base", false);
 			C.r_dx10Texture("s_base", C.L_textures[0]);
 			C.r_dx10Sampler("smp_base");
 			C.r_dx10Sampler("smp_linear");

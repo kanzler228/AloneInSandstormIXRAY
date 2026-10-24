@@ -1,5 +1,3 @@
-#ifndef _SkeletonVert_H_
-#define _SkeletonVert_H_
 #pragma once
 
 struct st_SVERT;
@@ -31,17 +29,15 @@ struct st_SVERT {
 			bone = B;
 		} else R_ASSERT(bone==B);
 	}
-	BOOL	similar(st_SVERT& V){
-		if (bone!=V.bone)			return FALSE;
-        if (uv.size()!=V.uv.size())	return FALSE;
+	bool	similar(st_SVERT& V){
+		if (bone!=V.bone)			return false;
+        if (uv.size()!=V.uv.size())	return false;
         for(DWORD i=0; i<uv.size(); i++){
-			if (!fsimilar	(uv[i].x,V.uv[i].x))return FALSE;
-			if (!fsimilar	(uv[i].y,V.uv[i].y))return FALSE;
+			if (!fsimilar	(uv[i].x,V.uv[i].x))return false;
+			if (!fsimilar	(uv[i].y,V.uv[i].y))return false;
         }
-		if (!O.similar	(V.O))		return FALSE;
-		if (!N.similar	(V.N))		return FALSE;
-		return TRUE;
+		if (!O.similar	(V.O))		return false;
+		if (!N.similar	(V.N))		return false;
+		return true;
 	}
 };
-DEFINE_VECTOR(st_SVERT*,vSVERT,SVERTIt);
-#endif //_SkeletonVert_H_

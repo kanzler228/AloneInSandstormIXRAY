@@ -4,7 +4,16 @@
 
 #include "../xrEngine/XR_IOConsole.h"
 #include "../xrEngine/string_table.h"
+#include "../xrEngine/IGame_Level.h"
+#include "../../Include/xrRender/KinematicsAnimated.h"
 #include <clsid_game.h>
+
+struct STextureParams;
+class CUICellItem;
+
+constexpr ImVec4 kAuthorTextColor = ImVec4(0.063f, 0.788f, 0.196f, 1.0f);
+constexpr ImVec4 kContributorsTextColor = ImVec4(0.306f, 0.745f, 0.878f, 1.0f);
+
 
 struct clsid_manager
 {
@@ -359,25 +368,443 @@ struct CHudAdjustManager
 	bool is_initialized;
 };
 
+struct CActorAnimationManager
+{
+	struct SAnimation
+	{
+		shared_str name;
+		bool fx = false;
+	};
+
+	struct SSource
+	{
+		shared_str id;
+		xr_vector<SAnimation> animations;
+	};
+
+	struct SFavorite
+	{
+		shared_str source;
+		shared_str name;
+		bool fx = false;
+	};
+
+	struct SPlaylistEntry
+	{
+		shared_str source;
+		shared_str name;
+		bool fx = false;
+	};
+
+	xr_vector<SSource> sources;
+	xr_vector<SFavorite> favorites;
+	xr_vector<SPlaylistEntry> playlist;
+	MotionID played_motion;
+	shared_str played_name;
+	shared_str played_source;
+	IGame_Level* level = nullptr;
+	char filter[128] = {};
+	bool override_mode = false;
+	bool played_fx = false;
+	bool mix = true;
+	bool loop = false;
+	float speed = 1.0f;
+	float browser_split = 0.35f;
+	s32 selected_source = -1;
+	s32 playlist_index = -1;
+	s32 playlist_selected = -1;
+	bool playlist_loop = false;
+	bool playlist_advance = false;
+	float playlist_fx_deadline = 0.0f;
+
+	void reload();
+	void draw();
+	void play(const SSource& source, const SAnimation& animation, bool playlist = false);
+	void play_pause();
+	void frame_step(s32 direction);
+	void stop();
+	void set_override(bool value);
+	bool ensure_source(IKinematicsAnimated* kinematics, const shared_str& source);
+
+	const SSource* find_source(const shared_str& source) const;
+	const SAnimation* find_animation(const SSource& source, const shared_str& name, bool fx) const;
+	bool is_favorite(const shared_str& source, const shared_str& name) const;
+	void add_favorite(const shared_str& source, const SAnimation& animation);
+	void remove_favorite(const shared_str& source, const shared_str& name);
+	void load_favorites();
+	void save_favorites();
+
+	static void PlaylistCallback(CBlend* blend);
+	void play_playlist(s32 index);
+	void stop_playlist();
+	void move_playlist(s32 from, s32 to);
+	void remove_playlist(s32 index);
+};
+
+template <typename T>
+class ThreadSafeQueue {
+private:
+	std::queue<T> data_queue;
+	mutable std::mutex mut;
+	std::condition_variable cond;
+
+public:
+	void push(T value) {
+		std::lock_guard<std::mutex> lock(mut); // Acquire lock
+		data_queue.push(std::move(value));     // Push item
+		cond.notify_one();                     // Notify one waiting consumer
+	} // Lock is automatically released here
+
+	T pop() {
+		std::unique_lock<std::mutex> lock(mut); // Acquire lock
+		// Wait until queue is not empty, condition variable releases lock while waiting
+		cond.wait(lock, [this] { return !data_queue.empty(); });
+		T value = std::move(data_queue.front()); // Get item
+		data_queue.pop();                        // Remove item
+		return value;
+	} // Lock is automatically released here
+
+	bool empty() const {
+		std::lock_guard<std::mutex> lock(mut);
+		return data_queue.empty();
+	}
+};
+
+struct CImGuiTextureEditor
+{
+	enum eAnalyzedStatus
+	{
+		kTooLongPath = 1 << 1,
+		kHasTHM = 1 << 2,
+		kTHMIsNotValid = 1 << 3,
+		kDimensionsNotPowerOf2 = 1 << 4,
+		kNoMipMaps = 1 << 5,
+		kIgnoreTHM = 1 << 6,
+		kInvalidMetadata = 1 << 7
+	};
+
+	enum class eFilterQueryType : u32
+	{
+		kSearch,
+		kInvalidFirst,
+		/// @brief means we don't clear filter_query and just apply filtering for existed set of entries
+		kInvalidFirstExisted,
+		kNoFilter,
+		kInvalid = u32(-1)
+	};
+
+	// don't store metadata only on when selected
+	struct STextureEntry
+	{
+		bool is_valid() const
+		{
+			return analyze_status_result_flags != 0 && (((analyze_status_result_flags & eAnalyzedStatus::kHasTHM) == eAnalyzedStatus::kHasTHM) || ((analyze_status_result_flags & eAnalyzedStatus::kIgnoreTHM) == eAnalyzedStatus::kIgnoreTHM)) && (
+				(
+					(analyze_status_result_flags & eAnalyzedStatus::kTooLongPath) == eAnalyzedStatus::kTooLongPath ||
+					(analyze_status_result_flags & eAnalyzedStatus::kTHMIsNotValid) == eAnalyzedStatus::kTHMIsNotValid ||
+					(analyze_status_result_flags & eAnalyzedStatus::kDimensionsNotPowerOf2) == eAnalyzedStatus::kDimensionsNotPowerOf2 ||
+					(analyze_status_result_flags & eAnalyzedStatus::kNoMipMaps) == eAnalyzedStatus::kNoMipMaps
+					) == false)
+				;
+		}
+
+		u32 analyze_status_result_flags = 0;
+		/// @brief only filename with extension
+		string_path filename;
+		/// @brief no filename
+		string_path subpath;
+		/// @brief full absolute path to file with extension
+		string_path path;
+	};
+
+	// todo: serialize to binary and read before init...
+	struct SUserSettings
+	{
+		bool show_invalid_first = false;
+		bool show_only_dds_and_thm = false;
+		bool treat_nomipmap_as_invalid = false;
+		bool treat_notpowerof2dimensions_as_invalid = false;
+		bool treat_nothasthm_as_invalid = false;
+	};
+
+	// todo: if it can be generalized then remove from CImGuiTextureEditor scope and make it 'publically' accessible
+	struct SImGuiWindowState
+	{
+		bool canApply = false;
+		bool    wasDocked = false;
+		bool    isCentralNode = false;
+
+		ImVec2  pos = { FLT_MAX, FLT_MAX };
+		ImVec2  size = { 0,0 };
+		ImGuiDir dockDir = ImGuiDir_None;
+
+		void Capture(const char* windowName);
+		void Apply(const char* windowName);
+	};
+
+	bool is_init = false;
+	// written on wt side
+	bool is_all_analyzed = false;
+	bool is_settings_read = false;
+	bool is_settings_write = false;
+
+	bool is_filter_processing = false;
+
+	bool is_selected_metadata_loaded = false;
+	bool is_selected_thm_data_loaded = false;
+	bool is_selected_preview_loaded = false;
+
+	bool is_settings_applied = false;
+
+	bool is_metadata_tooltip_loaded = false;
+	bool is_preview_tooltip_image_loaded = false;
+	bool is_preview_tooltip_image_load_started = false;
+	u8 search_frame_count = 0;
+
+	RHITextureMetadata selected_metadata;
+	RHITextureMetadata tooltip_metadata;
+	SImGuiWindowState last_window_selected_state;
+	u32 selected_index = u32(-1);
+	u32 hovered_tooltip_index = u32(-1);
+	IRHISurface* pTexturePreview = nullptr;
+	IRHIShaderResourceView* pTexturePreviewSRV = nullptr;
+	IRHISurface* pTextureSelected = nullptr;
+	IRHIShaderResourceView* pTextureSelectedSRV = nullptr;
+	STextureParams* pTHMSelected = nullptr;
+
+	std::atomic<u32> current_analyzed_count = 0;
+	std::atomic<u32> total_textures_in_folder = 0;
+	std::atomic<u32> total_thm_in_folder = 0;
+	std::atomic<u32> total_unable_to_classify_files_in_folder = 0;
+	std::atomic<u32> total_seq_in_folder = 0;
+	std::atomic<u32> total_png_in_folder = 0;
+	std::atomic<u32> total_svg_in_folder = 0;
+	std::atomic<u32> total_bmp_in_folder = 0;
+	std::atomic<u32> total_ogm_in_folder = 0;
+	std::atomic<u32> total_ini_in_folder = 0;
+	std::atomic<u32> total_other_in_folder = 0;
+	std::atomic<u32> total_files_in_folder = 0;
+
+	std::atomic<u32> valid_count = 0;
+	u32 invalid_by_filenamelength = 0;
+	u32 invalid_by_thm = 0;
+
+	SUserSettings settings;
+
+	std::string_view wt_current_analyzing_texture;
+	std::string_view current_tooltip_texture_filename;
+	std::string path_to_texture_folder;
+
+	xr_concurrent_vector<STextureEntry> textures;
+	xr_vector<u32> filter_query;
+
+	string_path window_selected_name;
+	string_path search_input_buffer;
+};
+
 constexpr float kGeneralAlphaLevelForImGuiWindows = 0.5f;
 
+enum class eImGuiEditorType : u32
+{
+	kTextureEditor,
+	kOMFEditor,
+	kQuestEditor,
+	kPPEEditor,
+	kNoEditor,
+	kInvalid = u32(-1)
+};
+
+enum class eRequestType_TextureEditor : u32
+{
+	kReadSettings,
+	kWriteSettings,
+	kReadAll,
+	kLoadTooltipPreview,
+	kLoadTooltipMetadata,
+	kLoadMetadataOfSelected,
+	kLoadPreviewOfSelected,
+	kLoadTHMOfSelected,
+	kDeselectCurrentSelected,
+	kFilterQuery,
+	kShutdown
+};
+
+enum class eRequestType_QuestEditor : u32
+{
+	kReadSettings,
+	kWriteSettings,
+	kLoadCurrentQuests,
+	kDeselectCurrentSelectedOrHideWindow,
+	kShutdown
+};
+
+enum class eRequestType_OMFEditor : u32
+{
+	kReadSettings,
+	kWriteSettings,
+	kLoadFile,
+	kDeselectCurrentSelectedOrHideWindow,
+	kShutdown
+};
+
+enum class eRequestType_PPEditor : u32
+{
+	kReadSettings,
+	kWriteSettings,
+	kLoadFile,
+	kLoadTexturePreview,
+	kDeselectCurrentSelectedOrHideWindow,
+	kShutdown
+};
+
+struct SRequestData
+{
+	u32 editor_type = static_cast<u32>(eImGuiEditorType::kInvalid);
+	u32 request_type = 0;
+	u32 payload = 0;
+};
+
+struct CImGuiRequestManager
+{
+	xr_task_group requests;
+};
+
+#define IXRAY_MAX_IMGUI_REQUESTS_COUNT 8
+
+
+// todo: implement viewer
+/// @brief \~english if enabled then you will have in-game viewer but right now it is not implemented feature
+#define IXRAY_OMF_EDITOR_ENABLE_VIEWER 0
+#define IXRAY_OMF_EDITOR_TAB_GAME 1
+#define IXRAY_OMF_EDITOR_TAB_EDITOR 1
+
+/// @brief \~english if enabled 'bone renaming' section won't exist and you can directly rename from bone list  otherwise you have to rename only through 'bone renaming' section
+#define IXRAY_OMF_EDITOR_ENABLE_DIRECT_BONE_RENAMING 1
+#define IXRAY_OMF_EDITOR_TAB_HELP 1
+
+#define IXRAY_PPE_EDITOR_TAB_GAME 1
+#define IXRAY_PPE_EDITOR_TAB_EDITOR 1
+#define IXRAY_PPE_EDITOR_TAB_HELP 1
+
+// todo: implement viewer
+/// @brief \~english if enabled the editor tab of the PPE editor gets a 'Preview' column for a curve viewer (not implemented yet)
+#define IXRAY_PPE_EDITOR_PREVIEW 0
+
+// shared message box helper for in-game editors (implementation in ImUtils.cpp)
+enum class _eMessageBoxStatus
+{
+	kSuccess,
+	kWarning,
+	kError,
+	kYesOrNo
+};
+
+int ShowMessageBox(_eMessageBoxStatus status, std::string_view title, std::string_view message);
+
+// shared help-manual helpers for in-game editors
+inline void ImGuiEditorUI_HelpBullet(const char* text)
+{
+	ImGui::Bullet();
+	ImGui::TextWrapped("%s", text);
+}
+
+inline void ImGuiEditorUI_HelpSection(const char* name, const char* description)
+{
+	if (ImGui::CollapsingHeader(name))
+	{
+		ImGui::TextWrapped("%s", description);
+	}
+}
+
+/* INIT */
 void InitSections();
+void CollectCars();
 void InitImGuiCLSIDInGame();
 void InitImGuiSearchInGame();
 void InitImGuiHudAdjustInGame();
+void InitImGuiInGameInputReceiver();
+void InitImGuiQuestEditor();
 
+/* RENDER */
 void RenderTimeManagerWindow();
 void RenderSpawnManagerWindow();
 void RenderWeaponManagerWindow();
 void RenderSearchManagerWindow();
 void RenderHUDAdjustManager();
 void RenderToolsOMFEditorWindow();
+void RenderCarConfigEditor();
+void RenderToolsInputManagerWindow();
+void RenderToolsRenderDebugSVGStorageViewerWindow();
+void RenderTextureEditor();
+void RenderQuestEditor();
+void RenderPPEEditor();
+void Render3rdAdjust();
+void Render3DIconAdjust();
+void RenderDemoRecordEditorWindow();
+void RenderActorAnimationManager();
+
+/* MISCELLANEOUS */
+
+/* 3D icons adjust notifications (implementation in Icon3dAdjust.cpp) */
+void Icon3dAdjust_NotifyHoveredCell(CUICellItem* cell);
+void Icon3dAdjust_RegisterCell(CUICellItem* cell);
+void Icon3dAdjust_UnregisterCell(CUICellItem* cell);
 
 void DestroySpawnManagerWindow();
 
+/* WORKER THREAD of Tools */
+
+// note1: real and only one worker thread is named as AllEditorsAndTools_WorkerThread
+
+// note2: other functions need to use prefix _WorkerThread only to identify threaded execution of these function, so the difference between real function that used in std::thread and others is that others accept ime_request_t alias for handling incoming request from worker thread
+
+// note3: each editor (if it is needed) defines somewhere (preferably in their own class/struct definitions) a request enum that will describe tasks that their own workload need to handle (see TextureEditor implementation as example)
+void AllEditors_SendRequest(const SRequestData& req);
+void AllEditors_ExecuteRequest(const SRequestData& req);
+
+void AllEditors_OnPressed(int key);
+void AllEditors_OnReleased(int key);
+
+void TextureEditor_OnPressed(int key);
+void TextureEditor_OnReleased(int key);
+
+void SpawnManager_OnPressed(int key);
+void SpawnManager_OnReleased(int key);
+
+void QuestEditor_OnPressed(int key);
+void QuestEditor_OnReleased(int key);
+
+void OMFEditor_OnPressed(int key);
+void OMFEditor_OnReleased(int key);
+
+void PPEEditor_OnPressed(int key);
+void PPEEditor_OnReleased(int key);
+
+void RequestHandler_TextureEditor(const SRequestData& req);
+void RequestHandler_QuestEditor(const SRequestData& req);
+void RequestHandler_OMFEditor(const SRequestData& req);
+void RequestHandler_PPEEditor(const SRequestData& req);
+
 void RegisterImGuiInGame();
-void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
+void execute_console_command_deferred(CConsole* c, const char* string_to_execute);
 
 extern clsid_manager* g_pClsidManager;
 extern CImGuiGameSearchManager imgui_search_manager;
 extern CHudAdjustManager imgui_hud_adjust_manager;
+extern CActorAnimationManager imgui_actor_animation_manager;
+extern CImGuiTextureEditor g_imgui_texture_editor;
+extern CImGuiRequestManager g_imgui_editor_request_manager;
+
+template<typename T, std::size_t N>
+IC void AllEditors_SendRequests_Sequential(const xr_array<T, N>& reqs)
+{
+	g_imgui_editor_request_manager.requests.run([reqs]()
+		{
+			for (const SRequestData& req : reqs)
+			{
+				AllEditors_ExecuteRequest(req);
+			}
+		});
+}
+
+void AllEditors_Shutdown();

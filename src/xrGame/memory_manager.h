@@ -14,7 +14,7 @@ class CHitMemoryManager;
 class CEnemyManager;
 class CItemManager;
 class CDangerManager;
-class CCustomMonster;
+class CCreature;
 class CAI_Stalker;
 class CEntityAlive;
 class CSound_UserDataVisitor;
@@ -36,7 +36,7 @@ protected:
 	CDangerManager				*m_danger;
 
 protected:
-	CCustomMonster				*m_object;
+	CCreature				*m_object;
 	CAI_Stalker					*m_stalker;
 
 private:
@@ -49,9 +49,9 @@ protected:
 public:
 								CMemoryManager				(CEntityAlive *entity_alive, CSound_UserDataVisitor *visitor);
 	virtual						~CMemoryManager				();
-	virtual	void				Load						(LPCSTR section);
+	virtual	void				Load						(const char* section);
 	virtual	void				reinit						();
-	virtual	void				reload						(LPCSTR section);
+	virtual	void				reload						(const char* section);
 	virtual	void				update						(float time_delta);
 			void				remove_links				(CObject *object);
 	virtual void				on_restrictions_change		();
@@ -76,7 +76,7 @@ public:
 	IC		CEnemyManager		&enemy						() const;
 	IC		CItemManager		&item						() const;
 	IC		CDangerManager		&danger						() const;
-	IC		CCustomMonster		&object						() const;
+	IC		CCreature		&object						() const;
 	IC		CAI_Stalker			&stalker					() const;
 
 public:

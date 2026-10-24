@@ -7,7 +7,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'cmake/**'
-      - 'gamedata/**'
+      - 'gamedata*/**'
       - 'sdk/**'
       - 'src/**'
       - '**/CMakeLists.txt'
@@ -19,7 +19,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'cmake/**'
-      - 'gamedata/**'
+      - 'gamedata*/**'
       - 'sdk/**'
       - 'src/**'
       - '**/CMakeLists.txt'
@@ -45,7 +45,6 @@ jobs:
         config:
           - Debug
           - RelWithDebInfo
-          - Release
 
     runs-on: ${{ matrix.system }}
 
@@ -123,7 +122,6 @@ jobs:
         config:
           - Debug
           - RelWithDebInfo
-          - Release
 
     defaults:
       run:
@@ -179,7 +177,13 @@ jobs:
           libtbb-dev \
           liblzo2-2 \
           liblzo2-dev \
-          libyaml-cpp-dev
+          libogg-dev \
+          libyaml-cpp-dev \
+          meson \
+          glslang-tools \
+          libvulkan-dev \
+          spirv-headers \
+          ispc
 
       - name: Configure targets
         run: |
@@ -190,7 +194,8 @@ jobs:
             -DCMAKE_C_COMPILER=clang-18 \
             -DCMAKE_CXX_COMPILER=clang++-18 \
             -DIXRAY_UTILS=ON \
-            -DIXRAY_CI=ON
+            -DIXRAY_CI=ON \
+            -DIXRAY_PROFILER=OFF
 
       - name: Build targets
         run: |
@@ -248,7 +253,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup compressor
-        uses: ixray-team/setup-compressor@v0.1
+        uses: ixray-team/setup-compressor@v0.3
         with:
           codebase: '1.6-stcop'
 

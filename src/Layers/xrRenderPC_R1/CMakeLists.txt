@@ -29,6 +29,10 @@ file(GLOB_RECURSE XRR1_SOURCE_LUA_FILES
     "../../xrEngine/ai_script_lua*.cpp"
     "../../xrEngine/ai_script_lua*.h"
 )
+file(GLOB_RECURSE XRR4_SOURCE_PARTICLE_CORE CONFIGURE_DEPENDS
+	"../xrRender/particle_core/*.cpp"
+	"../xrRender/particle_core/*.h"
+)
 
 # Source groups
 source_group("render/src" FILES ${XRR1_SOURCE_ALL_FILES})
@@ -38,6 +42,7 @@ source_group("general_dx9" FILES ${XRR1_SOURCE_DX9_FILES})
 source_group("lua_ext" FILES ${XRR1_SOURCE_LUA_FILES})
 source_group("blend" FILES ${XRR1_SOURCE_COMP_BLEND_FILES})
 source_group("blend" FILES ${XRR1_SOURCE_BLEND_FILES})
+source_group("particle_core" FILES ${XRR4_SOURCE_PARTICLE_CORE})
 
 # Apply list
 list(APPEND XRR1_SRC_FILES ${XRR1_SOURCE_ALL_FILES})
@@ -47,6 +52,10 @@ list(APPEND XRR1_SRC_FILES ${XRR1_SOURCE_LUA_FILES})
 list(APPEND XRR1_SRC_FILES ${XRR1_SOURCE_INCL_FILES})
 
 # Remove unused files
+list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/RenderPhaseAccumulator.cpp")
+list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/RenderPhaseAccumPointGeom.cpp")
+list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/RenderPhaseAccumOmnipartGeom.cpp")
+list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/RenderPhaseAccumSpotGeom.cpp")
 list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/r__pixel_calculator.cpp")
 list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/R_sun.cpp")
 list(FILTER XRR1_SRC_FILES EXCLUDE REGEX "../xrRender/Light_Render_Direct_ComputeXFS.cpp")
@@ -71,16 +80,12 @@ target_compile_definitions(xrRender_R1 PRIVATE XRRENDER_R1_EXPORTS)
 target_compile_definitions(xrRender_R1 PRIVATE _USRDLL)
 
 # Linker list
-target_link_libraries(xrRender_R1 PRIVATE xrAbstractions)
-target_link_libraries(xrRender_R1 PRIVATE xrParticles)
-target_link_libraries(xrRender_R1 PRIVATE "d3dcompiler.lib")
-target_link_libraries(xrRender_R1 PRIVATE "d3d9.lib")
-
-## DirectX SDK
-target_include_directories(xrRender_R1 PUBLIC "${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/include/")
-target_link_libraries(xrRender_R1 PUBLIC ${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/native/lib/${NUGET_PACKAGE_PLATFORM}/release/DirectXTex.lib)
-
-target_include_directories(xrRender_R1 PUBLIC "${CMAKE_BINARY_DIR}/packages/directxmesh_desktop_2019.2024.6.5.1/include/")
-
-## RenderDoc
-target_include_directories(xrRender_R1 PUBLIC "${RENDERDOC_API}")
+target_link_libraries(xrRender_R1 PRIVATE xrEngineCore)
+target_link_libraries(xrRender_R1 PUBLIC lunasvg)
+target_link_libraries(xrRender_R1 PUBLIC NvTriStrip)
+target_link_libraries(xrRender_R1 PUBLIC DirectX::Mesh)
+target_link_libraries(xrRender_R1 PUBLIC DirectX::Tex)
+    
+if (LINUX)
+    target_compile_definitions(xrRender_R1 PRIVATE XR_USE_DXVK_NATIVE=1 DXVK_WSI_DRIVER_SDL3=1)
+endif()

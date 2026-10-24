@@ -22,7 +22,7 @@ const	int			batch_size		= 256;
 const	float		S_tess			= .5f;
 const	int 		S_ambient		= 32;
 const	int 		S_clip			= 256-8;
-const	D3DFORMAT	S_rtf			= D3DFMT_A8R8G8B8;
+const	ERHI_FORMAT	S_rtf = ERHI_FORMAT::B8G8R8A8_UNORM;
 const	float		S_blur_kernel	= 0.75f;
 
 const	u32			cache_old		= 30*1000;	// 30 secs
@@ -137,7 +137,7 @@ void CLightShadows::calculate	()
 {
 	if (casters.empty())		return;
 
-	BOOL bRTS					= FALSE;
+	bool bRTS = false;
 	Device.Statistic->RenderDUMP_Scalc.Begin	();
 	RDevice->SetRenderState	(D3DRS_ZENABLE, D3DZB_FALSE);
 	
@@ -165,9 +165,9 @@ void CLightShadows::calculate	()
 
 			// setup rt+state(s) for first use
 			if (!bRTS)	{
-				bRTS						= TRUE;
+				bRTS						= true;
 				RCache.set_RT				(RT_temp->pRT);
-				RCache.set_ZB				(RImplementation.Target->pTempZB);
+				GRHI->SetDepthStencilView	(RImplementation.Target->pTempZB);
 				RDevice->Clear(0, 0, D3DCLEAR_TARGET, color_xrgb(255, 255, 255), 1, 0);
 			}
 
@@ -209,14 +209,12 @@ void CLightShadows::calculate	()
 			float		p_R		=	C.O->renderable.visual->getVisData().sphere.R;
 			float		p_hat	=	p_R/p_dist;
 			float		p_asp	=	1.f;
-			float		p_near	=	p_dist-p_R-eps;									
-			//float		p_nearR	=	C.C.distance_to(L.source->position) + p_R*0.85f + eps;
-			//			p_nearR =	p_near;
-			float		p_far	=	_min(Lrange,_max(p_dist+S_fade,p_dist+p_R));	
+			float		p_near	=	p_dist-p_R-eps;	
+			float		p_far	= std::min(Lrange, std::max(p_dist+S_fade,p_dist+p_R));
 			if (p_near<eps)			continue;
 			if (p_far<(p_near+eps))	continue;
 			//	Igor: make check here instead of assertion in buil_projection_hat
-			if (!(_abs(p_far-p_near) > eps)) continue;
+			if (!(std::abs(p_far-p_near) > eps)) continue;
 			if (p_hat>0.9f)			continue;
 			if (p_hat<0.01f)		continue;
 
@@ -235,7 +233,7 @@ void CLightShadows::calculate	()
 			Fvector		v_D,v_N,v_R;
 			v_D.sub					(C.C,Lpos);
 			v_D.normalize			();
-			if(1-_abs(v_D.y)<EPS)	v_N.set(1,0,0);
+			if(1- std::abs(v_D.y)<EPS)	v_N.set(1,0,0);
 			else            		v_N.set(0,1,0);
 			v_R.crossproduct		(v_N,v_D);
 			v_N.crossproduct		(v_D,v_R);
@@ -250,8 +248,8 @@ void CLightShadows::calculate	()
 			// Select slot and set viewport
 			int		s_x			=	slot_id%slot_line;
 			int		s_y			=	slot_id/slot_line;
-			D3DVIEWPORT9 VP		=	{(unsigned long) s_x*S_size, (unsigned long) s_y*S_size,S_size,S_size,0,1 };
-			CHK_DX					(RDevice->SetViewport(&VP));
+			RHIViewport VP = { (float)s_x * S_size, (float)s_y * S_size, (float)S_size, (float)S_size, 0, 1 };
+			GRHI->SetViewport(VP);
 			
 			// Render object-parts
 			for (u32 n_it=0; n_it<C.nodes.size(); n_it++)
@@ -294,10 +292,10 @@ void CLightShadows::calculate	()
 		
 		// Actual rendering (pass0, temp2real)
 		RCache.set_RT				(RT->pRT	);
-		RCache.set_ZB				(RImplementation.Target->pTempZB	);
+		GRHI->SetDepthStencilView	(RImplementation.Target->pTempZB	);
 		RCache.set_Shader			(sh_BlurTR	);
 		RCache.set_Geometry			(geom_Blur	);
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 	
 	// Finita la comedia
@@ -416,8 +414,8 @@ void CLightShadows::render	()
 {
 	// Gain access to collision-DB
 	CDB::MODEL*		DB		= g_pGameLevel->ObjectSpace.GetStaticModel();
-	CDB::TRI*		TRIS	= DB->get_tris();
-	Fvector*		VERTS	= DB->get_verts();
+	xr_vector<CDB::TRI>& TRIS	= DB->get_tris();
+	xr_vector<Fvector>& VERTS	= DB->get_verts();
 
 	int			slot_line	= S_rt_size/S_size;
 	
@@ -461,26 +459,26 @@ void CLightShadows::render	()
 		t_offset.y	+= .5f/S_rt_size;
 		
 		// Search the cache
-		cache_item*						CI		= 0; BOOL	bValid = FALSE;
-		cache_item						CI_what; CI_what.O	= S.O; CI_what.L = S.L; CI_what.tris=0;
+		cache_item*						CI		= nullptr; bool	bValid = false;
+		cache_item						CI_what; CI_what.O	= S.O; CI_what.L = S.L; CI_what.tris=nullptr;
 		xr_vector<cache_item>::iterator	CI_ptr	= std::lower_bound(cache.begin(),cache.end(),CI_what,cache_search);
 		if (CI_ptr==cache.end())		
 		{	// empty ?
 			CI_ptr	= cache.insert		(CI_ptr,CI_what);
 			CI		= &*CI_ptr;
-			bValid	= FALSE;
+			bValid	= false;
 		} else {
 			if (CI_ptr->O != CI_what.O  || CI_ptr->L != CI_what.L)	
 			{	// we found something different
 				CI_ptr	= cache.insert		(CI_ptr,CI_what);
 				CI		= &*CI_ptr;
-				bValid	= FALSE;
+				bValid	= false;
 			} else {
 				// Everything, OK. Check if info is still relevant...
 				CI		= &*CI_ptr;
-				bValid	= TRUE;
-				if (!CI->Op.similar(CI->O->renderable.xform.c))	bValid = FALSE;
-				else if (!CI->Lp.similar(CI->L->position))		bValid = FALSE;
+				bValid	= true;
+				if (!CI->Op.similar(CI->O->renderable.xform.c))	bValid = false;
+				else if (!CI->Lp.similar(CI->L->position))		bValid = false;
 			}
 		}
 		CI->time				= Device.dwTimeGlobal;	// acess time
@@ -499,7 +497,7 @@ void CLightShadows::render	()
 			tess.clear				();
 			for (CDB::RESULT* p = xrc.r_begin(); p!=xrc.r_end(); p++)
 			{
-				VERIFY((p->id>=0)&&(p->id<DB->get_tris_count()));
+				VERIFY((p->id>=0)&&(p->id<DB->get_tris().size()));
 				// 
 				CDB::TRI&	t		= TRIS[p->id];
 				if (t.suppress_shadows) continue;
@@ -527,7 +525,7 @@ void CLightShadows::render	()
 
 				// Triangulate poly 
 				for (u32 v=2; v<clip->size(); v++)	{
-					tess.push_back	(tess_tri());
+					tess.emplace_back();
 					tess_tri& T		= tess.back();
 					T.v[0]			= (*clip)[0];
 					T.v[1]			= (*clip)[v-1];
@@ -543,7 +541,7 @@ void CLightShadows::render	()
 			CI->Lp					= CI->L->position;
 			CI->tcnt				= (u32)tess.size();
 			//Msg						("---free--- %x",u32(CI->tris));
-			xr_free					(CI->tris);	VERIFY(0==CI->tris);	
+			xr_free					(CI->tris);	VERIFY(nullptr==CI->tris);	
 			if (tess.size())		{
 				CI->tris			= xr_alloc<tess_tri>(CI->tcnt);
 				//Msg					("---alloc--- %x",u32(CI->tris));
@@ -581,7 +579,7 @@ void CLightShadows::render	()
 			if (batch==batch_size)	{
 				// Flush
 				RCache.Vertex.Unlock	(batch*3,geom_World->vb_stride);
-				RCache.Render			(D3DPT_TRIANGLELIST,Offset,batch);
+				RCache.Render			(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,batch);
 
 				pv						= (FVF::LIT*) RCache.Vertex.Lock(batch_size*3,geom_World->vb_stride,Offset);
 				batch					= 0;
@@ -593,7 +591,7 @@ void CLightShadows::render	()
 	// Flush if nessesary
 	RCache.Vertex.Unlock	(batch*3,geom_World->vb_stride);
 	if (batch)				{
-		RCache.Render			(D3DPT_TRIANGLELIST,Offset,batch);
+		RCache.Render			(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,batch);
 	}
 	
 	// Clear all shadows and free old entries in the cache
@@ -603,7 +601,7 @@ void CLightShadows::render	()
 		u32				time	= Device.dwTimeGlobal - ci.time;
 		if				(time > cache_old)	{
 			//Msg			("---free--- %x",u32(ci.tris));
-			xr_free		(ci.tris);	VERIFY(0==ci.tris);
+			xr_free		(ci.tris);	VERIFY(nullptr==ci.tris);
 			cache.erase (cache.begin()+cit);
 			cit			--;
 		}

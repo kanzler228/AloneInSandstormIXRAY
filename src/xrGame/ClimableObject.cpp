@@ -9,7 +9,7 @@
 
 #ifdef DEBUG_DRAW
 #	include "debug_renderer.h"
-#	include "level.h"
+#	include "Level.h"
 #	include "PHDebug.h"
 #endif
 
@@ -55,11 +55,11 @@ CClimableObject::~CClimableObject	()
 {
 
 }
-void CClimableObject::	Load				( LPCSTR section)
+void CClimableObject::	Load				( const char* section)
 {
 	inherited::Load(section);
 }
-BOOL CClimableObject::	net_Spawn			( CSE_Abstract* DC)
+bool CClimableObject::	net_Spawn			( CSE_Abstract* DC)
 {
 	CSE_Abstract				*e = (CSE_Abstract*)(DC);
 	CSE_ALifeObjectClimable	*CLB=smart_cast<CSE_ALifeObjectClimable*>(e);
@@ -67,12 +67,13 @@ BOOL CClimableObject::	net_Spawn			( CSE_Abstract* DC)
 	m_material = GMLib.GetMaterialIdx( CLB->material.c_str() );
 	const Fmatrix& b=CLB->shapes[0].data.box;
 	m_box.m_halfsize.set(b._11,b._22,b._33);
-	m_radius=_max(_max(m_box.m_halfsize.x,m_box.m_halfsize.y),m_box.m_halfsize.z);
+	m_radius= std::max(std::max(m_box.m_halfsize.x,m_box.m_halfsize.y),m_box.m_halfsize.z);
 
 	//m_box.m_halfsize.set(1.f,1.f,1.f);
-	BOOL ret	= inherited::net_Spawn(DC);
+	bool ret	= inherited::net_Spawn(DC);
 
-	SpatialComponent->spatial.type &= ~STYPE_VISIBLEFORAI;
+	SpatialComponent->type &= ~ESPATIAL_TYPE::VISIBLEFORAI;
+	SpatialComponent->type |= ESPATIAL_TYPE::LADDER;
 
 	const float f_min_width=0.2f;
 	Fvector shift;shift.set(0.f,0.f,0.f);
@@ -298,9 +299,9 @@ bool CClimableObject::BeforeLadder(CPHCharacter *actor,float tolerance/*=0.f*/)c
 	return d.dotproduct(n)<-(width+actor->FootRadius()/2.f+tolerance);
 }
 
-BOOL CClimableObject::UsedAI_Locations()
+bool CClimableObject::UsedAI_Locations()
 {
-	return FALSE;
+	return false;
 }
 
 

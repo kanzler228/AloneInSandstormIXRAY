@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_manager.h"
 #include "control_combase.h"
 #include "basemonster/base_monster.h"
@@ -67,14 +67,14 @@ void CControl_Manager::init_external()
 	//	it->second->init_external(this, m_object);
 }
 
-void CControl_Manager::load(LPCSTR section)
+void CControl_Manager::load(const char* section)
 {
 	init_external	();
 
 	for (CONTROLLERS_MAP_IT it = m_control_elems.begin(); it != m_control_elems.end(); ++it)
 		it->second->load(section);
 }
-void CControl_Manager::reload(LPCSTR section)
+void CControl_Manager::reload(const char* section)
 {
 	for (CONTROLLERS_MAP_IT it = m_control_elems.begin(); it != m_control_elems.end(); ++it) 
 		it->second->reload(section);
@@ -82,7 +82,6 @@ void CControl_Manager::reload(LPCSTR section)
 
 void CControl_Manager::reinit()
 {
-	if(	m_object->CCustomMonster::use_simplified_visual() ) return;
 	// todo: make it simpler
 	// reinit pure first, base second, custom third
 	CONTROLLERS_MAP_IT it;
@@ -430,6 +429,5 @@ void CControl_Manager::check_active_com(CControl_Com *com, bool b_add)
 
 void CControl_Manager::add_debug_info(debug::text_tree& root_s)
 {
-	u32 index = 0;
 }
 #endif //DEBUG

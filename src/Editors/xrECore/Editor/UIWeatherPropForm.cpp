@@ -9,8 +9,8 @@
 #include "UI_ToolsCustom.h"
 #include "../xrEngine/Editor/XrEditorSceneInterface.h"
 
-extern ENGINE_API BOOL bIsSndOnRoof;
-extern ENGINE_API BOOL bIsRaindropCollision;
+extern ENGINE_API bool bIsSndOnRoof;
+extern ENGINE_API bool bIsRaindropCollision;
 extern ECORE_API bool  bIsShowSun              = false;
 extern ECORE_API bool  bIsUseSunDir            = false;
 extern ECORE_API bool  bIsUseHemi              = false;
@@ -44,7 +44,7 @@ void UIWeatherPropForm::Draw()
 		ImVec2 image_pos = ImGui::GetCursorScreenPos();
 		m_weather_properties->Load();
 		ImGui::SameLine(0, 0);
-		ImGui::Image(m_weather_properties->pSurface, ImVec2(sizeImage));
+		ImGui::Image(m_weather_properties->get_SRView()->GetRawSRV(), ImVec2(sizeImage));
 
 		// Переводим секунды в часы (0-24)
 		float hours = std::fmod(time / 3600.0f, 24.0f);
@@ -82,7 +82,7 @@ void UIWeatherPropForm::Draw()
 	if (ImGui::BeginChild("Center", ImVec2(455, 575), true))
 	{
 		// Установки времени погоды
-		pcstr titleTime = "Time settings";
+		const char* titleTime = "Time settings";
 		ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(titleTime).x) / 2);
 		ImGui::TextColored(ImVec4(0, 1, 1, 0.7), titleTime);
 		// --------------------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ void UIWeatherPropForm::Draw()
 		// --------------------------------------------------------------------------------------------
 		// Выбор погодного цикла
 		{
-			pcstr titleWeatherCycle = "Weather cycle selection";
+			const char* titleWeatherCycle = "Weather cycle selection";
 			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(titleWeatherCycle).x) / 2);
 			ImGui::TextColored(ImVec4(0, 1, 1, 0.7), titleWeatherCycle);
 			// --------------------------------------------------------------------------------------------
@@ -165,7 +165,7 @@ void UIWeatherPropForm::Draw()
 		// --------------------------------------------------------------------------------------------
 		// Освещение
 		{
-			pcstr titleLightingSettings = "Lighting settings in the Editor";
+			const char* titleLightingSettings = "Lighting settings in the Editor";
 			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(titleLightingSettings).x) / 2);
 			ImGui::TextColored(ImVec4(0, 1, 1, 0.7), titleLightingSettings);
 			ImGui::Spacing();
@@ -226,7 +226,7 @@ void UIWeatherPropForm::Draw()
 		ImGui::Spacing();
 		// --------------------------------------------------------------------------------------------
 		// Прочие настройки
-		pcstr titleOther = "Other settings";
+		const char* titleOther = "Other settings";
 		ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(titleOther).x) / 2);
 		ImGui::TextColored(ImVec4(0, 1, 1, 0.7), titleOther);
 		// --------------------------------------------------------------------------------------------

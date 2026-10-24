@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_rotation_jump.h"
 #include "basemonster/base_monster.h"
 #include "control_manager.h"
@@ -17,7 +17,7 @@ void CControlRotationJump::reinit()
 	inherited::reinit();
 
 	m_time_next_rotation_jump	= 0;
-	m_skeleton_animated			= smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	m_skeleton_animated			= m_object->Visual()->dcast_PKinematicsAnimated();
 }
 
 
@@ -77,7 +77,7 @@ void CControlRotationJump::on_event(ControlCom::EEventType type, ControlCom::IEv
 {
 	switch (type) {
 	case ControlCom::eventAnimationEnd:
-		if ((m_stage == eStop) && (m_data.flags.is(SControlRotationJumpData::eRotateOnce) == FALSE)) 
+		if ((m_stage == eStop) && (m_data.flags.is(SControlRotationJumpData::eRotateOnce) == false)) 
 			build_line_second();
 		else  
 			m_man->notify						(ControlCom::eventRotationJumpEnd, 0);
@@ -170,7 +170,7 @@ void CControlRotationJump::build_line_first()
 		SControlMovementData		*ctrl_move = (SControlMovementData*)m_man->data(this, ControlCom::eControlMovement); 
 		VERIFY						(ctrl_move);
 		ctrl_move->velocity_target	= m_target_velocity;
-		ctrl_move->acc				= _abs(m_accel);
+		ctrl_move->acc				= std::abs(m_accel);
 
 		// start new animation
 		SControlAnimationData		*ctrl_data = (SControlAnimationData*)m_man->data(this, ControlCom::eControlAnimation); 

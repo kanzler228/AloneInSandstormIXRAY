@@ -17,15 +17,15 @@
 #include "object_factory.h"
 #include "alife_object_registry.h"
 #include "../xrEngine/XR_IOConsole.h"
+#include "../xrScripts/exports/script_ini_file.h"
 
 #ifdef DEBUG
 #	include "moving_objects.h"
 #endif // DEBUG
 
-LPCSTR alife_section = "alife";
+const char* alife_section = "alife";
 
-extern void destroy_lua_wpn_params	();
-extern void destroy_lua_knife_params();
+extern XRCORE_API xr_hash_map<xr_string, CInifile*>* cached_ini_map;
 
 void restart_all				()
 {
@@ -35,24 +35,39 @@ void restart_all				()
 		return;
 	}
 
-	destroy_lua_wpn_params		();
-	destroy_lua_knife_params	();
 	MainMenu()->DestroyInternal	(true);
 
 	xr_delete(g_object_factory);
 	object_factory();
 
+	g_pGamePersistent->ixr_framework_onframe.reset();
 	ai().script_engine().init	();
+	ai().script_engine().functor("___ixr_engine_callbacks.on_frame", g_pGamePersistent->ixr_framework_onframe);
 
 #ifdef DEBUG
 	ai().moving_objects().clear	();
 #endif // DEBUG
+
+	xr_vector<CInifile*> ini_files;
+	ini_files.reserve(cached_ini_map->size());
+
+	for (auto& cacheIni : *cached_ini_map)
+	{
+		ini_files.push_back(cacheIni.second);
+	}
+
+	cached_ini_map->clear();
+
+	for (CInifile* iniFile : ini_files)
+	{
+		xr_delete(iniFile);
+	}
 }
 
-CALifeSimulator::CALifeSimulator		(xrServer *server, shared_str *command_line) :
-	CALifeUpdateManager			(server,alife_section),
-	CALifeInteractionManager	(server,alife_section),
-	CALifeSimulatorBase			(server,alife_section)
+CALifeSimulator::CALifeSimulator(xrServer* server, shared_str* command_line) :
+	CALifeUpdateManager(server, alife_section),
+	CALifeCombatManager(server, alife_section),
+	CALifeSimulatorBase(server, alife_section)
 {
 	PROF_EVENT("CALifeSimulator::CALifeSimulator");
 	restart_all();
@@ -78,7 +93,7 @@ CALifeSimulator::CALifeSimulator		(xrServer *server, shared_str *command_line) :
 
 	}
 
-	LPCSTR						start_game_callback = pSettings->r_string(alife_section,"start_game_callback");
+	const char*						start_game_callback = pSettings->r_string(alife_section,"start_game_callback");
 	luabind::functor<void>		functor;
 	R_ASSERT2					(ai().script_engine().functor(start_game_callback,functor),"failed to get start game callback");
 	functor						();
@@ -109,7 +124,6 @@ CALifeSimulator::~CALifeSimulator		()
 
 void CALifeSimulator::destroy			()
 {
-//	validate					();
 	CALifeUpdateManager::destroy();
 	VERIFY						(ai().get_alife());
 	ai().set_alife				(0);
@@ -117,11 +131,10 @@ void CALifeSimulator::destroy			()
 
 void CALifeSimulator::setup_simulator	(CSE_ALifeObject *object)
 {
-//	VERIFY2						(!object->m_alife_simulator,object->s_name_replace);
 	object->m_alife_simulator	= this;
 }
 
-void CALifeSimulator::reload			(LPCSTR section)
+void CALifeSimulator::reload			(const char* section)
 {
 	CALifeUpdateManager::reload	(section);
 }
@@ -151,7 +164,7 @@ IReader const* CALifeSimulator::get_config	( shared_str config ) const
 	}
 
 	string_path						file_name;
-	FS.update_path					( file_name,"$game_config$", config.c_str() );
+	FS.update_path					( file_name,_game_config_, config.c_str() );
 	if ( !FS.exist(file_name) )
 		return						0;
 

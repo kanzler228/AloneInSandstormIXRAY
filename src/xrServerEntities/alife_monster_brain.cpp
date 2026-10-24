@@ -6,7 +6,7 @@
 //	Description : ALife monster brain class
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "alife_monster_brain.h"
 #include "object_broker.h"
 #include "xrServer_Objects_ALife_Monsters.h"
@@ -25,15 +25,11 @@
 #	include "alife_time_manager.h"
 #	include "../xrEngine/date_time.h"
 #	ifdef DEBUG
-#		include "level.h"
+#		include "Level.h"
 #		include "map_location.h"
 #		include "map_manager.h"
 #	endif
 #endif
-
-#define MAX_ITEM_FOOD_COUNT			3
-#define MAX_ITEM_MEDIKIT_COUNT		3
-#define MAX_AMMO_ATTACH_COUNT		1
 
 CALifeMonsterBrain::CALifeMonsterBrain		(object_type *object)
 {
@@ -48,7 +44,7 @@ CALifeMonsterBrain::CALifeMonsterBrain		(object_type *object)
 	
 #ifdef XRGAME_EXPORTS
 	u32								hours,minutes,seconds;
-	sscanf							(pSettings->r_string(this->object().name(),"smart_terrain_choose_interval"),"%d:%d:%d",&hours,&minutes,&seconds);
+	sscanf							(pSettings->r_string(this->object().name(),"smart_terrain_choose_interval"),"%u:%u:%u",&hours,&minutes,&seconds);
 	m_time_interval					= (u32)generate_time(1,1,1,hours,minutes,seconds);
 #endif
 
@@ -109,8 +105,11 @@ void CALifeMonsterBrain::process_task			()
 {
 	CALifeSmartTerrainTask			*task = smart_terrain().task(&object());
 	THROW3							(task,"smart terrain returned nil task, while npc is registered in it",smart_terrain().name_replace());
-	movement().path_type			(MovementManager::ePathTypeGamePath);
-	movement().detail().target		(*task);
+	if (task != nullptr)
+	{
+		movement().path_type(MovementManager::ePathTypeGamePath);
+		movement().detail().target(*task);
+	}
 }
 
 void CALifeMonsterBrain::select_task			()

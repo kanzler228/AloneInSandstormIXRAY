@@ -7,6 +7,7 @@
 #include "ResourceManager.h"
 
 #include "../../xrEngine/xr_efflensflare.h"
+#include "r__types.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -108,7 +109,7 @@ void dxEnvDescriptorMixerRender::Destroy() {
 }
 
 void dxEnvDescriptorMixerRender::Clear() {
-	std::pair<u32, ref_texture>	zero = std::make_pair(u32(0), ref_texture(0));
+	std::pair<u32, ref_texture>	zero = std::make_pair(u32(0), ref_texture(nullptr));
 	sky_r_textures.clear();
 	sky_r_textures.push_back(zero);
 	sky_r_textures.push_back(zero);
@@ -154,15 +155,17 @@ void dxEnvDescriptorRender::OnDeviceCreate(CEnvDescriptor& owner) {
 		clouds_texture.create(owner.clouds_texture_name.c_str());
 }
 
-void dxEnvDescriptorRender::OnDeviceDestroy() {
+void dxEnvDescriptorRender::OnDeviceDestroy() 
+{
 	sky_texture.destroy();
 	sky_texture_env.destroy();
 	clouds_texture.destroy();
 }
 
-dxEnvironmentRender::dxEnvironmentRender() {
-	tsky0 = DEV->_CreateTexture("$user$sky0");
-	tsky1 = DEV->_CreateTexture("$user$sky1");
+dxEnvironmentRender::dxEnvironmentRender() 
+{
+	tsky0 = DEV->_CreateTexture(r2_T_sky0);
+	tsky1 = DEV->_CreateTexture(r2_T_sky1);
 }
 
 void dxEnvironmentRender::OnFrame(CEnvironment& env) {
@@ -170,12 +173,20 @@ void dxEnvironmentRender::OnFrame(CEnvironment& env) {
 	dxEnvDescriptorMixerRender& mixRen = *(dxEnvDescriptorMixerRender*)&*env.CurrentEnv->m_pDescriptorMixer;
 
 	//. Setup skybox textures, somewhat ugly
-	ID3DBaseTexture* e0 = mixRen.sky_r_textures[0].second->surface_get();
-	ID3DBaseTexture* e1 = mixRen.sky_r_textures[1].second->surface_get();
 
-	tsky0->surface_set(e0);	_RELEASE(e0);
-	tsky1->surface_set(e1);	_RELEASE(e1);
+	if (!mixRen.sky_r_textures.empty())
+	{
+		IRHISurface* E0 = mixRen.sky_r_textures[0].second->surface_get();
+		tsky0->surface_set(E0);
+		_RELEASE(E0);
+	}
 
+	if (mixRen.sky_r_textures.size() >= 2)
+	{
+		IRHISurface* E1 = mixRen.sky_r_textures[1].second->surface_get();
+		tsky1->surface_set(E1);
+		_RELEASE(E1);
+	}
 	// ******************** Environment params (setting)
 #ifdef USE_DX11
 	//	TODO: DX10: Implement environment parameters setting for DX10 (if necessary)
@@ -194,19 +205,28 @@ void dxEnvironmentRender::OnFrame(CEnvironment& env) {
 #endif
 }
 
-void dxEnvironmentRender::OnLoad() {}
-void dxEnvironmentRender::OnUnload() {}
+void dxEnvironmentRender::OnLoad()
+{
+}
 
-void dxEnvironmentRender::RenderSky(CEnvironment& env) {
+void dxEnvironmentRender::OnUnload() 
+{
+}
+
+void dxEnvironmentRender::RenderSky(CEnvironment& env) 
+{
 	PROF_EVENT("EnvironmentRender::RenderSky");
-	if(env.bNeed_re_create_env) {
+
+	if(env.bNeed_re_create_env)
+	{
 		OnDeviceDestroy();
 		OnDeviceCreate();
 
 		OnFrame(env);
 
-		env.bNeed_re_create_env = FALSE;
+		env.bNeed_re_create_env = false;
 	}
+
 	::Render->rmFar();
 
 	dxEnvDescriptorMixerRender& mixRen = *(dxEnvDescriptorMixerRender*)&*env.CurrentEnv->m_pDescriptorMixer;
@@ -229,7 +249,8 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env) {
 	// Fill vertex buffer
 	v_skybox* pv = (v_skybox*)RCache.Vertex.Lock(12, sh_2geom->vb_stride, v_offset);
 
-	for(u32 v = 0; v < 12; v++) {
+	for(u32 v = 0; v < 12; v++) 
+	{
 		pv[v].set(hbox_verts[v * 2], C, hbox_verts[v * 2 + 1]);
 	}
 
@@ -245,15 +266,18 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env) {
 	RCache.set_Geometry(sh_2geom);
 	RCache.set_Shader(sh_2sky);
 
+	RCache.set_Textures(&mixRen.sky_r_textures_env);
 	RCache.set_Textures(&mixRen.sky_r_textures);
-	RCache.Render(D3DPT_TRIANGLELIST, v_offset, 0, 12, i_offset, 20);
-	env.eff_LensFlare->Render(TRUE, FALSE, FALSE);
+
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, v_offset, 0, 12, i_offset, 20);
+	env.eff_LensFlare->Render(true, false, false);
 
 	// Sun
 	::Render->rmNormal();
 }
 
-void dxEnvironmentRender::RenderClouds(CEnvironment& env) {
+void dxEnvironmentRender::RenderClouds(CEnvironment& env)
+{
 	PROF_EVENT("EnvironmentRender::RenderClouds");
 	::Render->rmFar();
 
@@ -291,7 +315,7 @@ void dxEnvironmentRender::RenderClouds(CEnvironment& env) {
 	RCache.set_Shader(clouds_sh);
 	dxEnvDescriptorMixerRender& mixRen = *(dxEnvDescriptorMixerRender*)&*env.CurrentEnv->m_pDescriptorMixer;
 	RCache.set_Textures(&mixRen.clouds_r_textures);
-	RCache.Render(D3DPT_TRIANGLELIST, v_offset, 0, (u32)env.CloudsVerts.size(), i_offset, (u32)env.CloudsIndices.size() / 3);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, v_offset, 0, (u32)env.CloudsVerts.size(), i_offset, (u32)env.CloudsIndices.size() / 3);
 
 	::Render->rmNormal();
 }

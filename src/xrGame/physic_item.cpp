@@ -9,7 +9,7 @@
 #include "StdAfx.h"
 #include "physic_item.h"
 #include "../xrPhysics/PhysicsShell.h"
-#include "xrserver_objects.h"
+#include "xrServer_Objects.h"
 #include "../Include/xrRender/RenderVisual.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
 #include "../Include/xrRender/Kinematics.h"
@@ -42,12 +42,12 @@ void CPhysicItem::reinit	()
 	m_ready_to_destroy		= false;
 }
 
-void CPhysicItem::Load		(LPCSTR section)
+void CPhysicItem::Load		(const char* section)
 {
 	inherited::Load			(section);
 }
 
-void CPhysicItem::reload	(LPCSTR section)
+void CPhysicItem::reload	(const char* section)
 {
 	inherited::reload		(section);
 }
@@ -59,8 +59,8 @@ void CPhysicItem::OnH_B_Independent	(bool just_before_destroy)
 	if (m_ready_to_destroy)
 		return;
 
-	setVisible					(TRUE);
-	setEnabled					(TRUE);
+	setVisible					(true);
+	setEnabled					(true);
 
 	if (!just_before_destroy)
 		activate_physic_shell	();
@@ -70,19 +70,59 @@ void CPhysicItem::OnH_B_Chield		()
 {
 	inherited::OnH_B_Chield		();
 
-	setVisible					(FALSE);
-	setEnabled					(FALSE);
+	setVisible					(false);
+	setEnabled					(false);
 
 	inherited::deactivate_physics_shell();
 }
 
-BOOL CPhysicItem::net_Spawn			(CSE_Abstract* DC)
+void CPhysicItem::CreatePhysicsShell()
+{
+	CPhysicsShellHolder* owner = smart_cast<CPhysicsShellHolder*>(this);
+	VERIFY(owner);
+	if (!owner->Visual())
+	{
+		return;
+	}
+
+	IKinematics* pKinematics = smart_cast<IKinematics*>(owner->Visual());
+	VERIFY(pKinematics);
+
+	if (owner->PPhysicsShell())
+	{
+		return;
+	}
+
+	phys_shell_verify_object_model(*owner);
+
+	owner->PPhysicsShell() = P_create_Shell();
+#ifdef DEBUG
+	owner->PPhysicsShell()->dbg_obj = owner;
+#endif
+	owner->m_pPhysicsShell->build_FromKinematics(pKinematics, 0);
+
+	if (owner->m_pPhysicsShell->get_ElementsNumber() == 0)
+	{
+		Msg(" ! Error: world item visual [%s] has no elements!", pKinematics->getDebugName().c_str());
+	}
+	else if (!owner->m_pPhysicsShell->get_ElementByStoreOrder(0)->has_geoms())
+	{
+		Msg(" ! Error: world item visual [%s] has no shape!", pKinematics->getDebugName().c_str());
+	}
+
+	owner->PPhysicsShell()->set_PhysicsRefObject(owner);
+	// m_pPhysicsShell->SmoothElementsInertia(0.3f);
+	owner->PPhysicsShell()->mXFORM.set(owner->XFORM());
+	owner->PPhysicsShell()->SetAirResistance(0.001f, 0.02f);
+}
+
+bool CPhysicItem::net_Spawn			(CSE_Abstract* DC)
 {
 	if (!inherited::net_Spawn(DC))
-		return (FALSE);
-	IKinematics* pK = smart_cast<IKinematics*>(Visual());
+		return (false);
+	IKinematics* pK = PKinematics(Visual());
 	pK->CalculateBones_Invalidate();
-	pK->CalculateBones(TRUE);
+	pK->CalculateBones(true);
 	CSE_Abstract *abstract = (CSE_Abstract*)DC;
 	if (0xffff == abstract->ID_Parent)
 	{
@@ -90,10 +130,10 @@ BOOL CPhysicItem::net_Spawn			(CSE_Abstract* DC)
 		//else processing_deactivate();//.
 	}
 
-	setVisible				(TRUE);
-	setEnabled				(TRUE);
+	setVisible				(true);
+	setEnabled				(true);
 
-	return					(TRUE);
+	return					(true);
 }
 
 void CPhysicItem::net_Destroy		()
@@ -117,15 +157,15 @@ void CPhysicItem::UpdateCL()
 
 void CPhysicItem::activate_physic_shell()
 {
-	CObject						*object = smart_cast<CObject*>(H_Parent());
+	CObject						*object = H_Parent();
 	R_ASSERT					(object);
 	XFORM().set					(object->XFORM());
 	inherited::activate_physic_shell();
-	IKinematics* K=smart_cast<IKinematics*>(Visual());
+	IKinematics* K= PKinematics(Visual());
 	if(K)
 	{
 		K->CalculateBones_Invalidate();
-		K->CalculateBones(TRUE);
+		K->CalculateBones(true);
 	}
 	///m_pPhysicsShell->Update		();	
 }
@@ -133,11 +173,11 @@ void CPhysicItem::activate_physic_shell()
 void CPhysicItem::setup_physic_shell	()
 {
 	inherited::setup_physic_shell();
-	IKinematics* K=smart_cast<IKinematics*>(Visual());
+	IKinematics* K= PKinematics(Visual());
 	if(K)
 	{
 		K->CalculateBones_Invalidate();
-		K->CalculateBones(TRUE);
+		K->CalculateBones(true);
 	}
 
 	//m_pPhysicsShell->Update		();
@@ -177,9 +217,9 @@ void CPhysicItem::create_box2sphere_physic_shell()
 	Fvector								ax;
 	float								radius;
 	CHOOSE_MAX(
-		obb.m_halfsize.x,ax.set(obb.m_rotate.i) ; ax.mul(obb.m_halfsize.x); radius=_min(obb.m_halfsize.y,obb.m_halfsize.z) ;obb.m_halfsize.y/=2.f;obb.m_halfsize.z/=2.f,
-		obb.m_halfsize.y,ax.set(obb.m_rotate.j) ; ax.mul(obb.m_halfsize.y); radius=_min(obb.m_halfsize.x,obb.m_halfsize.z) ;obb.m_halfsize.x/=2.f;obb.m_halfsize.z/=2.f,
-		obb.m_halfsize.z,ax.set(obb.m_rotate.k) ; ax.mul(obb.m_halfsize.z); radius=_min(obb.m_halfsize.y,obb.m_halfsize.x) ;obb.m_halfsize.y/=2.f;obb.m_halfsize.x/=2.f
+		obb.m_halfsize.x,ax.set(obb.m_rotate.i) ; ax.mul(obb.m_halfsize.x); radius=std::min(obb.m_halfsize.y,obb.m_halfsize.z) ;obb.m_halfsize.y/=2.f;obb.m_halfsize.z/=2.f,
+		obb.m_halfsize.y,ax.set(obb.m_rotate.j) ; ax.mul(obb.m_halfsize.y); radius=std::min(obb.m_halfsize.x,obb.m_halfsize.z) ;obb.m_halfsize.x/=2.f;obb.m_halfsize.z/=2.f,
+		obb.m_halfsize.z,ax.set(obb.m_rotate.k) ; ax.mul(obb.m_halfsize.z); radius=std::min(obb.m_halfsize.y,obb.m_halfsize.x) ;obb.m_halfsize.y/=2.f;obb.m_halfsize.x/=2.f
 	)
 		//radius*=1.4142f;
 	Fsphere								sphere1,sphere2;

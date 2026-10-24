@@ -2,34 +2,96 @@
 #include "pch_script.h"
 #include "Actor.h"
 #include "UIGameSP.h"
-#include "PDA.h"
-#include "Level.h"
-#include "../xrEngine/string_table.h"
-#include "PhraseDialog.h"
-#include "character_info.h"
-#include "relation_registry.h"
-#include "ai_space.h"
-#include "alife_simulator.h"
-#include "alife_registry_container.h"
-#include "script_game_object.h"
-#include "game_cl_base.h"
-#include "xrServer.h"
-#include "xrServer_Objects_ALife_Monsters.h"
 #include "alife_registry_wrappers.h"
 #include "map_manager.h"
 #include "ui/UIMainIngameWnd.h"
 #include "ui/UIPdaWnd.h"
 #include "ui/UITalkWnd.h"
-#include "game_object_space.h"
 #include "encyclopedia_article.h"
 #include "GametaskManager.h"
-#include "GameTaskDefs.h"
 #include "InfoPortion.h"
-#include "Inventory.h"
-#include "ai/monsters/basemonster/base_monster.h"
-#include "ai/trader/ai_trader.h"
 #include "../xrScripts/script_callback_ex.h"
 #include "game_cl_single.h"
+#include "ui/UIPdaAux.h"
+
+void CActor::AddEncyclopediaArticle(const CInfoPortion* info_portion) const
+{
+    VERIFY(info_portion);
+    ARTICLE_VECTOR& article_vector = encyclopedia_registry->registry().objects();
+
+    auto last_end = article_vector.end();
+    auto B = article_vector.begin();
+    auto E = last_end;
+
+    for (ARTICLE_ID_VECTOR::const_iterator it = info_portion->ArticlesDisable().begin();
+        it != info_portion->ArticlesDisable().end(); it++)
+    {
+        FindArticleByIDPred pred(*it);
+        last_end = std::remove_if(B, last_end, pred);
+    }
+    article_vector.erase(last_end, E);
+
+
+    for (ARTICLE_ID_VECTOR::const_iterator it = info_portion->Articles().begin();
+        it != info_portion->Articles().end(); it++)
+    {
+        FindArticleByIDPred pred(*it);
+        if (std::find_if(article_vector.begin(), article_vector.end(), pred) != article_vector.end()) continue;
+
+        CEncyclopediaArticle article;
+
+        article.Load(*it);
+
+        article_vector.emplace_back(*it, Level().GetGameTime(), article.data()->articleType);
+        const char* g, *n;
+        int _atype = article.data()->articleType;
+        g = *(article.data()->group);
+        n = *(article.data()->name);
+        callback(GameObject::eArticleInfo)(lua_game_object(), g, n, _atype);
+
+        if (CurrentGameUI())
+        {
+            pda_section::part p = pda_section::encyclopedia;
+            switch (article.data()->articleType)
+            {
+            case ARTICLE_DATA::eEncyclopediaArticle: p = pda_section::encyclopedia;
+                break;
+            case ARTICLE_DATA::eJournalArticle: p = pda_section::journal;
+                break;
+            case ARTICLE_DATA::eInfoArticle: p = pda_section::info;
+                break;
+            case ARTICLE_DATA::eTaskArticle: p = pda_section::quests;
+                break;
+            default: NODEFAULT;
+            };
+			CurrentGameUI()->PdaMenu()->PdaContentsChanged(p);
+        }
+        
+        if (CurrentGameUI())
+        {
+            CurrentGameUI()->UpdatePda();
+        }
+    }
+
+}
+
+void CActor::AddGameTask(const CInfoPortion* info_portion) const
+{
+	VERIFY2(info_portion, "info_portion is nullptr");
+	if (!info_portion)
+	{
+		Msg("! [%s] info_portion is nullptr!", __FUNCTION__);
+		return;
+	}
+	const xr_vector<shared_str>& tasks = info_portion->GameTasks();
+	if (tasks.empty())
+		return;
+
+	for (const shared_str& taskId : tasks)
+	{
+		Level().GameTaskManager()->GiveGameTaskToActor(taskId, 0);
+	}
+}
 
 void  CActor::AddGameNews			 (GAME_NEWS_DATA& news_data)
 {
@@ -41,6 +103,7 @@ void  CActor::AddGameNews			 (GAME_NEWS_DATA& news_data)
 	if ( CurrentGameUI() )
 	{
 		CurrentGameUI()->UIMainIngameWnd->ReceiveNews(&news_data);
+		CurrentGameUI()->PdaMenu()->PdaContentsChanged(pda_section::news);
 	}
 }
 
@@ -53,11 +116,15 @@ bool CActor::OnReceiveInfo(shared_str info_id) const
 	CInfoPortion info_portion;
 	info_portion.Load(info_id);
 
+	AddEncyclopediaArticle(&info_portion);
+	AddGameTask(&info_portion);
+
 	callback(GameObject::eInventoryInfo)(lua_game_object(), *info_id);
 
 
 	//только если находимся в режиме single
- 	if(CurrentGameUI() == nullptr) return false;
+ 	if(!CurrentGameUI()->TalkMenu) 
+		return false;
 
 	if(CurrentGameUI()->TalkMenu->IsShown())
 	{
@@ -72,7 +139,7 @@ void CActor::OnDisableInfo(shared_str info_id) const
 {
 	CInventoryOwner::OnDisableInfo(info_id);
 
-	if(CurrentGameUI() == nullptr)
+	if (!CurrentGameUI()->TalkMenu)
 		return;
 
 	//только если находимся в режиме single
@@ -83,7 +150,8 @@ void CActor::OnDisableInfo(shared_str info_id) const
 void  CActor::ReceivePhrase		(DIALOG_SHARED_PTR& phrase_dialog)
 {
 	//только если находимся в режиме single
- 	if(CurrentGameUI() == nullptr) return;
+	if (!CurrentGameUI()->TalkMenu)
+		return;
 
 	if(CurrentGameUI()->TalkMenu->IsShown())
 		CurrentGameUI()->TalkMenu->NeedUpdateQuestions();
@@ -96,6 +164,21 @@ void CActor::UpdateAvailableDialogs(CPhraseDialogManager* partner)
 	m_AvailableDialogs.clear();
 	m_CheckedDialogs.clear();
 
+	if (m_known_info_registry->registry().objects_ptr())
+	{
+		auto& infoPortionRegistry = *m_known_info_registry->registry().objects_ptr();
+		for (const INFO_DATA& info_data : infoPortionRegistry)
+		{
+			//подгрузить кусочек информации с которым мы работаем
+			CInfoPortion info_portion;
+			info_portion.Load(info_data.info_id);
+
+			const DIALOG_ID_VECTOR& names = info_portion.DialogNames();
+			for (const shared_str& name : names)
+				AddAvailableDialog(name.c_str(), partner);
+		}
+	}
+
 	//добавить актерский диалог собеседника
 	CInventoryOwner* pInvOwnerPartner = partner->cast_inventory_owner();
 	VERIFY(pInvOwnerPartner);
@@ -103,11 +186,6 @@ void CActor::UpdateAvailableDialogs(CPhraseDialogManager* partner)
 	for (u32 i = 0; i < pInvOwnerPartner->CharacterInfo().ActorDialogs().size(); i++)
 	{
 		AddAvailableDialog(pInvOwnerPartner->CharacterInfo().ActorDialogs()[i], partner);
-	}
-
-	if (EngineExternal().ClearSkyMode())
-	{
-		AddAvailableDialog("actor_break_dialog", partner);
 	}
 
 	CPhraseDialogManager::UpdateAvailableDialogs(partner);
@@ -154,11 +232,15 @@ void CActor::NewPdaContact		(CInventoryOwner* pInvOwner)
 		CurrentGameUI()->UIMainIngameWnd->AnimateContacts(b_alive);
 
 	Level().MapManager().AddRelationLocation		( pInvOwner );
+
+	CurrentGameUI()->PdaMenu()->PdaContentsChanged(pda_section::contacts);
 }
 
 void CActor::LostPdaContact		(CInventoryOwner* pInvOwner)
 {
 	Level().MapManager().RemoveRelationLocation(pInvOwner);
+
+	CurrentGameUI()->PdaMenu()->PdaContentsChanged(pda_section::contacts);
 }
 
 void CActor::AddGameNews_deffered	 (GAME_NEWS_DATA& news_data, u32 delay)
@@ -186,7 +268,7 @@ void CActor::UpdateDefferedMessages()
 	}
 }
 
-bool CActor::OnDialogSoundHandlerStart(CInventoryOwner *inv_owner, LPCSTR phrase)
+bool CActor::OnDialogSoundHandlerStart(CInventoryOwner *inv_owner, const char* phrase)
 {
 	if (CAI_Trader* trader = inv_owner->cast_trader())
 	{

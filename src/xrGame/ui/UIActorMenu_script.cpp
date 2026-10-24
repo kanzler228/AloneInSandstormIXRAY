@@ -5,7 +5,7 @@
 //	Description : UI ActorMenu script implementation
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "UIActorMenu.h"
 #include "UIGameCustom.h"
@@ -25,9 +25,11 @@
 
 #include "UIPdaWnd.h"
 #include "../../xrUI/Widgets/UITabControl.h"
-#include "UIActorMenu.h"
+#include "UIInventoryUpgradeWnd.h"
+#include "../../xrUI/Widgets/UI3tButton.h"
 #include "UIMainIngameWnd.h"
 #include "UIZoneMap.h"
+#include "UICompassBar.h"
 #include "UIMotionIcon.h"
 #include "UIHudStatesWnd.h"
 
@@ -37,22 +39,24 @@ using namespace luabind;
 
 CUIActorMenu* GetActorMenu()
 {
-	return &CurrentGameUI()->ActorMenu();
+	return CurrentGameUI()->ActorMenu();
 }
 
 CUIPdaWnd* GetPDAMenu()
 {
-	return &CurrentGameUI()->PdaMenu();
+	return CurrentGameUI()->PdaMenu();
 }
 
 CUIMainIngameWnd* GetMainGameMenu()
 {
-	return CurrentGameUI()->UIMainIngameWnd;
+	if (CUIGameCustom* ui = CurrentGameUI())
+		return ui->UIMainIngameWnd;
+	return nullptr;
 }
 
 u8 GrabMenuMode()
 {
-	return (u8)(CurrentGameUI()->ActorMenu().GetMenuMode());
+	return (u8)(CurrentGameUI()->ActorMenu()->GetMenuMode());
 }
 
 void ActorMenuSetPartner_script(CUIActorMenu* menu, CScriptGameObject* GO)
@@ -167,67 +171,6 @@ void CUIActorMenu::HighlightForEachInSlot(const luabind::functor<bool>& functor,
 	m_highlight_clear = false;
 }
 
-void CUIActorMenu::TryRepairItem(CUIWindow* w, void* d)
-{
-	PIItem item = get_upgrade_item();
-	if ( !item )
-	{
-		return;
-	}
-	if ( item->GetCondition() > 0.99f )
-	{
-		return;
-	}
-	
-	if (!IsGameTypeSingle())
-	{
-		LPCSTR item_name = item->m_section_id.c_str();
-		luabind::functor<int> funct;
-		R_ASSERT2(ai().script_engine().functor("inventory_upgrades.how_much_repair", funct), make_string<const char*>("Failed to get functor <inventory_upgrades.how_much_repair>, item = %s", item_name));
-		int cost = funct(item_name, item->GetCondition());
-		NET_Packet P;
-		CGameObject::u_EventGen(P, GE_GAME_EVENT, item->object().ID());
-		P.w_u16(GAME_EVENT_MP_REPAIR);
-		P.w_u16(item->object().ID());
-		P.w_s32(cost);
-		CGameObject::u_EventSend(P);
-		return;
-	}
-
-	LPCSTR item_name = item->m_section_id.c_str();
-
-	CEatableItem* EItm = item->cast_eatable_item();
-	if (EItm)
-	{
-		bool allow_repair = !!READ_IF_EXISTS(pSettings, r_bool, item_name, "allow_repair", false);
-		if (!allow_repair)
-			return;
-	}
-	LPCSTR partner = m_pPartnerInvOwner ? m_pPartnerInvOwner->CharacterInfo().Profile().c_str() : Actor()->CharacterInfo().Profile().c_str();
-
-	luabind::functor<bool> funct;
-	R_ASSERT2(
-		ai().script_engine().functor( "inventory_upgrades.can_repair_item", funct ),
-		make_string<const char*>( "Failed to get functor <inventory_upgrades.can_repair_item>, item = %s", item_name )
-		);
-	bool can_repair = funct( item_name, item->GetCondition(), partner );
-
-	luabind::functor<LPCSTR> funct2;
-	R_ASSERT2(
-		ai().script_engine().functor( "inventory_upgrades.question_repair_item", funct2 ),
-		make_string<const char*>( "Failed to get functor <inventory_upgrades.question_repair_item>, item = %s", item_name )
-		);
-	LPCSTR question = funct2( item_name, item->GetCondition(), can_repair, partner );
-
-	if(can_repair)
-	{
-		m_repair_mode = 1;
-		CallMessageBoxYesNo( question );
-	} 
-	else
-		CallMessageBoxOK( question );
-}
-
 void CUIActorMenu::TryDisassembleItem(CUIWindow* w, void* d)
 {
 	PIItem item = get_upgrade_item();
@@ -278,40 +221,6 @@ void CUIActorMenu::TryDisassembleItem(CUIWindow* w, void* d)
 		CallMessageBoxOK(question);
 }
 
-void CUIActorMenu::RepairEffect_CurItem()
-{
-	PIItem item = CurrentIItem();
-	if (!item)
-	{
-		return;
-	}
-
-	LPCSTR item_name = item->m_section_id.c_str();
-
-	luabind::functor<void> funct;
-	R_ASSERT(ai().script_engine().functor("inventory_upgrades.effect_repair_item", funct));
-	funct(item_name, item->GetCondition());
-
-	item->SetCondition(1.0f);
-	UpdateConditionProgressBars();
-	SeparateUpgradeItem();
-	CUICellItem* itm = CurrentItem();
-
-	if (itm)
-	{
-		itm->UpdateConditionProgressBar();
-	}
-
-	if (CWeapon* wpn = item->cast_weapon())
-	{
-		wpn->SetMisfireStatus(false);
-		if (wpn->GetState() == CWeapon::eIdle)
-		{
-			wpn->SwitchState(CWeapon::eIdle);
-		}
-	}
-}
-
 void CUIActorMenu::PerformDisassemble()
 {
 	PIItem item = CurrentIItem();
@@ -335,25 +244,24 @@ void CUIActorMenu::PerformDisassemble()
 	}
 	funct(item->m_section_id.c_str(), item->GetCondition(), partner);
 
+	m_pUpgradeWnd->set_info_cur_upgrade(nullptr);
+
+	if (m_pUpgradeWnd->m_item != nullptr)
+	{
+		m_pUpgradeWnd->m_item->DetachAll();
+		m_pUpgradeWnd->m_item->Show(false);
+	}
+
+	m_pUpgradeWnd->m_scheme_wnd->DetachAll();
+	m_pUpgradeWnd->m_scheme_wnd->Show(false);
+
+	m_pUpgradeWnd->m_btn_repair->Enable(false);
+	m_pUpgradeWnd->m_btn_disassemble->Enable(false);
+
+	m_pUpgradeWnd->m_inv_item = nullptr;
+
 	SetCurrentItem(nullptr);
 	item->object().DestroyObject();
-}
-
-bool CUIActorMenu::CanUpgradeItem( PIItem item )
-{
-	VERIFY( item );
-
-	LPCSTR item_name = item->m_section_id.c_str();
-	LPCSTR partner = m_pPartnerInvOwner ? m_pPartnerInvOwner->CharacterInfo().Profile().c_str() : Actor()->CharacterInfo().Profile().c_str();
-	LPCSTR section = m_pPartnerInvOwner ? m_pPartnerInvOwner->cast_game_object()->cNameSect_str() : Actor()->cast_game_object()->cNameSect_str();
-		
-	luabind::functor<bool> funct; 
-	R_ASSERT2(
-		ai().script_engine().functor( "inventory_upgrades.can_upgrade_item", funct ),
-		make_string<const char*>( "Failed to get functor <inventory_upgrades.can_upgrade_item>, item = %s, mechanic = %s", item_name, partner )
-		);
-
-	return funct( item_name, partner, section);
 }
 
 void CUIActorMenu::CurModeToScript()
@@ -364,7 +272,7 @@ void CUIActorMenu::CurModeToScript()
 	funct( mode );
 }
 
-void CUIActorMenu::HighlightSectionInSlot(LPCSTR section, u8 type, u16 slot_id)
+void CUIActorMenu::HighlightSectionInSlot(const char* section, u8 type, u16 slot_id)
 {
 	CUIDragDropListEx* slot_list = m_pInventoryBagList;
 	switch (type)
@@ -418,6 +326,51 @@ void CUIActorMenu::HighlightSectionInSlot(LPCSTR section, u8 type, u16 slot_id)
 	m_highlight_clear = false;
 }
 
+void pda_show(CUIPdaWnd* pda, bool hide_indik)
+{
+	if (Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator() != nullptr)
+	{
+		Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator()->SwitchAnimator();
+	}
+	else
+	{
+		pda->ShowDialog(hide_indik);
+	}
+}
+
+void pda_hide(CUIPdaWnd* pda)
+{
+	if (Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator() != nullptr)
+	{
+		Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator()->HideStateAnimator();
+	}
+	else
+	{
+		pda->HideDialog();
+	}
+}
+
+void pda_switch_zoom(CUIPdaWnd* pda)
+{
+	if (Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator() != nullptr)
+	{
+		Level().CurrentEntity()->cast_actor()->HudAnimator()->PdaAnimator()->SwitchZoom();
+	}
+	else
+	{
+		Msg("Can't switch zoom on PDA without animator :(");
+	}
+}
+
+void ActorMenu_ShowGamepadLegend(CUIActorMenu* menu, bool b)
+{
+	if (!menu)
+	{
+		return;
+	}
+	menu->m_should_show_gamepad_legend = b;
+}
+
 #pragma optimize("s",on)
 void CUIActorMenu::script_register(lua_State *L)
 {
@@ -458,18 +411,22 @@ void CUIActorMenu::script_register(lua_State *L)
 				.def("GetInvBox", &ActorMenuGetInvbox_script)
 				.def("SetPartner", &ActorMenuSetPartner_script)
 				.def("SetInvBox", &ActorMenuSetInvbox_script)
-				.def("SetActor", &ActorMenuSetActor_script),
-				
+				.def("SetActor", &ActorMenuSetActor_script)
+				.def("ShowGamepadLegend", &ActorMenu_ShowGamepadLegend)
+				.def("SetInventorySortSystem", &CUIActorMenu::SetInventorySortSystemScript)
+				.def("GetInventorySortSystem", &CUIActorMenu::GetInventorySortSystemScript),
+			
 			class_< CUIPdaWnd, CUIDialogWnd>("CUIPdaWnd")
 				.def(constructor<>())
 				.def("IsShown", &CUIPdaWnd::IsShown)
-				.def("ShowDialog", &CUIPdaWnd::ShowDialog)
-				.def("HideDialog", &CUIPdaWnd::HideDialog)
+				.def("ShowDialog", &pda_show)
+				.def("HideDialog", &pda_hide)
 				.def("SetActiveSubdialog", &CUIPdaWnd::SetActiveSubdialog_script)
 				.def("SetActiveDialog", &CUIPdaWnd::SetActiveDialog)
 				.def("GetActiveDialog", &CUIPdaWnd::GetActiveDialog)
 				.def("GetActiveSection", &CUIPdaWnd::GetActiveSection)
-				.def("GetTabControl", &CUIPdaWnd::GetTabControl),
+				.def("GetTabControl", &CUIPdaWnd::GetTabControl)
+				.def("SwitchZoom", &pda_switch_zoom),
 
 				class_< CUIMainIngameWnd, CUIWindow>("CUIMainIngameWnd")
 				.def(constructor<>())
@@ -477,6 +434,9 @@ void CUIActorMenu::script_register(lua_State *L)
 				.def_readonly("UIStaticQuickHelp", &CUIMainIngameWnd::UIStaticQuickHelp)
 				.def_readonly("UIMotionIcon", &CUIMainIngameWnd::UIMotionIcon)
 				.def_readonly("UIZoneMap", &CUIMainIngameWnd::UIZoneMap)
+				.def_readonly("UICompassBar", &CUIMainIngameWnd::UICompassBar)
+				.def("SetNavigationMode", &CUIMainIngameWnd::SetNavigationModeBool)
+				.def("IsCompassBarMode", &CUIMainIngameWnd::IsCompassBarMode)
 				.def_readonly("m_ui_hud_states", &CUIMainIngameWnd::m_ui_hud_states)
 				.def_readonly("m_ind_bleeding", &CUIMainIngameWnd::m_ind_bleeding)
 				.def_readonly("m_ind_radiation", &CUIMainIngameWnd::m_ind_radiation)
@@ -485,6 +445,7 @@ void CUIActorMenu::script_register(lua_State *L)
 				.def_readonly("m_ind_helmet_broken", &CUIMainIngameWnd::m_ind_helmet_broken)
 				.def_readonly("m_ind_outfit_broken", &CUIMainIngameWnd::m_ind_outfit_broken)
 				.def_readonly("m_ind_overweight", &CUIMainIngameWnd::m_ind_overweight)
+				.def_readonly("m_ind_overvolume", &CUIMainIngameWnd::m_ind_overvolume)
 				.def_readonly("m_ind_boost_psy", &CUIMainIngameWnd::m_ind_boost_psy)
 				.def_readonly("m_ind_boost_radia", &CUIMainIngameWnd::m_ind_boost_radia)
 				.def_readonly("m_ind_boost_chem", &CUIMainIngameWnd::m_ind_boost_chem)
@@ -500,6 +461,12 @@ void CUIActorMenu::script_register(lua_State *L)
 				.def_readonly("visible", &CUIZoneMap::visible)
 				.def("MapFrame", &CUIZoneMap::MapFrame)
 				.def("Background", &CUIZoneMap::Background),
+
+				class_< CUICompassBar >("CUICompassBar")
+				.def(constructor<>())
+				.property("visible", &CUICompassBar::GetHudVisible, &CUICompassBar::SetHudVisible)
+				.def("Background", &CUICompassBar::Background)
+				.def("GetFrame", &CUICompassBar::GetFrame),
 
 				class_< CUIMotionIcon, CUIWindow>("CUIMotionIcon")
 				.def(constructor<>()),

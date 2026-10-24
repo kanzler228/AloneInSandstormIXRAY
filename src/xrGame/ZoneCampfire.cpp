@@ -1,7 +1,6 @@
 #include "StdAfx.h"
 #include "ZoneCampfire.h"
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 #include "GamePersistent.h"
 #include "../xrEngine/LightAnimLibrary.h"
 /*
@@ -28,7 +27,7 @@ CZoneCampfire::~CZoneCampfire()
 	m_disabled_sound.destroy	();
 }
 
-void CZoneCampfire::Load(LPCSTR section)
+void CZoneCampfire::Load(const char* section)
 {
 	inherited::Load(section);
 }
@@ -39,15 +38,15 @@ void CZoneCampfire::GoEnabledState()
 	
 	if(m_pDisabledParticles)
 	{
-		m_pDisabledParticles->Stop	(FALSE);
+		m_pDisabledParticles->Stop	(false);
 		Particles::Details::Destroy	(m_pDisabledParticles);
 	}
 
 	m_disabled_sound.stop		();
 	m_disabled_sound.destroy	();
 
-	LPCSTR str						= pSettings->r_string(cNameSect(),"enabling_particles");
-	m_pEnablingParticles			= Particles::Details::Create(str,FALSE);
+	const char* str						= pSettings->r_string(cNameSect(),"enabling_particles");
+	m_pEnablingParticles			= Particles::Details::Create(str,false);
 	m_pEnablingParticles->UpdateParent(XFORM(),zero_vel);
 	m_pEnablingParticles->Play		(false);
 }
@@ -57,8 +56,8 @@ void CZoneCampfire::GoDisabledState()
 	inherited::GoDisabledState		();
 
 	R_ASSERT						(nullptr==m_pDisabledParticles);
-	LPCSTR str						= pSettings->r_string(cNameSect(),"disabled_particles");
-	m_pDisabledParticles			= Particles::Details::Create(str,FALSE);
+	const char* str						= pSettings->r_string(cNameSect(),"disabled_particles");
+	m_pDisabledParticles			= Particles::Details::Create(str,false);
 	m_pDisabledParticles->UpdateParent	(XFORM(),zero_vel);
 	m_pDisabledParticles->Play			(false);
 	
@@ -118,7 +117,7 @@ void CZoneCampfire::PlayIdleParticles(bool bIdleLight)
 		inherited::PlayIdleParticles(bIdleLight);
 		if(m_pEnablingParticles)
 		{
-			m_pEnablingParticles->Stop	(FALSE);
+			m_pEnablingParticles->Stop	(false);
 			Particles::Details::Destroy	(m_pEnablingParticles);
 		}
 	}
@@ -130,10 +129,10 @@ void CZoneCampfire::StopIdleParticles(bool bIdleLight)
 		inherited::StopIdleParticles(bIdleLight);
 }
 
-BOOL CZoneCampfire::AlwaysTheCrow()
+bool CZoneCampfire::AlwaysTheCrow()
 {
 	if(m_turn_time)
-		return TRUE;
+		return true;
 	else
 		return inherited::AlwaysTheCrow();
 }

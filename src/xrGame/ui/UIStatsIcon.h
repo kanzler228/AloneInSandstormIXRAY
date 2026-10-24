@@ -2,14 +2,14 @@
 
 #include "../../xrUI/Widgets/UIStatic.h"
 
-class CUIStatsIcon : public CUIStatic 
+class CUIStatsIcon final : public CUIStatic
 {
 	friend class CUIStatsPlayerList;
 	friend class UITeamPanels;
 
 public:
 	CUIStatsIcon		();
-	void SetValue		(LPCSTR str);
+	void SetValue		(const char* str);
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIStatic* ui_cast_static() { return this; }

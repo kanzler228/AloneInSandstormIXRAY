@@ -8,6 +8,7 @@
 #include "PHDisabling.h"
 
 #include "../xrEngine/IPhysicsShell.h"
+#include "../xrEngine/AI/alife_space.h"
 
 
 class IPhysicsShellHolder;
@@ -17,9 +18,7 @@ class ICollisionDamageInfo;
 class CElevatorState;
 class CPHActorCharacter;
 class CPHAICharacter;
-namespace ALife {
-	enum EHitType;
-};
+
  enum EEnvironment
 			{
 				peOnGround,
@@ -141,7 +140,7 @@ virtual     void		SetCamDir							(const Fvector& cam_dir)									=0 ;
 virtual	const Fvector&	CamDir								()const														=0 ;
 virtual		Fvector		GetAcceleration						()															=0 ;
 virtual		void		SetPosition							(const Fvector &pos)										=0 ;
-virtual		void		SetApplyGravity						(BOOL flag)						{ dBodySetGravityMode(m_body,flag); }
+virtual		void		SetApplyGravity						(bool flag)						{ dBodySetGravityMode(m_body,flag); }
 virtual		void		SetObjectContactCallbackData		( void* callback )											=0 ;
 virtual		void		SetObjectContactCallback			(ObjectContactCallbackFun* callback)						=0 ;
 virtual		void		SetWheelContactCallback				(ObjectContactCallbackFun* callback)						=0 ;

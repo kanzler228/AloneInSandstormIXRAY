@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_animation_base.h"
 #include "control_direction_base.h"
 #include "control_movement_base.h"
@@ -149,7 +149,7 @@ void CControlAnimationBase::set_override_animation (EMotionAnim anim, u32 index)
 	m_override_animation_index	=	index;
 }
 
-void CControlAnimationBase::set_override_animation (pcstr name)
+void CControlAnimationBase::set_override_animation (const char* name)
 {
 	for (	u32 anim_type	=	0;
 				anim_type	<	m_anim_storage.size();
@@ -160,13 +160,13 @@ void CControlAnimationBase::set_override_animation (pcstr name)
 		if ( !anim_item )
 			continue;
 
-		pcstr anim_name						=	anim_item->target_name.c_str();
+		const char* anim_name						=	anim_item->target_name.c_str();
 		if ( strstr(name, anim_name ? anim_name : "") == name )
 		{
-			pcstr const anim_index_string	=	name + anim_item->target_name.size();
+			const char* const anim_index_string	=	name + anim_item->target_name.size();
 
 			u32 anim_index			=	0;
-			sscanf						(anim_index_string, "%d", &anim_index);
+			sscanf						(anim_index_string, "%u", &anim_index);
 			set_override_animation		((EMotionAnim)anim_type, anim_index);
 
 			return;
@@ -260,7 +260,7 @@ void CControlAnimationBase::SelectVelocities()
 		} 
 
 		const CDetailPathManager::STravelParams &current_velocity = m_object->movement().detail().velocity(cur_point_velocity_index);
-		path_vel.set(_abs(current_velocity.linear_velocity), current_velocity.real_angular_velocity);
+		path_vel.set(std::abs(current_velocity.linear_velocity), current_velocity.real_angular_velocity);
 	}
 
 	SAnimItem *item_it = m_anim_storage[cur_anim_info().get_motion()];
@@ -276,14 +276,14 @@ void CControlAnimationBase::SelectVelocities()
 	// установка линейной скорости	
 	if (m_object->state_invisible) {
 		// если невидимый, то установить скорость из пути
-		m_object->move().set_velocity(_abs(path_vel.linear));
+		m_object->move().set_velocity(std::abs(path_vel.linear));
 	} else {
 		
-		if (fis_zero(_abs(anim_vel.linear))) stop_now();
+		if (fis_zero(std::abs(anim_vel.linear))) stop_now();
 		else {
 			// - проверить на возможность торможения
-			if (!accel_check_braking(-2.f, _abs(anim_vel.linear))) {
-				m_object->move().set_velocity(_abs(anim_vel.linear));
+			if (!accel_check_braking(-2.f, std::abs(anim_vel.linear))) {
+				m_object->move().set_velocity(std::abs(anim_vel.linear));
 				//no braking mode
 			} else {
 				m_object->move().stop_accel();

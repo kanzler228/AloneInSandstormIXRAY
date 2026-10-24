@@ -1,14 +1,6 @@
 #include "StdAfx.h"
 #include "hud_item_object.h"
 
-CHudItemObject::CHudItemObject			()
-{
-}
-
-CHudItemObject::~CHudItemObject			()
-{
-}
-
 DLL_Pure *CHudItemObject::_construct	()
 {
 	CInventoryItemObject::_construct();
@@ -16,7 +8,7 @@ DLL_Pure *CHudItemObject::_construct	()
 	return						(this);
 }
 
-void CHudItemObject::Load				(LPCSTR section)
+void CHudItemObject::Load				(const char* section)
 {
 	CInventoryItemObject::Load	(section);
 	CHudItem::Load				(section);
@@ -29,12 +21,12 @@ bool CHudItemObject::Action				(u16 cmd, u32 flags)
 	return						(CHudItem::Action(cmd,flags));
 }
 
-void CHudItemObject::SwitchState		(u32 S)
+void CHudItemObject::SwitchState		(u8 S)
 {
 	CHudItem::SwitchState		(S);
 }
 
-void CHudItemObject::OnStateSwitch		(u32 S)
+void CHudItemObject::OnStateSwitch		(u8 S)
 {
 	CHudItem::OnStateSwitch		(S);
 }
@@ -75,7 +67,7 @@ void CHudItemObject::OnH_A_Independent	()
 	CInventoryItemObject::OnH_A_Independent	();
 }
 
-BOOL CHudItemObject::net_Spawn			(CSE_Abstract* DC)
+bool CHudItemObject::net_Spawn			(CSE_Abstract* DC)
 {
 	return						(
 		CInventoryItemObject::net_Spawn(DC) &&

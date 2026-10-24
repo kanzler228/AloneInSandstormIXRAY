@@ -113,6 +113,10 @@ CResourceManager::~CResourceManager		()
 #ifdef DEBUG
 	Dump(false);
 #endif
+
+#ifdef USE_DX11
+	m_xmlBlendCache.clear();
+#endif
 }
 
 void CResourceManager::Dump(bool bBrief)
@@ -132,4 +136,9 @@ void CResourceManager::Dump(bool bBrief)
 	Msg		("* RM_Dump: v_passes  : %d",		v_passes.size());
 	Msg		("* RM_Dump: v_elements: %d",		v_elements.size());
 	Msg		("* RM_Dump: v_shaders : %d",		v_shaders.size());
+}
+
+CSVGStorage* CResourceManager::GetSVGStorage() const
+{
+	return m_pStorageSVG;
 }

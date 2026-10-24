@@ -31,9 +31,9 @@ struct ENGINE_API SPPInfo {
 			return *this;
 		}
 	};
-	float		blur, gray;
+	float		blur = 0, gray = 0;
 	struct SDuality { 
-		float h, v; 
+		float h = 0, v = 0; 
 		SDuality() = default;
 		SDuality				(float _h, float _v):h(_h),v(_v){}
 		IC SDuality& set		(float _h, float _v)			{
@@ -52,9 +52,9 @@ struct ENGINE_API SPPInfo {
 		}
 	} noise;
 
-	SColor				color_base;
-	SColor				color_gray;
-	SColor				color_add;
+	SColor color_base = {};
+	SColor color_gray = {};
+	SColor color_add = {};
 	float				cm_influence;
 	float				cm_interpolate;
 	shared_str			cm_tex1;
@@ -65,7 +65,7 @@ struct ENGINE_API SPPInfo {
 	void normalize		();
 	SPPInfo				();
 	SPPInfo&	lerp	(const SPPInfo& def, const SPPInfo& to, float factor);
-	void		validate(LPCSTR str);
+	void		validate(const char* str);
 };
 
 using EffectorCamVec = xr_list<CEffectorCam*>;
@@ -136,5 +136,7 @@ public:
 ENGINE_API extern SPPInfo					pp_identity;
 ENGINE_API extern SPPInfo					pp_zero;
 
-ENGINE_API extern float						psCamInert;
-ENGINE_API extern float						psCamSlideInert;
+ENGINE_API extern float psCamInert;
+ENGINE_API extern float psCamFovInert;
+ENGINE_API extern float psCamFarInert;
+ENGINE_API extern float psCamAspectInert;

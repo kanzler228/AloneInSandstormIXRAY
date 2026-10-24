@@ -2,28 +2,24 @@
 #include "pch_script.h"
 #include "WeaponSVD.h"
 
-CWeaponSVD::CWeaponSVD(void)
-{}
-
-CWeaponSVD::~CWeaponSVD(void)
-{}
+#include "../xrEngine/GamepadService.h"
 
 void CWeaponSVD::switch2_Fire	()
 {
 	m_bFireSingleShot			= true;
 	bWorking					= false;
-	SetPending					(TRUE);
+	SetPending					(true);
 	m_iShotNum					= 0;
 	m_bStopedAfterQueueFired	= false;
 
 }
 
-void CWeaponSVD::OnAnimationEnd(u32 state) 
+void CWeaponSVD::OnAnimationEnd(u8 state) 
 {
 	switch(state) 
 	{
 	case eFire:	{
-		SetPending			(FALSE);
+		SetPending			(false);
 		}break;	// End of reload animation
 	}
 	inherited::OnAnimationEnd(state);
@@ -40,3 +36,4 @@ void CWeaponSVD::script_register	(lua_State *L)
 			.def(constructor<>())
 	];
 }
+

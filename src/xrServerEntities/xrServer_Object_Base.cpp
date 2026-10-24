@@ -6,7 +6,7 @@
 //	Description : Server base object
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "xrServer_Objects.h"
 #include "xrMessages.h"
 #include "game_base_space.h"
@@ -27,8 +27,8 @@
 #	include "alife_simulator.h"
 #endif 
 
-LPCSTR script_section = "script";
-LPCSTR current_version = "current_server_entity_version";
+const char* script_section = "script";
+const char* current_version = "current_server_entity_version";
 
 u16	script_server_object_version	()
 {
@@ -65,11 +65,11 @@ void CPureServerObject::save				(NET_Packet	&tNetPacket)
 ////////////////////////////////////////////////////////////////////////////
 // CSE_Abstract
 ////////////////////////////////////////////////////////////////////////////
-CSE_Abstract::CSE_Abstract					(LPCSTR caSection)
+CSE_Abstract::CSE_Abstract					(const char* caSection)
 {
 	m_editor_flags.zero			();
 	RespawnTime					= 0;
-	net_Ready					= FALSE;
+	net_Ready					= false;
 	ID							= 0xffff;
 	ID_Parent					= 0xffff;
 	ID_Phantom					= 0xffff;
@@ -89,11 +89,11 @@ CSE_Abstract::CSE_Abstract					(LPCSTR caSection)
 
 //	m_spawn_probability			= 1.f;
 	m_spawn_flags.zero			();
-	m_spawn_flags.set			(flSpawnEnabled			,TRUE);
-	m_spawn_flags.set			(flSpawnOnSurgeOnly		,TRUE);
-	m_spawn_flags.set			(flSpawnSingleItemOnly	,TRUE);
-	m_spawn_flags.set			(flSpawnIfDestroyedOnly	,TRUE);
-	m_spawn_flags.set			(flSpawnInfiniteCount	,TRUE);
+	m_spawn_flags.set			(flSpawnEnabled			,true);
+	m_spawn_flags.set			(flSpawnOnSurgeOnly		,true);
+	m_spawn_flags.set			(flSpawnSingleItemOnly	,true);
+	m_spawn_flags.set			(flSpawnIfDestroyedOnly	,true);
+	m_spawn_flags.set			(flSpawnInfiniteCount	,true);
 //	m_max_spawn_count			= 1;
 //	m_spawn_control				= "";
 //	m_spawn_count				= 0;
@@ -104,7 +104,7 @@ CSE_Abstract::CSE_Abstract					(LPCSTR caSection)
 	m_ini_file					= 0;
 
 	if (pSettings->line_exist(caSection,"custom_data")) {
-		pcstr const raw_file_name	= pSettings->r_string(caSection,"custom_data");
+		const char* const raw_file_name	= pSettings->r_string(caSection,"custom_data");
 		IReader const* config	= 0;
 #ifdef XRGAME_EXPORTS
 		if ( ai().get_alife() )
@@ -113,7 +113,7 @@ CSE_Abstract::CSE_Abstract					(LPCSTR caSection)
 #endif // #ifdef XRGAME_EXPORTS
 		{
 			string_path			file_name;
-			FS.update_path		(file_name,"$game_config$", raw_file_name);
+			FS.update_path		(file_name,_game_config_, raw_file_name);
 			if ( FS.exist(file_name) )
 				config			= FS.r_open(file_name);
 		}
@@ -174,7 +174,7 @@ CInifile &CSE_Abstract::spawn_ini			()
 
 		m_ini_file = new CInifile(
 			&temp,
-			FS.get_path("$game_config$")->m_Path
+			FS.get_path(_game_config_)->m_Path
 		);
 	}
 #pragma warning(push)
@@ -183,7 +183,7 @@ CInifile &CSE_Abstract::spawn_ini			()
 	return						(*m_ini_file);
 }
 	
-void CSE_Abstract::Spawn_Write				(NET_Packet	&tNetPacket, BOOL bLocal)
+void CSE_Abstract::Spawn_Write				(NET_Packet	&tNetPacket, bool bLocal)
 {
 	// generic
 	tNetPacket.w_begin			(M_SPAWN);
@@ -198,7 +198,7 @@ void CSE_Abstract::Spawn_Write				(NET_Packet	&tNetPacket, BOOL bLocal)
 	tNetPacket.w_u16			(ID_Parent		);
 	tNetPacket.w_u16			(ID_Phantom		);
 
-	s_flags.set					(M_SPAWN_VERSION,TRUE);
+	s_flags.set					(M_SPAWN_VERSION,true);
 	if (bLocal)
 		tNetPacket.w_u16		(u16(s_flags.flags|M_SPAWN_OBJECT_LOCAL) );
 	else
@@ -258,7 +258,7 @@ enum EGameTypes {
 	GAME_DUMMY							= 255	// temporary game type
 };
 
-BOOL CSE_Abstract::Spawn_Read				(NET_Packet	&tNetPacket)
+bool CSE_Abstract::Spawn_Read				(NET_Packet	&tNetPacket)
 {
 	u16							dummy16;
 	// generic
@@ -296,7 +296,7 @@ BOOL CSE_Abstract::Spawn_Read				(NET_Packet	&tNetPacket)
 	if (0==m_wVersion) {
 		tNetPacket.r_pos		-= sizeof(u16);
 		m_wVersion				= 0;
-        return					FALSE;
+        return					false;
 	}
 
 	if (m_wVersion > 69)
@@ -347,7 +347,7 @@ BOOL CSE_Abstract::Spawn_Read				(NET_Packet	&tNetPacket)
 	bool b2						= size > sizeof(size)|| (tNetPacket.inistream != nullptr);
 	R_ASSERT3					( (b1 || b2),"cannot read object, which is not successfully saved :(",name_replace());
 	STATE_Read					(tNetPacket,size);
-	return						TRUE;
+	return						true;
 }
 
 void	CSE_Abstract::load			(NET_Packet	&tNetPacket)
@@ -385,12 +385,12 @@ CSE_Abstract *CSE_Abstract::init	()
 	return						(this);
 }
 
-LPCSTR		CSE_Abstract::name			() const
+const char*		CSE_Abstract::name			() const
 {
 	return	(*s_name);
 }
 
-LPCSTR		CSE_Abstract::name_replace	() const
+const char*		CSE_Abstract::name_replace	() const
 {
 	return	(s_name_replace);
 }
@@ -414,7 +414,7 @@ xr_token game_types[]={
 	{ "any_game",				eGameIDNoGame				},
 	{ "single",					eGameIDSingle				},
 	{ "deathmatch",				eGameIDDeathmatch			},
-	{ "team_deathmatch",		eGameIDTeamDeathmatch		},
+	{ "teamdeathmatch",			eGameIDTeamDeathmatch		},
 	{ "artefacthunt",			eGameIDArtefactHunt			},
 	{ "capture_the_artefact",	eGameIDCaptureTheArtefact	},
 	{ "freemp",					eGameIDFreeMP				},
@@ -423,7 +423,7 @@ xr_token game_types[]={
 };
 
 #if !defined(XRGAME_EXPORTS)
-void CSE_Abstract::FillProps(LPCSTR pref, PropItemVec& items)
+void CSE_Abstract::FillProps(const char* pref, PropItemVec& items)
 {
 #ifdef XRSE_FACTORY_EXPORTS
     m_gameType.FillProp(pref, items);
@@ -437,7 +437,7 @@ void CSE_Abstract::FillProps(LPCSTR pref, PropItemVec& items)
 */
 }
 
-void CSE_Abstract::FillProp					(LPCSTR pref, PropItemVec &items)
+void CSE_Abstract::FillProp					(const char* pref, PropItemVec &items)
 {
 	CScriptValueContainer::assign();
 	CScriptValueContainer::clear();

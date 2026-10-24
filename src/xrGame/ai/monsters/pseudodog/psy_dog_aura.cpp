@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "psy_dog_aura.h"
 #include "psy_dog.h"
 #include "../../../Actor.h"
@@ -23,7 +23,7 @@ void CPPEffectorPsyDogAura::switch_off()
 }
 
 
-BOOL CPPEffectorPsyDogAura::update()
+bool CPPEffectorPsyDogAura::update()
 {
 	// update factor
 	if (m_effector_state == eStatePermanent) {
@@ -36,10 +36,10 @@ BOOL CPPEffectorPsyDogAura::update()
 			m_effector_state	= eStatePermanent;
 			m_factor			= 1.f;
 		} else if (m_factor < 0) {
-			return FALSE;
+			return false;
 		}
 	}
-	return TRUE;
+	return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -51,8 +51,10 @@ void CPsyDogAura::reinit()
 	m_time_actor_saw_phantom	= 0;
 	m_time_phantom_saw_actor	= 0;
 
-	m_actor						= smart_cast<CActor *>(Level().CurrentEntity());
-	VERIFY						(m_actor);
+	CObject* current_entity = Level().CurrentEntity();
+
+	m_actor = current_entity != nullptr ? current_entity->cast_actor() : nullptr;
+	VERIFY(m_actor);
 }
 
 void CPsyDogAura::update_schedule()
@@ -83,7 +85,7 @@ void CPsyDogAura::update_schedule()
 			ENEMIES_MAP::const_iterator E_ = (*it)->EnemyMemory.get_memory().end();
 			for (; I_ != E_; ++I_) {
 				if (I_->first == m_actor) {
-					m_time_phantom_saw_actor = _max(m_time_phantom_saw_actor, I_->second.time);
+					m_time_phantom_saw_actor = std::max(m_time_phantom_saw_actor, I_->second.time);
 				}
 			}
 		}

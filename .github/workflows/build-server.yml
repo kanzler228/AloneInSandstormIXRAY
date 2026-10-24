@@ -7,7 +7,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'cmake/**'
-      - 'gamedata/**'
+      - 'gamedata*/**'
       - 'sdk/**'
       - 'src/**'
       - '**/CMakeLists.txt'
@@ -19,7 +19,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'cmake/**'
-      - 'gamedata/**'
+      - 'gamedata*/**'
       - 'sdk/**'
       - 'src/**'
       - '**/CMakeLists.txt'
@@ -127,7 +127,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup compressor
-        uses: ixray-team/setup-compressor@v0.1
+        uses: ixray-team/setup-compressor@v0.3
         with:
           codebase: '1.6-stcop'
 

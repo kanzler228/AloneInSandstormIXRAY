@@ -1,8 +1,6 @@
-#ifndef _XR_COMM_
-#define _XR_COMM_
-
-	//#include "RedImageTool/RedImage.hpp"
-	#include "../../xrEngine/xrLevel.h"
+#pragma once
+#include <RedImage/RedImage.hpp>
+#include "../../xrEngine/xrLevel.h"
 #pragma pack(push,4)
 
 const u32 XR_MAX_PORTAL_VERTS	= 6;
@@ -45,18 +43,18 @@ struct b_texture_real
 	string128			name;
 	u32					dwWidth;
 	u32					dwHeight;
-	BOOL				bHasAlpha;
+	bool				bHasAlpha;
 	u32					RESERVE;
 };
 
-//struct b_texture
-//{
-//	string128			name;
-//	u32					dwWidth;
-//	u32					dwHeight;
-//	BOOL				bHasAlpha;
-//	RedImageTool::RedImage pSurface;
-//};
+struct b_texture
+{
+	string128			name = {};
+	u32					dwWidth;
+	u32					dwHeight;
+	bool				bHasAlpha;
+	RedImageTool::RedImage pSurface;
+};
 
 struct b_light_control						// controller or "layer", 30fps
 {
@@ -77,7 +75,7 @@ struct b_light_static	: public b_light	// For static lighting
 
 struct b_light_dynamic	: public b_light	// For dynamic models
 {
-	svector<u16,16>		sectors;
+	FixedVector<u16,16>		sectors;
 };
 
 struct b_glow
@@ -92,7 +90,7 @@ struct b_portal
 {
 	u16					sector_front;
 	u16					sector_back;
-	svector<Fvector,XR_MAX_PORTAL_VERTS>	vertices;
+	FixedVector<Fvector,XR_MAX_PORTAL_VERTS>	vertices;
 };
 
 struct b_lod_face
@@ -161,7 +159,7 @@ struct b_params
 
     void SaveLTX(CInifile& ini)
     {
-    	LPCSTR section 	= "build_params";
+    	const char* section 	= "build_params";
     	ini.w_float		(section,"smooth_angle",m_sm_angle);
     	ini.w_float		(section,"weld_distance",m_weld_distance);
     	ini.w_float		(section,"light_pixel_per_meter",m_lm_pixels_per_meter);
@@ -179,7 +177,7 @@ struct b_params
     }
     void LoadLTX(CInifile& ini)
     {
-    	LPCSTR section 			= "build_params";
+    	const char* section 			= "build_params";
     	m_sm_angle				= ini.r_float		(section,"smooth_angle");
     	m_weld_distance			= ini.r_float		(section,"weld_distance");
     	m_lm_pixels_per_meter 	= ini.r_float		(section,"light_pixel_per_meter");
@@ -245,5 +243,3 @@ enum EBUILD_CHUNKS
 
 	EB_FORCE_DWORD = u32(-1)
 };
-
-#endif

@@ -3,23 +3,22 @@
 
 class CObjectAnimator;
 
-class CTorridZone :public CMosquitoBald
+class CTorridZone final : public CMosquitoBald
 {
-private:
-	typedef	CCustomZone	inherited;
-	CObjectAnimator		*m_animator;
+	using inherited = CAnomalyZone;
+	CObjectAnimator* m_animator;
+
 public:
-						CTorridZone			();
-	virtual				~CTorridZone		();
-	virtual void		UpdateWorkload		(u32 dt);
-	virtual void		shedule_Update		(u32 dt);
-	BOOL				net_Spawn			(CSE_Abstract* DC);
-	virtual void		net_Destroy			();
-	virtual bool		IsVisibleForZones	() { return true;		}
-	virtual	bool		Enable				();
-	virtual	bool		Disable				();
-	virtual bool		register_schedule() const {return false;}
+	CTorridZone();
+	virtual ~CTorridZone();
+	virtual void UpdateWorkload(u32 dt);
+	virtual void shedule_Update(u32 dt);
+	bool net_Spawn(CSE_Abstract* DC);
+	virtual bool IsVisibleForZones() { return true; }
+	virtual bool Enable();
+	virtual bool Disable();
 	// Lain: added
-	virtual bool        light_in_slow_mode  ();
-	virtual BOOL        AlwaysTheCrow       ();
+	virtual bool light_in_slow_mode();
+	virtual bool AlwaysTheCrow();
+	CTorridZone* cast_torrid_zone() override { return this; }
 };

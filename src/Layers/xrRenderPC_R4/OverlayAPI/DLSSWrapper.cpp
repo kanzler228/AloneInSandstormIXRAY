@@ -4,125 +4,230 @@
 
 DLSSWrapper g_DLSSWrapper;
 
-bool DLSSInited = false;
 extern ENGINE_API u32 ps_render_scale_preset;
 extern ENGINE_API float ps_render_scale;
 
-static shared_str GetOptimalPresetForScale(float scale) {
-	if (scale >= 0.9f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
-	else if (scale >= 0.7f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality;
-	else if (scale >= 0.6f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced;
-	else if (scale >= 0.5f) return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance;
-	else return NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance;
-}
-
-void DLSSWrapper::Create(const ContextParameters& Parameters)
+u32 DLSSWrapper::GetOptimalPresetForScale(float scale)
 {
-	PROF_EVENT("DLSSWrapper::Create");
-	if (m_created)
+	if (ps_render_scale_preset == 5)
 	{
-		Destroy();
+		if (scale >= 0.9f)
+		{
+			return 0;
+		}
+		else if (scale >= 0.7f)
+		{
+			return 1;
+		}
+		else if (scale >= 0.6f)
+		{
+			return 2;
+		}
+		else if (scale >= 0.5f)
+		{
+			return 3;
+		}
+		else
+		{
+			return 4;
+		}
 	}
 	
+	return ps_render_scale_preset;
+}
+
+void DLSSWrapper::Create()
+{
+	Destroy();
+
 	if (RFeatureLevel < D3D_FEATURE_LEVEL_11_1)
 	{
 		return;
 	}
 
 #ifdef IXR_X64
-	NVSDK_NGX_Result result;
+	NVSDK_NGX_Result Result;
+
 	if (!DLSSInited)
 	{
-		result = NVSDK_NGX_D3D11_Init(1602, L"", RDevice);
-		if (result != NVSDK_NGX_Result_Success) {
+		Result = NVSDK_NGX_D3D11_Init(1602, L"", RDevice);
+
+		if (Result != NVSDK_NGX_Result_Success)
+		{
 			return;
 		}
 
 		DLSSInited = true;
 	}
 
-	result = NVSDK_NGX_D3D11_GetCapabilityParameters(&NgxParameters);
-	if (result != NVSDK_NGX_Result_Success)
+	Result = NVSDK_NGX_D3D11_GetCapabilityParameters(&NgxParameters);
+
+	if (Result != NVSDK_NGX_Result_Success)
 	{
 		return;
 	}
 
-	uint32_t needsUpdatedDriver = 1;
-	result = NgxParameters->Get(NVSDK_NGX_Parameter_SuperSampling_NeedsUpdatedDriver, &needsUpdatedDriver);
-	if (needsUpdatedDriver)
+	uint32_t NeedsUpdatedDriver = 1;
+	Result = NgxParameters->Get(NVSDK_NGX_Parameter_SuperSampling_NeedsUpdatedDriver, &NeedsUpdatedDriver);
+
+	if (NeedsUpdatedDriver)
 	{
 		Msg("! PLEASE UPDATE YOUR DRIVER");
 	}
 
-	uint32_t dlssAvailable = 0;
-	result = NgxParameters->Get(NVSDK_NGX_Parameter_SuperSampling_Available, &dlssAvailable);
-	if (!dlssAvailable)
+	uint32_t DlssAvailable = 0;
+	Result = NgxParameters->Get(NVSDK_NGX_Parameter_SuperSampling_Available, &DlssAvailable);
+
+	if (!DlssAvailable)
 	{
 		NVSDK_NGX_D3D11_DestroyParameters(NgxParameters);
 		NgxParameters = nullptr;
 		return;
 	}
-	// Устанавливаем пресет для выбранного режима качества
 
-	shared_str presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+	Created = true;
+#endif
+}
 
-	if (ps_render_scale_preset == 5)
+bool DLSSWrapper::GetRenderScale(float& RenderScale)
+{
+	if (!Created || !NgxParameters)
 	{
-		presetParameter = GetOptimalPresetForScale(ps_render_scale);
+		Msg("! GetRenderScale DLSSWrapper not valid. Fallback!");
+		return false;
 	}
-	else
+
+	u32 PresetID = GetOptimalPresetForScale(ps_render_scale);
+
+	NVSDK_NGX_PerfQuality_Value PerfQualityValue = NVSDK_NGX_PerfQuality_Value_DLAA;
+
+	switch (PresetID)
 	{
-		switch (ps_render_scale_preset) {
 		case 4:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance;
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_UltraPerformance;
 			break;
+		}
 		case 3:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance;
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxPerf;
 			break;
+		}
 		case 2:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced;
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_Balanced;
 			break;
+		}
 		case 1:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality;
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxQuality;
 			break;
-		case 0:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
-			break;
+		}
 		default:
-			presetParameter = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_DLAA;
+			break;
 		}
 	}
 
-	NgxParameters->Set(presetParameter.c_str(), static_cast<int>(NVSDK_NGX_DLSS_Hint_Render_Preset_F));
+	u32 RenderW = 0, RenderH = 0, MaxW = 0, MinW = 0, MaxH = 0, MinH = 0; float Sharp = 0;
+	NVSDK_NGX_Result Result = NGX_DLSS_GET_OPTIMAL_SETTINGS(NgxParameters, Device.TargetWidth, Device.TargetHeight, PerfQualityValue, &RenderW, &RenderH, &MaxW, &MaxH, &MinW, &MinH, &Sharp);
 
-	int32_t flags = 0;
-	flags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
-	flags |= NVSDK_NGX_DLSS_Feature_Flags_IsHDR;
-	//flags |= NVSDK_NGX_DLSS_Feature_Flags_DoSharpening;
+	if (Result != NVSDK_NGX_Result_Success)
+	{
+		Msg("! NGX_DLSS_GET_OPTIMAL_SETTINGS not valid. Fallback!");
+		return false;
+	}
 
-	NVSDK_NGX_DLSS_Create_Params dlssCreateParams = {};
-	dlssCreateParams.Feature.InWidth = Parameters.renderSize.x;
-	dlssCreateParams.Feature.InHeight = Parameters.renderSize.y;
-	dlssCreateParams.Feature.InTargetWidth = Parameters.displaySize.x;
-	dlssCreateParams.Feature.InTargetHeight = Parameters.displaySize.y;
-	dlssCreateParams.InFeatureCreateFlags = flags;
-	result = NGX_D3D11_CREATE_DLSS_EXT(RContext, &Handle, NgxParameters, &dlssCreateParams);
-	if (result != NVSDK_NGX_Result_Success)
+	Msg("* DLSS Target - %dx%d, Min - %dx%d, Max - %dx%d, Sharp - %f", RenderW, RenderH, MaxW, MaxH, MinW, MinH, Sharp);
+	RenderScale = float(RenderH) / float(Device.TargetHeight);
+
+	return true;
+}
+
+void DLSSWrapper::Resize(const ContextParameters& Parameters)
+{
+	PROF_EVENT("DLSSWrapper::Resize");
+
+	if (!Created)
 	{
 		return;
 	}
 
-	m_created = true;
-#endif // IXR_X64
+#ifdef IXR_X64
+	// Устанавливаем пресет для выбранного режима качества
+	u32 PresetID = GetOptimalPresetForScale(ps_render_scale);
+
+	NVSDK_NGX_PerfQuality_Value PerfQualityValue = NVSDK_NGX_PerfQuality_Value_DLAA;
+	shared_str RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+
+	switch (PresetID)
+	{
+		case 4:
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_UltraPerformance;
+			RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance;
+			break;
+		}
+		case 3:
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxPerf;
+			RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance;
+			break;
+		}
+		case 2:
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_Balanced;
+			RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced;
+			break;
+		}
+		case 1:
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_MaxQuality;
+			RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality;
+			break;
+		}
+		default:
+		{
+			PerfQualityValue = NVSDK_NGX_PerfQuality_Value_DLAA;
+			RenderPreset = NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA;
+			break;
+		}
+	}
+
+	NgxParameters->Set(*RenderPreset, static_cast<int>(NVSDK_NGX_DLSS_Hint_Render_Preset_K));
+
+	Msg("* Resize DLSSWrapper Render Preset [%s]", *RenderPreset);
+
+	NVSDK_NGX_DLSS_Create_Params DLSSCreateParams = {};
+
+	DLSSCreateParams.Feature.InWidth = Parameters.renderSize.x;
+	DLSSCreateParams.Feature.InHeight = Parameters.renderSize.y;
+
+	DLSSCreateParams.Feature.InTargetWidth = Parameters.displaySize.x;
+	DLSSCreateParams.Feature.InTargetHeight = Parameters.displaySize.y;
+
+	DLSSCreateParams.Feature.InPerfQualityValue = PerfQualityValue;
+	DLSSCreateParams.InFeatureCreateFlags = 0;
+
+	DLSSCreateParams.InFeatureCreateFlags |= NVSDK_NGX_DLSS_Feature_Flags_IsHDR;
+	DLSSCreateParams.InFeatureCreateFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
+	DLSSCreateParams.InFeatureCreateFlags |= NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
+
+	NVSDK_NGX_Result Result = NGX_D3D11_CREATE_DLSS_EXT(RContext, &Handle, NgxParameters, &DLSSCreateParams);
+
+	if (Result != NVSDK_NGX_Result_Success)
+	{
+		Msg("! NGX_D3D11_CREATE_DLSS_EXT not valid. Need use FSR");
+		Created = false;
+		return;
+	}
+#endif
 }
 
 void DLSSWrapper::Destroy() 
 {
 #ifdef IXR_X64
-	//if (!m_created) {
-	//    return;
-	//}
-
 	if (Handle != nullptr)
 	{
 		NVSDK_NGX_D3D11_ReleaseFeature(Handle);
@@ -141,53 +246,50 @@ void DLSSWrapper::Destroy()
 		DLSSInited = false;
 	}
 
-	m_created = false;
-#endif // IXR_X64
+	Created = false;	
+#endif
 }
 
 bool DLSSWrapper::Draw(const DrawParameters& params)
 {
-	if(!m_created)
+	if(!Created)
 	{
 		Msg("! DLSSWrapper not created. Need use FSR");
 		return false;
 	}
 
 #ifdef IXR_X64
-	ID3D11Resource* resourceInput = params.unresolvedColorResource;
-	ID3D11Resource* resourceMv = params.motionvectorResource;
-	ID3D11Resource* resourceDepth = params.depthbufferResource;
-	ID3D11Resource* resourceOutput = params.resolvedColorResource;
+	NVSDK_NGX_D3D11_DLSS_Eval_Params DLSSEvalParams = {};
 
-	NVSDK_NGX_D3D11_DLSS_Eval_Params dlssEvalParams = {};
+	DLSSEvalParams.Feature.pInColor = params.unresolvedColorResource;
+	DLSSEvalParams.Feature.pInOutput = params.resolvedColorResource;
+	DLSSEvalParams.Feature.InSharpness = params.sharpness;
 
-	dlssEvalParams.Feature.pInColor = resourceInput;
-	dlssEvalParams.Feature.pInOutput = resourceOutput;
-	dlssEvalParams.Feature.InSharpness = params.sharpness;
+	DLSSEvalParams.pInDepth = params.depthbufferResource;
+	DLSSEvalParams.pInMotionVectors = params.motionvectorResource;
 
-	dlssEvalParams.pInDepth = resourceDepth;
-	dlssEvalParams.pInMotionVectors = resourceMv;
+	DLSSEvalParams.InRenderSubrectDimensions.Width = params.renderWidth;
+	DLSSEvalParams.InRenderSubrectDimensions.Height = params.renderHeight;
 
-	dlssEvalParams.InRenderSubrectDimensions.Width = params.renderWidth;
-	dlssEvalParams.InRenderSubrectDimensions.Height = params.renderHeight;
+	DLSSEvalParams.InJitterOffsetX = params.cameraJitterX;
+	DLSSEvalParams.InJitterOffsetY = params.cameraJitterY;
 
-	dlssEvalParams.InJitterOffsetX = params.cameraJitterX;
-	dlssEvalParams.InJitterOffsetY = params.cameraJitterY;
+	DLSSEvalParams.InReset = params.cameraReset;
 
-	dlssEvalParams.InReset = params.cameraReset;
+	DLSSEvalParams.InMVScaleX = -(float)params.renderWidth * 0.5f;
+	DLSSEvalParams.InMVScaleY = (float)params.renderHeight * 0.5f;
 
-	dlssEvalParams.InMVScaleX = -(float)params.renderWidth * 0.5f;    // adjust the x direction in motion vector to fit FSR2's requirement
-	dlssEvalParams.InMVScaleY = (float)params.renderHeight * 0.5f;
-
-	dlssEvalParams.pInTransparencyMask = params.transparencyAndCompositionResource;
+	DLSSEvalParams.pInTransparencyMask = params.transparencyAndCompositionResource;
+	DLSSEvalParams.InFrameTimeDeltaInMsec = params.frameTimeDelta;
 	
-	NVSDK_NGX_Result result = NGX_D3D11_EVALUATE_DLSS_EXT(RContext, Handle, NgxParameters, &dlssEvalParams);
-	if(result != NVSDK_NGX_Result_Success)
+	NVSDK_NGX_Result Result = NGX_D3D11_EVALUATE_DLSS_EXT(RContext, Handle, NgxParameters, &DLSSEvalParams);
+
+	if(Result != NVSDK_NGX_Result_Success)
 	{
 		Msg("! NGX_D3D11_EVALUATE_DLSS_EXT not valid. Need use FSR");
 		return false;
 	}
-#endif // IXR_X64
+#endif
 
 	return true;
 }

@@ -1,16 +1,20 @@
 #include "StdAfx.h"
+#include "pch_script.h"
+
 #include "UIMapInfo.h"
 #include "../../xrUI/Widgets/UIScrollView.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrEngine/string_table.h"
 
-CUIMapInfo::CUIMapInfo(){
-	m_view = new CUIScrollView();	
+CUIMapInfo::CUIMapInfo()
+{
+	m_view = new CUIScrollView();
 	AttachChild(m_view);
 }
 
-CUIMapInfo::~CUIMapInfo(){
+CUIMapInfo::~CUIMapInfo()
+{
 	xr_delete(m_view);
 }
 
@@ -18,7 +22,6 @@ void CUIMapInfo::InitMapInfo(Fvector2 pos, Fvector2 size)
 {
 	SetWndPos(pos);
 	SetWndSize(size);
-//.	m_view->SetWndPos(pos);
 	m_view->SetWndSize(size);
 	m_view->InitScrollView();
 	m_view->SetFixedScrollBar(false);
@@ -32,7 +35,7 @@ void CUIMapInfo::InitMapInfo(Fvector2 pos, Fvector2 size)
 						else																\
 							text += *g_pStringTable->translate(z);									\
 						text += "%c[default]\\n";											\
-						st = new CUITextWnd();											\
+						st = new CUIStatic();											\
 						st->SetTextComplexMode(true);										\
 						st->SetFont(txt_font);								\
 						st->SetTextColor(header_color);										\
@@ -41,7 +44,7 @@ void CUIMapInfo::InitMapInfo(Fvector2 pos, Fvector2 size)
 						st->AdjustHeightToText();											\
 						m_view->AddWindow(st, true)											\
 
-void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
+void CUIMapInfo::InitMap(const char* map_name, const char* map_ver)
 {
 	m_view->Clear();
 	if (nullptr == map_name)
@@ -51,13 +54,13 @@ void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
 	xml_doc.Load(CONFIG_PATH, UI_PATH, "ui_mapinfo.xml");
 
 
-	CUITextWnd* st;
+	CUIStatic* st;
     // try to find file with info
 	xr_string info_path = "text\\map_desc\\";
 	info_path += map_name;
 	info_path += ".ltx";
 
-	if (FS.exist("$game_config$", info_path.c_str()))
+	if (FS.exist(_game_config_, info_path.c_str()))
 	{
 		string_path				ltxPath;
 		FS.update_path			(ltxPath, CONFIG_PATH, info_path.c_str());
@@ -66,8 +69,8 @@ void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
 
 
 		//map name
-		st						= new CUITextWnd(); 
-		CUIXmlInit::InitTextWnd	(xml_doc,"map_name",0,st); 
+		st						= new CUIStatic();
+		CUIXmlInit::InitStatic	(xml_doc,"map_name",0,st); 
 
 		xr_string S				= g_pStringTable->translate(map_name).c_str();
 		if(map_ver)
@@ -121,7 +124,7 @@ void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
 
 			text += "%c[default]\\n";
 
-			st						= new CUITextWnd();
+			st						= new CUIStatic();
 			st->SetTextComplexMode	(true);
 			st->SetFont				(txt_font);
 			st->SetTextColor		(header_color);
@@ -138,8 +141,8 @@ void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
 	}
 	else
 	{
-		st							= new CUITextWnd(); 
-		CUIXmlInit::InitTextWnd		(xml_doc,"map_name",0,st); 
+		st							= new CUIStatic();
+		CUIXmlInit::InitStatic		(xml_doc,"map_name",0,st); 
 		st->SetTextST				(map_name);
 		st->SetWidth				(m_view->GetDesiredChildWidth());
 		st->AdjustHeightToText		();
@@ -147,6 +150,19 @@ void CUIMapInfo::InitMap(LPCSTR map_name, LPCSTR map_ver)
 	}
 }
 
-const char*	 CUIMapInfo::GetLargeDesc(){
+const char*	 CUIMapInfo::GetLargeDesc()
+{
 	return *m_large_desc;
+}
+
+using namespace luabind;
+
+#pragma optimize("s", on)
+void CUIMapInfo::script_register(lua_State* L)
+{
+	module(L)
+		[class_<CUIMapInfo, CUIWindow>("CUIMapInfo")
+			 .def(constructor<>())
+			 .def("Init", &CUIMapInfo::InitMapInfo)
+			 .def("InitMap", &CUIMapInfo::InitMap)];
 }

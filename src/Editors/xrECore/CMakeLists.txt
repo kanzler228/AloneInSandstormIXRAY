@@ -14,6 +14,11 @@ file(GLOB_RECURSE ECORE_SOURCE_EDITOR_FILES CONFIGURE_DEPENDS
 	"Editor/*.*"
 )
 
+file(GLOB_RECURSE ECORE_SOURCE_EDITOR_PUBLIC_FILES CONFIGURE_DEPENDS
+	"../Public/VIMP_Processor.*"
+	"../Public/object_sliding.*"
+)
+
 file(GLOB_RECURSE ECORE_SOURCE_WM_FILES CONFIGURE_DEPENDS
 	"WildMagic/*.*"
 )
@@ -58,7 +63,6 @@ file(GLOB_RECURSE ECORE_SOURCE_RENDER_FILES CONFIGURE_DEPENDS
 	"../../Layers/xrRender/dxFontRender.*"
 	"../../Layers/xrRender/dxLensFlareRender.*"
 	"../../Layers/xrRender/dxObjectSpaceRender.*"
-	"../../Layers/xrRender/dxParticleCustom.*"
 	"../../Layers/xrRender/dxRainRender.*"
 	"../../Layers/xrRender/dxRenderDeviceRender.*"
 	"../../Layers/xrRender/dxRenderFactory.*"
@@ -68,6 +72,7 @@ file(GLOB_RECURSE ECORE_SOURCE_RENDER_FILES CONFIGURE_DEPENDS
 	"../../Layers/xrRender/dxUIRender.*"
 	"../../Layers/xrRender/dxUISequenceVideoItem.*"
 	"../../Layers/xrRender/dxUIShader.*"
+	"../../Layers/xrRender/TextureAtlas.*"
 	"../../Layers/xrRender/dxWallMarkArray.*"
 	"../../Layers/xrRender/ETextureParams.*"
 	"../../Layers/xrRender/FBasicVisual.*"
@@ -81,6 +86,7 @@ file(GLOB_RECURSE ECORE_SOURCE_RENDER_FILES CONFIGURE_DEPENDS
 	"../../Layers/xrRender/ParticleEffect.*"
 	"../../Layers/xrRender/ParticleEffectDef.*"
 	"../../Layers/xrRender/ParticleGroup.*"
+	"../../Layers/xrRender/ParticleAnimCurve.*"
 	"../../Layers/xrRender/PSLibrary.*"
 	"../../Layers/xrRender/ResourceManager.*"
 	"../../Layers/xrRender/ResourceManager_Loader.*"
@@ -99,13 +105,15 @@ file(GLOB_RECURSE ECORE_SOURCE_RENDER_FILES CONFIGURE_DEPENDS
 	"../../Layers/xrRender/SH_Atomic.*"
 	"../../Layers/xrRender/SH_Constant.*"
 	"../../Layers/xrRender/SH_Matrix.*"
-	"../../Layers/xrRenderDX9/dx9SH_RT.*"
-	"../../Layers/xrRenderDX9/dx9SH_Texture.*"
+	"../../Layers/xrRender/SH_Texture.*"
+	"../../Layers/xrRender/SH_RT.*"
 	"../../Layers/xrRenderDX9/DDSTextureLoader9.*"
 	"../../Layers/xrRender/SkeletonAnimated.*"
 	"../../Layers/xrRender/SkeletonCustom.*"
 	"../../Layers/xrRender/SkeletonRigid.*"
 	"../../Layers/xrRender/SkeletonX.*"
+	"../../Layers/xrRender/RenderPhaseAccumPointGeom.*"
+	"../../Layers/xrRender/RenderPhaseAccumSpotGeom.*"
 	"../../Layers/xrRender/stats_manager.*"
 	"../../Layers/xrRenderDX9/dx9Texture.*"
 	"../../Layers/xrRender/TextureDescrManager.*"
@@ -121,6 +129,13 @@ file(GLOB_RECURSE ECORE_SOURCE_RENDER_FILES CONFIGURE_DEPENDS
 	"../../Layers/xrRenderPC_R1/Blender_Shadow_World.*"
 	"../../Layers/xrRenderPC_R1/Blender_Vertex_aref.*"
 	"../../Layers/xrRenderPC_R1/Blender_Vertex.*"
+	"../../Layers/xrRender/smol-atlas.*"
+	"../../Layers/xrRender/particle_core/particle_core.*"
+	"../../Layers/xrRender/particle_core/noise.*"
+	"../../Layers/xrRender/particle_core/particle_actions_collection.*"
+	"../../Layers/xrRender/particle_core/particle_actions_collection_io.cpp"
+	"../../Layers/xrRender/particle_core/particle_holder.h"
+	"../../Layers/xrRender/particle_core/psystem.h"
 )
 
 file(GLOB_RECURSE ECORE_SOURCE_EXT_FILES CONFIGURE_DEPENDS
@@ -130,12 +145,14 @@ file(GLOB_RECURSE ECORE_SOURCE_EXT_FILES CONFIGURE_DEPENDS
 	"../../xrEngine/ai_script_lua_debug.cpp"
 	"../../xrEngine/ai_script_lua_extension.cpp"
 	"../../xrServerEntities/LevelGameDef.cpp"
+	"../../xrPlay/Splash.*"
 )
 
 set(ECORE_SRC_FILES)
 
 source_group("Engine" FILES ${ECORE_SOURCE_ENGINE_FILES})
 source_group("Editor" FILES ${ECORE_SOURCE_EDITOR_FILES})
+source_group("MeshTools" FILES ${ECORE_SOURCE_EDITOR_PUBLIC_FILES})
 source_group("WildMagic" FILES ${ECORE_SOURCE_WM_FILES})
 source_group("Render" FILES ${ECORE_SOURCE_RENDER_FILES})
 source_group("RenderEx" FILES ${ECORE_SOURCE_RENDEREX_FILES})
@@ -148,6 +165,7 @@ list(APPEND ECORE_SRC_FILES ${ECORE_SOURCE_ALL_FILES})
 list(APPEND ECORE_SRC_FILES ${ECORE_SOURCE_RENDER_FILES})
 list(APPEND ECORE_SRC_FILES ${ECORE_SOURCE_EXT_FILES})
 list(APPEND ECORE_SRC_FILES ${ECORE_SOURCE_RES_FILES})
+list(APPEND ECORE_SRC_FILES ${ECORE_SOURCE_EDITOR_PUBLIC_FILES})
 
 # Remove unused files
 list(FILTER ECORE_SRC_FILES EXCLUDE REGEX "cl_raypick.cpp$")
@@ -170,23 +188,26 @@ target_compile_options(xrECore PRIVATE /W0)
 target_compile_definitions(xrECore PRIVATE "$<$<CONFIG:Debug>:DEBUG>")
 
 # Linker list
-target_link_libraries(xrECore PUBLIC xrCore)
 target_link_libraries(xrECore PUBLIC xrEUI)
 target_link_libraries(xrECore PUBLIC xrEProps)
 target_link_libraries(xrECore PUBLIC luabind)
-target_link_libraries(xrECore PUBLIC xrParticles)
-target_link_libraries(xrECore PUBLIC xrSound)
-target_link_libraries(xrECore PUBLIC ETools)
-target_link_libraries(xrECore PUBLIC xrAbstractions)
+target_link_libraries(xrECore PUBLIC xrEngineCore)
 target_link_libraries(xrECore PUBLIC xrPhysics)
 target_link_libraries(xrECore PUBLIC xrDXT)
 target_link_libraries(xrECore PUBLIC MagicFM)
 target_link_libraries(xrECore PUBLIC NvMender2003)
-target_link_libraries(xrECore PUBLIC "d3d9.lib")
-target_link_libraries(xrECore PUBLIC "d3dcompiler.lib")
+
+target_link_libraries(xrECore PRIVATE Ogg::ogg)
+target_link_libraries(xrECore PRIVATE Vorbis::vorbis)
+target_link_libraries(xrECore PRIVATE Vorbis::vorbisfile)
+target_link_libraries(xrECore PUBLIC OpenAL::OpenAL)
+
+if (WIN32)
+	target_link_libraries(xrECore PUBLIC DirectX::Mesh)
+	target_link_libraries(xrECore PUBLIC DirectX::Tex)
+endif()
 
 target_validate_pch(xrECore ${CMAKE_CURRENT_SOURCE_DIR})
-
 
 ## DirectX SDK
 if(NOT "${CMAKE_VS_PLATFORM_NAME}" MATCHES "(x64)")
@@ -195,27 +216,5 @@ else()
 	target_link_libraries(xrECore PUBLIC ${CMAKE_BINARY_DIR}/packages/Microsoft.DXSDK.D3DX.9.29.952.8/build/native/release/lib/x64/d3dx9.lib)
 endif()
 
-## DirectX SDK
-target_include_directories(xrECore PUBLIC "${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/include/")
-target_include_directories(xrECore PUBLIC "${CMAKE_BINARY_DIR}/packages/directxmesh_desktop_2019.2024.6.5.1/include/")
-target_include_directories(xrECore PUBLIC "${CMAKE_BINARY_DIR}/packages/Microsoft.DXSDK.D3DX.9.29.952.8/build/native/include/")
-target_link_libraries(xrECore PUBLIC ${CMAKE_BINARY_DIR}/packages/directxmesh_desktop_2019.2024.6.5.1/native/lib/x64/Release/DirectXMesh.lib)
-target_link_libraries(xrECore PUBLIC ${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/native/lib/${NUGET_PACKAGE_PLATFORM}/release/DirectXTex.lib)
-
-# Nuget
-set(SNDE_OGG ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.LibOgg.1.3.5.4/)
-set(SNDE_OAL ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.OpenALSoft.1.23.1.1/)
-set(SNDE_VOB ${CMAKE_BINARY_DIR}/packages/ImeSense.Packages.LibVorbis.1.3.7.4/)
-
-## LibOGG
-target_link_libraries(xrECore PRIVATE ${SNDE_OGG}native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libogg.lib)
-target_include_directories(xrECore PRIVATE "${SNDE_OGG}/native/include/")
-
-## Vorbis
-target_link_libraries(xrECore PRIVATE ${SNDE_VOB}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbisfile.lib)
-target_link_libraries(xrECore PRIVATE ${SNDE_VOB}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libvorbis.lib)
-target_include_directories(xrECore PRIVATE "${SNDE_VOB}/native/include/")
-
-## OpenAL
-target_link_libraries(xrECore PRIVATE ${SNDE_OAL}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/OpenAL32.lib)
-target_include_directories(xrECore PRIVATE "${SNDE_OAL}/native/include/")
+## lunaSVG
+target_link_libraries(${PROJECT_NAME} PUBLIC lunasvg)

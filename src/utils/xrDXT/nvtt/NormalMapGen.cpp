@@ -47,12 +47,12 @@ Ivector	vpack(Fvector src)
 			{
 				_v = vunpack(x, y, z);
 				float m = _v.magnitude();
-				float me = _abs(m - 1.f);
+				float me = std::abs(m - 1.f);
 				if (me > 0.03f)
 					continue;
 
 				_v.div(m);
-				float e = _abs(src.dotproduct(_v) - 1.f);
+				float e = std::abs(src.dotproduct(_v) - 1.f);
 				if (e < e_best)
 				{
 					e_best = e;
@@ -215,13 +215,13 @@ u32	hsample(s32 w, s32 h, s32 p, s32 x, s32 y, u8* src)
     return color_get_R(*((u32*)(src + y*p) + x));
 }
 
-#include "../../Layers/xrRender/ETextureParams.h"
+#include "../../xrEngine/ETextureParams.h"
 #include "Image_DXTC.h"
 
-extern int DXTCompressImageNVTT(LPCSTR out_name, u8* raw_data,
+extern int DXTCompressImageNVTT(const char* out_name, u8* raw_data,
     u32 w, u32 h, u32 pitch, STextureParams* fmt, u32 depth);
 
-int DXTCompressBump(LPCSTR out_name, u8* T_height_gloss, u8* T_normal_map,
+int DXTCompressBump(const char* out_name, u8* T_height_gloss, u8* T_normal_map,
 	u32 w, u32 h, u32 pitch, STextureParams* fmt, u32 depth)
 {
 	VERIFY(4 == depth);

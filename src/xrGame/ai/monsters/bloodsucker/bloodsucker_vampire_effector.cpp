@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "bloodsucker_vampire_effector.h"
 
 CVampirePPEffector::CVampirePPEffector(const SPPInfo &ppi, float life_time) :
@@ -13,7 +13,7 @@ CVampirePPEffector::CVampirePPEffector(const SPPInfo &ppi, float life_time) :
 #define RAD_TO_PERC(rad)	((rad - PI_DIV_2) / (PERIODS * PI_MUL_2))
 #define PERC_TO_RAD(perc)	(perc * (PERIODS * PI_MUL_2) + PI_DIV_2)
 
-BOOL CVampirePPEffector::Process(SPPInfo& pp)
+bool CVampirePPEffector::Process(SPPInfo& pp)
 {
 	inherited::Process(pp);
 
@@ -29,13 +29,13 @@ BOOL CVampirePPEffector::Process(SPPInfo& pp)
 		factor = 0.75f * (1-time_past_perc) / TIME_ATTACK;
 	} else {
 		float time_past_sine_perc = (time_past_perc - TIME_ATTACK) * (1 / ( 1 - TIME_ATTACK + TIME_ATTACK));
-		factor = 0.5f + 0.25f * _sin(PERC_TO_RAD(time_past_sine_perc));
+		factor = 0.5f + 0.25f * std::sin(PERC_TO_RAD(time_past_sine_perc));
 	}
 	
 	clamp(factor,0.01f,1.0f);
 	pp.lerp				(pp_identity, state, factor);
 
-	return TRUE;
+	return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -68,11 +68,11 @@ CVampireCameraEffector::CVampireCameraEffector(float time, const Fvector &src, c
 	dangle_current.set	(0.f, 0.f, 0.f);
 }
 
-BOOL CVampireCameraEffector::ProcessCam(SCamEffectorInfo& info)
+bool CVampireCameraEffector::ProcessCam(SCamEffectorInfo& info)
 {
 	fLifeTime -= Device.fTimeDelta; 
 	if(fLifeTime<0) 
-		return FALSE;
+		return false;
 
 	// процент оставшегося времени
 	float time_left_perc = fLifeTime / m_time_total;
@@ -101,9 +101,9 @@ BOOL CVampireCameraEffector::ProcessCam(SCamEffectorInfo& info)
 		dangle_target.y = 0.f;
 		dangle_target.z = 0.f;
 
-		angle_lerp(dangle_current.x, dangle_target.x, _abs(dangle_current.x / fLifeTime + 0.001f), Device.fTimeDelta);
-		angle_lerp(dangle_current.y, dangle_target.y, _abs(dangle_current.y / fLifeTime + 0.001f), Device.fTimeDelta);
-		angle_lerp(dangle_current.z, dangle_target.z, _abs(dangle_current.z / fLifeTime + 0.001f), Device.fTimeDelta);
+		angle_lerp(dangle_current.x, dangle_target.x, std::abs(dangle_current.x / fLifeTime + 0.001f), Device.fTimeDelta);
+		angle_lerp(dangle_current.y, dangle_target.y, std::abs(dangle_current.y / fLifeTime + 0.001f), Device.fTimeDelta);
+		angle_lerp(dangle_current.z, dangle_target.z, std::abs(dangle_current.z / fLifeTime + 0.001f), Device.fTimeDelta);
 
 	} else {
 		
@@ -133,6 +133,6 @@ BOOL CVampireCameraEffector::ProcessCam(SCamEffectorInfo& info)
 	info.n.set		(mR.j);
 	info.p.set		(mR.c);
 
-	return TRUE;
+	return true;
 }
 

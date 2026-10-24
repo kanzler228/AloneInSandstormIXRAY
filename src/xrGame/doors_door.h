@@ -6,13 +6,13 @@
 
 #ifndef DOORS_DOOR_H_INCLUDED
 #define DOORS_DOOR_H_INCLUDED
-
+#include "doors.h"
 class CPhysicObject;
 
-namespace doors {
+namespace doors
+{
 
 class actor;
-enum door_state;
 
 class door {
 public:
@@ -23,7 +23,7 @@ public:
 	void				change_state		( actor* initiator, door_state state );
 	void 				on_change_state		( door_state const state );
 #ifdef DEBUG
-	LPCSTR				get_name			( ) const;
+	const char*				get_name			( ) const;
 	shared_str			get_initiators_ids	( ) const;
 	bool				check_initiator		( actor const* initiator ) const;
 #endif // #ifdef DEBUG

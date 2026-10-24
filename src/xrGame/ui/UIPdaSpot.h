@@ -8,8 +8,9 @@ class CUI3tButton;
 class CUIStatic;
 class CUIEditBox;
 class UIHint;
+class CPdaUiSounds;
 
-class CUIPdaSpot : 
+class CUIPdaSpot final :
 	public CUIDialogWnd, 
 	public CUIWndCallback
 {
@@ -21,24 +22,30 @@ class CUIPdaSpot :
 	CUI3tButton* m_btn_cancel;
 
 	bool m_mainWnd;
-	LPCSTR m_levelName;
+	const char* m_levelName;
 	Fvector m_position;
 	u16 m_spotID;
 	shared_str m_spotType;
+	CPdaUiSounds* m_pUiSounds = nullptr;
 
 public:
 	CUIPdaSpot();
 	~CUIPdaSpot();
 
-	void Init(u16 spot_id, LPCSTR level_name, Fvector pos, bool main_wnd);
+	void Init(u16 spot_id, const char* level_name, Fvector pos, bool main_wnd);
 	void InitControls();
+	void SetUiSounds(CPdaUiSounds* uiSounds) { m_pUiSounds = uiSounds; }
 
 	void OnAdd(CUIWindow* w, void* d);
 	void OnApply(CUIWindow* w, void* d);
 	void OnExit(CUIWindow* w, void* d);
 	void Exit();
 
+	void ResetCursor();
+	virtual void Draw();
+	virtual bool OnMouseAction(float x, float y, EUIMessages mouse_action) override;
 	virtual bool OnKeyboardAction(int dik, EUIMessages keyboard_action);
 	virtual void SendMessage(CUIWindow* pWnd, s16 msg, void* pData = NULL);
 	virtual CUIWindow* ui_cast_window() { return this; }
+	Fvector2 last_cursor_pos;
 };

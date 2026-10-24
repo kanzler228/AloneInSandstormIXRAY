@@ -1,14 +1,15 @@
 #include "stdafx.h"
 
 #include "EngineExternal.h"
-#include <magic_enum/magic_enum.hpp>
 
 XRCORE_API CEngineExternal* g_pEngineExternal = nullptr;
 
-CEngineExternal::CEngineExternal() : m_platform_type(EEngineExternalPlatform::Unknown), pOptions(nullptr)
+CEngineExternal::CEngineExternal() : 
+	m_platform_type(EEngineExternalPlatform::Unknown),
+	pOptions(nullptr)
 {
 	string_path fname;
-	FS.update_path(fname, "$game_config$", "engine_external.ltx");
+	FS.update_path(fname, _game_config_, "engine_external.ltx");
 	pOptions = new CInifile(fname);
 
 	if (pOptions->section_exist("shaders_options"))
@@ -29,13 +30,14 @@ CEngineExternal::CEngineExternal() : m_platform_type(EEngineExternalPlatform::Un
 
 	if (pOptions->section_exist("general"))
 	{
-		InitPlatform(READ_IF_EXISTS(pOptions, r_string, "general", "Platform", "cop"));
+		InitPlatform(GetCurrentPlatformName());
 	}
 
 	if (!ClearSkyMode() && !CallOfPripyatMode() && !ShadowOfChernobylMode())
 	{
 		R_ASSERT2(false, "Unknown platform mode specified. Please check your engine_external.ltx.");
 	}
+
 	gamesaveSize = READ_IF_EXISTS(pOptions, r_ivector2, "general", "SaveImageSize", Ivector2().set(128, 128));
 }
 
@@ -75,7 +77,7 @@ const xr_vector<shared_str> CEngineExternal::StepWallmarksMaterials() const
 		Iter++;
 	}
 
-	return std::move(TempVector);
+	return TempVector;
 }
 
 const xr_string CEngineExternal::WallmarkLeft() const
@@ -86,37 +88,6 @@ const xr_string CEngineExternal::WallmarkLeft() const
 const xr_string CEngineExternal::WallmarkRight() const
 {
 	return READ_IF_EXISTS(pOptions, r_string_wb, "step_wallmark", "right_mark", "").c_str();
-}
-
-bool CEngineExternal::operator[](const EEngineExternalUI& ID) const
-{
-	return READ_IF_EXISTS(pOptions, r_bool, "ui", magic_enum::enum_name(ID).data(), false);
-}
-
-bool CEngineExternal::operator[](const EEngineExternalPhysical& ID) const
-{
-	return READ_IF_EXISTS(pOptions, r_bool, "physics", magic_enum::enum_name(ID).data(), false);
-}
-
-bool CEngineExternal::operator[](const EEngineExternalGame& ID) const
-{
-	return READ_IF_EXISTS(pOptions, r_bool, "gameplay", magic_enum::enum_name(ID).data(), false);
-}
-
-bool CEngineExternal::operator[](const EEngineExternalRender& ID) const
-{
-	return READ_IF_EXISTS(pOptions, r_bool, "render", magic_enum::enum_name(ID).data(), false);
-}
-
-bool CEngineExternal::operator[](const EEngineExternalEnvironment& ID) const {
-	return READ_IF_EXISTS(pOptions, r_bool, "environment", magic_enum::enum_name(ID).data(), false);
-}
-
-bool CEngineExternal::operator[](const EEngineExternalPlatform& ID) const {
-	if (static_cast<unsigned char>(ID) > (static_cast<unsigned char>(sizeof(g_Platforms) / sizeof(g_Platforms[0])) - 1))
-		return false;
-
-	return g_Platforms[static_cast<unsigned char>(ID)] == m_platform_type;
 }
 
 void CEngineExternal::InitPlatform(const char* pPlatformName)
@@ -161,6 +132,16 @@ const char* Translate_EEngineExternalPlatform(EEngineExternalPlatform platform)
 const char* CEngineExternal::GetCurrentPlatformFullName()
 {
 	return Translate_EEngineExternalPlatform(m_platform_type);
+}
+
+const char* CEngineExternal::GetCurrentPlatformName()
+{
+	return READ_IF_EXISTS(pOptions, r_string, "general", "Platform", "cop");
+}
+
+EEngineExternalPlatform CEngineExternal::GetCurrentPlatform()
+{
+	return m_platform_type;
 }
 
 XRCORE_API CEngineExternal& EngineExternal()
@@ -214,4 +195,14 @@ float CEngineExternal::GetTalkFovScale() const
 float CEngineExternal::GetSprintFovFactor() const
 {
 	return READ_IF_EXISTS(pOptions, r_float, "gameplay", "SprintFovFactor", 7.0f);
+}
+
+shared_str CEngineExternal::GetInventoryItemCountPrefix()
+{
+	return READ_IF_EXISTS(pOptions, r_string_wb, "ui", "InventoryItemCountPrefix", "x");
+}
+
+CInifile* CEngineExternal::GetIniFile()
+{
+	return pOptions;
 }

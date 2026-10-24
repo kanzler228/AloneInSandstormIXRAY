@@ -90,18 +90,26 @@ function printf(fmt,...)
 	local is_g = 0
 	local result = fmt
 	if debug == nil then
-		log(string.format(fmt,...))
+		if log ~= nil then
+			log(string.format(fmt,...))
+		end
 		return
 	end
 	local info_table = debug.getinfo(2)
 	local script_name = string.gsub(info_table.short_src, "%.script", "")
 	script_name = string.gsub(script_name, "gamedata\\scripts\\", "")
-	if scripts_to_print[script_name] == true then return end
+	
+	if scripts_to_print[script_name] == false then return end
+
 	script_name,is_g = string.gsub(script_name, "_g", "")
 	if is_g == 0 then
 		result = script_name..":("..info_table.currentline.."):"..fmt
+	else
+		result = fmt
 	end
-	log(string.format(result,...))
+	if log ~= nil then
+		log(string.format(result,...))
+	end
 end
 
 ----------------------------------------------------------------------
@@ -938,38 +946,55 @@ end
 
 
 -------------------------------------------------------------------------------------------
+function get_object_community(obj)
+	if type(obj.id) == "function" then
+		return character_community(obj)
+	else
+		return alife_character_community(obj)
+	end
+end
+
+function character_community (obj)
+	if IsStalker(obj) then
+		return obj:character_community()
+	end
+	return "monster"
+end
+
+function alife_character_community (obj)
+	if IsStalker(obj, obj:clsid()) then
+		return obj:community()
+	end
+	return "monster"
+end
+
+-- получить геймобжект по стори_айди.
 function level_object_by_sid( sid )
 	local sim = alife()
-
 	if sim then
 		local se_obj = sim:story_object( sid )
 		if se_obj then
 			return level.object_by_id( se_obj.id )
 		end
 	end
-
 	return nil
 end
-
+-- Получить айдишник обьекта по стори айди.
 function id_by_sid( sid )
 	local sim = alife()
-
 	if sim then
 		local se_obj = sim:story_object( sid )
 		if se_obj then
 			return se_obj.id
 		end
 	end
-
 	return nil
 end
 
 -- Крешнуть игру (после вывода сообщения об ошибке в лог)
 function abort(fmt, ...)
 	local reason = string.format(fmt, ...)
-	assert("ERROR: " .. reason)
-	error_log("ERROR: " .. reason)
-	log(string.format("%s",nil))
+	error_log(reason)
 end
 
 function set_postprocess(name_ini_file)

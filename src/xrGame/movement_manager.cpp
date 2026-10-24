@@ -18,11 +18,10 @@
 #include "patrol_path_manager.h"
 #include "xrMessages.h"
 #include "ai_object_location.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "location_manager.h"
 #include "level_path_builder.h"
 #include "detail_path_builder.h"
-#include "mt_config.h"
 
 // Lain: added 
 #include "steering_behaviour.h"
@@ -32,10 +31,12 @@ using namespace MovementManager;
 
 const float verify_distance = 15.f;
 
-CMovementManager::CMovementManager	(CCustomMonster *object)
+CMovementManager::CMovementManager	(CCreature *object)
 {
 	VERIFY						(object);
 	m_object					= object;
+
+	m_nearest_objects.reserve(128);
 }
 
 CMovementManager::~CMovementManager	()
@@ -56,12 +57,12 @@ CMovementManager::~CMovementManager	()
 	xr_delete					(m_detail_path_builder		);
 }
 
-void CMovementManager::Load(LPCSTR section)
+void CMovementManager::Load(const char* section)
 {
 	m_restricted_object = create_restricted_object();
 	m_location_manager = new CLocationManager(m_object);
 
-	m_base_game_selector = new CGameVertexParams(locations().vertex_types());
+	m_base_game_selector = new SGameVertex(locations().vertex_types());
 	m_base_level_selector = new CBaseParameters();
 
 	m_game_location_selector = new CGameLocationSelector(m_restricted_object, m_location_manager);
@@ -100,12 +101,12 @@ void CMovementManager::reinit		()
 	game_selector().set_dest_path	(game_path().m_path);
 }
 
-void CMovementManager::reload		(LPCSTR section)
+void CMovementManager::reload		(const char* section)
 {
 	locations().reload				(section);
 }
 
-BOOL CMovementManager::net_Spawn	(CSE_Abstract* data)
+bool CMovementManager::net_Spawn	(CSE_Abstract* data)
 {
 	return							(restrictions().net_Spawn(data));
 }
@@ -305,7 +306,7 @@ void CMovementManager::teleport					(u32 game_vertex_id)
 	net_packet.w			(&_game_vertex_id,sizeof(_game_vertex_id));
 	net_packet.w			(&_level_vertex_id,sizeof(_level_vertex_id));
 	net_packet.w_vec3		(position);
-	Level().Send			(net_packet,net_flags(TRUE,TRUE));
+	Level().Send			(net_packet,net_flags(true,true));
 }
 
 void CMovementManager::clear_path				()
@@ -357,16 +358,15 @@ void CMovementManager::verify_detail_path		()
 
 void CMovementManager::on_restrictions_change	()
 {
-//	Msg								("[%6d][%s][on_restrictions_change]",Device.dwTimeGlobal,*object().cName());
 	m_path_actuality				= false;
 	level_path_builder().remove		();
 	detail_path_builder().remove	();
 	level_path().on_restrictions_change	();
 }
 
-bool CMovementManager::can_use_distributed_computations(u32 option) const
+bool CMovementManager::can_use_distributed_computations() const
 {
-	return							(!m_build_at_once && g_mt_config.test(option) && !object().getDestroy());
+	return !m_build_at_once && !object().getDestroy();
 }
 
 void CMovementManager::on_frame					(CPHMovementControl *movement_control, Fvector &dest_position)

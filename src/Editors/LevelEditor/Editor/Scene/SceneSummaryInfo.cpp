@@ -53,7 +53,7 @@ void SSceneSummary::SObjectInfo::Prepare()
         Msg("!Empty object name found.");
     }
 }
-void SSceneSummary::SObjectInfo::FillProp(PropItemVec& items, LPCSTR main_pref)
+void SSceneSummary::SObjectInfo::FillProp(PropItemVec& items, const char* main_pref)
 {
 	if (object_name.size()){
         for (PIVecIt it=info.begin(); it!=info.end(); it++)
@@ -91,9 +91,9 @@ void SSceneSummary::STextureInfo::OnHighlightClick(ButtonValue* sender, bool& bD
 {
 	ButtonValue* V = smart_cast<ButtonValue*>(sender); R_ASSERT(V);
     switch (V->btn_num){
-    case 0: Scene->HighlightTexture	((LPCSTR)sender->tag,false,info.width,info.height,false); break;
-    case 1: Scene->HighlightTexture	((LPCSTR)sender->tag,true,info.width,info.height,false); break;
-    case 2: Scene->HighlightTexture	((LPCSTR)sender->tag,true,info.width,info.height,true); break;
+    case 0: Scene->HighlightTexture	((const char*)sender->tag,false,info.width,info.height,false); break;
+    case 1: Scene->HighlightTexture	((const char*)sender->tag,true,info.width,info.height,false); break;
+    case 2: Scene->HighlightTexture	((const char*)sender->tag,true,info.width,info.height,true); break;
     case 3: ExecCommand(COMMAND_CLEAR_DEBUG_DRAW); break;
 	}
 
@@ -102,14 +102,14 @@ void SSceneSummary::STextureInfo::OnHighlightClick(ButtonValue* sender, bool& bD
 }
 
 
-void SSceneSummary::STextureInfo::FillProp	(PropItemVec& items, LPCSTR main_pref, u32& mem_use)
+void SSceneSummary::STextureInfo::FillProp	(PropItemVec& items, const char* main_pref, u32& mem_use)
 {
 	if (file_name.size()){
         int tex_mem			= info.MemoryUsage(*file_name);
         mem_use				+= tex_mem;
         xr_string pref		= PrepareKey(xr_string(main_pref).c_str(),*file_name).c_str();
         PropValue* V=0;
-        V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Texture"), 		&file_name, smTexture); V->Owner()->Enable(FALSE);
+        V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Texture"), 		&file_name, smTexture); V->Owner()->Enable(false);
         PHelper().CreateCaption(items,PrepareKey(pref.c_str(),"Format"),		info.FormatString());
         PHelper().CreateCaption(items,PrepareKey(pref.c_str(),"Size"), 			shared_str().printf("%d x %d x %s",info.width,info.height,info.HasAlpha()?"32b":"24b"));
         PHelper().CreateCaption(items,PrepareKey(pref.c_str(),"Memory Usage"),	shared_str().printf("%d Kb",iFloor(tex_mem/1024)));
@@ -125,7 +125,7 @@ void SSceneSummary::STextureInfo::FillProp	(PropItemVec& items, LPCSTR main_pref
 */
         if (info.flags.is_any(STextureParams::flDiffuseDetail|STextureParams::flBumpDetail)){
             if (0!=info.detail_name.size()){
-                V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Detail Texture"),	&info.detail_name,smTexture); 	V->Owner()->Enable(FALSE);
+                V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Detail Texture"),	&info.detail_name,smTexture); 	V->Owner()->Enable(false);
                 PHelper().CreateCaption(items,PrepareKey(pref.c_str(), "Detail Scale"),		shared_str().printf("%3.2f",info.detail_scale));
             }else{
                 PHelper().CreateCaption(items,PrepareKey(pref.c_str(), "Detail Texture"),	"INVALID");
@@ -134,7 +134,7 @@ void SSceneSummary::STextureInfo::FillProp	(PropItemVec& items, LPCSTR main_pref
         }
         if (info.bump_mode==STextureParams::tbmUse){
             if (0!=info.bump_name.size()){
-                V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Bump Texture"),		&info.bump_name,smTexture); 	V->Owner()->Enable(FALSE);
+                V=PHelper().CreateChoose(items,PrepareKey(pref.c_str(),"Bump Texture"),		&info.bump_name,smTexture); 	V->Owner()->Enable(false);
             }else{
                 PHelper().CreateCaption(items,PrepareKey(pref.c_str(), "Bump Texture"),		"INVALID");    
                 ELog.Msg(mtError,"Empty bump on texture: '%s'",*file_name);
@@ -213,7 +213,7 @@ void SSceneSummary::OnHighlightClick(ButtonValue* V, bool& bDataModified, bool& 
     
 }
 
-bool SSceneSummary::ExportSummaryInfo(LPCSTR fn)
+bool SSceneSummary::ExportSummaryInfo(const char* fn)
 {
 	IWriter* F 				= FS.w_open(fn); 
     if (F){
@@ -314,7 +314,7 @@ void SSceneSummary::FillProp(PropItemVec& items)
         V->tag				= pd_it-pm_colors.begin();
     }
     for (u32 stt=sttFirst; stt<sttLast; stt++){
-        LPCSTR nm			= get_token_name(summary_texture_type_tokens,stt);
+        const char* nm			= get_token_name(summary_texture_type_tokens,stt);
         if (nm&&nm[0]){
             u32 cur_mem_usage	= 0; 
             float cur_area		= 0; 
@@ -438,7 +438,7 @@ void EScene::ShowSummaryInfo()
     LTools->GetProperties()->AssignItems(items);
 }
 
-void EScene::ExportSummaryInfo	(LPCSTR f_name)
+void EScene::ExportSummaryInfo	(const char* f_name)
 {
     s_summary.ExportSummaryInfo	(f_name);
 }

@@ -5,7 +5,7 @@
 //	Author		: Dmitriy Iassenev
 //	Description : Object handler
 ////////////////////////////////////////////////////////////////////////////
-#include "stdafx.h"
+#include "StdAfx.h"
 #if USE_OLD_OBJECT_PLANNER
 #include "pch_script.h"
 #include "object_handler.h"
@@ -39,7 +39,7 @@ CObjectHandler::~CObjectHandler		()
 	xr_delete					(m_planner);
 }
 
-void CObjectHandler::Load			(LPCSTR section)
+void CObjectHandler::Load			(const char* section)
 {
 	inherited::Load				(section);
 }
@@ -54,27 +54,25 @@ void CObjectHandler::reinit			(CAI_Stalker *object)
 	m_l_finger1					= kinematics->LL_BoneID(pSettings->r_string(*planner().m_object->cNameSect(),"weapon_bone1"));
 	m_r_finger2					= kinematics->LL_BoneID(pSettings->r_string(*planner().m_object->cNameSect(),"weapon_bone2"));
 	m_strap_object_id			= ALife::_OBJECT_ID(-1);
-	m_strap_bone0				= -1;
-	m_strap_bone1				= -1;
 	m_clutched_hammer_enabled	= false;
 }
 
-void CObjectHandler::reload			(LPCSTR section)
+void CObjectHandler::reload			(const char* section)
 {
 	inherited::reload			(section);
 }
 
-BOOL CObjectHandler::net_Spawn		(CSE_Abstract* DC)
+bool CObjectHandler::net_Spawn		(CSE_Abstract* DC)
 {
 	if (!inherited::net_Spawn(DC))
-		return					(FALSE);
+		return					(false);
 
 	CSE_Abstract				*abstract = static_cast<CSE_Abstract*>(DC);
 	CSE_ALifeTraderAbstract		*trader = smart_cast<CSE_ALifeTraderAbstract*>(abstract);
 	VERIFY						(trader);
 
 	m_infinite_ammo				= !!trader->m_trader_flags.test(CSE_ALifeTraderAbstract::eTraderFlagInfiniteAmmo);
-	return						(TRUE);
+	return						(true);
 }
 
 void CObjectHandler::OnItemTake		(CInventoryItem *inventory_item)
@@ -153,7 +151,7 @@ bool CObjectHandler::goal_reached	()
 	return					(planner().solution().size() < 2);
 }
 
-void CObjectHandler::weapon_bones	(int &b0, int &b1, int &b2) const
+void CObjectHandler::weapon_bones	(u16 &b0, u16 &b1, u16 &b2) const
 {
 	CWeapon						*weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
 	if (!weapon || !planner().m_storage.property(ObjectHandlerSpace::eWorldPropertyStrapped)) {

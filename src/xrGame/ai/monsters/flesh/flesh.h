@@ -3,7 +3,7 @@
 #include "../controlled_entity.h"
 #include "../../../../xrScripts/script_export_space.h"
 
-class CAI_Flesh : public CBaseMonster,
+class CAI_Flesh final : public CBaseMonster,
 				  public CControlledEntity<CAI_Flesh> {
 
 	typedef		CBaseMonster					inherited;
@@ -13,8 +13,8 @@ public:
 							CAI_Flesh		();
 	virtual					~CAI_Flesh		();	
 	
-	virtual	void	Load					(LPCSTR section);
-	virtual	BOOL	net_Spawn				(CSE_Abstract* DC);
+	virtual	void	Load					(const char* section);
+	virtual	bool	net_Spawn				(CSE_Abstract* DC);
 
 	virtual	void	CheckSpecParams			(u32 spec_params);
 

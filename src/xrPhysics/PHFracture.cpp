@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "PHFracture.h"
 #include "Physics.h"
 #include "PHElement.h"
@@ -34,9 +34,9 @@ CPHFracturesHolder::~CPHFracturesHolder()
 void CPHFracturesHolder::ApplyImpactsToElement(CPHElement* E)
 {
 	PH_IMPACT_I i = m_impacts.begin(), e = m_impacts.end();
-	BOOL ac_state = E->isActive();
+	bool ac_state = E->isActive();
 
-	E->m_flags.set(CPHElement::flActive, TRUE);
+	E->m_flags.set(CPHElement::flActive, true);
 	for (; e != i; ++i)
 	{
 		E->applyImpact(*i);
@@ -78,7 +78,7 @@ element_fracture CPHFracturesHolder::SplitFromEnd(CPHElement* element, u16 fract
 	ApplyImpactsToElement(new_element);
 	element_fracture ret = std::make_pair(new_element, (CShellSplitInfo)(*fract_i));
 
-	if (m_fractures.size() - fracture > 0)
+	if (fracture < m_fractures.size())
 	{
 		if (new_element->m_fratures_holder == nullptr)//create fractures holder if it was not created before
 		{
@@ -92,12 +92,12 @@ element_fracture CPHFracturesHolder::SplitFromEnd(CPHElement* element, u16 fract
 
 void CPHFracturesHolder::PassEndFractures(u16 from,CPHElement* dest)
 {
+	if (from >= m_fractures.size()) return;
 	FRACTURE_I i=m_fractures.begin(),i_from=m_fractures.begin()+from,e=m_fractures.end();
 	u16 end_geom=i_from->m_end_geom_num;
 	u16 begin_geom_num=i_from->m_start_geom_num;
 	u16 leaved_geoms=begin_geom_num;
 	u16 passed_geoms=end_geom-begin_geom_num;
-	if(i_from==e) return;
 
 	for(;i!=i_from;++i)//correct end geoms for fractures leaved in source
 	{

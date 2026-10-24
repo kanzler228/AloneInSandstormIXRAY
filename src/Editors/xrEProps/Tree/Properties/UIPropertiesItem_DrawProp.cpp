@@ -2,7 +2,7 @@
 #include "WaveForm.h"
 #define TSTRING_COUNT 10
 
-const LPCSTR TEXTUREString[TSTRING_COUNT] = { "Custom...","$null","$base0", "$base1" ,"$base2" ,"$base3" ,"$base4","$base5" ,"$base6" ,"$base7" };
+const char* TEXTUREString[TSTRING_COUNT] = { "Custom...","$null","$base0", "$base1" ,"$base2" ,"$base3" ,"$base4","$base5" ,"$base6" ,"$base7" };
 
 xr_string FloatTimeToStrTime(float time)
 {
@@ -37,7 +37,6 @@ inline bool DrawNumeric(PropItem* item, bool& change, bool read_only)
 		item->BeforeEdit<NumericValue<T>, T>(value);
 		data = static_cast<int>(value);
 	}
-
 	change = ImGui::InputInt("##value", &data, read_only ? ImGuiInputTextFlags_ReadOnly : 0);
 	if (change)
 	{
@@ -67,7 +66,9 @@ inline bool DrawNumeric<float>(PropItem* item, bool& change, bool read_only)
 	if (!V)					return false;
 	float temp = *V->value;
 	item->BeforeEdit<NumericValue<float>, float>(temp);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, { 1.f, 1.f });
 	change = ImGui::InputFloat("##value", &temp, 0.01, 0.1, V->dec, read_only ? ImGuiInputTextFlags_ReadOnly : 0);
+	ImGui::PopStyleVar(1);
 	if (change)
 	{
 		if (!isinf(V->lim_mn) &&V->lim_mn > temp)
@@ -90,10 +91,10 @@ inline bool DrawNumeric<float>(PropItem* item, bool& change, bool read_only)
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 template <class T>
-BOOL TokenOnEdit(PropItem* prop, bool& change)
+bool TokenOnEdit(PropItem* prop, bool& change)
 {
 	TokenValue<T>* V = dynamic_cast<TokenValue<T>*>(prop->GetFrontValue());
-	if (!V)					return FALSE;
+	if (!V)					return false;
 	T edit_value  = V->GetValue();
 	prop->BeforeEdit<TokenValue<T>, T>(edit_value);
 	int index = 0; 
@@ -112,16 +113,16 @@ BOOL TokenOnEdit(PropItem* prop, bool& change)
 		if (prop->AfterEdit<TokenValue<T>, T>(new_val))
 			change = prop->ApplyValue<TokenValue<T>, T>(new_val);
 	}
-	return TRUE;
+	return true;
 }
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 template <class T>
-BOOL RTokenOnEdit(PropItem* prop, bool& change)
+bool RTokenOnEdit(PropItem* prop, bool& change)
 {
 	RTokenValue<T>* V = dynamic_cast<RTokenValue<T>*>(prop->GetFrontValue());
-	if (!V)					return FALSE;
+	if (!V)					return false;
 	T edit_value = V->GetValue();
 	prop->BeforeEdit<RTokenValue<T>, T>(edit_value);
 	int index = 0;
@@ -134,37 +135,47 @@ BOOL RTokenOnEdit(PropItem* prop, bool& change)
 			index = cnt;
 		}
 	}
-	if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<xr_rtoken*>(data)[idx].name.c_str(); return true; }, reinterpret_cast<void*>(token_list), V->token_count))
+
+	auto ComboCastLambda = [](void* data, int idx, const char** out_text) -> bool
+	{
+		xr_rtoken& Tok = reinterpret_cast<xr_rtoken*>(data)[idx];
+		*out_text = Tok.name.c_str();
+		return true;
+	};
+
+	if (ImGui::Combo("##value", &index, ComboCastLambda, reinterpret_cast<void*>(token_list), V->token_count))
 	{
 		T new_val = token_list[index].id;
 		if (prop->AfterEdit<RTokenValue<T>, T>(new_val))
 			change = prop->ApplyValue<RTokenValue<T>, T>(new_val);
 	}
-	return TRUE;
+	return true;
 }
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 template <class T>
-BOOL FlagOnEdit(PropItem* prop, bool& change)
+bool FlagOnEdit(PropItem* prop, bool& change)
 {
 	FlagValue<_flags<T> >* V = dynamic_cast<FlagValue<_flags<T> >*>(prop->GetFrontValue());
-	if (!V)					return FALSE;
+	if (!V)					return false;
 	_flags<T> new_val = V->GetValue();
 
 	prop->BeforeEdit<FlagValue<_flags<T> >, _flags<T> >(new_val);
 	u32 u = new_val.get();
 
-	if (ImGui::CheckboxFlags("##value", &u, V->mask))
+	if (XRay::ImGui::ToggleFlagButton("##value", &u, V->mask, {-1, XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::TableRowHeight)}))
 	{
 		new_val.assign(u);
 		if (prop->AfterEdit<FlagValue<_flags<T> >, _flags<T> >(new_val))
 			change = prop->ApplyValue<FlagValue<_flags<T> >, _flags<T> >(new_val);
 	}
-	return TRUE;
+	return true;
 }
 void UIPropertiesItem::DrawProp()
 {
+	const	ImColor	TableTint		= XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint);
+	const	float	TableRowHeight	= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::TableRowHeight);
 	EPropType type = PItem->Type();
 	switch (type)
 	{
@@ -196,6 +207,8 @@ void UIPropertiesItem::DrawProp()
 	case PROP_SHORTCUT:
 	{
 		ShortcutValue* V = dynamic_cast<ShortcutValue*>(PItem->GetFrontValue()); R_ASSERT(V);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+		ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
 		if (ImGui::Button(V->GetDrawText(0).c_str(), ImVec2(-30, 0)))
 		{
 			UIKeyPressForm::Show();
@@ -208,6 +221,8 @@ void UIPropertiesItem::DrawProp()
 			xr_shortcut val;
 			if (V->ApplyValue(val))PropertiesFrom->Modified();
 		}
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
 	}
 	break;
 	case PROP_WAVE:
@@ -247,7 +262,8 @@ void UIPropertiesItem::DrawProp()
 				TypeID new_val_as_BOOL = V->GetValue();
 				PItem->BeforeEdit<RangeCast, TypeID>(new_val_as_BOOL);
 				bool new_val = new_val_as_BOOL;
-				if (ImGui::Checkbox("##value", &new_val))
+
+				if (XRay::ImGui::ToggleButton(new_val ? "Enable" : "Disable", new_val, {-1, XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::TableRowHeight)}))
 				{
 					new_val_as_BOOL = new_val;
 					if (PItem->AfterEdit<RangeCast, TypeID>(new_val_as_BOOL))
@@ -264,7 +280,7 @@ void UIPropertiesItem::DrawProp()
 			return false;
 		};
 		
-		if (!TryDrawBool.operator()<BOOLValue, BOOL>())
+		if (!TryDrawBool.operator()<BOOLValue, int>())
 		{
 			TryDrawBool.operator()<BoolValue, bool>();
 		}
@@ -287,7 +303,7 @@ void UIPropertiesItem::DrawProp()
 
 		PItem->BeforeEdit<VectorValue, Fvector>(edit_val);
 		float vector[3] = { edit_val.x,edit_val.y,edit_val.z };
-		if (ImGui::InputFloat3("##value", vector, V->dec))
+		if (XRay::ImGui::InputVector3("##value", vector, V->dec))
 		{
 			for (int i = 0; i < 3; i++)
 			{
@@ -307,7 +323,6 @@ void UIPropertiesItem::DrawProp()
 					PropertiesFrom->Modified();
 				}
 		}
-
 	}
 	break;
 	case PROP_COLOR:
@@ -358,16 +373,24 @@ void UIPropertiesItem::DrawProp()
 
 		PItem->BeforeEdit<VectorValue, Fvector>(edit_val);
 		float color[3] = { edit_val[0],edit_val[1],edit_val[2] };
-		if (ImGui::ColorEdit3("##value", color))
+		bool Editing = ImGui::ColorEdit3("##value", color);
+		if (Editing)
 		{
 			edit_val[0] = color[0];
 			edit_val[1] = color[1];
-			edit_val[2] = color[2]; 
-			if (PItem->AfterEdit<VectorValue, Fvector>(edit_val))
-				if (PItem->ApplyValue<VectorValue, Fvector>(edit_val))
-				{
-					PropertiesFrom->Modified();
-				}
+			edit_val[2] = color[2];
+			if (PItem->AfterEdit<VectorValue, Fvector>(edit_val) && PItem->ApplyValue<VectorValue, Fvector>(edit_val))
+			{
+				NeedCallback = true;
+			}
+		}
+		if (ImGui::IsItemDeactivatedAfterEdit())
+		{
+			if (NeedCallback)
+			{
+				PropertiesFrom->Modified();
+			}
+			NeedCallback = false;
 		}
 	}
 	break;
@@ -375,39 +398,79 @@ void UIPropertiesItem::DrawProp()
 	{
 		MultiChooseValue* Prop = (MultiChooseValue*)PItem->GetFrontValue();
 
-		for (ChooseValue* ChooseItem: Prop->Values)
+		ImVec2 originalCellPadding = ImGui::GetStyle().CellPadding;
+		ImVec2 originalFramePadding = ImGui::GetStyle().FramePadding;
+		ImVec2 originalItemSpacing = ImGui::GetStyle().ItemSpacing;
+
+		// ������� ������������ �������
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(originalCellPadding.x, 0));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(originalFramePadding.x, 0));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(originalItemSpacing.x, 0));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+
+		ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
+		if (ImGui::BeginTable("##multi_choose_table", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_NoBordersInBody | ImGuiTableFlags_NoPadOuterX))
 		{
-			xr_string text = ChooseItem->Owner()->Key();
-			xr_string TextValue = ChooseItem->Owner()->GetDrawText();
-			if (TextValue.empty())
-			{
-				text = NONE_CAPTION;
-			}
-			else
-			{
-				xr_path ExtractName = text;
-				text = ExtractName.xfilename() + ": " + TextValue;
-			}
+			ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-			if (ImGui::Button(text.c_str(), ImVec2(-1, 0)))
+			for (ChooseValue* ChooseItem : Prop->Values)
 			{
-				ChooseValue* V = dynamic_cast<ChooseValue*>(ChooseItem->Owner()->GetFrontValue()); VERIFY(V);
-				shared_str	edit_val = V->GetValue();
-				if (!edit_val.size())
-					edit_val = V->m_StartPath;
+				xr_string text = ChooseItem->Owner()->Key();
+				xr_string TextValue = ChooseItem->Owner()->GetDrawText();
 
-				ChooseItem->Owner()->BeforeEdit<ChooseValue, shared_str>(edit_val);
-
-				ChooseItemVec Items;
-				if (!V->OnChooseFillEvent.empty())
+				if (TextValue.empty())
 				{
-					V->m_Items = &Items;
-					V->OnChooseFillEvent(V);
+					text = NONE_CAPTION;
+					TextValue = NONE_CAPTION;
 				}
-				UIChooseForm::SelectItem(V->m_ChooseID, V->subitem, edit_val.c_str(), 0, V->m_FillParam, 0, !Items.empty() ? &Items : 0, V->m_ChooseFlags);
-				PropertiesFrom->m_EditChooseValue = ChooseItem->Owner();
+				else
+				{
+					xr_path ExtractName = text;
+					text = ExtractName.xfilename();
+				}
+
+				ImGui::PushID(ChooseItem);
+				ImGui::TableNextRow();
+
+				ImGui::TableSetColumnIndex(0);
+				ImGui::AlignTextToFramePadding();
+				
+				ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 2);
+				ImGui::TextUnformatted(text.c_str());
+
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::Button(TextValue.c_str(), ImVec2(-1, 25)))
+				{
+					ChooseValue* V = dynamic_cast<ChooseValue*>(ChooseItem->Owner()->GetFrontValue());
+					VERIFY(V);
+
+					shared_str edit_val = V->GetValue();
+					if (!edit_val.size())
+					{
+						edit_val = V->m_StartPath;
+					}
+
+					ChooseItem->Owner()->BeforeEdit<ChooseValue, shared_str>(edit_val);
+
+					ChooseItemVec Items;
+					if (!V->OnChooseFillEvent.empty())
+					{
+						V->m_Items = &Items;
+						V->OnChooseFillEvent(V);
+					}
+
+					UIChooseForm::SelectItem(V->m_ChooseID, V->subitem, edit_val.c_str(), 0, V->m_FillParam, 0, !Items.empty() ? &Items : 0, V->m_ChooseFlags);
+					PropertiesFrom->m_EditChooseValue = ChooseItem->Owner();
+				}
+
+				ImGui::PopID();
 			}
+
+			ImGui::EndTable();
 		}
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar(4);
 		break;
 	}
 	case PROP_CHOOSE:
@@ -418,7 +481,9 @@ void UIPropertiesItem::DrawProp()
 			text = NONE_CAPTION;
 		}
 
-		if (ImGui::Button(text.c_str(), ImVec2(-1, 0)))
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+		ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
+		if (ImGui::Button(text.c_str(), ImVec2(-1, TableRowHeight)))
 		{
 			PropItem* prop = PItem;
 
@@ -438,6 +503,8 @@ void UIPropertiesItem::DrawProp()
 			UIChooseForm::SelectItem(V->m_ChooseID, V->subitem, edit_val.c_str(), 0, V->m_FillParam, 0, !Items.empty() ? &Items : 0, V->m_ChooseFlags);
 			PropertiesFrom->m_EditChooseValue = prop;
 		}
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
 	}
 	break;
 	case PROP_TOKEN:
@@ -494,7 +561,7 @@ void UIPropertiesItem::DrawProp()
 		xr_string edit_val = T->GetValue();
 		PItem->BeforeEdit<CTextValue, xr_string>(edit_val);
 		int index = 0; int cnt = TSTRING_COUNT ;
-		LPCSTR List[TSTRING_COUNT+1] = { TEXTUREString[0],TEXTUREString[1],TEXTUREString[2],TEXTUREString[3],TEXTUREString[4],TEXTUREString[5],TEXTUREString[6],TEXTUREString[7],TEXTUREString[8],TEXTUREString[9],0 };
+		const char* List[TSTRING_COUNT+1] = { TEXTUREString[0],TEXTUREString[1],TEXTUREString[2],TEXTUREString[3],TEXTUREString[4],TEXTUREString[5],TEXTUREString[6],TEXTUREString[7],TEXTUREString[8],TEXTUREString[9],0 };
 		if(edit_val == List[1])index = 1;
 		else if (edit_val == List[2])index = 2;
 		else if (!edit_val.empty()) { List[3] = edit_val.c_str(); index = 3; cnt = 4; }
@@ -511,7 +578,7 @@ void UIPropertiesItem::DrawProp()
 				edit_val = List[index];
 				if (PItem->AfterEdit<CTextValue, xr_string>(edit_val)) 
 				{
-					if (PItem->ApplyValue<CTextValue, LPCSTR>(edit_val.c_str()))
+					if (PItem->ApplyValue<CTextValue, const char*>(edit_val.c_str()))
 					{
 						PropertiesFrom->Modified();
 					}
@@ -525,7 +592,7 @@ void UIPropertiesItem::DrawProp()
 		CListValue* V = smart_cast<CListValue*>(PItem->GetFrontValue());
 		if (V)
 		{
-			LPCSTR edit_value = V->value;
+			const char* edit_value = V->value;
 			int index = 0;
 			int i = 0;
 			for (; i < V->item_count; i++)
@@ -538,7 +605,7 @@ void UIPropertiesItem::DrawProp()
 			if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<xr_string*>(data)[idx].c_str(); return true; }, reinterpret_cast<void*>(V->items), i))
 			{
 				if (PItem->AfterEdit<CListValue, xr_string>(V->items[index]))
-					if (PItem->ApplyValue<CListValue, LPCSTR>(V->items[index].c_str()))PropertiesFrom->Modified();
+					if (PItem->ApplyValue<CListValue, const char*>(V->items[index].c_str()))PropertiesFrom->Modified();
 			}
 		}
 	}
@@ -549,7 +616,7 @@ void UIPropertiesItem::DrawProp()
 
 		if (V)
 		{
-			LPCSTR edit_value = V->value ? V->value->c_str() : 0;
+			const char* edit_value = V->value ? V->value->c_str() : 0;
 			int index = 0;
 			int i = 0;
 			for (; i < V->item_count; i++)
@@ -581,9 +648,13 @@ void UIPropertiesItem::DrawProp()
 					strrchr(Str, '\n')[0] = 0;
 				}
 				xr_strcat(Str, "...");
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+				ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
 				if (ImGui::Button(Str, ImVec2(-1, 0)))
 				{
 				}
+				ImGui::PopStyleColor();
+				ImGui::PopStyleVar();
 			}
 			if (ImGui::OpenPopupOnItemClick2("EditText", 0))
 			{
@@ -611,9 +682,14 @@ void UIPropertiesItem::DrawProp()
 					strrchr(Str, '\n')[0] = 0;
 				}
 				xr_strcat(Str, "...");
-				if (ImGui::Button(Platform::ANSI_TO_UTF8(Str).data(), ImVec2(-1, 0)))
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+				ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, { 0.0f, 0.5f });
+				ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
+				if (ImGui::Button(Platform::ANSI_TO_UTF8(Str).data(), ImVec2(-1, TableRowHeight)))
 				{
 				}
+				ImGui::PopStyleColor();
+				ImGui::PopStyleVar(2);
 
 				if (PItem->Key() != nullptr)
 				{
@@ -686,9 +762,13 @@ void UIPropertiesItem::DrawProp()
 					strrchr(Str, '\n')[0] = 0;
 				}
 				xr_strcat(Str, "...");
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
+				ImGui::PushStyleColor(ImGuiCol_Button, TableTint.Value);
 				if (ImGui::Button(Str, ImVec2(-1, 0)))
 				{
 				}
+				ImGui::PopStyleColor();
+				ImGui::PopStyleVar();
 			}
 			if (ImGui::OpenPopupOnItemClick2("EditText", 0))
 			{
@@ -756,4 +836,18 @@ void UIPropertiesItem::SetSelect()
 void UIPropertiesItem::SetUnselect()
 {
 	IsSelect = false;
+}
+
+void UIPropertiesItem::SetOpenRecursive(bool bOpen)
+{
+	IsOpen = bOpen;
+
+	for (UITreeItem* Child : Items)
+	{
+		UIPropertiesItem* SelfTypeItem = smart_cast<UIPropertiesItem*>(Child);
+		if (SelfTypeItem)
+		{
+			SelfTypeItem->SetOpenRecursive(bOpen);
+		}
+	}
 }

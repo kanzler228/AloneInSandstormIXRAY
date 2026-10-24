@@ -1,21 +1,22 @@
 //---------------------------------------------------------------------------
 #ifndef ParticleGroupH
 #define ParticleGroupH
-class ButtonValue;
+#include "../../Include/xrRender/ParticleCustom.h"
+#include "FBasicVisual.h"
 
-#include "dxParticleCustom.h"
+class ButtonValue;
 
 namespace PS
 {
 	class CParticleEffect;
 
-	class ECORE_API CPGDef
+	class ECORE_API CPGDef final
 	{
 	public:
 		shared_str			m_Name;
 		Flags32				m_Flags;
 		float				m_fTimeLimit;
-		struct SEffect{
+		struct ECORE_API SEffect{
 			enum{
 				flDefferedStop		= (1<<0),
 				flOnPlayChild		= (1<<1),
@@ -33,7 +34,10 @@ namespace PS
 			float			m_Time1;
 							SEffect				(){m_Flags.zero();/*set(flEnabled)*/m_Time0=0;m_Time1=0;}
 #ifdef _EDITOR
-            BOOL			Equal				(const SEffect&);
+			CPGDef* parent = nullptr;
+            bool			Equal				(const SEffect&);
+			void FillProp(const char* pref, PropItemVec& items, u32 clr);
+			void FillPropInit(PropItemVec& items, const char* pref);
 #endif
 		};
 
@@ -46,131 +50,137 @@ namespace PS
 		void   	OnEffectsEditClick	(ButtonValue* sender, bool& bDataModified, bool& bSafe);
 		void   	OnEffectTypeChange	(PropValue* sender);
 		void   	OnEffectEditClick	(ButtonValue* sender, bool& bDataModified, bool& bSafe);
+		bool RemoveEffect(int idx, bool& safe);
+		bool RemoveEffect(SEffect* effect);
 		void   	OnControlClick	(ButtonValue* sender, bool& bDataModified, bool& bSafe);
 		void   	OnParamsChange	(PropValue* sender);
-		void				FillProp	   	(LPCSTR pref, ::PropItemVec& items, void* owner);
-		BOOL				Equal			(const CPGDef* pe);
+		void	OnParamsChangeInternal();
+		void				FillProp	   	(const char* pref, PropItemVec& items, void* owner);
+		bool				Equal			(const CPGDef* pe);
 		bool				Validate 			(bool bMsg);
+		int FindEffect(SEffect* effect);
 #endif
 	public:
 							CPGDef		  	();
 							~CPGDef		  	();
-		void				SetName		  	(LPCSTR name);
+		void				SetName		  	(const char* name);
 
 		void 				Save		  	(IWriter& F);
-		BOOL 				Load		 	(IReader& F);
+		bool 				LoadOriginal	(IReader& F);
 
 		void 				Save2		  	(CInifile& ini);
-		BOOL 				Load2		 	(CInifile& ini);
+		bool 				Load2		 	(CInifile& ini);
+		bool				Load2Original	(CInifile& ini);
+		bool 				Load2Extended	(CInifile& ini);
 
 #ifdef _EDITOR
         void				Clone			(CPGDef* source);
 #endif
 	};
 
-	class ECORE_API CParticleGroup: public dxParticleCustom
+	class ECORE_API CParticleGroup final : public dxRender_Visual, public IParticleCustom
 	{
-		const CPGDef*		m_Def;
-		float				m_CurrentTime;
-		Fvector				m_InitialPosition;
 	public:
-		xrCriticalSection	onframe_lock;
-		using VisualVec = xr_vector<dxRender_Visual*>;
-		using VisualVecIt = VisualVec::iterator;
+		const CPGDef* m_Def = nullptr;
+		float m_CurrentTime;
+		Fvector m_InitialPosition;
+		xrCriticalSection onframe_lock;
 
-		struct SItem
+		struct SItem final
 		{
-			dxRender_Visual* _effect;
-			VisualVec _children_related;
-			VisualVec _children_free;
-			xr_set<dxRender_Visual*> _children_destroy;
+			xrCriticalSection childs_cs;
+			xr_vector<CParticleEffect*> children_related;
+			xr_vector<CParticleEffect*> children_free;
+			CParticleEffect* root_effect = nullptr;
 
-		public:
-			~SItem();
+			//�������� ��� CS
+			SItem(){};
+			SItem(SItem&& other){}
+			SItem(const SItem& item){};
+			SItem& operator=(const SItem&) {return *this;};
 
-			void Set(dxRender_Visual* e);
 			void Clear();
 
-			IC u32 GetVisuals(xr_vector<dxRender_Visual*>& visuals)
-			{
-				visuals.reserve(_children_related.size() + _children_free.size() + 1);
-				if (_effect)
-					visuals.push_back(_effect);
-
-				visuals.insert(visuals.end(), _children_related.begin(), _children_related.end());
-				visuals.insert(visuals.end(), _children_free.begin(), _children_free.end());
-				return u32(visuals.size());
-			}
-
-			void OnDeviceCreate();
-			void OnDeviceDestroy();
-
-			void StartRelatedChild(CParticleEffect* emitter, LPCSTR eff_name, PAPI::Particle& m);
+			void StartRelatedChild(CParticleEffect* emitter, const char* eff_name, PAPI::Particle& m);
 			void StopRelatedChild(u32 idx);
-			void StartFreeChild(CParticleEffect* emitter, LPCSTR eff_name, PAPI::Particle& m);
+			void StartFreeChild(CParticleEffect* emitter, const char* eff_name, PAPI::Particle& m);
 
-			void UpdateParent(const Fmatrix& m, const Fvector& velocity, BOOL bXFORM);
+			void UpdateParent(const Fmatrix& m, const Fvector& velocity, bool bXFORM);
 			void OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& box, bool& bPlaying);
-			void DelayDeleteChilds();
 
-			u32 ParticlesCount();
-			BOOL IsPlaying() const;
+			u32 SpriteCount();
+			bool IsPlaying() const;
 			void Play();
-			void Stop(BOOL def_stop);
+			void Stop(bool def_stop);
 		};
+		xr_vector<SItem> items;
 
-		using SItemVec = xr_vector<SItem>;
-		using SItemVecIt = SItemVec::iterator;
-
-		SItemVec			items;
-	public:
 		enum{
 			flRT_Playing		= (1<<0),
 			flRT_DefferedStop	= (1<<1),
 		};
 		Flags8				m_RT_Flags;
-	public:
-		CParticleGroup	();
-		virtual				~CParticleGroup	();
-		virtual void	 	OnFrame			(u32 dt);
 
-		virtual void		Copy			(dxRender_Visual* pFrom) {FATAL("Can't duplicate particle system - NOT IMPLEMENTED");}
+		CParticleGroup();
+		virtual ~CParticleGroup();
+		virtual void OnFrame(u32 dt);
 
-		virtual void 		OnDeviceCreate	();
-		virtual void 		OnDeviceDestroy	();
+#ifndef _EDITOR
+		virtual void UpdateCache();
+#endif
 
-		virtual void		UpdateParent	(const Fmatrix& m, const Fvector& velocity, BOOL bXFORM);
+		virtual void Copy(dxRender_Visual* pFrom) {FATAL("Can't duplicate particle system - NOT IMPLEMENTED");}
 
-		BOOL				Compile			(CPGDef* def);
+		virtual void UpdateParent(const Fmatrix& m, const Fvector& velocity, bool bXFORM);
 
-		const CPGDef*		GetDefinition	(){return m_Def;}
+		void Compile(CPGDef* def);
 
-		virtual void		Play			();
-		virtual void		Stop			(BOOL bDefferedStop=TRUE);
-		virtual BOOL		IsPlaying		(){return m_RT_Flags.is(flRT_Playing);}
+		const CPGDef* GetDefinition(){return m_Def;}
 
-		virtual void		SetHudMode			(BOOL b);
-		virtual BOOL		GetHudMode			();
+		virtual void Play();
+		virtual void Stop(bool bDefferedStop=true);
+		virtual bool IsPlaying(){return m_RT_Flags.is(flRT_Playing);}
 
-		virtual void		SetLiveUpdate		(BOOL b);
-		virtual BOOL		GetLiveUpdate		();
+		virtual void SetHudMode(bool b);
+		virtual bool GetHudMode();
 
-		virtual float		GetTimeLimit	(){VERIFY(m_Def); return m_Def->m_fTimeLimit;}
+		virtual void SetLiveUpdate(bool b);
+		virtual bool GetLiveUpdate();
 
-		virtual const shared_str	Name		(){VERIFY(m_Def); return m_Def->m_Name;}
+		virtual float GetTimeLimit(){VERIFY(m_Def); return m_Def->m_fTimeLimit;}
 
-        virtual u32 		ParticlesCount	();
+		virtual const shared_str Name(){VERIFY(m_Def); return m_Def->m_Name;}
+
+        virtual u32 SpriteCount();
+		PAPI::ParticleAction* FindPA(shared_str PEName, PAPI::PActionEnum Action) override;
+
+		virtual IParticleCustom* dcast_ParticleCustom() { return this; }
 	};
+
+	namespace PG
+	{
+		enum class Version: u16
+		{
+			Original = 0x0003,
+			Extended,
+			MAX,
+			Latest = MAX - 1,
+		};
+
+		enum class Chunks: u32
+		{
+			VERSION = 0x0001,
+			NAME = 0x0002,
+			FLAGS = 0x0003,
+			EFFECTS = 0x0004, // obsolete
+			TIME_LIMIT = 0x0005,
+			EFFECTS2 = 0x0007,
+		};
+		
+	}
 
 }
 //----------------------------------------------------
-#define PGD_VERSION				0x0003
-#define PGD_CHUNK_VERSION		0x0001
-#define PGD_CHUNK_NAME			0x0002
-#define PGD_CHUNK_FLAGS			0x0003
-#define PGD_CHUNK_EFFECTS		0x0004 // obsolete
-#define PGD_CHUNK_TIME_LIMIT	0x0005
-#define PGD_CHUNK_EFFECTS2		0x0007
 
 //---------------------------------------------------------------------------
 #endif

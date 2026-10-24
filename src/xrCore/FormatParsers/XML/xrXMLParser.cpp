@@ -4,10 +4,33 @@
 #include "xrXMLParser.h"
 #include "AsureXML.h"
 
-CXml::CXml() :	
-	m_root(nullptr), 
+static xr_hash_map<xr_string, xr_shared_ptr<xr_string>>& GetXMLCache()
+{
+	static xr_hash_map<xr_string, xr_shared_ptr<xr_string>> g_xmlCache;
+	return g_xmlCache;
+}
+
+void CXml::InvalidateCache()
+{
+	GetXMLCache().clear();
+	Msg("XML cache invalidated");
+}
+
+void CXml::RemoveFromCache(const char* path_alias, const char* xml_path)
+{
+	if (!path_alias || !xml_path)
+	{
+		return;
+	}
+	xr_string cacheKey = xr_string(path_alias) + "\\" + xml_path;
+	GetXMLCache().erase(cacheKey);
+}
+
+CXml::CXml() :
+	m_root(nullptr),
 	m_pLocalRoot(nullptr)
-{}
+{
+}
 
 CXml::~CXml()
 {
@@ -19,10 +42,10 @@ void CXml::ClearInternal()
 	m_Doc.Clear();
 }
 
-void ParseFile(LPCSTR path, CMemoryWriter& W, IReader *F, CXml* xml )
+void ParseFile(const char* path, CMemoryWriter& W, IReader *F, CXml* xml )
 {
 	string4096 str = {};
-	
+
 	while (!F->eof())
 	{
 		F->r_string(str,sizeof(str));
@@ -40,7 +63,7 @@ void ParseFile(LPCSTR path, CMemoryWriter& W, IReader *F, CXml* xml )
 
 					for (auto it = fset.begin(); it != fset.end(); it++)
 					{
-						LPCSTR file_name = it->name.c_str();
+						const char* file_name = it->name.c_str();
 
 						if (file_name == strstr(file_name, "ui\\"))
 						{
@@ -110,7 +133,7 @@ void ParseFile(LPCSTR path, CMemoryWriter& W, IReader *F, CXml* xml )
 	}
 }
 
-bool CXml::Load(LPCSTR path_alias, LPCSTR path, LPCSTR _xml_filename)
+bool CXml::Load(const char* path_alias, const char* path, const char* _xml_filename)
 {
 	shared_str fn			= correct_file_name(path, _xml_filename);
 
@@ -122,60 +145,124 @@ bool CXml::Load(LPCSTR path_alias, LPCSTR path, LPCSTR _xml_filename)
 void CXml::Save()
 {
 	string_path Path = {};
-	FS.update_path(Path, "$game_config$", m_xml_file_name);
+	FS.update_path(Path, _game_config_, m_xml_file_name);
 	m_Doc.SaveFile(Path);
 }
 
-//инициализация и загрузка XML файла
-bool CXml::Load(LPCSTR path, LPCSTR xml_filename)
+bool CXml::Load(const char* path, const char* xml_filename)
 {
-	xr_strcpy(m_xml_file_name, xml_filename);
-	// Load and parse xml file
+	xr_string cacheKey = xr_string(path) + "\\" + xml_filename;
 
-	IReader* F = FS.r_open(path, xml_filename);
-	if (!F)
-		return false;
-
-	CMemoryWriter W;
-	ParseFile(path, W, F, this);
-	W.w_stringZ("");
-	FS.r_close(F);
-
-	m_Doc.Parse((LPCSTR)W.pointer());
-
-	// Asure initial
-	CXMLOverride XMLOverrider;
-	const FS_FileSet& AsureData = XMLOverrider.GetModifFiles(path, xml_filename);
-	if (!AsureData.empty())
+	if (m_loaded && m_cache_key == cacheKey)
 	{
-		for (const FS_File& File : AsureData)
+		return true;
+	}
+
+	m_cache_key = cacheKey;
+	xr_strcpy(m_xml_file_name, xml_filename);
+
+	xr_shared_ptr<xr_string> cachedContent;
+
+	{
+		auto& Cache = GetXMLCache();
+		auto it = Cache.find(cacheKey);
+		if (it != Cache.end())
 		{
-			IReader* AF = FS.r_open("$game_config$", File.name.c_str());
-
-			CMemoryWriter AW;
-			ParseFile(path, AW, AF, this);
-			AW.w_stringZ("");
-			FS.r_close(AF);
-
-			tinyxml2::XMLDocument ADoc; 
-			ADoc.Parse((LPCSTR)AW.pointer());
-			XMLOverrider.GenerateNewDoc(m_Doc, ADoc);
+			cachedContent = it->second;
 		}
 	}
 
+	if (!cachedContent)
+	{
+		IReader* F = FS.r_open(path, xml_filename);
+		if (!F)
+			return false;
+
+		CMemoryWriter W;
+		ParseFile(path, W, F, this);
+		W.w_stringZ("");
+		FS.r_close(F);
+
+		tinyxml2::XMLDocument baseDoc;
+		baseDoc.Parse((const char*)W.pointer());
+
+		if (baseDoc.Error())
+		{
+			Msg("! XML base parse error: %s (%s)",
+				xml_filename,
+				baseDoc.ErrorStr());
+			return false;
+		}
+
+		CXMLOverride XMLOverrider;
+		const FS_FileSet& modFiles =
+			XMLOverrider.GetModifFiles(path, xml_filename);
+
+		if (!modFiles.empty())
+		{
+			for (const FS_File& file : modFiles)
+			{
+				IReader* AF = FS.r_open(_game_config_, file.name.c_str());
+				if (!AF)
+					continue;
+
+				CMemoryWriter AW;
+				ParseFile(path, AW, AF, this);
+				AW.w_stringZ("");
+				FS.r_close(AF);
+
+				tinyxml2::XMLDocument overrideDoc;
+				overrideDoc.Parse((const char*)AW.pointer());
+
+				if (!overrideDoc.Error())
+				{
+					XMLOverrider.GenerateNewDoc(baseDoc, overrideDoc);
+				}
+				else
+				{
+					Msg("! XML override parse error: %s (%s)",
+						file.name.c_str(),
+						overrideDoc.ErrorStr());
+				}
+			}
+		}
+
+		tinyxml2::XMLPrinter printer;
+		baseDoc.Print(&printer);
+
+		cachedContent = xr_make_shared<xr_string>(printer.CStr());
+		{
+			auto& Cache = GetXMLCache();
+			auto it = Cache.find(cacheKey);
+			if (it == Cache.end())
+			{
+				Cache.emplace(cacheKey, cachedContent);
+			}
+			else
+			{
+				cachedContent = it->second;
+			}
+		}
+	}
+
+	m_Doc.Clear();
+	m_Doc.Parse(cachedContent->c_str());
+
 	if (m_Doc.Error())
 	{
-		Msg("XML file:%s value:%s errDescr:%s", m_xml_file_name, m_Doc.Value(), m_Doc.ErrorStr());
-
+		Msg("! XML file:%s errDescr:%s",
+			m_xml_file_name,
+			m_Doc.ErrorStr());
 		return false;
 	}
 
 	m_root = m_Doc.FirstChildElement();
-	
+	m_loaded = true;
+
 	return true;
 }
 
-XML_NODE* CXml::NavigateToNode(XML_NODE* start_node, LPCSTR  path, int node_index)
+XML_NODE* CXml::NavigateToNode(XML_NODE* start_node, const char*  path, int node_index)
 {
 	R_ASSERT3					(start_node && path, "NavigateToNode failed in XML file ",m_xml_file_name);
 	XML_NODE*	node			= nullptr;
@@ -210,14 +297,14 @@ XML_NODE* CXml::NavigateToNode(XML_NODE* start_node, LPCSTR  path, int node_inde
 			}
 		}
 	}
-	
+
     while( token != nullptr )
     {
-		// Get next token: 
+		// Get next token:
 		token = strtok( nullptr, seps );
 
 		if( token != nullptr)
-			if(node != 0) 
+			if(node != nullptr)
 			{
 				node_parent = node;
 				node = node_parent->FirstChildElement(token);
@@ -228,12 +315,12 @@ XML_NODE* CXml::NavigateToNode(XML_NODE* start_node, LPCSTR  path, int node_inde
 	return node;
 }
 
-XML_NODE* CXml::NavigateToNode(LPCSTR  path, int node_index)
+XML_NODE* CXml::NavigateToNode(const char*  path, int node_index)
 {
 	return NavigateToNode(GetLocalRoot()?GetLocalRoot():GetRoot(), path, node_index);
 }
 
-XML_NODE* CXml::NavigateToNodeWithAttribute(LPCSTR tag_name, LPCSTR attrib_name, LPCSTR attrib_value)
+XML_NODE* CXml::NavigateToNodeWithAttribute(const char* tag_name, const char* attrib_name, const char* attrib_value)
 {
 
 	XML_NODE	*root		= GetLocalRoot() ? GetLocalRoot() : GetRoot();
@@ -241,7 +328,7 @@ XML_NODE* CXml::NavigateToNodeWithAttribute(LPCSTR tag_name, LPCSTR attrib_name,
 
 	for (int i = 0; i < tabsCount; ++i)
 	{
-		LPCSTR result = ReadAttrib(root, tag_name, i, attrib_name, "");
+		const char* result = ReadAttrib(root, tag_name, i, attrib_name, "");
 		if (result && xr_strcmp(result, attrib_value) == 0)
 		{
 			return NavigateToNode(root, tag_name, i);
@@ -251,22 +338,22 @@ XML_NODE* CXml::NavigateToNodeWithAttribute(LPCSTR tag_name, LPCSTR attrib_name,
 }
 
 
-LPCSTR CXml::Read(LPCSTR path, int index, LPCSTR   default_str_val)
+const char* CXml::Read(const char* path, int index, const char*   default_str_val)
 {
 	XML_NODE* node			= NavigateToNode(path, index);
-	LPCSTR result			= Read(node,  default_str_val);
+	const char* result			= Read(node,  default_str_val);
 	return					result;
 }
 
-LPCSTR CXml::Read(XML_NODE* start_node,  LPCSTR path, int index, LPCSTR   default_str_val)
+const char* CXml::Read(XML_NODE* start_node,  const char* path, int index, const char*   default_str_val)
 {
 	XML_NODE* node			= NavigateToNode(start_node, path, index);
-	LPCSTR result			= Read(node,  default_str_val);
+	const char* result			= Read(node,  default_str_val);
 	return					result;
 }
 
 
-LPCSTR CXml::Read(XML_NODE* node,  LPCSTR   default_str_val)
+const char* CXml::Read(XML_NODE* node,  const char*   default_str_val)
 {
 	if(node == nullptr)
 		return default_str_val;
@@ -277,14 +364,14 @@ LPCSTR CXml::Read(XML_NODE* node,  LPCSTR   default_str_val)
 
 		tinyxml2::XMLText *text			= node->ToText();
 		if (text)				return text->Value();
-		else 
+		else
 			return				default_str_val;
 	}
 }
 
 int CXml::ReadInt(XML_NODE* node, int default_int_val)
 {
-	LPCSTR result_str		= Read(node, nullptr ); 
+	const char* result_str		= Read(node, nullptr );
 
 	if(result_str==nullptr)
 		return				default_int_val;
@@ -292,36 +379,36 @@ int CXml::ReadInt(XML_NODE* node, int default_int_val)
 	return atoi				(result_str);
 }
 
-int CXml::ReadInt(LPCSTR path, int index, int default_int_val)
+int CXml::ReadInt(const char* path, int index, int default_int_val)
 {
-	LPCSTR result_str		= Read(path, index, nullptr ); 
+	const char* result_str		= Read(path, index, nullptr );
 	if(result_str==nullptr)
 		return				default_int_val;
 
 	return atoi				(result_str);
 }
 
-int CXml::ReadInt(XML_NODE* start_node, LPCSTR path, int index, int default_int_val)
+int CXml::ReadInt(XML_NODE* start_node, const char* path, int index, int default_int_val)
 {
-	LPCSTR result_str		= Read(start_node, path, index, nullptr ); 
+	const char* result_str		= Read(start_node, path, index, nullptr );
 	if(result_str==nullptr)
 		return				default_int_val;
 
 	return atoi				(result_str);
 }
 
-float   CXml::ReadFlt(LPCSTR path, int index,  float default_flt_val)
+float   CXml::ReadFlt(const char* path, int index,  float default_flt_val)
 {
-	LPCSTR result_str		= Read(path, index, nullptr ); 
+	const char* result_str		= Read(path, index, nullptr );
 	if(result_str==nullptr)
 		return				default_flt_val;
 
 	return (float)atof		(result_str);
 }
 
-float   CXml::ReadFlt(XML_NODE* start_node,  LPCSTR path, int index,  float default_flt_val)
+float   CXml::ReadFlt(XML_NODE* start_node,  const char* path, int index,  float default_flt_val)
 {
-	LPCSTR result_str		= Read(start_node, path, index, nullptr ); 
+	const char* result_str		= Read(start_node, path, index, nullptr );
 	if(result_str==nullptr)
 		return				default_flt_val;
 
@@ -330,7 +417,7 @@ float   CXml::ReadFlt(XML_NODE* start_node,  LPCSTR path, int index,  float defa
 
 float   CXml::ReadFlt(XML_NODE* node,  float default_flt_val)
 {
-	LPCSTR result_str		= Read(node, nullptr ); 
+	const char* result_str		= Read(node, nullptr );
 
 	if(result_str==nullptr)
 		return				default_flt_val;
@@ -338,40 +425,40 @@ float   CXml::ReadFlt(XML_NODE* node,  float default_flt_val)
 	return (float)atof		(result_str);
 }
 
-LPCSTR CXml::ReadAttrib(XML_NODE* start_node, LPCSTR path,  int index, 
-					LPCSTR attrib, LPCSTR   default_str_val)
+const char* CXml::ReadAttrib(XML_NODE* start_node, const char* path,  int index,
+					const char* attrib, const char*   default_str_val)
 {
 	XML_NODE* node			= NavigateToNode(start_node, path, index);
-	LPCSTR result			= ReadAttrib(node, attrib, default_str_val);
+	const char* result			= ReadAttrib(node, attrib, default_str_val);
 
 	return					result;
 }
 
 
-LPCSTR CXml::ReadAttrib(LPCSTR path,  int index, 
-					LPCSTR attrib, LPCSTR   default_str_val)
+const char* CXml::ReadAttrib(const char* path,  int index,
+					const char* attrib, const char*   default_str_val)
 {
 	XML_NODE* node			= NavigateToNode(path, index);
-	LPCSTR result			= ReadAttrib(node, attrib, default_str_val);
+	const char* result			= ReadAttrib(node, attrib, default_str_val);
 	return					result;
 }
 
-LPCSTR CXml::ReadAttrib(XML_NODE* node, LPCSTR attrib, LPCSTR default_str_val)
+const char* CXml::ReadAttrib(XML_NODE* node, const char* attrib, const char* default_str_val)
 {
 	if(node == nullptr)
 		return default_str_val;
 	else
 	{
 /*
-		//обязательно делаем ref_str, а то 
+		//обязательно делаем ref_str, а то
 		//не сможем запомнить строку и return вернет левый указатель
 		shared_str result_str;
 */
-		LPCSTR result_str = nullptr;
+		const char* result_str = nullptr;
 		// Кастаем ниже по иерархии
 
-		tinyxml2::XMLElement *el = node->ToElement(); 
-		
+		tinyxml2::XMLElement *el = node->ToElement();
+
 		if(el)
 		{
 			result_str = el->Attribute(attrib);
@@ -421,9 +508,9 @@ bool CXml::ReadAttribBool(XML_NODE* start_node, const char* path, int index, con
 	return ReadAttribInt(start_node, path, index, attrib, default_value);
 }
 
-int CXml::ReadAttribInt(XML_NODE* node, LPCSTR attrib, int default_int_val)
+int CXml::ReadAttribInt(XML_NODE* node, const char* attrib, int default_int_val)
 {
-	LPCSTR result_str		= ReadAttrib(node, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(node, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_int_val;
@@ -431,9 +518,9 @@ int CXml::ReadAttribInt(XML_NODE* node, LPCSTR attrib, int default_int_val)
 	return atoi				(result_str);
 }
 
-int CXml::ReadAttribInt(LPCSTR path, int index, LPCSTR attrib, int default_int_val)
+int CXml::ReadAttribInt(const char* path, int index, const char* attrib, int default_int_val)
 {
-	LPCSTR result_str		= ReadAttrib(path, index, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(path, index, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_int_val;
@@ -442,18 +529,18 @@ int CXml::ReadAttribInt(LPCSTR path, int index, LPCSTR attrib, int default_int_v
 }
 
 
-int CXml::ReadAttribInt(XML_NODE* start_node, LPCSTR path, int index, LPCSTR attrib, int default_int_val)
+int CXml::ReadAttribInt(XML_NODE* start_node, const char* path, int index, const char* attrib, int default_int_val)
 {
-	LPCSTR result_str		= ReadAttrib(start_node, path, index, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(start_node, path, index, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_int_val;
 	return atoi				(result_str);
 }
 
-float   CXml::ReadAttribFlt(LPCSTR path,	int index,  LPCSTR attrib, float default_flt_val)
+float   CXml::ReadAttribFlt(const char* path,	int index,  const char* attrib, float default_flt_val)
 {
-	LPCSTR result_str		= ReadAttrib(path, index, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(path, index, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_flt_val;
@@ -461,9 +548,9 @@ float   CXml::ReadAttribFlt(LPCSTR path,	int index,  LPCSTR attrib, float defaul
 	return (float)atof		(result_str);
 }
 
-float   CXml::ReadAttribFlt(XML_NODE* start_node, LPCSTR path, int index,  LPCSTR attrib, float default_flt_val)
+float   CXml::ReadAttribFlt(XML_NODE* start_node, const char* path, int index,  const char* attrib, float default_flt_val)
 {
-	LPCSTR result_str		= ReadAttrib(start_node, path, index, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(start_node, path, index, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_flt_val;
@@ -471,9 +558,9 @@ float   CXml::ReadAttribFlt(XML_NODE* start_node, LPCSTR path, int index,  LPCST
 	return (float)atof		(result_str);
 }
 
-float   CXml::ReadAttribFlt(XML_NODE* node,	LPCSTR attrib, float default_flt_val)
+float   CXml::ReadAttribFlt(XML_NODE* node,	const char* attrib, float default_flt_val)
 {
-	LPCSTR result_str		= ReadAttrib(node, attrib, nullptr); 
+	const char* result_str		= ReadAttrib(node, attrib, nullptr);
 
 	if(result_str==nullptr)
 		return				default_flt_val;
@@ -481,27 +568,27 @@ float   CXml::ReadAttribFlt(XML_NODE* node,	LPCSTR attrib, float default_flt_val
 	return (float)atof		(result_str);
 }
 
-int CXml::GetNodesNum(LPCSTR path, int index, LPCSTR  tag_name)
+int CXml::GetNodesNum(const char* path, int index, const char*  tag_name)
 {
 	XML_NODE* node			= nullptr;
-	
+
 	XML_NODE *root			= GetLocalRoot()?GetLocalRoot():GetRoot();
 	if(path!=nullptr)
 	{
 		node				= NavigateToNode(path, index);
 
-		if(node==nullptr) 
+		if(node==nullptr)
 			node			= root;
 	}
 	else
 		node = root;
-	
+
 	if(node == nullptr) return 0;
 
 	return GetNodesNum		(node, tag_name);
 }
 
-int CXml::GetNodesNum(XML_NODE* node, LPCSTR  tag_name)
+int CXml::GetNodesNum(XML_NODE* node, const char*  tag_name)
 {
 	if(node == nullptr)		return 0;
 
@@ -522,27 +609,27 @@ int CXml::GetNodesNum(XML_NODE* node, LPCSTR  tag_name)
 		else
 			el = el->NextSiblingElement(tag_name);
 	}
-	
+
 	return result;
 }
 
 //нахождение элемнета по его атрибуту
-XML_NODE* CXml::SearchForAttribute(LPCSTR path, int index, LPCSTR tag_name, LPCSTR attrib, LPCSTR attrib_value_pattern)
+XML_NODE* CXml::SearchForAttribute(const char* path, int index, const char* tag_name, const char* attrib, const char* attrib_value_pattern)
 {
 	XML_NODE* start_node			= NavigateToNode(path, index);
 	XML_NODE* result				= SearchForAttribute(start_node, tag_name, attrib, attrib_value_pattern);
 	return	result;
 }
 
-XML_NODE* CXml::SearchForAttribute(XML_NODE* start_node, LPCSTR tag_name, LPCSTR attrib, LPCSTR attrib_value_pattern)
+XML_NODE* CXml::SearchForAttribute(XML_NODE* start_node, const char* tag_name, const char* attrib, const char* attrib_value_pattern)
 {
 	while (start_node)
 	{
 		tinyxml2::XMLElement *el			= start_node->ToElement();
 		if (el)
 		{
-			LPCSTR attribStr		= el->Attribute(attrib);
-			LPCSTR valueStr			= el->Value();
+			const char* attribStr		= el->Attribute(attrib);
+			const char* valueStr			= el->Value();
 
 			if (attribStr &&  0 == xr_strcmp(attribStr, attrib_value_pattern) &&
 				valueStr && 0 == xr_strcmp(valueStr, tag_name))
@@ -563,7 +650,7 @@ XML_NODE* CXml::SearchForAttribute(XML_NODE* start_node, LPCSTR tag_name, LPCSTR
 
 #ifdef DEBUG // debug & mixed
 
-LPCSTR CXml::CheckUniqueAttrib (XML_NODE* start_node, LPCSTR tag_name, LPCSTR attrib_name)
+const char* CXml::CheckUniqueAttrib (XML_NODE* start_node, const char* tag_name, const char* attrib_name)
 {
 	m_AttribValues.resize(0);
 
@@ -571,13 +658,13 @@ LPCSTR CXml::CheckUniqueAttrib (XML_NODE* start_node, LPCSTR tag_name, LPCSTR at
 
 	for(int i=0; i<tags_num; i++)
 	{
-		LPCSTR attrib				= ReadAttrib(start_node, tag_name, i, attrib_name, nullptr);
-		
+		const char* attrib				= ReadAttrib(start_node, tag_name, i, attrib_name, nullptr);
+
 		xr_vector<shared_str>::iterator it = std::find(m_AttribValues.begin(), m_AttribValues.end(), attrib);
 
-		 if(m_AttribValues.end() != it) 
+		 if(m_AttribValues.end() != it)
 			 return	attrib;
-		 
+
 		 m_AttribValues.push_back	(attrib);
 	}
 	return nullptr;

@@ -4,18 +4,19 @@
 #include "../../xrUI/Widgets/UIDoubleProgressBar.h"
 
 class CUIXml;
+class CUI3dStatic;
 class CInventoryItem;
 
 #include "../../xrScripts/script_export_space.h"
 
 struct SLuaWpnParams;
 
-class CUIWpnParams : 
+class CUIWpnParams final : 
 	public CUIWindow 
 {
 public:
-							CUIWpnParams		();
-	virtual					~CUIWpnParams		();
+	CUIWpnParams();
+	virtual ~CUIWpnParams() = default;
 
 	void 					InitFromXml			(CUIXml& xml_doc);
 	void					SetInfo				(CInventoryItem* slot_wpn, CInventoryItem& cur_wpn);
@@ -35,16 +36,17 @@ protected:
 	CUIStatic*				m_icon_rpm;
 
 	CUIStatic*				m_stAmmo;
-	CUITextWnd				m_textAccuracy;
-	CUITextWnd				m_textHandling;
-	CUITextWnd				m_textDamage;
-	CUITextWnd				m_textRPM;
-	CUITextWnd*				m_textAmmoTypes;
-	CUITextWnd*				m_textAmmoUsedType;
-	CUITextWnd*				m_textAmmoCount;
-	CUITextWnd*				m_textAmmoCount2;
-	CUIStatic*				m_stAmmoType1;
-	CUIStatic*				m_stAmmoType2;
+	CUIStatic				m_textAccuracy;
+	CUIStatic				m_textHandling;
+	CUIStatic				m_textDamage;
+	CUIStatic				m_textRPM;
+	CUIStatic*				m_textAmmoTypes;
+	CUIStatic*				m_textAmmoUsedType;
+	CUIStatic*				m_textAmmoCount;
+	CUIStatic*				m_textAmmoCount2;
+	CUI3dStatic*			m_stAmmoType1;
+	CUI3dStatic*			m_stAmmoType2;
+	CUI3dStatic*			m_stAmmoType3;
 	CUIStatic*				m_Prop_line;
 };
 

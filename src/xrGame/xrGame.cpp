@@ -7,15 +7,19 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "DynamicWallmarkZone.h"
 #include "object_factory.h"
 #include "../../xrUI/xrUIXmlParser.h"
 #include "../xrEngine/xr_level_controller.h"
+
+#include "ImUtils/ImUtils.h"
 
 void CCC_RegisterCommands	();
 void RegisterExpressionDelegates();
 
 CInifile* pGameGlobals = nullptr;
 
+CImGuiRequestManager g_imgui_editor_request_manager;
 void LoadCallbackGlobals(bool& flag, const char*& value, const char* section)
 {
 	flag = pGameGlobals->line_exist("callbacks", section);
@@ -97,7 +101,7 @@ extern "C"
 	DLL_API void __cdecl xrGameInitialize()
 	{
 		string_path GameGlobals = {};
-		FS.update_path(GameGlobals, "$game_config$", "game_global.ltx");
+		FS.update_path(GameGlobals, _game_config_, "game_global.ltx");
 		pGameGlobals = new CInifile(GameGlobals);
 
 		CCC_RegisterCommands();
@@ -113,6 +117,17 @@ extern "C"
 #ifdef DEBUG
 		unit_test_stack_string();
 #endif
+	}
+
+	DLL_API void __cdecl xrGameShutdown()
+	{
+		AllEditors_Shutdown();
+		g_imgui_editor_request_manager.requests.wait();
+	}
+	
+	DLL_API void __cdecl xrGameRenderPreDestroy()
+	{
+		CDynamicWallmarkRegistry::Instance().ClearWallmarks();
 	}
 
 	DLL_API DLL_Pure* __cdecl xrFactory_Create(CLASS_ID clsid)

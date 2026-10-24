@@ -11,6 +11,7 @@ class CMapManager
 	CMapLocationWrapper*	m_locations_wrapper;
 	Locations*				m_locations;
 	xr_vector<CMapLocation*> m_deffered_destroy_queue;
+	u16						m_activeUserNavigationLocationId;
 public:
 
 							CMapManager					();
@@ -26,6 +27,12 @@ public:
 	void					RemoveMapLocationByObjectID (u16 id); //call on destroy object
 	void					RemoveMapLocation			(CMapLocation* ml);
 	CMapLocation*			GetMapLocation				(const shared_str& spot_type, u16 id);
+	CMapLocation*			GetActiveTaskCompassLocation	();
+	CMapLocation*			GetActiveUserNavigationLocation();
+	void					SetActiveUserNavigationLocation(CMapLocation* ml);
+	void					ClearActiveUserNavigationLocation();
+	bool					HasActiveUserNavigationLocation();
+	bool					IsUserNavigationLocation	(const CMapLocation* ml);
 	void					GetMapLocations				(const shared_str& spot_type, u16 id, xr_vector<CMapLocation*>& res);
 	void					DisableAllPointers			();
 	bool					GetMapLocationsForObject	(u16 id, xr_vector<CMapLocation*>& res);
@@ -38,7 +45,7 @@ public:
 
 	xrCriticalSection		UpdateCS;
 
-	void MapLocationsForEach(LPCSTR spot_type, u16 id, const luabind::functor<bool>& functor);
+	void MapLocationsForEach(const char* spot_type, u16 id, const luabind::functor<bool>& functor);
 	void AllLocationsForEach(const luabind::functor<bool>& functor);
 	static void script_register(lua_State* L);
 };

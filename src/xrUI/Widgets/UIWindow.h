@@ -11,6 +11,7 @@ class CUIWindow;
 #include "UIMessages.h"
 #include "../../xrScripts/script_export_space.h"
 #include "../uiabstract.h"
+#include "UIActionRepeaters.h"
 
 class CUIStatic;
 class CUICellItem;
@@ -21,12 +22,14 @@ class ITextureOwner;
 class CUILightAnimColorConroller;
 class CUITreeViewItem;
 class CUIScrollView;
-class CUIFixedScrollBar;
 class CUISelectable;
 class CUIListItemServer;
+class CUIProgressShape;
+class CUIGamepadLegend;
 
 class UI_API CUIWindow  : 
-	public CUISimpleWindow
+	public CUISimpleWindow,
+	public CUIActionRepeatersOwner
 {
 public:
 				CUIWindow						();
@@ -43,14 +46,16 @@ public:
 	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return nullptr; }
 	virtual CUITreeViewItem* ui_cast_tree_view_item() { return nullptr; }
 	virtual CUIScrollView* ui_cast_scroll_view() { return nullptr; }
-	virtual CUIFixedScrollBar* ui_cast_fixed_scroll_bar() { return nullptr; }
 	virtual CUISelectable* ui_cast_selectable() { return nullptr; }
 	virtual CUIListItemServer* ui_cast_list_item_server() { return nullptr; }
+	virtual CUIProgressShape* ui_cast_progress_shape() { return nullptr; }
+	virtual CUIGamepadLegend* ui_cast_gamepad_legend() { return nullptr; }
 
 	////////////////////////////////////
 	//работа с дочерними и родительскими окнами
 	virtual void			AttachChild			(CUIWindow* pChild);
 	virtual void			DetachChild			(CUIWindow* pChild);
+	virtual bool			TryDetachChild		(CUIWindow* pChild);
 	virtual bool			IsChild				(CUIWindow* pChild) const;
 	virtual void			DetachAll			();
 	int						GetChildNum			() 
@@ -69,7 +74,7 @@ public:
 	CUIWindow*				GetChildMouseHandler();
 
 
-	virtual bool			OnKeyboardAction			(int dik, EUIMessages keyboard_action);
+	virtual bool			OnKeyboardAction	(int dik, EUIMessages keyboard_action);
 	virtual bool			OnKeyboardHold		(int dik);
 
 	virtual bool 			OnMouseAction				(float x, float y, EUIMessages mouse_action);
@@ -78,6 +83,12 @@ public:
 	virtual bool 			OnDbClick			();
 	virtual bool 			OnMouseDown			(int mouse_btn);
 	virtual void 			OnMouseUp			(int mouse_btn);
+
+	virtual bool			OnGamepadKeyAction	(int key, EUIMessages gamepad_action);
+	virtual bool			OnGamepadStickAction(int key, Fvector2 value, EUIMessages gamepad_action);
+	virtual bool			OnGamepadKeyHold	(int key);
+	virtual bool			OnGyroscopeAction	(Fvector3 value);
+	virtual bool			OnTouchpadAction	(Fvector2 value);
 
 	virtual void 			OnFocusReceive		();
 	virtual void 			OnFocusLost			();
@@ -152,12 +163,24 @@ public:
 
 	// Name of the window
 	const shared_str		WindowName			() const					{ return m_windowName; }
-	void					SetWindowName		(LPCSTR wn)					{ m_windowName = wn; }
-	LPCSTR					WindowName_script	()							{return m_windowName.c_str();}
+	void					SetWindowName		(const char* wn)					{ m_windowName = wn; }
+	const char*					WindowName_script	()							{return m_windowName.c_str();}
 	CUIWindow*				FindChild			(const shared_str name);
+	template <typename T>
+	T* FindChild_script(const char* name)
+	{
+		shared_str n = name;
+		CUIWindow* pWnd = FindChild(n);
+		if (pWnd == nullptr)
+		{
+			return nullptr;
+		}
+
+		return smart_cast<T*>(pWnd);
+	}
 	// Name of the window by node from XML
 	const shared_str		WindowNodeName		() const					{ return m_windowNodeName; }
-	void					SetWindowNodeName	(LPCSTR wn)					{ m_windowNodeName = wn; }
+	void					SetWindowNodeName	(const char* wn)					{ m_windowNodeName = wn; }
 
 	IC bool					CursorOverWindow	() const					{ return m_bCursorOverWindow; }
 	IC u32					FocusReceiveTime	() const					{ return m_dwFocusReceiveTime; }
@@ -218,3 +241,4 @@ public:
 };
 
 UI_API bool fit_in_rect(CUIWindow* w, Frect const& vis_rect, float border = 0.0f, float dx16pos = 0.0f );
+UI_API bool fit_infownd_in_rect(CUIWindow* wInfo, Frect & stick_to_rect, Frect fit_in_rect, float border, float dx16pos = 0.0f);

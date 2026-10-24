@@ -50,7 +50,6 @@ void EDetailManager::ClearBase()
 {
     m_Base.Clear		();
     m_SnapObjects.clear	();
-    ExecCommand			(COMMAND_REFRESH_SNAP_OBJECTS);
 }
 void EDetailManager::Clear(bool bSpecific)
 {
@@ -64,7 +63,7 @@ void EDetailManager::Clear(bool bSpecific)
 void EDetailManager::InvalidateCache()
 {
 	// Initialize 'vis' and 'cache'
-	cache_Initialize	();
+    cache_ReInitialize();
 }
 
 extern void bwdithermap	(int levels, int magic[16][16] );
@@ -148,7 +147,7 @@ void EDetailManager::OnObjectRemove(CCustomObject* O, bool bDeleting)
 {
 	ObjectIt it=std::find(m_SnapObjects.begin(),m_SnapObjects.end(),O);
 	if (it!=m_SnapObjects.end()){
-    	m_RTFlags.set		(flRTGenerateBaseMesh,TRUE);
+    	m_RTFlags.set		(flRTGenerateBaseMesh,true);
 		m_SnapObjects.remove(O);
     }
 }
@@ -162,12 +161,12 @@ void EDetailManager::OnSceneUpdate()
 void EDetailManager::OnFrame()
 {
     if (m_RTFlags.is(flRTGenerateBaseMesh)&&m_Base.Valid()){
-    	m_RTFlags.set		(flRTGenerateBaseMesh,FALSE);
+    	m_RTFlags.set		(flRTGenerateBaseMesh,false);
 	    m_Base.CreateRMFromObjects(m_BBox,m_SnapObjects);
     }
 }
 
-void EDetailManager::ExportColorIndices(LPCSTR fname)
+void EDetailManager::ExportColorIndices(const char* fname)
 {
 	IWriter* F 	= FS.w_open(fname);
     if (F){
@@ -176,7 +175,7 @@ void EDetailManager::ExportColorIndices(LPCSTR fname)
     }
 }
 
-bool EDetailManager::ImportColorIndices(LPCSTR fname)
+bool EDetailManager::ImportColorIndices(const char* fname)
 {
     FS.TryLoad(fname);
 	IReader* F=FS.r_open(fname);
@@ -397,7 +396,7 @@ bool EDetailManager::LoadLTX(CInifile& ini)
     {
         string128 sect_name;
         sprintf(sect_name, "snap_object_%d", i);
-        LPCSTR s = ini.r_string(sect_name, "name");
+        const char* s = ini.r_string(sect_name, "name");
         CCustomObject* O = Scene->FindObjectByName(s, OBJCLASS_SCENEOBJECT);
         if (!O) ELog.Msg(mtError, "EDetailManager: Can't find snap object '%s'.", s);
         else m_SnapObjects.push_back(O);
@@ -407,7 +406,7 @@ bool EDetailManager::LoadLTX(CInifile& ini)
     ps_r__Detail_density = ini.r_float("main", "detail_density");
 
     // base texture
-    LPCSTR s = ini.r_string("main", "base_texture");
+    const char* s = ini.r_string("main", "base_texture");
     if (s)
     {
         string256 image_name;
@@ -416,7 +415,7 @@ bool EDetailManager::LoadLTX(CInifile& ini)
         if (m_Base.LoadImage(image_name))
         {
             m_Base.CreateShader();
-            m_RTFlags.set(flRTGenerateBaseMesh, TRUE);
+            m_RTFlags.set(flRTGenerateBaseMesh, true);
         }
         else
         {
@@ -606,7 +605,7 @@ bool EDetailManager::LoadStream(IReader& F)
 	    F.r_stringZ		(buf,sizeof(buf));
     	if (m_Base.LoadImage(buf)){
 		    m_Base.CreateShader();
-            m_RTFlags.set(flRTGenerateBaseMesh,TRUE);
+            m_RTFlags.set(flRTGenerateBaseMesh,true);
         }else{
         	ELog.Msg(mtError,"EDetailManager: Can't find base texture '%s'.",buf);
             ClearSlots();
@@ -676,7 +675,7 @@ void EDetailManager::SaveSelection(IWriter& F)
 	SaveStream(F);
 }
 
-bool EDetailManager::Export(LPCSTR path) 
+bool EDetailManager::Export(const char* path) 
 {
     xr_string fn		= xr_string(path)+"build.details";
     bool bRes=true;
@@ -714,8 +713,8 @@ bool EDetailManager::Export(LPCSTR path)
 	    	*remap_object_it	= (u8)new_idx++;
 
     xr_string 			do_tex_name = ChangeFileExt(fn,"_details");
-    int res = ImageLib.CreateMergedTexture(textures, do_tex_name.c_str(), STextureParams::tfDXT5, 256, 2048, 256, 2048, offsets, scales, rotated, remap);
-    if (1!=res)			bRes=FALSE;
+    int res = ImageLib.CreateMergedTexture(textures, do_tex_name.c_str(), STextureParams::tfDXT5, 256, 8192, 256, 8192, offsets, scales, rotated, remap);
+    if (1!=res)			bRes=false;
 
     pb->Inc				("export geometry");
     // objects
@@ -730,7 +729,7 @@ bool EDetailManager::Export(LPCSTR path)
                     ELog.DlgMsg(mtError, "Bad object or object not found '%s'.", ((EDetail*)(*it))->m_sRefs.c_str());
                     bRes=false;
                 }else{
-                    LPCSTR tex_name = ((EDetail*)(*it))->GetTextureName();
+                    const char* tex_name = ((EDetail*)(*it))->GetTextureName();
                     u32 t_idx = 0;
                     for (; t_idx<textures.size(); t_idx++) 
                         if (textures[t_idx]==tex_name) break;
@@ -794,7 +793,7 @@ void EDetailManager::OnBaseTextureChange(PropValue* prop)
     ELog.DlgMsg				(mtInformation,"Texture changed. Reinitialize objects.");
 }
 
-void EDetailManager::FillProp(LPCSTR pref, PropItemVec& items)
+void EDetailManager::FillProp(const char* pref, PropItemVec& items)
 {
 	PropValue* P;
     P=PHelper().CreateFloat	(items, PrepareKey(pref,"Objects per square"),				&ps_r__Detail_density);

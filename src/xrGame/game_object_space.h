@@ -35,8 +35,6 @@ namespace GameObject {
 		eActionTypeParticle,
 		eActionTypeObject,
 
-		eActorSleep,
-
 		eHelicopterOnPoint,
 		eHelicopterOnHit,
 
@@ -51,6 +49,10 @@ namespace GameObject {
 
 		eInvBoxItemTake,
 		eWeaponNoAmmoAvailable,
+
+		eFallHit,
+		eOnActorJumpBegin,
+		eOnActorJumpEnd,
 
 		eKeyPress,
 		eKeyRelease,

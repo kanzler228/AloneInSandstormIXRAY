@@ -2,25 +2,22 @@
 //
 #include "stdafx.h"
 #include "FormatParsers/XML/Expression.h"
-
+#include "compression/ppmd/compression_ppmd_stream.h"
 
 #ifdef IXR_WINDOWS
-#include <mmsystem.h>
-#include <objbase.h>
+#	include <mmsystem.h>
+#	include <objbase.h>
 #endif
+
 #include "xrCore.h"
 #include "discord/discord.h"
-
-#ifdef DEBUG
-#	include	<malloc.h>
-#endif // DEBUG
-
 #include "stack_string.h"
+#include "ECS/EntityManager.h"
 
 XRCORE_API xrCore	Core;
 XRCORE_API u32		build_id;
-XRCORE_API LPCSTR	build_date;
-
+XRCORE_API const char*	build_date;
+XRCORE_API bool ignore_error_window = false;
 namespace CPU
 {
 	extern void Detect();
@@ -32,8 +29,14 @@ char g_application_path[256];
 
 //. extern xr_vector<shared_str>*	LogFile;
 
-void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOOL init_fs, LPCSTR fs_fname)
+extern xr_hash_map<xr_string, CInifile*>* cached_ini_map;
+
+void xrCore::_initialize	(const char* _ApplicationName, xrLogger::LogCallback cb, bool init_fs, const char* fs_fname)
 {
+	GECSManager = new CECSManager;
+
+	cached_ini_map = new xr_hash_map<xr_string, CInifile*>();
+
 	PROF_EVENT("xrCore::_initialize");
 	xr_strcpy					(ApplicationName,_ApplicationName);
 	if (0==init_counter) 
@@ -77,6 +80,10 @@ void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOO
 		g_uiExpressionMgr = new CExpressionManager();
 
 		g_Discord.Init();
+		
+#ifdef IXR_WINDOWS
+		g_AppInfo.IsLaunchedViaWineOrProton = std::getenv("WINELOADER") != nullptr;
+#endif
 	}
 
 	if (init_fs)
@@ -90,7 +97,7 @@ void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOO
 
 		flags |= CLocatorAPI::flScanAppRoot;
 
-		FS._initialize		(flags,0,fs_fname);
+		FS._initialize		(flags,nullptr,fs_fname);
 		BuildId             = build_id;
 		Msg					("'%s' build %d, %s\n","xrCore",build_id, build_date);
 		EFS._initialize		();
@@ -103,45 +110,41 @@ void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOO
 	init_counter++;
 }
 
-#include "compression_ppmd_stream.h"
 extern compression::ppmd::stream	*trained_model;
 
-void xrCore::_destroy		()
+void xrCore::_destroy()
 {
 	--init_counter;
-	if (0==init_counter){
-		FS._destroy			();
-		EFS._destroy		();
-		xr_delete			(xr_FS);
-		xr_delete			(xr_EFS);
+	if (0 == init_counter)
+	{
+		FS._destroy();
+		EFS._destroy();
+		xr_delete(xr_FS);
+		xr_delete(xr_EFS);
+
+		xr_delete(GECSManager);
 
 		if (trained_model) {
-			void			*buffer = trained_model->buffer();
-			xr_free			(buffer);
-			xr_delete		(trained_model);
+			void* buffer = trained_model->buffer();
+			xr_free(buffer);
+			xr_delete(trained_model);
 		}
-
-		Memory._destroy		();
+		xr_delete(cached_ini_map);
+		Memory._destroy();
 	}
 }
 
-#ifndef XRCORE_STATIC
-
-//. why ??? 
 #ifdef IXR_WINDOWS
-	BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD ul_reason_for_call, LPVOID lpvReserved)
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD ul_reason_for_call, LPVOID lpvReserved)
 {
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
 		{
-			_clear87		();
-			_control87		( _PC_53,   MCW_PC );
 			_control87		( _RC_CHOP, MCW_RC );
 			_control87		( _RC_NEAR, MCW_RC );
 			_control87		( _MCW_EM,  MCW_EM );
 		}
-//.		LogFile.reserve		(256);
 		break;
 	case DLL_THREAD_ATTACH:
 		timeBeginPeriod	(1);
@@ -151,7 +154,6 @@ void xrCore::_destroy		()
 	case DLL_PROCESS_DETACH:
 		break;
 	}
-    return TRUE;
+    return true;
 }
-#endif
 #endif

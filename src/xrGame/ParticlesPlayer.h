@@ -2,23 +2,21 @@
 // ParticlesPlayer.h
 // интерфейс для проигрывания партиклов на объекте
 ///////////////////////////////////////////////////////////////
-
 #pragma once
-
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
 #include "../xrEngine/bone.h"
 #include "../xrEngine/VisMask.h"
 
+#include "ParticlesObject.h"
+
+class CParticlesObject;
 using PARTICLES_PTR_VECTOR = xr_vector<CParticlesObject*>;
 using PARTICLES_PTR_VECTOR_IT = PARTICLES_PTR_VECTOR::iterator;
 
 class CObject;
 class IKinematics;
 
-class CParticlesPlayer 
+class TParticlesPlayer 
 {
-
 public:
 	//структура с внутренней информацией о партикле
 	struct SParticlesInfo
@@ -49,11 +47,9 @@ public:
 	using BoneInfoVec = xr_vector<SBoneInfo>;
 	using BoneInfoVecIt = BoneInfoVec::iterator;
 
-private:
 	// список костей
 	VisMask					bone_mask; // используемые кости
-	BoneInfoVec				m_Bones;	
-	CObject					*m_self_object;
+	BoneInfoVec				m_Bones;
 
 protected :
 	bool					m_bActiveBones;	//есть ли косточки на которых играются партиклы
@@ -69,16 +65,17 @@ public:
 	SBoneInfo*				get_nearest_bone_info	(IKinematics* K, u16 bone_index);
 	Fvector					parent_vel;
 public:
-							CParticlesPlayer		(void);
-	virtual					~CParticlesPlayer		(void);
-	void					LoadParticles			(IKinematics* K);
+	TParticlesPlayer();
 
-	void					LoadParticles			(LPCSTR section, IKinematics* K);
-	void					LoadParticles			(LPCSTR section, LPCSTR line, IKinematics* K);
+	void EndComponent();
+
+	void LoadParticles(IKinematics* K);
+
+	void					LoadParticles			(const char* section, IKinematics* K);
+	void					LoadParticles			(const char* section, const char* line, IKinematics* K);
 	void					AppendBone				(u16 bone_id, Fvector offs = zero_vel);
 
 	void					net_DestroyParticles	();
-	void					net_SpawnParticles		();
 	
 	void					UpdateParticles			();
 
@@ -101,5 +98,21 @@ public:
 	void					SetParentVel			(const Fvector& vel) {parent_vel = vel;}
 	
 	bool					IsPlaying				() {return m_bActiveBones;}
-	virtual CParticlesPlayer*	cast_particles_player	()	{return this;}
+
+private:
+	CGameObject* GetComponentOwner() const;
+	mutable CGameObject* ComponentOwner = nullptr;
+
+	ECS_COMPONENT(TParticlesPlayer)
+		for (const SBoneInfo& Bone : m_Bones)
+		{
+			for (const SParticlesInfo& Particle : Bone.particles)
+			{
+				if (Particle.ps) 
+				{
+					ECS_STRING(Particle.ps->Name().c_str(), "Particle")
+				}
+			}
+		}
+	ECS_END
 };

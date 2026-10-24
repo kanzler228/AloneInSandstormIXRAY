@@ -9,17 +9,18 @@
 #include "stdafx.h"
 #include "pch_script.h"
 #include "script_engine.h"
+#include "lua_ext.h"
 
 using namespace luabind;
 
-void LuaLog(LPCSTR caMessage)
+void LuaLog(const char* caMessage)
 {
 #ifndef MASTER_GOLD
 	g_pScriptEngine->script_log	(ScriptStorage::eLuaMessageTypeMessage,"%s",caMessage);
 #endif // #ifndef MASTER_GOLD
 }
 
-void ErrorLog(LPCSTR caMessage)
+void ErrorLog(const char* caMessage)
 {
 	g_pScriptEngine->error_log("%s",caMessage);
 	g_pScriptEngine->print_stack();
@@ -57,32 +58,28 @@ CRenderDevice *get_device()
 
 void trigger_assert(const char* pStringFromLua)
 {
-	#ifdef DEBUG
 	R_ASSERT(false && "catch the thing!");
-	#else
-	MessageBoxA(nullptr,
-		"Report to wh1t3lord, because xr_parser failed and is different to "
-	    "xr_logic behaviour!",
-		"Report to wh1t3lord", 0);
-	#endif
 }
 
 void trigger_vs_log(const char* pStringFromLua)
 {
-	#ifdef WIN32
+#ifdef IXR_WINDOWS
 	OutputDebugStringA(pStringFromLua);
-	#else
-	#endif
+#endif
 }
 
+void LoadScriptToGlobal_script(const char* script_name)
+{
+	LoadScriptToGlobal(g_pScriptEngine->lua(), script_name, false);
+}
 #endif
 
-LPCSTR user_name()
+const char* user_name()
 {
 	return (Core.UserName);
 }
 
-void prefetch_module(LPCSTR file_name)
+void prefetch_module(const char* file_name)
 {
 	g_pScriptEngine->process_file(file_name);
 }
@@ -215,7 +212,7 @@ void TryLoadFile(const char* FileName)
 	FS.TryLoad(FileName);
 }
 
-void lua_debug_print(LPCSTR str)
+void lua_debug_print(const char* str)
 {
 	if (!xr_strlen(str))
 		return;
@@ -318,6 +315,14 @@ void DumpLuaExports()
 	});
 }
 
+bool IsTracyConnected()
+{
+#ifdef IXRAY_PROFILER_TRACY
+	return tracy::GetProfiler().IsConnected();
+#endif
+	return false;
+}
+
 #pragma optimize("s",on)
 void CScriptEngine::script_register(lua_State *L)
 {
@@ -333,7 +338,7 @@ void CScriptEngine::script_register(lua_State *L)
 			.def("stop",&profile_timer_script::stop)
 			.def("time",&profile_timer_script::time),
 
-		def("log1",								(void (*)(LPCSTR)) & Log),
+		def("log1",								(void (*)(const char*)) & Log),
 		def("error_log",						&ErrorLog),
 		def("flush",							&FlushLogs),
 		def("prefetch",							&prefetch_module),
@@ -347,13 +352,15 @@ void CScriptEngine::script_register(lua_State *L)
 		def("IsSupportMP",						&CheckMP),
 		def("IsEditor",							&IsEditorMode),
 		def("help",								&DumpLuaExports),
-		def("try_load_file",					&TryLoadFile)
+		def("try_load_file",					&TryLoadFile),
 #ifdef XRGAME_EXPORTS
-		,def("device",							&get_device),
+		def("device",							&get_device),
+		def("load_script_to_global",			&LoadScriptToGlobal_script),
 		def("TinyLog",							&MyLog),
 		def("trigger_assert",					&trigger_assert),
-		def("trigger_vs_log",					&trigger_vs_log)
+		def("trigger_vs_log",					&trigger_vs_log),
 #endif // #ifdef XRGAME_EXPORTS
+		def("IsTracyConnected", &IsTracyConnected)
 	];
 
 	if (DevicePtr != nullptr && Device.IsEditorMode())

@@ -2,21 +2,21 @@
 #include "ActorBackpack.h"
 #include "Actor.h"
 #include "Inventory.h"
-#include "../../xrSound/ai_sounds.h"
+//#include "../../xrSound/ai_sounds.h"
 
-static LPCSTR backpack_on = "interface\\inv_backpack_on";
-static LPCSTR backpack_off = "interface\\inv_backpack_off";
+static constexpr const char* backpack_on = "interface\\inv_backpack_on";
+static constexpr const char* backpack_off = "interface\\inv_backpack_off";
 
 CBackpack::CBackpack()
 {
-    m_flags.set(FUsingCondition, FALSE);
+    m_flags.set(FUsingCondition, false);
 
     //TODO: Make optional dress sounds
     //m_dress_snd[0].create(backpack_on, st_Effect, SOUND_TYPE_IDLE);
     //m_dress_snd[1].create(backpack_off, st_Effect, SOUND_TYPE_IDLE);
 }
 
-void CBackpack::Load(LPCSTR section)
+void CBackpack::Load(const char* section)
 {
     inherited::Load(section);
 
@@ -24,7 +24,7 @@ void CBackpack::Load(LPCSTR section)
     m_additional_weight2 = READ_IF_EXISTS(pSettings, r_float, section, "additional_inventory_weight2", 0.0f);
     m_fPowerRestoreSpeed = READ_IF_EXISTS(pSettings, r_float, section, "power_restore_speed", 0.0f);
 
-    m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", FALSE));
+    m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", false));
 }
 
 void CBackpack::OnMoveToSlot(const SInvItemPlace& previous_place)
@@ -49,13 +49,24 @@ void CBackpack::OnMoveToRuck(const SInvItemPlace& previous_place)
     }
 }
 
-bool CBackpack::install_upgrade_impl(LPCSTR section, bool test)
+bool CBackpack::install_upgrade_impl(const char* section, bool test)
 {
     bool result = inherited::install_upgrade_impl(section, test);
 
-    result |= process_if_exists(section, "additional_inventory_weight", &CInifile::r_float, m_additional_weight, test);
-    result |= process_if_exists(section, "additional_inventory_weight2", &CInifile::r_float, m_additional_weight2, test);
-    result |= process_if_exists(section, "power_restore_speed", &CInifile::r_float, m_fPowerRestoreSpeed, test);
+    result |= process_if_exists(section, "additional_inventory_weight", m_additional_weight, test);
+    result |= process_if_exists(section, "additional_inventory_weight2", m_additional_weight2, test);
+    result |= process_if_exists(section, "power_restore_speed", m_fPowerRestoreSpeed, test);
 
     return result;
+}
+
+bool CBackpack::can_be_attached() const
+{
+    CObject* h_parent = const_cast<CObject*>(H_Parent());
+    if (const CActor* pA = h_parent != nullptr ? h_parent->cast_actor() : nullptr)
+    {
+        return pA->inventory().InSlot(this);
+    }
+
+    return true;
 }

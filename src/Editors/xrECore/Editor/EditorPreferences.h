@@ -1,8 +1,5 @@
 #pragma once
 
-#include <json/json.hpp>
-using json = nlohmann::json;
-
 //---------------------------------------------------------------------------
 // refs
 class UIPropertiesForm;
@@ -21,6 +18,13 @@ enum{
 	epoDeffLoadRB		= (1<<9),
 	epoDeffLoadCF		= (1<<10),
 	epoSelectInGroup    = (1<<11),
+};
+
+enum class ESmoothGroup
+{
+	Normals,
+	Edges,
+	Other
 };
 
 class ECORE_API CCustomPreferences:
@@ -45,10 +49,10 @@ public:
 	float			cam_fly_alt;
 	float			cam_sens_rot;
 	float			cam_sens_move;
-	bool            IsEdgeSmooth = true;
+	ESmoothGroup    SmoothGroup = ESmoothGroup::Edges;
 
-	BOOL			ShowAxisButtons = false;
-	BOOL			ShowOldCameraButtons = false;
+	bool			ShowAxisButtons = false;
+	bool			ShowOldCameraButtons = false;
 
 
 	// tools mouse
@@ -56,11 +60,11 @@ public:
 	float			tools_sens_move;
 	float			tools_sens_scale;
 
-	BOOL			bMoreStats = false;
+	bool			bMoreStats = false;
 
 	// box pick
-	BOOL			bp_lim_depth;
-	BOOL			bp_cull;
+	bool			bp_lim_depth;
+	bool			bp_cull;
 	float			bp_depth_tolerance;
 	// snap
 	float			snap_angle;
@@ -112,8 +116,8 @@ public:				// User declarations
 	void 			LoadConfig			();
 	void 			SaveConfig			();
 	
-	void 			AppendRecentFile	(LPCSTR name);
-	LPCSTR 			FirstRecentFile		(){return scene_recent_list.empty()?"":scene_recent_list.front().c_str();}
+	void 			AppendRecentFile	(const char* name);
+	const char* 			FirstRecentFile		(){return scene_recent_list.empty()?"":scene_recent_list.front().c_str();}
 };
 //---------------------------------------------------------------------------
 #define R_FLOAT_SAFE(S,L,D)	I->line_exist(S,L)?I->r_float(S,L):D;

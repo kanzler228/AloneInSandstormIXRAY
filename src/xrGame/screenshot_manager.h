@@ -1,9 +1,9 @@
-#ifndef SCREENSHOT_MANAGER_FOR_MP
-#define SCREENSHOT_MANAGER_FOR_MP
+#pragma once
 
 #define RESULT_WIDTH	640
 #define RESULT_HEIGHT	480
 
+#ifdef XR_MP_BUILD
 class screenshot_manager : 
 	public ISheduled
 {
@@ -60,12 +60,12 @@ private:
 	CTimer				m_debug_timer;
 	u32					m_start_time;
 	shared_str			m_timer_comment;
-			void		timer_begin		(LPCSTR comment);
+			void		timer_begin		(const char* comment);
 			void		timer_end		();
 #else
-	inline	void		timer_begin		(LPCSTR comment) {}
+	inline	void		timer_begin		(const char* comment) {}
 	inline	void		timer_end		()	{}
 #endif
 }; //class screenshot_manager
 
-#endif //#ifndef SCREENSHOT_MANAGER_FOR_MP
+#endif

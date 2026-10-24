@@ -9,6 +9,9 @@ CUIFrameWindow::CUIFrameWindow()
 :m_bTextureVisible(false)
 {
 	m_texture_color	= color_argb(255,255,255,255);
+	UITitleText					= new CUIStatic();
+	UITitleText->SetAutoDelete	(true);
+	AttachChild					(UITitleText);
 }
 
 void CUIFrameWindow::SetWndSize(const Fvector2& sz)
@@ -38,7 +41,7 @@ void CUIFrameWindow::SetWndSize(const Fvector2& sz)
 	inherited::SetWndSize	(size);
 }
 
-bool CUIFrameWindow::InitTextureEx(pcstr texture, pcstr shader, bool fatal /*= true*/)
+bool CUIFrameWindow::InitTextureEx(const char* texture, const char* shader, bool fatal /*= true*/)
 {
     dbg_tex_name = texture;
     string256 buf;
@@ -151,10 +154,12 @@ bool CUIFrameWindow::InitTextureEx(pcstr texture, pcstr shader, bool fatal /*= t
     }
 
     m_bTextureVisible = !failed;
-    return !failed;
+	UITitleText->SetWndPos(Fvector2().set(0, 0));
+	UITitleText->SetWndSize(Fvector2().set(GetWidth(), 50.f));
+	return !failed;
 }
 
-bool CUIFrameWindow::InitTexture(pcstr texture, bool fatal)
+bool CUIFrameWindow::InitTexture(const char* texture, bool fatal)
 {
     return InitTextureEx(texture, "hud\\default", fatal);
 }
@@ -324,7 +329,7 @@ void CUIFrameWindow::draw_tile_rect(Frect rect, int i, Fvector2 const& ts)
 	{
 		draw_tile_line		(rect, i, false, ts);
 		rect.lt.x			+= m_tex_rect[i].width();
-		rect.lt.x			= _min(rect.lt.x, tmp.rb.x);
+		rect.lt.x			= std::min(rect.lt.x, tmp.rb.x);
 	}
 }
 

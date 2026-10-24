@@ -4,25 +4,9 @@
 #include "imgui_impl_sdl3.h"
 #include "IGame_Persistent.h"
 
-#include <d3d11.h>
+static ERHI_API_LAYER CurrentAPILevel = ERHI_API_LAYER::D3D11;
 
-
-static APILevel CurrentAPILevel = APILevel::DX11;
-
-D3D_FEATURE_LEVEL FeatureLevel = D3D_FEATURE_LEVEL::D3D_FEATURE_LEVEL_11_0;
-void* HWSwapchain = nullptr;
-
-void* HWRenderDevice = nullptr;
-void* HWRenderContext = nullptr;
-
-void* RenderTexture = nullptr;
-void* RenderSRV = nullptr;
-void* RenderRTV = nullptr;
-
-void* RenderDSV = nullptr;
-void* SwapChainRTV = nullptr;
-
-extern ENGINE_API BOOL g_appLoaded;
+extern ENGINE_API bool g_appLoaded;
 void DrawMainViewport()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -43,7 +27,7 @@ void DrawMainViewport()
 		ImGui::SetCursorPos(ImVec2(0, 0));
 		ImGui::GetWindowDrawList()->AddRect(Viewport->Pos, ImVec2((float)Device.TargetWidth + Viewport->Pos.x, (float)Device.TargetHeight + Viewport->Pos.y), 0xFFFFFFFF);
 		ImGui::SetCursorPos(ImVec2(0, 0));
-		ImGui::Image(RenderSRV, ImVec2((float)Device.TargetWidth, (float)Device.TargetHeight));
+		ImGui::Image(GRHI->DevicePtr->RenderSRV, ImVec2((float)Device.TargetWidth, (float)Device.TargetHeight));
 	}
 	ImGui::End();
 
@@ -54,7 +38,8 @@ void DrawMainViewport()
 
 void free_vid_mode_list()
 {
-	for (int i = 0; vid_mode_token[i].name; i++) {
+	for (int i = 0; vid_mode_token[i].name; i++)
+	{
 		xr_free(vid_mode_token[i].name);
 	}
 
@@ -62,79 +47,12 @@ void free_vid_mode_list()
 	vid_mode_token = nullptr;
 }
 
-struct _uniq_mode
-{
-	_uniq_mode(LPCSTR v) :_val(v) {}
-	LPCSTR _val;
-	bool operator() (LPCSTR _other) { return !_stricmp(_val, _other); }
-};
-
-bool sort_vid_mode(DXGI_MODE_DESC& left, DXGI_MODE_DESC& right) {
-	auto leftString = xr_string::ToString(left.Width) + xr_string::ToString(left.Height);
-	auto rightString = xr_string::ToString(right.Width) + xr_string::ToString(right.Height);
-
-	if (leftString.length() == rightString.length()) {
-		if (left.Width > right.Width) {
-			return true;
-		}
-		else if (left.Width == right.Width) {
-			return left.Height > right.Height;
-		}
-
-		return false;
-	}
-
-	return leftString.length() > rightString.length();
-}
-
 void fill_vid_mode_list()
 {
-	if (vid_mode_token != nullptr)		return;
-	xr_vector<LPCSTR>	_tmp;
-	xr_vector<DXGI_MODE_DESC>	modes;
+	if (vid_mode_token != nullptr)
+		return;
 
-	IDXGIOutput* pOutput = nullptr;
-	IDXGIAdapter* pAdapter = nullptr;
-	IDXGIFactory* pFactory = nullptr;
-	R_CHK(CreateDXGIFactory(IID_PPV_ARGS(&pFactory)));
-	pFactory->EnumAdapters(0, &pAdapter);
-	pAdapter->EnumOutputs(0, &pOutput);
-	pAdapter->Release();
-	pFactory->Release();
-	VERIFY(pOutput);
-
-	UINT num = 0;
-	DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	UINT flags = 0;
-
-	// Get the number of display modes available
-	pOutput->GetDisplayModeList(format, flags, &num, 0);
-
-	// Get the list of display modes
-	modes.resize(num);
-	pOutput->GetDisplayModeList(format, flags, &num, &modes.front());
-
-	_RELEASE(pOutput);
-
-	std::sort(modes.begin(), modes.end(), sort_vid_mode);
-
-	for (u32 i = 0; i < num; ++i)
-	{
-		DXGI_MODE_DESC& desc = modes[i];
-		string32 str;
-
-		if (desc.Width < 1024)
-			continue;
-
-		xr_sprintf(str, sizeof(str), "%dx%d", desc.Width, desc.Height);
-
-		if (_tmp.end() != std::find_if(_tmp.begin(), _tmp.end(), _uniq_mode(str)))
-			continue;
-
-		_tmp.push_back(nullptr);
-		_tmp.back() = xr_strdup(str);
-	}
-
+	xr_vector<shared_str> _tmp = GRHI->DisplaySizeArray();
 	u32 _cnt = (u32)_tmp.size() + 1;
 
 	vid_mode_token = xr_alloc<xr_token>(_cnt);
@@ -142,50 +60,37 @@ void fill_vid_mode_list()
 	vid_mode_token[_cnt - 1].id = -1;
 	vid_mode_token[_cnt - 1].name = nullptr;
 
-#ifdef DEBUG
-	Msg("Available video modes[%d]:", _tmp.size());
-#endif // DEBUG
 	for (u32 i = 0; i < _tmp.size(); ++i)
 	{
 		vid_mode_token[i].id = i;
-		vid_mode_token[i].name = _tmp[i];
-#ifdef DEBUG
-		Msg("[%s]", _tmp[i]);
-#endif // DEBUG
+		vid_mode_token[i].name = xr_strdup(*_tmp[i]);
 	}
 }
 
-bool CreateD3D9();
-bool UpdateBuffersD3D9();
-void ResizeBuffersD3D9(u16 Width, u16 Height);
-void DestroyD3D9();
-
-bool CreateD3D11();
-bool UpdateBuffersD3D11();
-void ResizeBuffersD3D11(u16 Width, u16 Height);
-void DestroyD3D11();
-
 bool CRenderDevice::InitRenderDeviceEditor()
 {
+	GRHI = new CRHI;
 	fill_vid_mode_list();
 
-	if (!CreateD3D9())
+	if (!GRHI->CreateDevice(ERHI_API_LAYER::D3D9))
 	{
 		return false;
 	}
 
 	Device.TargetWidth = psCurrentVidMode[0];
 	Device.TargetHeight = psCurrentVidMode[1];
-	CurrentAPILevel = APILevel::DX9;
+	CurrentAPILevel = ERHI_API_LAYER::D3D9;
 
 	return true;
 }
 
-bool CRenderDevice::InitRenderDevice(APILevel API)
+bool CRenderDevice::InitRenderDevice(ERHI_API_LAYER API)
 {
 	PROF_EVENT("InitRenderDevice");
-	fill_vid_mode_list();
+	GRHI = new CRHI;
 
+	fill_vid_mode_list();
+#ifdef IXR_WINDOWS
 	CImGuiManager& ImManager = CImGuiManager::Instance();
 
 	ImManager.PlatformNewFrameCallback = ImGui_ImplSDL3_NewFrame;
@@ -232,18 +137,41 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 				ImGui::MenuItem("Spawn Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_SpawnManager)]);
 				ImGui::MenuItem("Weapon Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_WeaponManager)]);
 				ImGui::MenuItem("Search Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_SearchManager)]);
-				ImGui::MenuItem("Weather Editor", nullptr, &States[static_cast<u8>(EditorUI::Weather)]);
+
+
 				//ImGui::MenuItem("Time Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_TimeManager)]);
-					ImGui::MenuItem("Hud Adjust", nullptr, &States[static_cast<u8>(EditorUI::Game_HudAdjustManager)]);
+				ImGui::MenuItem("Hud Adjust", nullptr, &States[static_cast<u8>(EditorUI::Game_HudAdjustManager)]);
 				ImGui::MenuItem("Hud Adjust (Legacy)", nullptr, &States[static_cast<u8>(EditorUI::HudAdjust)]);
+				ImGui::MenuItem("3rd Adjust", nullptr, &States[static_cast<u8>(EditorUI::Game_3rdAdjust)]);
+				ImGui::MenuItem("3D Icons Adjust", nullptr, &States[static_cast<u8>(EditorUI::Game_3DIconAdjust)]);
+				ImGui::MenuItem("Actor Animations", nullptr, &States[static_cast<u8>(EditorUI::Game_ActorAnimations)]);
+				ImGui::MenuItem("Level Inspector", nullptr, &States[static_cast<u8>(EditorUI::LevelInspector)]);
+				ImGui::MenuItem("Demo record", nullptr, &States[static_cast<u8>(EditorUI::Game_DemoRecord)]);
+				if (ImGui::BeginMenu("Editors##InGame"))
+				{
+				ImGui::MenuItem("Weather Editor", nullptr, &States[static_cast<u8>(EditorUI::Weather)]);
+				ImGui::MenuItem("Car Editor", nullptr, &States[static_cast<u8>(EditorUI::Tools_CarEditor)]);
+				ImGui::MenuItem("PPE Editor", nullptr, &States[static_cast<u8>(EditorUI::Tools_PostProcessEffectorEditor)]);
+				ImGui::SetItemTooltip("Post-Process Effector");
+
+					ImGui::MenuItem("Texture Editor", nullptr, &States[static_cast<u8>(EditorUI::Tools_TextureEditor)]);
+					ImGui::MenuItem("Quest Editor", nullptr, &States[static_cast<u8>(EditorUI::Tools_QuestEditor)]);
+					ImGui::MenuItem("OMF", nullptr, &States[static_cast<u8>(EditorUI::Tools_OMFEditor)]);
+					ImGui::MenuItem("Input", nullptr, &States[static_cast<u8>(EditorUI::Tools_InputManager)]);
+
+					ImGui::EndMenu();
+				}
 
 				ImGui::EndMenu();
 			}
 
 			if (ImGui::BeginMenu("Debug"))
 			{
+				ImGui::MenuItem("UI Debug", nullptr, &States[static_cast<u8>(EditorUI::UI_General)]);
 				ImGui::MenuItem("Shader Debug", nullptr, &States[static_cast<u8>(EditorUI::Shaders)]);
 				ImGui::MenuItem("Render Debug", nullptr, &States[static_cast<u8>(EditorUI::DebugDraw)]);
+				ImGui::MenuItem("ECS Viewer", nullptr, &States[static_cast<u8>(EditorUI::ECSViewer)]);
+				ImGui::MenuItem("SVG Storage Viewer Debug", nullptr, &States[static_cast<u8>(EditorUI::Tools_RenderDebug_SVGStorageViewer)]);
 			#if defined(IXRAY_PROFILER)
 				if (ImGui::MenuItem("Optick Start Capture"))
 				{
@@ -270,16 +198,10 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 				ImGui::EndMenu();
 			}
 
-			if (ImGui::BeginMenu("Tools"))
+			if (ImGui::BeginMenu("Scripting"))
 			{
 				ImGui::MenuItem("Lua: Run code", nullptr, &States[static_cast<u8>(EditorUI::LuaCodespace)]);
 				ImGui::MenuItem("Lua: Attach to VSCode", nullptr, &States[static_cast<u8>(EditorUI::LuaDebug)]);
-
-				if (ImGui::BeginMenu("Editors##ToolsInGameImGui"))
-				{
-					ImGui::MenuItem("OMF##ToolsInGameImGui", nullptr, &States[static_cast<u8>(EditorUI::Tools_OMFEditor)]);
-					ImGui::EndMenu();
-				}
 
 
 				ImGui::EndMenu();
@@ -314,30 +236,8 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 		ImGui::PopStyleVar();
 		ImGui::PopStyleVar();
 	});
-
-	switch (API) {
-
-	case APILevel::DX9:
-		if (!CreateD3D9()) {
-			return false;
-		}
-		break;
-
-#ifndef _EDITOR
-	case APILevel::DX11:
-		if (!CreateD3D11()) {
-			return false;
-		}
-		break;
-
 #endif
-	default:
-		break;
-	}
-
-	if (HWRenderDevice == nullptr) {
-		return false;
-	}
+	GRHI->CreateDevice(API);
 
 	Device.TargetWidth = psCurrentVidMode[0];
 	Device.TargetHeight = psCurrentVidMode[1];
@@ -348,50 +248,24 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 void CRenderDevice::DestroyRenderDevice()
 {
 	CImGuiManager::Instance().Destroy();
-
-	switch (CurrentAPILevel) 
-	{
-	case APILevel::DX9:  DestroyD3D9(); break;
-	case APILevel::DX11: DestroyD3D11(); break;
-	default: break;
-	}
+	xr_delete(GRHI);
 
 	free_vid_mode_list();
 }
 
 void* CRenderDevice::GetRenderDevice()
 {
-	return HWRenderDevice;
-}
+	if (GRHI == nullptr)
+	{
+		return nullptr;
+	}
 
-void* CRenderDevice::GetRenderContext()
-{
-	return HWRenderContext;
-}
-
-void* CRenderDevice::GetRenderTexture()
-{
-	// FX: Use ImGui render for Debug Draw mode
-#ifdef DEBUG_DRAW
-	return RenderRTV;
-#else
-	return SwapChainRTV;
-#endif
-}
-
-void* CRenderDevice::GetDepthTexture()
-{
-	return RenderDSV;
-}
-
-void* CRenderDevice::GetSwapchainTexture()
-{
-	return SwapChainRTV;
+	return GRHI->DevicePtr->RawDevice;
 }
 
 void* CRenderDevice::GetSwapchain()
 {
-	return HWSwapchain;
+	return GRHI->GetSwapchain();
 }
 
 u32	CRenderDevice::GetSwapchainWidth()
@@ -427,12 +301,7 @@ u32 CRenderDevice::GetTimeDeltaSafe(u32 starttime, u32 endtime)
 
 void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 {
-	switch (CurrentAPILevel)
-	{
-	case APILevel::DX9:  ResizeBuffersD3D9(Width, Height); break;
-	case APILevel::DX11: ResizeBuffersD3D11(Width, Height); break;
-	default: break;
-	}
+	GRHI->ResizeBuffers(Width, Height);
 
 	Device.TargetWidth = Width;
 	Device.TargetHeight = Height;
@@ -462,11 +331,6 @@ void CRenderDevice::ResizeWindow(u32 width, u32 height)
 	ResizeBuffers(width, height);
 }
 
-D3D_FEATURE_LEVEL CRenderDevice::GetFeatureLevel()
-{
-	return FeatureLevel;
-}
-
 RENDERDOC_API_1_6_0* CRenderDevice::GetRenderDocAPI()
 {
 	return pRDocAPI;
@@ -476,10 +340,54 @@ void CRenderDevice::BeginRender()
 {
 	PROF_EVENT("CRenderDevice::BeginRender");
 
+#ifdef IXR_WINDOWS
 	CImGuiManager::Instance().NewPlatformFrame();
 	CImGuiManager::Instance().UpdateCapture();
+#endif
 }
+
+extern int main_menu_fps_limit, fps_limit;
 
 void CRenderDevice::EndRender()
 {
+	PROF_EVENT("CRenderDevice::EndRender")
+    
+	using tick = long long;
+	using clock = std::chrono::high_resolution_clock;
+    
+	bool main_menu_active = g_pGamePersistent						   &&
+							g_pGamePersistent->m_pMainMenu			   &&
+							g_pGamePersistent->m_pMainMenu->IsActive();
+
+	if (int target_fps = main_menu_active ? main_menu_fps_limit : fps_limit; target_fps > 0)
+	{
+		static tick prev_ticks = clock::now().time_since_epoch().count();
+		tick curr_ticks = clock::now().time_since_epoch().count();
+        
+		tick current_ticks = curr_ticks - prev_ticks;
+		tick target_ticks = 1'000'000'000 / target_fps;
+		
+		if (current_ticks < target_ticks)
+		{
+#if false
+			auto ms_sleep = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::nanoseconds(
+						target_ticks - current_ticks
+					)
+				);
+
+			{
+				PROF_EVENT("FPS limiter - sleep")
+				std::this_thread::sleep_for(ms_sleep);
+			}
+#else // precise fps limiter
+			long long ticks_wait = curr_ticks + target_ticks - current_ticks;
+			{
+				PROF_EVENT("FPS limiter - spin wait")
+				while (clock::now().time_since_epoch().count() < ticks_wait);
+			}
+#endif
+		}
+		prev_ticks = clock::now().time_since_epoch().count();
+	}
 }

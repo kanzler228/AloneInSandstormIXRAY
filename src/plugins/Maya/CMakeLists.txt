@@ -1,37 +1,53 @@
+function(setup_maya_sdk version)
+    set(IXR_MAYA_SDK_${version}_ZIP ${DEP_DIR}/Autodesk.Maya.Sdk.${version}.zip)
+    set(IXR_MAYA_SDK_${version}_URL https://github.com/ixray-team/ixray-packages/releases/download/d2024.5.3/Autodesk.Maya.Sdk.${version}.zip)
+    set(IXR_MAYA_SDK_${version}_DIR ${DEP_DIR}/maya_sdk_${version})
+    download_and_extract_sdk(${IXR_MAYA_SDK_${version}_URL} ${IXR_MAYA_SDK_${version}_ZIP} ${IXR_MAYA_SDK_${version}_DIR})
+    set(IXR_MAYA_SDK_${version} ${IXR_MAYA_SDK_${version}_DIR}/ PARENT_SCOPE)
+endfunction()
+
+foreach(version 2024 2025 2026 2027)
+    setup_maya_sdk(${version})
+endforeach()
+
 project(MayaTools)
 
-# Files import
-file(GLOB_RECURSE MayaTools_SOURCE_ALL_FILES CONFIGURE_DEPENDS
-    "*.cpp"
-    "*.cxx"
-    "*.h"
-)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/xray_bone_collision.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/xray_re_object_options.mel")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/xray_bone_collision.py" MAYA_BONE_COLLISION_SCRIPT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/xray_re_object_options.mel" MAYA_OBJECT_OPTIONS_SCRIPT)
+string(REPLACE "\n" "\n)IXR_PY\"\nR\"IXR_PY(" MAYA_BONE_COLLISION_SCRIPT "${MAYA_BONE_COLLISION_SCRIPT}")
+string(REPLACE "\n" "\n)IXR_MEL\"\nR\"IXR_MEL(" MAYA_OBJECT_OPTIONS_SCRIPT "${MAYA_OBJECT_OPTIONS_SCRIPT}")
+configure_file(maya_bone_collision_script.h.in maya_bone_collision_script.h @ONLY)
+configure_file(maya_options_script.h.in maya_options_script.h @ONLY)
 
-set(MayaTools_SRC_FILES)
+file(GLOB_RECURSE MAYA_TOOLS_ALL_FILES CONFIGURE_DEPENDS "*.cpp" "*.cxx" "*.h")
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${MAYA_TOOLS_ALL_FILES})
 
-source_group("src" FILES ${MayaTools_SOURCE_ALL_FILES})
+function(add_maya_tools_target TARGET_NAME MAYA_VERSION MAYA_SDK_DIR)
+    add_library(${TARGET_NAME} SHARED ${MAYA_TOOLS_ALL_FILES})
 
-# Apply list
-list(APPEND MayaTools_SRC_FILES ${MayaTools_SOURCE_ALL_FILES})
+    target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${MAYA_SDK_DIR}")
+    target_link_directories(${TARGET_NAME} PRIVATE "${MAYA_SDK_DIR}/lib")
 
-# Remove unused files
-#list(FILTER MayaTools_SRC_FILES EXCLUDE REGEX "cl_raypick.cpp$")
+    target_link_libraries(${TARGET_NAME} PUBLIC
+        PCore
+        OpenMaya
+        OpenMayaAnim
+        Foundation
+    )
 
-# MayaTools project
-add_library(MayaTools SHARED ${MayaTools_SRC_FILES})
-target_include_directories(MayaTools PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_include_directories(MayaTools PRIVATE "${IXR_MAYA_SDK}")
-target_link_directories(MayaTools PRIVATE "${IXR_MAYA_SDK}/lib")
-set_target_properties(MayaTools PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-
-set_target_properties(
-    MayaTools
-    PROPERTIES
-        OUTPUT_NAME "ixray_maya_tools"
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        DISABLE_PRECOMPILE_HEADERS ON
+        OUTPUT_NAME "ixray_maya_tools_${MAYA_VERSION}"
         SUFFIX ".mll"
-)
+    )
 
-target_link_libraries(MayaTools PUBLIC PCore)
-target_link_libraries(MayaTools PUBLIC OpenMaya)
-target_link_libraries(MayaTools PUBLIC OpenMayaAnim)
-target_link_libraries(MayaTools PUBLIC Foundation)
+    target_compile_definitions(${TARGET_NAME} PRIVATE IXR_MAYA_VERSION=${MAYA_VERSION})
+endfunction()
+
+add_maya_tools_target(MayaTools_2024 2024 "${IXR_MAYA_SDK_2024}")
+add_maya_tools_target(MayaTools_2025 2025 "${IXR_MAYA_SDK_2025}")
+add_maya_tools_target(MayaTools_2026 2026 "${IXR_MAYA_SDK_2026}")
+add_maya_tools_target(MayaTools_2027 2027 "${IXR_MAYA_SDK_2027}")

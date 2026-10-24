@@ -38,7 +38,7 @@ bool g_enemy_manager_second_update	 = false;
 
 #define USE_EVALUATOR
 
-CEnemyManager::CEnemyManager									(CCustomMonster *object)
+CEnemyManager::CEnemyManager									(CCreature *object)
 {
 	VERIFY						(object);
 	m_object					= object;
@@ -69,7 +69,7 @@ bool CEnemyManager::useful					(const CEntityAlive *entity_alive) const
 	if (!entity_alive->g_Alive())
 		return				(false);
 
-	if ((entity_alive->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) != STYPE_VISIBLEFORAI)
+	if ((entity_alive->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) == ESPATIAL_TYPE::NONE)
 		return				(false);
 
 	if ((m_object->ID() == entity_alive->ID()) || !m_object->is_relation_enemy(entity_alive))
@@ -135,7 +135,7 @@ float CEnemyManager::evaluate				(const CEntityAlive *object) const
 //	}
 //	else {
 //		// if object is npc and it sees us
-//		const CCustomMonster	*monster = smart_cast<const CCustomMonster*>(object);
+//		const CCreature	*monster = smart_cast<const CCreature*>(object);
 //		if (monster && monster->memory().visual().visible_now(m_object))
 //			penalty			-= 300.f;
 //	}
@@ -175,7 +175,7 @@ bool CEnemyManager::expedient				(const CEntityAlive *object) const
 	return					(false);
 }
 
-void CEnemyManager::reload					(LPCSTR section)
+void CEnemyManager::reload					(const char* section)
 {
 	m_ignore_monster_threshold	= READ_IF_EXISTS(pSettings,r_float,section,"ignore_monster_threshold",1.f);
 	m_max_ignore_distance		= READ_IF_EXISTS(pSettings,r_float,section,"max_ignore_distance",0.f);

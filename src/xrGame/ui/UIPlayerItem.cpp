@@ -31,7 +31,7 @@ UIPlayerItem::~UIPlayerItem()
 {
 }
 
-void UIPlayerItem::Init(CUIXml& uiXml, LPCSTR playerNode, int index)
+void UIPlayerItem::Init(CUIXml& uiXml, const char* playerNode, int index)
 {
 	CUIXmlInit::InitWindow(uiXml, playerNode, index, this);
 	m_player_node_root = uiXml.NavigateToNode(playerNode, index);
@@ -63,13 +63,13 @@ void UIPlayerItem::InitTextParams(CUIXml& uiXml)
 		XML_NODE* text_param_node = uiXml.NavigateToNode(TEXTPARAM_NODE_NAME, i);
 		if (!text_param_node)
 			break;
-		LPCSTR param_name = uiXml.ReadAttrib(text_param_node, "name", 
+		const char* param_name = uiXml.ReadAttrib(text_param_node, "name", 
 			"param_name_not_set_in_name_attribute");
-		CUITextWnd* temp_static = new CUITextWnd();
+		CUIStatic* temp_static = new CUIStatic();
 		VERIFY(temp_static);
 		this->AttachChild(temp_static);
 		temp_static->SetAutoDelete(true);
-		CUIXmlInit::InitTextWnd(uiXml, TEXTPARAM_NODE_NAME, i, temp_static);
+		CUIXmlInit::InitStatic(uiXml, TEXTPARAM_NODE_NAME, i, temp_static);
 		m_text_params.insert(std::make_pair(shared_str(param_name), temp_static));
 	}
 }
@@ -84,7 +84,7 @@ void UIPlayerItem::InitIconParams(CUIXml& uiXml)
 		XML_NODE* icon_param_node = uiXml.NavigateToNode(ICONPARAM_NODE_NAME, i);
 		if (!icon_param_node)
 			break;
-		LPCSTR param_name = uiXml.ReadAttrib(icon_param_node, "name", 
+		const char* param_name = uiXml.ReadAttrib(icon_param_node, "name", 
 			"param_name_not_set_in_name_attribute");
 		CUIStatsIcon* temp_static = new CUIStatsIcon();
 		VERIFY(temp_static);

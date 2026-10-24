@@ -1,43 +1,42 @@
 // Portal.h: interface for the CPortal class.
 //
 //////////////////////////////////////////////////////////////////////
-
-#if !defined(_PORTAL_H_)
-#define _PORTAL_H_
 #pragma once
 
-class	CPortal;
-class	CSector;
+class CPortal;
+class CSector;
 
-struct	_scissor					: public Fbox2
+struct _scissor :
+	public Fbox2
 {
 	float	depth;
 };
 
 // Connector
-class	CPortal						: public IRender_Portal
+class CPortal :
+	public IRender_Portal
 #ifdef DEBUG_DRAW
 	, public pureRender
 #endif
 {
 private:
-	svector<Fvector,8>				poly;
+	FixedVector<Fvector,8>				poly;
 	CSector							*pFace,*pBack;
 public:
 	Fplane							P;
 	Fsphere							S;
 	u32								marker;
-	BOOL							bDualRender;
+	bool							bDualRender;
 
 	void							Setup								(Fvector* V, int vcnt, CSector* face, CSector* back);
 
-	svector<Fvector,8>&				getPoly()							{ return poly;		}
+	FixedVector<Fvector,8>&				getPoly()							{ return poly;		}
 	CSector*						Back()								{ return pBack;		}
 	CSector*						Front()								{ return pFace;		}
 	CSector*						getSector		(CSector* pFrom)	{ return pFrom==pFace?pBack:pFace; }
 	CSector*						getSectorFacing	(const Fvector& V)	{ if (P.classify(V)>0) return pFace; else return pBack; }
 	CSector*						getSectorBack	(const Fvector& V)	{ if (P.classify(V)>0) return pBack; else return pFace;	}
-	float							distance		(const Fvector &V)	{ return _abs(P.classify(V)); }
+	float							distance		(const Fvector &V)	{ return std::abs(P.classify(V)); }
 
 									CPortal			();
 	virtual							~CPortal		();
@@ -50,7 +49,8 @@ public:
 class dxRender_Visual;
 
 // Main 'Sector' class
-class	 CSector					: public IRender_Sector
+class CSector :
+	public IRender_Sector
 {
 protected:
 	dxRender_Visual*					m_root;			// whole geometry of that sector
@@ -98,11 +98,6 @@ public:
 	void							traverse			(IRender_Sector* start, CFrustum& F, Fvector& vBase, Fmatrix& mXFORM, u32 options);
 	void							fade_portal			(CPortal* _p, float ssa);
 	void							fade_render			();
-#ifdef DEBUG
-	void							dbg_draw		();
-#endif
 };
 
-extern	CPortalTraverser			PortalTraverser	;
-
-#endif // !defined(AFX_PORTAL_H__1FC2D371_4A19_49EA_BD1E_2D0F8DEBBF15__INCLUDED_)
+extern	CPortalTraverser PortalTraverser	;

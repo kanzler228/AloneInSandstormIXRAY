@@ -10,7 +10,7 @@
 
 #include "smart_cover_detail.h"
 #include "../xrScripts/script_space_forward.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 #include "graph_abstract.h"
 #include "smart_cover_action.h"
 
@@ -80,7 +80,7 @@ public:
 		void				exit_position			(Fvector &position) const;
 
 private:
-		void				add_action				(LPCSTR type, luabind::object const &table);
+		void				add_action				(const char* type, luabind::object const &table);
 		void				fill_transitions		(luabind::object const &transitions_table);
 };
 

@@ -42,7 +42,7 @@ public:
 
 				void			SetPP		(CEffectorPP* p)				{m_pe=p;}
 				void			SetCam		(CEffectorCam* p)				{m_ce=p;}
-	virtual		BOOL			Valid		()								{return m_ce||m_pe;};
+	virtual		bool			Valid		()								{return m_ce||m_pe;};
 	virtual	float 	GetFactor	()								=0;
 };
 
@@ -59,10 +59,10 @@ public:
 
 						CAnimatorCamEffector	();
 	virtual				~CAnimatorCamEffector	();
-			void		Start					(LPCSTR fn);
-	virtual BOOL		ProcessCam				(SCamEffectorInfo& info);
+			void		Start					(const char* fn);
+	virtual bool		ProcessCam				(SCamEffectorInfo& info);
 			void		SetCyclic				(bool b)				{m_bCyclic=b;}
-	virtual	BOOL		Valid					();
+	virtual	bool		Valid					();
 			float		GetAnimatorLength		()						{return fLifeTime;};
 
 	virtual bool		AbsolutePositioning		()						{return m_bAbsolutePositioning;}
@@ -74,9 +74,9 @@ class CAnimatorCamEffectorScriptCB :public CAnimatorCamEffector
 
 	shared_str			cb_name;
 public:
-	CAnimatorCamEffectorScriptCB	(LPCSTR _cb){cb_name =_cb;};
-	virtual	BOOL		Valid					();
-	virtual BOOL		AllowProcessingIfInvalid()							{return m_bAbsolutePositioning;}
+	CAnimatorCamEffectorScriptCB	(const char* _cb){cb_name =_cb;};
+	virtual	bool		Valid					();
+	virtual bool		AllowProcessingIfInvalid()							{return m_bAbsolutePositioning;}
 	virtual	void		ProcessIfInvalid		(SCamEffectorInfo& info);
 };
 
@@ -87,7 +87,7 @@ protected:
 	GET_KOEFF_FUNC									m_func;
 public:
 			void		SetFactorFunc				(GET_KOEFF_FUNC f)	{m_func=f;}
-	virtual BOOL		ProcessCam					(SCamEffectorInfo& info);
+	virtual bool		ProcessCam					(SCamEffectorInfo& info);
 };
 
 class CAnimatorCamLerpEffectorConst :public CAnimatorCamLerpEffector
@@ -106,28 +106,39 @@ class CCameraEffectorControlled :public CAnimatorCamLerpEffector
 public:
 						CCameraEffectorControlled		(CEffectorController* c);
 	virtual				~CCameraEffectorControlled		();
-	virtual BOOL		Valid							();
+	virtual bool		Valid							();
 };
 
-class SndShockEffector:public CEffectorController
+struct TSndShockEffector:
+	public CEffectorController
 {
 	typedef CEffectorController inherited;
-public:
-	float						m_snd_length;	//ms
-	float						m_cur_length;	//ms
-	float						m_stored_volume;
-	float						m_end_time;
-	float						m_life_time;
-	CActor*						m_actor;
-public:
-								SndShockEffector	();
-	virtual						~SndShockEffector	();
-	void						Start				(CActor* A, float snd_length, float power);
-	void						Update				();
 
-	virtual		BOOL			Valid				();
-				BOOL			InWork				();
-	virtual	float 	GetFactor			();
+	float m_snd_length = 0.f;
+	float m_cur_length = 0.f;
+	float m_stored_volume = -1.f;
+
+	float m_end_time;
+	float m_life_time;
+
+	CActor* m_actor = nullptr;
+
+	TSndShockEffector();
+	virtual ~TSndShockEffector();
+	void Start(float snd_length, float power);
+	void Update();
+
+	virtual bool Valid();
+			bool InWork();
+
+	virtual	float GetFactor();
+
+private:
+	ECS_COMPONENT(TSndShockEffector)
+		ECS_VALUE(m_snd_length, "Sound Lenght")
+		ECS_VALUE(m_cur_length, "Current Lenght")
+		ECS_VALUE(m_stored_volume, "Stored Volume")
+	ECS_END
 };
 
 
@@ -148,6 +159,6 @@ class CControllerPsyHitCamEffector :public CEffectorCam {
 public:
 						CControllerPsyHitCamEffector	(ECamEffectorType type, const Fvector &src_pos, const Fvector &target_pos, 
 														float time, float base_fov, float dest_fov);
-	virtual BOOL		ProcessCam						(SCamEffectorInfo& info);
+	virtual bool		ProcessCam						(SCamEffectorInfo& info);
 };
 //////////////////////////////////////////////////////////////////////////

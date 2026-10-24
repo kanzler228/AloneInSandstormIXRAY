@@ -18,6 +18,17 @@
 #include "game_cl_base.h"
 #include "FreeMP/ScriptEvents.h"
 
+#include "UIWorldSpace.h"
+#include "ShellManager.h"
+
+// always try to forward declare your script implementations
+class CRandomManager;
+
+// lua to cpp forward declarations
+class CScriptXRConditionsStorage;
+class CScriptXREffectsStorage;
+class CScriptXRParser;
+
 class	CHUDManager;
 class	CParticlesObject;
 class	xrServer;
@@ -37,6 +48,10 @@ class	CZoneList;
 class	message_filter;
 class	demoplay_control;
 class	demo_info;
+
+class CElectronicsProblemsManager;
+
+class CUIWorldSpaceManager;
 
 #ifdef DEBUG_DRAW
 	class	CDebugRenderer;
@@ -81,6 +96,9 @@ private:
 
 	bool m_isKeyPress = false;
 	const char* m_onKeyPress = {};
+
+	CElectronicsProblemsManager* m_electronics_problems_manager = nullptr;
+
 protected:
 	typedef IGame_Level			inherited;
 	
@@ -104,6 +122,9 @@ protected:
 	CPHCommander				*m_ph_commander;
 	CPHCommander				*m_ph_commander_scripts;
 	CPHCommander				*m_ph_commander_physics_worldstep;
+	CScriptXRConditionsStorage* m_pScriptXRCondition;
+	CScriptXREffectsStorage* m_pScriptXREffects;
+	CScriptXRParser* m_pScriptXRParser;
 	// Local events
 	EVENT						eChangeRP;
 	EVENT						eDemoPlay;
@@ -147,9 +168,14 @@ public:
 	virtual void				OnSessionFull			();
 	virtual void				OnConnectRejected		();
 
+	CElectronicsProblemsManager* GetElectronicsProblemsManager() { return m_electronics_problems_manager; }
+
 	NET_Packet* GetLastClientScriptEvent();
 	void PopLastClientScriptEvent();
 	u32 GetSizeClientScriptEvent();
+	CScriptXRConditionsStorage* getScriptXRConditions(void) const;
+	CScriptXRParser* getScriptXRParser(void) const;
+
 private:
 			
 			void				OnSecureMessage			(NET_Packet & P);
@@ -158,7 +184,7 @@ private:
 			
 	secure_messaging::key_t		m_secret_key;
 private:
-	BOOL						m_bNeed_CrPr;
+	bool						m_bNeed_CrPr;
 	u32							m_dwNumSteps;
 	bool						m_bIn_CrPr;
 
@@ -168,16 +194,12 @@ private:
 	OBJECTS_LIST				pObjects4CrPr;
 	OBJECTS_LIST				pActors4CrPr;
 
-	CObject*					pCurrentControlEntity;
 	xrServer::EConnect			m_connect_server_err;
 public:
 	void						AddObject_To_Objects4CrPr	(CGameObject* pObj);
 	void						AddActor_To_Actors4CrPr		(CGameObject* pActor);
 
 	void						RemoveObject_From_4CrPr		(CGameObject* pObj);	
-
-	CObject*					CurrentControlEntity	( void ) const		{ return pCurrentControlEntity; }
-	void						SetControlEntity		( CObject* O  )		{ pCurrentControlEntity=O; }
 protected:
 	
 	void						make_NetCorrectionPrediction	();
@@ -187,7 +209,7 @@ protected:
 	void						UpdateDeltaUpd					( u32 LastTime );
 	void						BlockCheatLoad					()				;
 
-	BOOL						Connect2Server					(LPCSTR options);
+	bool						Connect2Server					(const char* options);
 	void						SendClientDigestToServer		();
 	shared_str					m_client_digest;	//for screenshots
 public:
@@ -209,8 +231,8 @@ public:
 	POVec						m_StaticParticles;
 
 	game_cl_GameState			*game;
-	BOOL						m_bGameConfigStarted;
-	BOOL						game_configured;
+	bool						m_bGameConfigStarted;
+	bool						game_configured;
 	NET_Queue_Event				*game_events;
 	xr_deque<CSE_Abstract*>		game_spawn_queue;
 	xrServer*					Server;
@@ -229,15 +251,15 @@ private:
 	ref_sound					m_screenshot_sound_event;
 
 public:
-	void						PrefetchSound (LPCSTR name);
+	void						PrefetchSound (const char* name);
 
 protected:
-	BOOL						net_start_result_total;
-	BOOL						connected_to_server;
+	bool						net_start_result_total;
+	bool						connected_to_server;
 	
-	BOOL						deny_m_spawn;		//only for debug...
+	bool						deny_m_spawn;		//only for debug...
 	
-	BOOL						sended_request_connection_data;
+	bool						sended_request_connection_data;
 		
 	void						MakeReconnect();
 	
@@ -273,24 +295,22 @@ public:
 	shared_str					m_caClientOptions;
 
 	// Starting/Loading
-	virtual BOOL				net_Start				( LPCSTR op_server, LPCSTR op_client);
-	virtual void				net_Load				( LPCSTR name );
-	virtual void				net_Save				( LPCSTR name );
+	virtual bool				net_Start				( const char* op_server, const char* op_client);
+	virtual void				net_Save				( const char* name );
 	virtual void				net_Stop				( );
-	virtual BOOL				net_Start_client		( LPCSTR name );
+	virtual bool				net_Start_client		( const char* name );
 	virtual void				net_Update				( );
 
 
-	virtual BOOL				Load_GameSpecific_Before( );
-	virtual BOOL				Load_GameSpecific_After ( );
-	virtual void				Load_GameSpecific_CFORM	( CDB::TRI* T, size_t count ) override;
+	virtual bool				Load_GameSpecific_Before( );
+	virtual bool				Load_GameSpecific_After ( );
 
 	// Events
 	virtual void				OnEvent					( EVENT E, u64 P1, u64 P2 );
 	virtual void	_BCL		OnFrame					( void );
 	virtual void				OnRender				( );
 
-	virtual	shared_str			OpenDemoFile			(LPCSTR demo_file_name);
+	virtual	shared_str			OpenDemoFile			(const char* demo_file_name);
 	virtual void				net_StartPlayDemo		();
 
 	void						cl_Process_Event		(u16 dest, u16 type, NET_Packet& P);
@@ -310,11 +330,15 @@ public:
 	virtual void				IR_OnMouseStop			( int, int);
 	virtual void				IR_OnMouseWheel			( int direction);
 	virtual void				IR_OnActivate			(void);
+	virtual void				IR_OnGyroscopeMove		( Fvector3);
+	virtual void				IR_OnTouchpadMove		( Fvector2);
 
-	virtual void				IR_GamepadUpdateStick(int id, Fvector2 value);
-	virtual void				IR_GamepadKeyPress(int id);
+	virtual void				IR_GamepadUpdateStick	(int id, Fvector2 value);
+	virtual void				IR_GamepadKeyPress		(int id);
+	virtual void				IR_GamepadKeyHold		(int id);
+	virtual void				IR_GamepadKeyRelease	(int id);
 
-			int					get_RPID				(LPCSTR name);
+			int					get_RPID				(const char* name);
 
 
 	// Game
@@ -325,11 +349,11 @@ public:
 	void						ClientSave				();
 	virtual	void				Send					(NET_Packet& P, u32 dwFlags=DPNSEND_GUARANTEED, u32 dwTimeout=0);
 	
-	void						g_cl_Spawn				(LPCSTR name, u8 rp, u16 flags, Fvector pos);	// only ask server
+	void						g_cl_Spawn				(const char* name, u8 rp, u16 flags, Fvector pos);	// only ask server
 	void						g_sv_Spawn				(CSE_Abstract* E);					// server reply/command spawning
 	
 	// Save/Load/State
-	void						SLS_Load				(LPCSTR name);		// Game Load
+	void						SLS_Load				(const char* name);		// Game Load
 	void						SLS_Default				();					// Default/Editor Load
 	
 	IC CSpaceRestrictionManager		&space_restriction_manager	();
@@ -394,17 +418,17 @@ public:
 	IC CGameTaskManager* GameTaskManager() const { return m_game_task_manager; }
 	void					OnAlifeSimulatorLoaded		();
 	void					OnAlifeSimulatorUnLoaded	();
-	//работа с пулями
-protected:	
-	CBulletManager*		m_pBulletManager;
+protected:
+	CBulletManager* m_pBulletManager;
+	SShellManager* shell_manager;
 public:
-	IC CBulletManager&	BulletManager() {return	*m_pBulletManager;}
+	ICF CBulletManager& BulletManager() { return *m_pBulletManager; }
+	ICF SShellManager& ShellManager() { return *shell_manager; }
 
-	//by Mad Max 
 			bool			IsServer					();
 			bool			IsClient					();
-			CSE_Abstract	*spawn_item					(LPCSTR section, const Fvector &position, u32 level_vertex_id, u16 parent_id, bool return_item = false);
-	virtual	void			SpawnItem(LPCSTR section, const Fvector &position, u32 level_vertex_id, u16 parent_id) override;
+			CSE_Abstract	*spawn_item					(const char* section, const Fvector &position, u32 level_vertex_id, u16 parent_id, bool return_item = false);
+	virtual	void			SpawnItem(const char* section, const Fvector &position, u32 level_vertex_id, u16 parent_id) override;
 	virtual IGame_Patrol*	CreatePatrol(const char* patrol) override;
 			
 protected:
@@ -416,7 +440,7 @@ public:
 
 public:
 			void			remove_objects				();
-			virtual void	OnSessionTerminate		(LPCSTR reason);
+			virtual void	OnSessionTerminate		(const char* reason);
 			
 			file_transfer::client_site*					m_file_transfer;
 			
@@ -437,6 +461,8 @@ public:
 	bool is_block_action(int cmd);
 	void LockActorWithCameraRotation();
 	void UnLockActor();
+
+	CUIWorldSpaceManager* WorldSpaceUIManager = nullptr;
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
@@ -506,6 +532,6 @@ bool IsGameTypeSingleCompatible();
 
 //class  CPHWorld;
 //extern CPHWorld*				ph_world;
-extern BOOL						g_bDebugEvents;
+extern bool						g_bDebugEvents;
 
 // -------------------------------------------------------------------------------------------------

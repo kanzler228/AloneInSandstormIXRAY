@@ -1,9 +1,6 @@
 #ifndef XRENGINE_ISPATIAL_H_INCLUDED
 #define XRENGINE_ISPATIAL_H_INCLUDED
 
-//#pragma once
-#include "../xrPool.h"
-
 #include "xr_collide_defs.h"
 
 #pragma pack(push,4)
@@ -26,24 +23,81 @@ Requirements:
 	* Should have at least "bounding-sphere" or "bounding-box"
 */
 
-const float						c_spatial_min	= 8.f;
 //////////////////////////////////////////////////////////////////////////
-enum
+enum class ESPATIAL_TYPE : u64
 {
-	STYPE_RENDERABLE			= (1<<0),
-	STYPE_LIGHTSOURCE			= (1<<1),
-	STYPE_COLLIDEABLE			= (1<<2),
-	STYPE_VISIBLEFORAI			= (1<<3),
-	STYPE_REACTTOSOUND			= (1<<4),
-	STYPE_PHYSIC				= (1<<5),
-	STYPE_OBSTACLE				= (1<<6),
-	STYPE_SHAPE					= (1<<7),
-	STYPE_LIGHTSOURCEHEMI		= (1<<8),
-	STYPE_RENDERABLESHADOW		= (1<<9),
-	STYPE_PARTICLE				= (1<<10),
+	NONE				= 0ULL,
+	INVALIDSECTOR		= bit_lshift(0ULL),
+	RENDERABLE			= bit_lshift(1ULL),
+	LIGHTSOURCE			= bit_lshift(2ULL),
+	LIGHTSOURCEHEMI		= bit_lshift(3ULL),
+	PHYSIC				= bit_lshift(4ULL),
+	SHAPE				= bit_lshift(5ULL),
+	PARTICLE			= bit_lshift(6ULL),
 
-	STYPEFLAG_INVALIDSECTOR		= (1<<16)
+	COLLIDEABLE			= bit_lshift(7ULL),
+	VISIBLEFORAI		= bit_lshift(8ULL),
+	REACTTOSOUND		= bit_lshift(9ULL),
+	OBSTACLE			= bit_lshift(10ULL),
+	RENDERABLESHADOW	= bit_lshift(11ULL),
+
+	LADDER				= bit_lshift(12ULL),
+
+	ACTOR				= bit_lshift(13ULL),
+	ACTOR_DEAD			= bit_lshift(14ULL),
+	ACTOR_ALIVE			= bit_lshift(15ULL),
+
+	AI					= bit_lshift(16ULL),
+	AI_DEAD				= bit_lshift(17ULL),
+	AI_ALIVE			= bit_lshift(18ULL),
+
+	STALKER				= bit_lshift(19ULL),
+	STALKER_WOUNDED		= bit_lshift(20ULL),
+	STALKER_DEAD		= bit_lshift(21ULL),
+	STALKER_ALIVE		= bit_lshift(22ULL),
+
+	MONSTER				= bit_lshift(23ULL),
+	MONSTER_DEAD		= bit_lshift(24ULL),
+	MONSTER_ALIVE		= bit_lshift(25ULL),
+
+	CROW				= bit_lshift(26ULL),
+	CROW_DEAD			= bit_lshift(27ULL),
+	CROW_ALIVE			= bit_lshift(28ULL),
+
+	ITEM				= bit_lshift(29ULL),
+	WEAPON				= bit_lshift(30ULL),
+	MISSILE				= bit_lshift(31ULL),
+	ROCKET				= bit_lshift(32ULL),
+	ARTEFACT			= bit_lshift(33ULL),
+	ANOMALY_DETECTOR	= bit_lshift(34ULL),
+
+	CAR					= bit_lshift(35ULL),
+	HELI				= bit_lshift(36ULL),
+
+	PHYSIC_OBJECT		= bit_lshift(37ULL),
+	PHYSIC_SHELL_HOLDER = bit_lshift(38ULL),
+	PHYSIC_OBJECT_DESTR = bit_lshift(39ULL),
+	PHYSIC_OBJECT_BRKBL = bit_lshift(40ULL),
+	PHYSIC_MOVEMENT		= bit_lshift(41ULL),
+
+	INV_BOX				= bit_lshift(42ULL),
+
+	AI_DOOR				= bit_lshift(43ULL),
+
+	LIGHT_LAMP			= bit_lshift(44ULL),
+
+	LEVEL_CHANGER		= bit_lshift(45ULL),
+	SPACE_RESTRICTOR	= bit_lshift(46ULL),
+	ANOMALY_ZONE		= bit_lshift(47ULL),
+	SIM_FACTION			= bit_lshift(48ULL),
+	SMART_TERRAIN		= bit_lshift(49ULL),
+	CAMP_ZONE			= bit_lshift(50ULL),
+	SMART_COVER			= bit_lshift(51ULL),
+	ANOMAL_ZONE_LOGIC	= bit_lshift(52ULL),
+
+	//MAX_FLAG			= bit_lshift(63ULL),
 };
+ENUM_CLASS_FLAGS(ESPATIAL_TYPE);
 //////////////////////////////////////////////////////////////////////////
 // Comment: 
 //		ordinal objects			- renderable?, collideable?, visibleforAI?
@@ -67,68 +121,90 @@ enum
 //namespace Feel { class Sound; }
 
 //////////////////////////////////////////////////////////////////////////
-class 				ISpatial_NODE;
-class 				IRender_Sector;
-class 				ISpatial_DB;
-namespace Feel { class Sound; }
-class 				IRenderable;
-class 				IRender_Light;
-class 				CPHObject;
-class 				CGlow;
+struct ISpatial_NODE;
+class IRender_Sector;
+class ISpatial_DB;
+class IRenderable;
+class IRender_Light;
+class CPHObject;
+class CGlow;
 
-#include <variant>
+namespace Feel { class Sound; }
+
 class ISpatialOwner;
 
+///////////////////////////////////ISpatial///////////////////////////////////////
 class XRCORE_API ISpatial:
 	public std::enable_shared_from_this<ISpatial>
 {
 	friend class ISpatialOwner;
 public:
-	struct SpatialData
-	{
-		u32 type = 0;
-		Fsphere sphere = {};
+	ESPATIAL_TYPE type = ESPATIAL_TYPE::NONE;
+	Fsphere sphere = {zero_vel, 0.f};
 
-		// Cached node center for TBV optimization
-		Fvector node_center = {};
+	// Cached node center for TBV optimization
+	Fvector node_center = zero_vel;
+	Fvector last_sector_point = zero_vel;
 
-		// Cached node bounds for TBV optimization
-		float node_radius;
-		float ssa_dyn_factor = 0.002f;
-		float ssa_d_cam = 220.f;	
+	// Cached node bounds for TBV optimization
+	float node_radius = 0.f;
+	float ssa_dyn_factor = 0.002f;
+	float ssa_d_cam = 220.f;	
 
-		// Cached parent node for "empty-members" optimization
-		ISpatial_NODE* node_ptr = nullptr;		
-		IRender_Sector* sector = nullptr;
+	// Cached parent node for "empty-members" optimization
+	ISpatial_NODE* node_ptr = nullptr;		
+	IRender_Sector* sector = nullptr;
 
-		// allow different spaces
-		ISpatial_DB* space = nullptr;
-	};
+	// allow different spaces
+	ISpatial_DB* space = nullptr;
 
-	SpatialData spatial;
+	size_t items_idx = 0;
 
 private:
 	ISpatialOwner* RawOwner = nullptr;
 
 public:
-	BOOL spatial_inside		()			;
-	void spatial_updatesector_internal()	;
+	ICF bool spatial_inside()
+	{
+		float dr = -(-node_radius + sphere.R);
+		if (sphere.P.x < node_center.x - dr) return false;
+		if (sphere.P.x > node_center.x + dr) return false;
+		if (sphere.P.y < node_center.y - dr) return false;
+		if (sphere.P.y > node_center.y + dr) return false;
+		if (sphere.P.z < node_center.z - dr) return false;
+		if (sphere.P.z > node_center.z + dr) return false;
+		return true;
+	}
+	ICF bool verify_sp(Fvector& node_center, float node_radius)
+	{
+		float dr = -(-node_radius + sphere.R);
+		if (sphere.P.x < node_center.x - dr) return false;
+		if (sphere.P.x > node_center.x + dr) return false;
+		if (sphere.P.y < node_center.y - dr) return false;
+		if (sphere.P.y > node_center.y + dr) return false;
+		if (sphere.P.z < node_center.z - dr) return false;
+		if (sphere.P.z > node_center.z + dr) return false;
+		return true;
+	}
+
+	void spatial_updatesector_internal();
 
 private:
 	void	Register();
 	void	Unregister();
 
 	void	Move();
-	Fvector SectorPoint();
 
 public:
 	Fvector OwnerSectorPoint();
-	void OwnerReset(ISpatialOwner* ptr) { RawOwner = ptr; };
+	void OwnerReset(ISpatialOwner* ptr);
 
 	ICF void spatial_updatesector()	
 	{
-		if (0== (spatial.type&STYPEFLAG_INVALIDSECTOR))	return;
-		spatial_updatesector_internal				()	;
+		if (ESPATIAL_TYPE::NONE == (type& ESPATIAL_TYPE::INVALIDSECTOR))
+			return;
+
+		spatial_updatesector_internal();
 	};
 
 	CObject*		dcast_CObject		();
@@ -138,8 +214,12 @@ public:
 	CPHObject*		dcast_CPHObject		();
 	CGlow*			dcast_CGlow			();
 
-				ISpatial		(ISpatial_DB* space, ISpatialOwner* TypeObject);
-	virtual		~ISpatial		();
+	constexpr ISpatial(ISpatial_DB* NewSpace, ISpatialOwner* Owner) : 
+		RawOwner(Owner)
+	{
+		space = NewSpace;
+	}
+	virtual ~ISpatial(void) { Unregister(); }
 };
 
 using ISpatialShared = xr_shared_ptr<ISpatial>;
@@ -149,13 +229,12 @@ class ISpatialOwner
 public:
 	ISpatialShared SpatialComponent;
 
-public:
-	virtual void spatial_create(ISpatial_DB* db, ISpatialOwner* owner, u32 type) { SpatialComponent = xr_make_shared<ISpatial>(db, owner); SpatialComponent->spatial.type = type; }
+	virtual void spatial_create(ISpatial_DB* db, ISpatialOwner* owner, ESPATIAL_TYPE type) { SpatialComponent = xr_make_shared<ISpatial>(db, owner); SpatialComponent->type = type; }
 	virtual void spatial_register() { SpatialComponent->Register(); };
 	virtual void spatial_unregister() { SpatialComponent->Unregister(); };
 
 	virtual void	spatial_move() { SpatialComponent->Move(); };
-	virtual Fvector	spatial_sector_point() { return SpatialComponent->SectorPoint(); }
+	virtual Fvector	spatial_sector_point() { return SpatialComponent->sphere.P; }
 
 	
 	virtual CObject*		dcast_CObject		() { return nullptr; };
@@ -169,61 +248,85 @@ public:
 };
 
 
-//////////////////////////////////////////////////////////////////////////
-//class ISpatial_NODE;
-class 	ISpatial_NODE
+///////////////////////////////////ISpatial_NODE///////////////////////////////////////
+struct ISpatial_NODE
 {
-public:
-	using ptrt = ptrdiff_t;
-public:
-	// parent node for "empty-members" optimization
-	ISpatial_NODE* parent;
 	// children nodes
-	ISpatial_NODE* children[8];
+	ISpatial_NODE* children[8]
+	{
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+	};
 	// own items
 	xr_vector<ISpatialShared> items;
-public:
-	void						_init			(ISpatial_NODE* _parent);
-	void						_remove			(ISpatialShared _S);
-	void						_insert			(ISpatialShared _S);
-	BOOL						_empty			()						
+	// parent node for "empty-members" optimization
+	ISpatial_NODE* parent = nullptr;
+
+	u32 octant_in_parent = u32(-1);
+	u32 childs_size = u32(0);
+
+	constexpr ISpatial_NODE(ISpatial_NODE* _parent, u32 octant) :
+		parent(_parent), octant_in_parent(octant)
 	{
-		return items.empty() && (
-			0==(
-				ptrt(children[0])|ptrt(children[1])|
-				ptrt(children[2])|ptrt(children[3])|
-				ptrt(children[4])|ptrt(children[5])|
-				ptrt(children[6])|ptrt(children[7])
-				)
-			);	
+		if (_parent)
+			_parent->childs_size++;
+	}
+	constexpr ~ISpatial_NODE()
+	{
+		if (parent)
+			parent->childs_size--;
+	}
+
+	ICF void _insert(ISpatialShared S)
+	{
+		S->node_ptr = this;
+		S->items_idx = items.size();
+		items.push_back(S);
+	}
+
+	ICF void _remove(ISpatialShared S)
+	{
+		S->node_ptr = nullptr;
+
+		const size_t idx = S->items_idx;
+		const size_t ItemsCount = items.size();
+
+		if (ItemsCount > 1 && idx != ItemsCount - 1)
+		{
+			ISpatialShared& moved = fast_erase(items, idx);
+			moved->items_idx = idx;
+		}
+		else if (ItemsCount > 0)
+		{
+			items.pop_back();
+		}
+	}
+
+	ICF bool _empty() const
+	{
+		return !!(items.empty() && childs_size == 0U);
 	}
 };
-////////////
 
-//template <class T, int granularity>
-//class	poolSS;
-#ifndef	DLL_API
-#	define DLL_API					__declspec(dllimport)
-#endif // #ifndef	DLL_API
-
-//////////////////////////////////////////////////////////////////////////
-class XRCORE_API	ISpatial_DB
+///////////////////////////////////ISpatial_DB///////////////////////////////////////
+class XRCORE_API ISpatial_DB
 {
 private:
 	xr_vector<ISpatial_NODE*>		nodes;
-	ISpatialShared					rt_insert_object;
 public:
 	xrSRWLock						db_lock;
-	ISpatial_NODE*					m_root;
-	Fvector							m_center;
-	float							m_bounds;
-	u32								stat_nodes;
-	u32								stat_objects;
-	CStatTimer						stat_insert;
-	CStatTimer						stat_remove;
+	ISpatial_NODE*					m_root = nullptr;
+	Fvector							m_center = zero_vel;
+	float							m_bounds = 0.f;
 private:
-	IC u32							_octant			(u32 x, u32 y, u32 z)			{	return z*4 + y*2 + x;	}
-	IC u32							_octant			(Fvector& base, Fvector& rel)
+	ICF u32							_octant			(u32 x, u32 y, u32 z)			{	return z*4 + y*2 + x;	}
+	ICF u32							_octant			(Fvector& base, Fvector& rel)
 	{
 		u32 o	= 0;
 		if (rel.x > base.x) o+=1;
@@ -232,22 +335,44 @@ private:
 		return	o;
 	}
 
-	ISpatial_NODE*					_node_create	();
-	void 							_node_destroy	(ISpatial_NODE* &P);
+	ICF ISpatial_NODE* _node_create(ISpatial_NODE* parent = nullptr, u32 octant = u32(-1))
+	{
+		return nodes.emplace_back(new ISpatial_NODE(parent, octant));
+	}
 
-	void							_insert			(ISpatial_NODE* N, Fvector& n_center, float n_radius);
-	void							_remove			(ISpatial_NODE* N, ISpatial_NODE* N_sub);
+	ICF void _node_destroy(ISpatial_NODE*& P)
+	{
+		if(P)
+		{
+			for (size_t i = 0; i < nodes.size(); ++i)
+			{
+				ISpatial_NODE*& node = nodes[i];
+				if (node == P)
+				{
+					if (i != nodes.size() - 1)
+						node = nodes.back();
+					nodes.pop_back();
+					break;
+				}
+			}
+
+			xr_delete(P);
+		}
+	}
+
+	void							db_insert			(ISpatialShared S, ISpatial_NODE* N, Fvector& n_center, float n_radius);
+	void							db_remove			(ISpatial_NODE* N, ISpatial_NODE* N_sub);
 public:
-	ISpatial_DB();
-	~ISpatial_DB();
+
+	~ISpatial_DB()
+	{
+		_node_destroy(m_root);
+	}
 
 	// managing
 	void							initialize		(Fbox& BB);
-	//void							destroy			();
 	void							insert			(ISpatialShared S);
 	void							remove			(ISpatialShared S);
-	void							update			(u32 nodes=8);
-	BOOL							verify			();
 
 public:
 	enum
@@ -259,14 +384,23 @@ public:
 	};
 
 	// query
-	void							q_ray			(xr_vector<ISpatialShared>& R, u32 _o, u32 _mask_and, const Fvector& _start, const Fvector& _dir, float _range);
-	void							q_box			(xr_vector<ISpatialShared>& R, u32 _o, u32 _mask_or, const Fvector& _center, const Fvector& _size);
-	void							q_sphere		(xr_vector<ISpatialShared>& R, u32 _o, u32 _mask_or, const Fvector& _center, const float _radius);
-	void							q_frustum		(xr_vector<ISpatialShared>& R, u32 _o, u32 _mask_or, const CFrustum& _frustum);
+	void q_ray(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_and, const Fvector& _start, const Fvector& _dir, float _range);
+
+	void q_box(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const Fbox& box);
+	ICF void q_box(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const Fvector& _center, const Fvector& _dim)
+	{ q_box(R, _o, _mask_or, Fbox().setb(_center, _dim)); };
+
+	void q_obb(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const Fobb& obb);
+
+	void q_sphere(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const Fsphere& sphere);
+	ICF void q_sphere(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const Fvector& _center, const float _radius)
+	{ q_sphere(R, _o, _mask_or, Fsphere{ _center, _radius }); };
+
+	void q_frustum(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask_or, const CFrustum& _frustum);
 };
 
-XRCORE_API extern ISpatial_DB*		g_SpatialSpace			;
-XRCORE_API extern ISpatial_DB*		g_SpatialSpacePhysic	;
+XRCORE_API extern ISpatial_DB* g_SpatialSpace;
+XRCORE_API extern ISpatial_DB* g_SpatialSpacePhysic;
 
 #pragma pack(pop)
 

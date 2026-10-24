@@ -35,17 +35,21 @@
 #	define USE_CXX_STACKTRACE 0
 #endif
 
-#define __declspec(t)
+#define __declspec(t) __attribute__((visibility("default")))
 #define __forceinline inline
 #define _cdecl /* __attribute__((__cdecl__)) */
 #define __cdecl /* __attribute__((__cdecl__)) */
 #define __stdcall /* __attribute__((__stdcall__)) */
 
 #define CALLBACK
-#define HWND void*
-#define LPARAM void*
-#define WPARAM void*
-#define LPVOID void*
+#ifndef XR_USE_DXVK_NATIVE
+#   define HWND void*
+#   define LPARAM void*
+#   define WPARAM void*
+#   define LPVOID void*
+#endif
+
+#define xr_vectorcall
 
 using UINT = unsigned int;
 
@@ -60,6 +64,7 @@ using UINT = unsigned int;
 #define _utime utime
 
 #define TEXT(a) a
+#define VK_SPACE 0x20
 
 using xr_special_char = char;
 using LPSTR = char*;
@@ -69,11 +74,17 @@ using UINT_PTR = uint64_t;
 
 using DWORD = uint32_t;
 using BOOL = int32_t;
-using HRESULT = long;
+using HRESULT = int32_t;
 using LRESULT = long;
 using HMODULE = void*;
 using DWORD_PTR = uintptr_t;
 using HFILE = int;
+
+using HDC = void*;
+
+#define TRUE  1
+#define FALSE 0
+
 
 #define SUCCEEDED(hr) (((HRESULT)(hr)) >= 0)
 #define FAILED(hr) (((HRESULT)(hr)) < 0)
@@ -89,3 +100,72 @@ inline unsigned long GetLastError()
 {
     return 0;
 }
+
+
+#ifndef _In_
+#define _In_
+#endif
+
+#ifndef _In_opt_
+#define _In_opt_
+#endif
+
+#ifndef _Out_
+#define _Out_
+#endif
+
+#ifndef _Out_opt_
+#define _Out_opt_
+#endif
+
+#ifndef _Inout_
+#define _Inout_
+#endif
+
+#ifndef _In_z_
+#define _In_z_
+#endif
+
+#ifndef _Outptr_
+#define _Outptr_
+#endif
+
+#ifndef _Outptr_result_maybenull_
+#define _Outptr_result_maybenull_
+#endif
+
+#ifndef _Outptr_result_nullonfailure_
+#define _Outptr_result_nullonfailure_
+#endif
+
+#ifndef _Printf_format_string_
+#define _Printf_format_string_
+#endif
+
+#ifndef __analysis_assume
+#define __analysis_assume(x)
+#endif
+
+#ifndef _Ret_maybenull_
+#define _Ret_maybenull_
+#endif
+
+#ifndef _Post_writable_byte_size_
+#define _Post_writable_byte_size_(x)
+#endif
+
+#ifndef _Analysis_assume_
+#define _Analysis_assume_(x)
+#endif
+
+#ifndef _Success_
+#define _Success_(x)
+#endif
+
+#ifndef _Return_type_success_
+#define _Return_type_success_(x)
+#endif
+
+#ifndef _In_reads_
+#define _In_reads_(x)
+#endif

@@ -2,23 +2,20 @@
 #include "game_cl_base.h"
 #include "../xrScripts/script_export_space.h"
 
-class game_cl_Single :public game_cl_GameState
+class game_cl_Single final : public game_cl_GameState
 {
-	typedef game_cl_GameState	inherited;
+	using inherited = game_cl_GameState;
 public :
 										game_cl_Single			();
 	virtual		CUIGameCustom*			createGameUI			();
 	virtual		char*					getTeamSection			(int Team);
 	virtual		bool					IsServerControlHits		()	{return true;};
 
-	virtual		ALife::_TIME_ID			GetStartGameTime		();
-	virtual		ALife::_TIME_ID			GetGameTime				();	
-	virtual		float					GetGameTimeFactor		();	
 	virtual		void					SetGameTimeFactor		(const float fTimeFactor);
 
-	virtual		ALife::_TIME_ID		GetEnvironmentGameTime		();
-	virtual		float				GetEnvironmentGameTimeFactor();
 	virtual		void				SetEnvironmentGameTimeFactor(const float fTimeFactor);
+
+	virtual game_cl_Single* cast_game_cl_single() override { return this; }
 
 	void		OnDifficultyChanged		();
 };
@@ -35,6 +32,6 @@ enum ESingleGameDifficulty{
 };
 
 extern ESingleGameDifficulty g_SingleGameDifficulty;
-xr_token		difficulty_type_token	[ ];
+extern xr_token difficulty_type_token[];
 
 typedef enum_exporter<ESingleGameDifficulty> CScriptGameDifficulty;

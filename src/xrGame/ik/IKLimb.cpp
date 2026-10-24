@@ -1,12 +1,12 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "IKLimb.h"
 
 #include "../../Include/xrRender/Kinematics.h"
 
-#include "gameobject.h"
+#include "GameObject.h"
 
 #include "../game_object_space.h"
-#include "../ik_anim_state.h"
+#include "ik_anim_state.h"
 
 //#include "../ode_include.h"
 #include "../../xrPhysics/MathUtils.h"
@@ -260,7 +260,7 @@ bool	CIKLimb::SetGoalToLimb( const SCalculateData& cd )
 #ifdef DEBUG 
 		return !! m_limb.SetGoal( Goal( gl,  cd.goal( goal ), cd ), ph_dbg_draw_mask.test( phDbgIKLimits ) );
 #else
-		return !! m_limb.SetGoal( Goal( gl, cd.goal( goal ), cd ), FALSE );
+		return !! m_limb.SetGoal( Goal( gl, cd.goal( goal ), cd ), false );
 #endif
 }
 
@@ -317,7 +317,7 @@ IC void free_limits( float &min, float &max)
 	min = 0  ;max = 2 * M_PI  ;
 }
 
-u16 get_ik_bone( IKinematics* K, LPCSTR	S, u16 i )
+u16 get_ik_bone( IKinematics* K, const char*	S, u16 i )
 {
 	string32 sbone;
 	_GetItem			( S, i, sbone );
@@ -332,7 +332,7 @@ u16 get_ik_bone( IKinematics* K, LPCSTR	S, u16 i )
 	return bone;
 }
 
-void	parse_bones_string(IKinematics* K, LPCSTR S, u16 bones[4] )
+void	parse_bones_string(IKinematics* K, const char* S, u16 bones[4] )
 {
 	for( u16 i =0; 4 > i; ++i )
 		bones[i] = get_ik_bone( K, S, i );
@@ -349,7 +349,7 @@ void CIKLimb::Create( u16 id, IKinematicsAnimated* K, bool collide_ )
 	m_id				= id;
 	m_K					= K;
 	
-	IKinematics*	CK	= smart_cast<IKinematics*>( K );
+	IKinematics*	CK	= K->dcast_PKinematics();
 	parse_bones_string( CK, ik_bones[ get_id() ], m_bones );
 
 	if( has_ik_settings( CK ) )
@@ -365,7 +365,8 @@ void CIKLimb::Create( u16 id, IKinematicsAnimated* K, bool collide_ )
 	sv_state.set_limb	( this );
 	m_collide =collide_;
 //////////////////////////////////////////////////////////////////////
-	xr_vector<Fmatrix> binds;
+	u16 bones_count = CK->LL_BoneCount();
+	buffer_vector<Fmatrix> binds(_alloca(bones_count * sizeof(Fmatrix)), bones_count);
 	CK->LL_GetBindTransform( binds );
 	Fmatrix XT,XS;
 	XT.set( binds[m_bones[0]] ); XT.invert( ); XT.mulB_43( binds[m_bones[1]] );
@@ -791,7 +792,8 @@ IC void	CIKLimb::GetPickDir( Fvector &v, SCalculateData& cd ) const
 
 void	CIKLimb::	AnimGoal			( Fmatrix &gl )
 {
-	Kinematics()->Bone_GetAnimPos( gl, m_bones[m_foot.ref_bone()], 1<<0, false );
+	//Kinematics()->Bone_GetAnimPos( gl, m_bones[m_foot.ref_bone()], 1<<0, false );
+	gl = Kinematics()->LL_GetTransform(m_bones[m_foot.ref_bone()]);
 }
 
 void	CIKLimb::SetAnimGoal			( SCalculateData& cd )
@@ -875,7 +877,7 @@ struct ssaved_callback
 	}
 	const BoneCallback		callback;					
 	void					*callback_param;		
-	const BOOL				callback_overwrite;	
+	const bool				callback_overwrite;	
 	const u32				callback_type;
 	CBoneInstance			&_bi;
 };
@@ -910,8 +912,8 @@ u16	CIKLimb::foot_matrix_predict ( Fmatrix& foot, Fmatrix& toe, float time, IKin
 	ssaved_callback cb2( bi2 );
 	ssaved_callback cb3( bi3 );
 	Fmatrix m_b2, m_b3;
-	bi2.set_callback( bctCustom, get_matrix, &m_b2, FALSE );
-	bi3.set_callback( bctCustom, get_matrix, &m_b3, FALSE );
+	bi2.set_callback( bctCustom, get_matrix, &m_b2, false );
+	bi3.set_callback( bctCustom, get_matrix, &m_b3, false );
 
 	Kinematics()->Bone_GetAnimPos( foot, m_bones[3], u8(-1), false );
 	u16 ref_b = m_foot.get_ref_bone( m_b2, m_b3 );
@@ -1036,9 +1038,9 @@ void CIKLimb::CalculateBones( SCalculateData &cd )
 	ssaved_callback sv1( K->LL_GetBoneInstance( m_bones[1] ) );
 	ssaved_callback sv2( K->LL_GetBoneInstance( m_bones[2] ) );
 
-	K->LL_GetBoneInstance( m_bones[0] ).set_callback( bctCustom, BonesCallback0, &cd, TRUE );
-	K->LL_GetBoneInstance( m_bones[1] ).set_callback( bctCustom, BonesCallback1, &cd, TRUE );
-	K->LL_GetBoneInstance( m_bones[2] ).set_callback( bctCustom, BonesCallback2, &cd, TRUE );
+	K->LL_GetBoneInstance( m_bones[0] ).set_callback( bctCustom, BonesCallback0, &cd, true );
+	K->LL_GetBoneInstance( m_bones[1] ).set_callback( bctCustom, BonesCallback1, &cd, true );
+	K->LL_GetBoneInstance( m_bones[2] ).set_callback( bctCustom, BonesCallback2, &cd, true );
 
 	CBoneData &BD=K->LL_GetData( m_bones[0] );
 	K->Bone_Calculate( &BD, &K->LL_GetTransform( BD.GetParentID() ) );

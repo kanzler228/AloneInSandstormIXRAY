@@ -91,11 +91,14 @@ function stop_cam_effector(actor, npc, p)
 end
 
 function run_cam_effector_global(actor, npc, p)
-	local num = 1000 + math.random(100)
+	local loop, num = false, (1000 + math.random(100))
 	if p[2] and type(p[2]) == "number" and p[2] > 0 then
 		 num = p[2]
 	end
-	level.add_cam_effector2("camera_effects\\" .. p[1] .. ".anm", num, false, "xr_effects.cam_effector_callback")
+	if p[3] and p[3] == "true" then
+		loop = true
+	end
+	level.add_cam_effector2("camera_effects\\" .. p[1] .. ".anm", num, loop, "xr_effects.cam_effector_callback")
 	cam_effector_playing_object_id = npc:id()
 end
 
@@ -1696,7 +1699,7 @@ function set_level_faction_community(actor, npc, p)
 			goodwill = 1000
 		end
 		for k,v in pairs(faction.squads) do
-			local squad_level = alife():level_name(game_graph():vertex(alife():object(v.commander_id).m_game_vertex_id):level_id())
+			local squad_level = alife():level_name(gg_vertex_level_id(alife():object(v.commander_id).m_game_vertex_id))
 			if(squad_level==p[2]) then
 				for kk,vv in pairs(v.squad_npc) do
 					local npc = alife():object(vv)
@@ -1878,7 +1881,12 @@ function del_cs_text(actor, npc, p)
 end
 
 function autosave_game()
-	get_console():execute("save "..user_name().." - "..game.translate_string("st_save_zat_a1_game_start"))
+	local con = get_console()
+	if con then
+		con:execute("save "..tostring(user_name()).." - "..tostring(game.translate_string("st_save_zat_a1_game_start")))
+	else
+		SemiLog("! Error get_console() unavialable")
+	end
 end
 
 function set_game_time(actor, npc, p)

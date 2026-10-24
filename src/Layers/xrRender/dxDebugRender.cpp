@@ -20,10 +20,10 @@ dxDebugRender::dxDebugRender()
 void dxDebugRender::Init()
 {
 #ifdef USE_DX11
-	R_CHK(dx10BufferUtils::CreateVertexBuffer(
+	R_ASSERT(RHIUtils::CreateVertexBuffer(
 		&m_dbgVB,
 		nullptr,
-		line_vertex_limit,
+		line_vertex_limit * 2,
 		false));
 
 	m_dbgGeom.create(FVF::F_L, m_dbgVB, nullptr);
@@ -47,24 +47,26 @@ void dxDebugRender::Render()
 	if (m_lines.empty())
 		return;
 
+	GPU_EVENT(DebugRender);
 #ifdef USE_DX11
 	size_t offset = 0;
 	while (offset < m_lines.size())
 	{
 		size_t drawCount = std::min((size_t)line_vertex_limit / sizeof(std::pair<FVF::L, FVF::L>), m_lines.size() - offset);
 
-		RContext->UpdateSubresource(
-			m_dbgVB,
-			0,
-			nullptr,
+		m_dbgVB->UpdateSubresource
+		(
 			m_lines.data() + offset,
-			drawCount * sizeof(std::pair<FVF::L, FVF::L>),
-			0);
+			drawCount * sizeof(std::pair<FVF::L, FVF::L>)
+		);
 
 		RCache.set_xform_world(Fidentity);
+		RCache.set_xform_view(Device.mView);
+		RCache.set_xform_project(Device.mProject);
+		RCache.set_RT(RImplementation.Target->rt_BackbufferLUT->pRT);
 		RCache.set_Element(m_dbgShaders[dbgShaderWorld]->E[r_debug_render_depth * 4]);
 		RCache.set_Geometry(m_dbgGeom);
-		RCache.Render(D3DPT_LINELIST, 0, drawCount / 2);
+		RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST, 0, drawCount * 2);
 
 		offset += drawCount;
 	}
@@ -108,7 +110,6 @@ void dxDebugRender::NextSceneMode()
 
 void dxDebugRender::ZEnable(bool bEnable)
 {
-	//CHK_DX(RDevice->SetRenderState(D3DRS_ZENABLE,bEnable));
 	RCache.set_Z(bEnable);
 }
 
@@ -127,9 +128,9 @@ void dxDebugRender::CacheSetXformWorld(const Fmatrix& M)
 	RCache.set_xform_world(M);
 }
 
-void dxDebugRender::CacheSetCullMode(CullMode m)
+void dxDebugRender::CacheSetCullMode(ERHI_CULLMODE m)
 {
-	RCache.set_CullMode	(CULL_NONE+m);
+	GRHI->StateManager->SetCullMode(m);
 }
 
 void dxDebugRender::SetAmbient(u32 colour)
@@ -146,7 +147,7 @@ void dxDebugRender::SetDebugShader(dbgShaderHandle shdHandle)
 {
 	R_ASSERT(shdHandle<dbgShaderCount);
 
-	static const LPCSTR dbgShaderParams[][2] = 
+	static const char* dbgShaderParams[][2] = 
 	{
 		{ "hud\\default" , "ui\\ui_pop_up_active_back" } , // dbgShaderWindow
 		{ "debug_draw", nullptr } // dbgShaderWorld

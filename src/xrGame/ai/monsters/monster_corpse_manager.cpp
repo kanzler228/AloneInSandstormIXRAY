@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "monster_corpse_manager.h"
 #include "basemonster/base_monster.h"
 #include "../../ai_object_location.h"
@@ -10,10 +10,7 @@ CMonsterCorpseManager::CMonsterCorpseManager()
 	forced		= false;
 }
 
-CMonsterCorpseManager::~CMonsterCorpseManager()
-{
-
-}
+CMonsterCorpseManager::~CMonsterCorpseManager() = default;
 void CMonsterCorpseManager::init_external(CBaseMonster *M)
 {
 	monster = M;

@@ -443,10 +443,7 @@ function CCombat_manager:update_squad(id, data)
 	--	printf("Sim_Combat[%s]: squad [%s] quest [%s] stage [%s] squad_online [%s]", self.smart:name(), id, tostring(self.combat_quest), data._stage, tostring(squad.squad_online))
 	--end
 	local function is_same_level(obj1, obj2)
-		local gg = game_graph()
-		local gv1 = gg:vertex(obj1.m_game_vertex_id)
-		local gv2 = gg:vertex(obj2.m_game_vertex_id)
-		return (gv1:level_id() == gv2:level_id())
+		return (gg_vertex_level_id(obj1.m_game_vertex_id) == gg_vertex_level_id(obj2.m_game_vertex_id))
 	end
 
 	if data._stage == "move" then
@@ -611,7 +608,7 @@ function CCombat_manager:update_squad(id, data)
 						end
 
 						local attack_squad_obj = self.board.squads[attack_squad]
-						if attack_squad_obj.squad_power >= squad.squad_power then
+						if attack_squad_obj and attack_squad_obj.squad_power >= squad.squad_power then
 							local player = self.board.players[squad.player_id]
 							local task = task_manager.get_task_manager():select_task("defend_smart", self.smart, player.player_name)
 
@@ -793,9 +790,9 @@ function CCombat_manager:save(packet)
 	packet:w_stringZ(self.combat_quest)
 
 	if self.task == nil then
-		packet:w_u16(-1)
+		packet:w_object_id(-1)
 	else
-		packet:w_u16(self.task)
+		packet:w_object_id(self.task)
 	end
 
 	packet:w_stringZ(tostring(self.see_actor_enemy))
@@ -864,8 +861,8 @@ function CCombat_manager:load(packet)
 	self.actor_defence_come = packet:r_bool()
 	self.combat_quest = packet:r_stringZ()
 
-	self.task = packet:r_u16()
-	if self.task == 65535 then
+	self.task = packet:r_object_id()
+	if self.task == alife_const.invalid_object_id then
 		self.task = nil
 	end
 
@@ -965,6 +962,9 @@ function actor_come_to_point(smart)
 end
 
 function actor_come(squad)
+	if not db.actor then
+		return false
+	end
 	local actor_position = db.actor:position()
 	--printf("ACTOR COME %s", squad.squad_id)
 	for k,v in pairs(squad.squad_npc) do

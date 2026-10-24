@@ -13,7 +13,7 @@ CEliteDetector::CEliteDetector()
 	m_ui_xml_tag = "elite";
 }
 
-void CEliteDetector::Load(LPCSTR section)
+void CEliteDetector::Load(const char* section)
 {
 	inherited::Load(section);
 	m_ui_xml_tag = READ_IF_EXISTS(pSettings, r_string, section, "ui_xml_tag", m_ui_xml_tag);
@@ -34,6 +34,11 @@ CUIArtefactDetectorElite& CEliteDetector::ui()
 
 void CEliteDetector::UpdateAf()
 {
+	if (m_ui == nullptr)
+	{
+		return;
+	}
+
 	ui().Clear();
 
 	if (m_artefacts.m_ItemInfos.empty())
@@ -80,7 +85,7 @@ void CEliteDetector::render_item_3d_ui()
 	inherited::render_item_3d_ui();
 	ui().Draw();
 	//	Restore cull mode
-	UIRender->CacheSetCullMode(IUIRender::cmCCW);
+	UIRender->CacheSetCullMode(ERHI_CULLMODE::BACK);
 }
 
 void fix_ws_wnd_size(CUIWindow* w, float kx)
@@ -161,7 +166,7 @@ void CUIArtefactDetectorElite::Draw()
 	UI().m_currentPointType = IUIRender::pttLIT;
 
 	UIRender->CacheSetXformWorld(LM);
-	UIRender->CacheSetCullMode(IUIRender::cmNONE);
+	UIRender->CacheSetCullMode(ERHI_CULLMODE::NONE);
 
 	CUIWindow::Draw();
 
@@ -244,7 +249,7 @@ CScientificDetector::~CScientificDetector()
 	m_zones.destroy();
 }
 
-void  CScientificDetector::Load(LPCSTR section)
+void  CScientificDetector::Load(const char* section)
 {
 	inherited::Load(section);
 	m_zones.load(section, "zone");
@@ -253,6 +258,11 @@ void  CScientificDetector::Load(LPCSTR section)
 void CScientificDetector::UpdateWork()
 {
 	ui().Clear();
+
+	if (!m_bWorking)
+	{
+		return;
+	}
 
 	CAfList::ItemsMapIt ait_b = m_artefacts.m_ItemInfos.begin();
 	CAfList::ItemsMapIt ait_e = m_artefacts.m_ItemInfos.end();
@@ -286,7 +296,7 @@ void CScientificDetector::UpdateWork()
 
 	for (; zit_b != zit_e; ++zit_b)
 	{
-		CCustomZone* pZone = zit_b->first;
+		CAnomalyZone* pZone = zit_b->first;
 		ui().RegisterItemToDraw(pZone->Position(), pZone->cNameSect());
 	}
 
@@ -297,10 +307,11 @@ void CScientificDetector::shedule_Update(u32 dt)
 {
 	inherited::shedule_Update(dt);
 
-	if (!H_Parent())
+	if (!H_Parent() || !m_bWorking)
 	{
 		return;
 	}
+
 
 	Fvector P;
 	P.set(H_Parent()->Position());

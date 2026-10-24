@@ -61,7 +61,7 @@ void CUICheckButton::UndoOptValue()
 }
 
 
-void CUICheckButton::InitCheckButton(Fvector2 pos, Fvector2 size, LPCSTR texture_name)
+void CUICheckButton::InitCheckButton(Fvector2 pos, Fvector2 size, const char* texture_name)
 {
 	InitButton				(pos, size);
 	InitTexture2			(texture_name);
@@ -69,7 +69,7 @@ void CUICheckButton::InitCheckButton(Fvector2 pos, Fvector2 size, LPCSTR texture
 	TextItemControl()->m_wndSize.set	(Fvector2().set(size.x,m_background->Get(S_Enabled)->GetStaticItem()->GetSize().y));
 }
 
-void CUICheckButton::InitTexture2(LPCSTR texture_name)
+void CUICheckButton::InitTexture2(const char* texture_name)
 {
 	CUI3tButton::InitTexture(texture_name); // "ui_checker"
 	Frect r = m_background->Get(S_Enabled)->GetStaticItem()->GetTextureRect();
@@ -78,8 +78,10 @@ void CUICheckButton::InitTexture2(LPCSTR texture_name)
 
 void CUICheckButton::OnFocusLost()
 {
-	if(m_eButtonState==BUTTON_PUSHED && pInput->iGetAsyncBtnState(0))
+	if (m_eButtonState == BUTTON_PUSHED && pInput->LeftMouseButtonPressed())
+	{
 		return;
+	}
 
 	inherited::OnFocusLost();
 }
@@ -103,7 +105,7 @@ bool CUICheckButton::OnMouseDown( int mouse_btn )
 		else
 			SetButtonState(BUTTON_NORMAL);
 	}
-	GetMessageTarget()->SendMessage(this, BUTTON_CLICKED, nullptr);
+	SendClickCallback();
 	return true;
 }
 

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "PhysicsShell.h"
 #include "PHInterpolation.h"
 #include "PHElement.h"
@@ -26,7 +26,7 @@ void CPHElement::get_State(SPHNetState& state)
 void CPHElement::set_State(const SPHNetState& state)
 {
 	//bUpdate=true;
-	m_flags.set(flUpdate,TRUE);
+	m_flags.set(flUpdate,true);
 	SetGlobalPositionDynamic(state.position);
 	setQuaternion(state.quaternion);
 	m_body_interpolation.SetPosition(state.previous_position,0);
@@ -51,7 +51,7 @@ void CPHElement::set_State(const SPHNetState& state)
 	}
 #endif
 	CPHDisablingFull::Reinit();
-	m_flags.set(flUpdate,TRUE);
+	m_flags.set(flUpdate,true);
 }
 
 void CPHElement	::net_Export(NET_Packet& P)

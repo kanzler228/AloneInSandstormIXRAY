@@ -6,18 +6,22 @@
 class XRCORE_API xr_resource	
 {
 public:
-	enum			{RF_REGISTERED=1<<0 };
+	enum {RF_REGISTERED=1<<0 };
 public:
 	xr_atomic_u32 dwReference = 0;
 	xr_resource() {};
+	virtual ~xr_resource() = default;
 };
 
-class	XRCORE_API	xr_resource_flagged	:	public xr_resource			{
+class XRCORE_API xr_resource_flagged	:
+	public xr_resource
+{
 public:
 	enum			{RF_REGISTERED=1<<0 };
 public:
 	u32				dwFlags;
 	xr_resource_flagged()	: dwFlags(0)					{ }
+	virtual ~xr_resource_flagged() = default;
 };
 
 class	XRCORE_API	xr_resource_named	:	public xr_resource_flagged	{
@@ -29,8 +33,22 @@ public:
 		cName		= name;
 		return		*cName;
 	}
-	xr_resource_named()	: cName(0)		{ }
-	~xr_resource_named()				{ }
+	xr_resource_named()	: cName(nullptr)		{ }
+	virtual ~xr_resource_named()		{ }
+};
+
+class XRCORE_API xr_resource_uniq : public xr_resource_named
+{
+public:
+	u32 m_crc1 = u32(-1), m_crc2 = u32(-1);
+
+	void set_crc(u32 _crc1, u32 _crc2)
+	{
+		m_crc1 = _crc1;
+		m_crc2 = _crc2;
+	}
+
+	virtual ~xr_resource_uniq() {}
 };
 
 // resptr_BASE
@@ -39,12 +57,12 @@ class resptr_base
 {
 protected:
 	T *					p_;
-protected:
-	// ref-counting
-	void				_inc	()									{	if (0==p_) return;	p_->dwReference++;														}
-	void				_dec	()									{	if (0==p_) return;	p_->dwReference--; if (0==p_->dwReference) xr_delete(p_);				}
 public:
-	ICF		void		_set	(T * rhs) 							{	if (0!=rhs) rhs->dwReference++;	_dec(); p_ = rhs;											}
+	// ref-counting
+	void				_inc	()									{	if (nullptr==p_) return;	p_->dwReference++;														}
+	void				_dec	()									{	if (nullptr==p_) return;	p_->dwReference--; if (0==p_->dwReference) xr_delete(p_);				}
+public:
+	ICF		void		_set	(T * rhs) 							{	if (nullptr!=rhs) rhs->dwReference++;	_dec(); p_ = rhs;											}
 	ICF		void		_set	(resptr_base<T> const & rhs)		{	T* prhs = rhs._get(); _set(prhs);															}
 	ICF		T *			_get	() const							{	return p_;																					}
 	void				_clear	()									{	p_ = 0;																						}

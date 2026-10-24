@@ -3,20 +3,19 @@
 #include "Explosive.h"
 #include "../xrEngine/Feel_Touch.h"
 
-class CGrenade :
-	public CMissile,
+class CGrenade : public CMissile,
 	public CExplosive
 {
-	typedef CMissile		inherited;
+	using inherited = CMissile;
 public:
-							CGrenade							();
-	virtual					~CGrenade							();
+	CGrenade();
+	virtual ~CGrenade() = default;
 
 
-	virtual void			Load								(LPCSTR section);
-	virtual void			LoadSounds							(LPCSTR section) override;
+	virtual void			Load								(const char* section);
+	virtual void			LoadSounds							(const char* section) override;
 	
-	virtual BOOL 			net_Spawn							(CSE_Abstract* DC);
+	virtual bool 			net_Spawn							(CSE_Abstract* DC);
 	virtual void 			net_Destroy							();
 	virtual void 			net_Relcase							(CObject* O );
 
@@ -28,7 +27,7 @@ public:
 	virtual void 			OnEvent								(NET_Packet& P, u16 type);
 	virtual bool			DropGrenade							();			//in this case if grenade state is eReady, it should Throw
 	
-	virtual void 			OnAnimationEnd						(u32 state);
+	virtual void 			OnAnimationEnd						(u8 state);
 	virtual void 			UpdateCL							();
 
 	virtual void 			Throw();
@@ -37,7 +36,7 @@ public:
 	
 	virtual bool			Action								(u16 cmd, u32 flags);
 	virtual bool			Useful								() const;
-	virtual void			State								(u32 state);
+	virtual void			State								(u8 state);
 
 	virtual void			OnH_B_Chield						()				{inherited::OnH_B_Chield();}
 
@@ -53,6 +52,9 @@ public:
 	virtual bool			GetBriefInfo						(II_BriefInfo& info);
 
 	virtual bool			SendDeactivateItem					(bool Force);
+
+	void FastThrow();
+
 protected:
 	ALife::_TIME_ID			m_dwGrenadeRemoveTime;
 	ALife::_TIME_ID			m_dwGrenadeIndependencyTime;
@@ -77,7 +79,7 @@ protected:
 	virtual	void			UpdateXForm							()		{ CMissile::UpdateXForm(); };
 public:
 
-	virtual BOOL			UsedAI_Locations					();
+	virtual bool			UsedAI_Locations					();
 	virtual CGrenade		*cast_grenade						()	{return this;}
 	virtual CExplosive		*cast_explosive						()	{return this;}
 	virtual CMissile		*cast_missile						()	{return this;}

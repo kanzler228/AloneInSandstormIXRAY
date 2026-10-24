@@ -16,8 +16,7 @@ enum ECoreCommands
 	COMMAND_REFRESH_TEXTURES,
 	COMMAND_RELOAD_TEXTURES,
 	COMMAND_CHANGE_AXIS,
-	COMMAND_CHANGE_SNAP,
-    COMMAND_SET_SETTINGS,
+    COMMAND_SET_SETTINGS = 14,
     COMMAND_UNLOAD_TEXTURES,
     COMMAND_EVICT_OBJECTS,
     COMMAND_EVICT_TEXTURES,
@@ -25,16 +24,13 @@ enum ECoreCommands
 	COMMAND_EXIT,
 	COMMAND_SHOW_PROPERTIES,
 	COMMAND_UPDATE_PROPERTIES,	// p1 - forced update if needed
-    COMMAND_REFRESH_PROPERTIES,
-    COMMAND_MOVE_CAMERA_TO,
+    COMMAND_MOVE_CAMERA_TO = 23,
 	COMMAND_ZOOM_EXTENTS,
     COMMAND_RENDER_FOCUS,
     COMMAND_RENDER_RESIZE,		
     COMMAND_TOGGLE_RENDER_WIRE,
-    COMMAND_UPDATE_CAPTION,
-	COMMAND_BREAK_LAST_OPERATION,
-	COMMAND_UPDATE_TOOLBAR,
-    COMMAND_TOGGLE_SAFE_RECT,
+	COMMAND_BREAK_LAST_OPERATION = 29,
+    COMMAND_TOGGLE_SAFE_RECT = 31,
     COMMAND_TOGGLE_GRID,
 	COMMAND_UPDATE_GRID,
     COMMAND_GRID_NUMBER_OF_SLOTS,
@@ -93,7 +89,7 @@ public:
 	IC operator 	xr_string 		()							{VERIFY(type==tpStr);return s;}
     IC bool			IsString		()							{return type==tpStr;}
     IC bool			IsInteger		()							{return type==tpInt;}
-//	IC operator 	LPCSTR 			()							{VERIFY(type==tpStr);return s.c_str();}
+//	IC operator 	const char* 			()							{VERIFY(type==tpStr);return s.c_str();}
 };
 
 using TECommandEvent = xr_delegate< CCommandVar(CCommandVar,CCommandVar)>;
@@ -107,7 +103,7 @@ struct ECORE_API SESubCommand{
     CCommandVar 	p1;
     xr_shortcut		shortcut;
 public:
-                	SESubCommand	(LPCSTR d, SECommand* p, CCommandVar _p0, CCommandVar _p1){desc=d;parent=p;p0=_p0;p1=_p1;}
+                	SESubCommand	(const char* d, SECommand* p, CCommandVar _p0, CCommandVar _p1){desc=d;parent=p;p0=_p0;p1=_p1;}
 };
 
 using ESubCommandVec = xr_vector<SESubCommand*>;
@@ -122,16 +118,16 @@ struct ECORE_API SECommand{
     u32				idx;
     bool			global_shortcut;
 public:
-    				SECommand		(LPCSTR n, LPCSTR d, bool edit, bool multi, TECommandEvent cmd, u32 i, bool _gs):editable(edit),command(cmd),idx(i),global_shortcut(_gs)
+    				SECommand		(const char* n, const char* d, bool edit, bool multi, TECommandEvent cmd, u32 i, bool _gs):editable(edit),command(cmd),idx(i),global_shortcut(_gs)
                     {
                     	name		= xr_strdup(n);
                     	desc		= xr_strdup(d);
                         if (!multi)	AppendSubCommand("",u32(0),u32(0));
                     }
 					~SECommand		(){xr_free(name);xr_free(desc); for (ESubCommandVecIt it=sub_commands.begin(); it!=sub_commands.end(); it++) xr_delete(*it);}
-    IC LPCSTR		Name			(){return name&&name[0]?name:"";}
-	IC LPCSTR		Desc			(){return desc&&desc[0]?desc:"";}
-    void			AppendSubCommand(LPCSTR desc, CCommandVar p0, CCommandVar p1){sub_commands.push_back(new SESubCommand(desc,this,p0,p1));}
+    IC const char*		Name			(){return name&&name[0]?name:"";}
+	IC const char*		Desc			(){return desc&&desc[0]?desc:"";}
+    void			AppendSubCommand(const char* desc, CCommandVar p0, CCommandVar p1){sub_commands.push_back(new SESubCommand(desc,this,p0,p1));}
 };
 
 using ECommandVec = xr_vector<SECommand*>;
@@ -140,13 +136,13 @@ using ECommandVecIt = ECommandVec::iterator;
 ECORE_API CCommandVar	    ExecCommand				(u32 cmd, CCommandVar p1=u32(0), CCommandVar p2=u32(0));
 ECORE_API CCommandVar	    ExecCommand				(const xr_shortcut& val);
 ECORE_API void			    RegisterCommand 		(u32 cmd, SECommand* cmd_impl);
-ECORE_API void			    RegisterSubCommand 		(SECommand* cmd_impl, LPCSTR desc, CCommandVar p0, CCommandVar p1);
+ECORE_API void			    RegisterSubCommand 		(SECommand* cmd_impl, const char* desc, CCommandVar p0, CCommandVar p1);
 ECORE_API void			    EnableReceiveCommands	();
 ECORE_API ECommandVec&      GetEditorCommands		();
 ECORE_API SESubCommand* 	FindCommandByShortcut	(const xr_shortcut& val);
-ECORE_API BOOL				LoadShortcuts			(nlohmann::json&);
-ECORE_API BOOL				SaveShortcuts			(nlohmann::json&);
-ECORE_API BOOL				AllowLogCommands		();
+ECORE_API bool				LoadShortcuts			(nlohmann::json&);
+ECORE_API bool				SaveShortcuts			(nlohmann::json&);
+ECORE_API bool				AllowLogCommands		();
 
 #define BIND_CMD_EVENT_S(a) 						TECommandEvent(a)
 #define BIND_CMD_EVENT_C(a,b)						TECommandEvent(a,&b)

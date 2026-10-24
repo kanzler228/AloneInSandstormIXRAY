@@ -40,7 +40,6 @@ void	CCar::cam_Update			(float dt, float fov)
 	}
 	active_camera->f_fov				= fov;
 	active_camera->Update				(P,Da);
-	Level().Cameras().UpdateFromCamera	(active_camera);
 }
 
 void	CCar::OnCameraChange		(int type)
@@ -50,12 +49,12 @@ void	CCar::OnCameraChange		(int type)
 		if	(type==ectFirst)
 		{
 			m_camera_current_position = &m_camera_position;
-			Owner()->setVisible(FALSE);
+			Owner()->setVisible(false);
 		}
-		else if(active_camera->tag==ectFirst)
+		else if(active_camera && active_camera->tag==ectFirst)
 		{
 			m_camera_current_position = &m_camera_position_2;
-			Owner()->setVisible(TRUE);
+			Owner()->setVisible(true);
 		}
 	}
 	

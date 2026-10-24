@@ -3,31 +3,12 @@
 #include "stdafx.h"
 #include "../../xrEngine/xr_input.h"
 
-#include "xrECore/Splash.h"
+#include "../xrPlay/Splash.h"
 
 extern ECORE_API xr_token2* actions_token;
 extern xr_token2 actions_token_impl[];
 
-void BeginRender()
-{
-#define D3DCOLOR_RGBA(r,g,b,a) D3DCOLOR_ARGB(a,r,g,b)
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-	RDevice->SetRenderState(D3DRS_ZENABLE, FALSE);
-	RDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
-	RDevice->SetRenderState(D3DRS_SCISSORTESTENABLE, FALSE);
-	D3DCOLOR clear_col_dx = D3DCOLOR_RGBA((int)(clear_color.x * clear_color.w * 255.0f), (int)(clear_color.y * clear_color.w * 255.0f), (int)(clear_color.z * clear_color.w * 255.0f), (int)(clear_color.w * 255.0f));
-	RDevice->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, clear_col_dx, 1.0f, 0);
-
-	RDevice->BeginScene();
-}
-
-void EndRender()
-{
-	RDevice->EndScene();
-	RDevice->Present(nullptr, nullptr, nullptr, nullptr);
-}
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* pCmdLine, int nCmdShow)
 {
 	if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_EVENTS))
 	{
@@ -35,42 +16,51 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return 0;
 	}
 
-	splash::show(IDB_PE);
+	splash::SetBackground(IDB_PE);
+	std::jthread s(splash::Show);
 
-	splash::update(5, "Initializing Debugger");
+	splash::SetProgressStatus(5, "Initializing Debugger");
 
 	Debug._initialize(false);
 
 	const char* FSName = "fs.ltx";
+    const char* fsgame_ltx_name = "-fsltx ";
+    string_path fsgame = "";
 
-	splash::update(10, "Initializing COM Library");
+    if (strstr(pCmdLine, fsgame_ltx_name)) {
+        int						sz = xr_strlen(fsgame_ltx_name);
+        sscanf(strstr(pCmdLine, fsgame_ltx_name) + sz, "%[^ ] ", fsgame);
+    }
+
+
+	splash::SetProgressStatus(10, "Initializing COM Library");
 
 	CoInitialize(nullptr);
 
-	splash::update(20, "Core Initialization");
+	splash::SetProgressStatus(20, "Core Initialization");
 
-	Core._initialize("Patricle", ELogCallback, 1, FSName);
+    Core._initialize("Patricle", ELogCallback, 1, fsgame[0] ? fsgame : FSName);
 
 	psDeviceFlags.set(rsFullscreen, false);
 
-	splash::update(35, "Initializing Particle Tools");
+	splash::SetProgressStatus(35, "Initializing Particle Tools");
 	actions_token = actions_token_impl;
 	Tools = new CParticleTool();
 	PTools = (CParticleTool*)Tools;
 
-	splash::update(55, "Registering UI Commands");
+	splash::SetProgressStatus(55, "Registering UI Commands");
 
 	UI = new CParticleMain();
 	UI->RegisterCommands();
 	
-	splash::update(75, "Creating Main UI Form");
+	splash::SetProgressStatus(75, "Creating Main UI Form");
 
 	UIMainForm* MainForm = new UIMainForm();
 	::MainForm = MainForm;
 	UI->Push(MainForm, false);
 
-	splash::update(100, "Finalizing");
-	splash::hide();
+	splash::SetProgressStatus(100, "Finalizing");
+	splash::Close();
 
 	//MainForm->Frame();
 	bool NeedExit = false;
@@ -81,9 +71,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		{
 			switch (Event.type)
 			{
-			case SDL_EVENT_WINDOW_MAXIMIZED:
-				EDevice->MaximizedWindow();
-				break;
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
 			{
 				SDL_WindowID MainWndID = SDL_GetWindowID(g_AppInfo.Window);
@@ -156,7 +143,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		}
 		MainForm->Frame();
 	}
-
+	s.join();
 	xr_delete(MainForm);
 	Core._destroy();
 	return 0;

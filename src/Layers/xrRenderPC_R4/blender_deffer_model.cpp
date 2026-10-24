@@ -12,7 +12,7 @@ CBlender_deffer_model::CBlender_deffer_model	()	{
 	oAREF.value			= 32;
 	oAREF.min			= 0;
 	oAREF.max			= 255;
-	oBlend.value		= FALSE;
+	oBlend.value		= false;
 }
 CBlender_deffer_model::~CBlender_deffer_model	()	{	}
 
@@ -38,7 +38,7 @@ void	CBlender_deffer_model::Load	(	IReader& fs, u16 version )
 		oAREF.value			= 32;
 		oAREF.min			= 0;
 		oAREF.max			= 255;
-		oBlend.value		= FALSE;
+		oBlend.value		= false;
 		break;
 	case 1:
 	default:
@@ -52,34 +52,70 @@ void	CBlender_deffer_model::Load	(	IReader& fs, u16 version )
 	}
 }
 
-void	CBlender_deffer_model::Compile(CBlender_Compile& C)
+void CBlender_deffer_model::Compile(CBlender_Compile& C)
 {
-	IBlender::Compile		(C);
+	IBlender::Compile(C);
 
-	if (oStrictSorting.value || (oBlend.value && oAREF.value < 16)) {
+	if (C.iElement == SE_R2_UI)
+	{
+		RImplementation.addShaderOption("DISABLE_MOTION_VECTORS", "1");
+		uber_deffer(C, true, "deffer_model", "ui_base", !!oBlend.value, 0, true);
+
+		if (oStrictSorting.value || (oBlend.value && oAREF.value < 16)) 
+		{
+			C.PassSET_ZB(true, false);
+			C.PassSET_Blend(true, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, 0);
+		}
+
+		C.r_dx10Texture("env_s0", "shaders\\newsky_viewport#small");
+		C.r_dx10Texture("sky_s0", "shaders\\newsky_viewport");
+
+		C.r_dx10Texture("s_material", r2_material);
+		C.r_dx10Sampler("smp_material");
+
+		C.r_End();
+
+		return;
+	}
+	else if (C.iElement == SE_R2_REFLECTIONS)
+	{
+		RImplementation.addShaderOption("USE_LENGTH_BUFFER", "1");
+		RImplementation.addShaderOption("DISABLE_MOTION_VECTORS", "1");
+
+		uber_forward(C, false, "deffer_model", "forward_base", oBlend.value, false, 0);
+
+		return;
+	}
+
+	if (oStrictSorting.value || (oBlend.value && oAREF.value < 16)) 
+	{
 		switch (C.iElement)
 		{
-		case SE_R2_NORMAL_HQ:
-		case SE_R2_NORMAL_LQ:
-			uber_deffer(C, SE_R2_NORMAL_HQ == C.iElement, "deffer_model", "forward_base", true, 0, true);
+			case SE_R2_HUD:
+			case SE_R2_NORMAL_HQ:
+			case SE_R2_NORMAL_LQ:
+			{
+				uber_forward(C, SE_R2_NORMAL_LQ != C.iElement, "deffer_model", "forward_base", true, true);
+				break;
+			}
+			case SE_R2_SHADOW:
+			{
+				RImplementation.addShaderOption("DISABLE_VELOCITY", "1");
+				RImplementation.addShaderOption("USE_TRANSPARENT", "1");
+				C.r_Pass("shadow_model", "shadow_base", false, true, false, true, D3DBLEND_DESTCOLOR, D3DBLEND_ZERO);
 
-			C.PassSET_ZB(TRUE, FALSE);
-			C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, true, oAREF.value);
+				C.r_dx10Texture("s_base", C.L_textures[0]);
+				C.r_dx10Sampler("smp_base");
+				C.r_dx10Sampler("smp_linear");
 
-			C.r_dx10Texture("s_material", r2_material);
-			C.r_dx10Texture("env_s0", r2_T_envs0);
-			C.r_dx10Texture("env_s1", r2_T_envs1);
-			C.r_dx10Texture("sky_s0", r2_T_sky0);
-			C.r_dx10Texture("sky_s1", r2_T_sky1);
-
-			C.r_dx10Texture("s_env", r2_RT_env_temp);
-
-			C.r_dx10Sampler("smp_material");
-			C.r_End();
-			break;
+				C.r_End();
+				break;
+			}
 		}
-	} else {
-		BOOL bAref = oBlend.value;
+	} 
+	else 
+	{
+		bool bAref = oBlend.value;
 
 		C.TessMethod = oTessellation.IDselected;
 		switch (C.iElement)
@@ -87,13 +123,13 @@ void	CBlender_deffer_model::Compile(CBlender_Compile& C)
 		case SE_R2_NORMAL_HQ: // deffer
 			uber_deffer(C, true, "deffer_model", "deffer_base", bAref, 0, true);
 
-			C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+			C.r_Stencil(true, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			C.r_StencilRef(0x01);
 			C.r_End();
 			break;
 		case SE_R2_NORMAL_LQ: // deffer
 			uber_deffer(C, false, "deffer_model", "deffer_base", bAref, 0, true);
-			C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+			C.r_Stencil(true, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			C.r_StencilRef(0x01);
 			C.r_End();
 			break;
@@ -103,7 +139,7 @@ void	CBlender_deffer_model::Compile(CBlender_Compile& C)
 			}
 			
 			RImplementation.addShaderOption("DISABLE_VELOCITY", "1");
-			C.r_Pass("shadow_model", "shadow_base", FALSE);
+			C.r_Pass("shadow_model", "shadow_base", false);
 
 			C.r_dx10Texture("s_base", C.L_textures[0]);
 			C.r_dx10Sampler("smp_base");

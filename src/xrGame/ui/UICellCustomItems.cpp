@@ -1,9 +1,13 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UICellCustomItems.h"
 #include "UIInventoryUtilities.h"
 #include "../Weapon.h"
 #include "UIDragDropListEx.h"
 #include "../../xrUI/Widgets/UIProgressBar.h"
+#include "../../xrUI/Widgets/UI3dStatic.h"
+#include "../../xrUI/UIVectorBinding.h"
+
+using namespace InventoryUtilities;
 
 namespace detail 
 {
@@ -24,18 +28,58 @@ CUIInventoryCellItem::CUIInventoryCellItem(CInventoryItem* itm)
 {
 	m_pData = (void*)itm;
 
-	inherited::SetShader(InventoryUtilities::GetEquipmentIconsShader(itm->IconsTexture.c_str()));
+	const char* icons_texture = READ_IF_EXISTS(pSettings, r_string, itm->m_section_id, "icons_texture", nullptr);
+
+	const bool isRaster = !(pSettings->line_exist(itm->m_section_id, kUIConfigField_InventoryVectorIcon));
 
 	m_grid_size.set(itm->GetInvGridRect().rb);
-	Frect rect;
-	rect.lt.set(INV_GRID_WIDTH(itm->ScaleIcon) * itm->GetInvGridRect().x1,
-		INV_GRID_HEIGHT(itm->ScaleIcon) * itm->GetInvGridRect().y1);
+	if (isRaster)
+	{
+		inherited::SetShader(GetEquipmentIconsShader(icons_texture));
 
-	rect.rb.set(rect.lt.x + INV_GRID_WIDTH(itm->ScaleIcon) * m_grid_size.x,
-		rect.lt.y + INV_GRID_HEIGHT(itm->ScaleIcon) * m_grid_size.y);
+		Frect rect;
+		rect.lt.set(INV_GRID_WIDTH(itm->ScaleIcon) * itm->GetInvGridRect().x1,
+			INV_GRID_HEIGHT(itm->ScaleIcon) * itm->GetInvGridRect().y1);
 
-	inherited::SetTextureRect(rect);
-	inherited::SetStretchTexture(true);
+		rect.rb.set(rect.lt.x + INV_GRID_WIDTH(itm->ScaleIcon) * m_grid_size.x,
+			rect.lt.y + INV_GRID_HEIGHT(itm->ScaleIcon) * m_grid_size.y);
+
+		inherited::SetTextureRect(rect);
+		inherited::SetStretchTexture(true);
+	}
+	else
+	{
+		Frect rect;
+		rect.lt.set(INV_GRID_WIDTH(itm->ScaleIcon) * itm->GetInvGridRect().x1,
+			INV_GRID_HEIGHT(itm->ScaleIcon) * itm->GetInvGridRect().y1);
+
+		// todo: it is estimated but not real (true) values that render expects and when it applies to polygon so think about how to extract real values... (but probably in most cases should be fine and wouldn't be noticable, but if noticable so I refer to this todo so you need to use accurate and exact values for requested width and height)
+		rect.rb.set(rect.lt.x + INV_GRID_WIDTH(itm->ScaleIcon) * m_grid_size.x,
+			rect.lt.y + INV_GRID_HEIGHT(itm->ScaleIcon) * m_grid_size.y);
+		const float fRequestedWidth = rect.width();
+		const float fRequestedHeight = rect.height();
+
+		Fvector2 vScaled;
+		UI().ClientToScreenScaled(vScaled, fRequestedWidth, fRequestedHeight);
+
+		vScaled.x = fRequestedWidth;
+		vScaled.y = fRequestedHeight;
+
+		xr_string_view iconSubpath{};
+		if (pSettings->line_exist(itm->m_section_id, kUIConfigField_InventoryVectorIcon))
+			iconSubpath = pSettings->r_string(itm->m_section_id, kUIConfigField_InventoryVectorIcon);
+
+		CUIVectorBinding::ApplyVectorPathToStatic(*this, iconSubpath, vScaled.x, vScaled.y, {});
+		inherited::SetStretchTexture(true);
+	}
+
+    // Для 3d иконок
+	static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
+	if (enable3DIcons)
+    {
+        SetVisual(itm->m_3d_static_visual_name);
+		SetBonesVisible(itm->object().Visual()->dcast_PKinematics());
+    }
 }
 
 bool CUIInventoryCellItem::EqualTo(CUICellItem* itm)
@@ -114,23 +158,26 @@ void CUIInventoryCellItem::Update()
 void CUIInventoryCellItem::UpdateItemText()
 {
 	const u32	helper_count	=  	(u32)std::count_if(m_childs.begin(), m_childs.end(), ::detail::is_helper_pred()) 
-									+ IsHelper() ? 1 : 0;
+									+ (IsHelper() ? 1 : 0);
 
 	const u32	count			=	ChildsCount() + 1 - helper_count;
 
-	string32	str;
+    string32 tempStr;
+    const char* finalText = nullptr;
+    if (count > 1 || helper_count)
+    {
+        xr_sprintf(tempStr, "%s%d", EngineExternal().GetInventoryItemCountPrefix().c_str(), count);
+        finalText = tempStr;
+    }
 
-	if ( count > 1 || helper_count )
+    if (m_text)
 	{
-		xr_sprintf						( str, "x%d", count );
-		m_text->TextItemControl()->SetText	( str );
-		m_text->Show					( true );
+        m_text->Show(nullptr != finalText);
+        m_text->SetText(finalText);
 	}
 	else
 	{
-		xr_sprintf						( str, "");
-		m_text->TextItemControl()->SetText	( str );
-		m_text->Show					( false );
+		this->SetText(finalText);
 	}
 }
 
@@ -169,15 +216,22 @@ u32 CUIAmmoCellItem::CalculateAmmoCount()
 
 void CUIAmmoCellItem::UpdateItemText()
 {
-	m_text->Show( false );
+    string32 tempStr;
+    const char* finalText = nullptr;
 	if ( !m_custom_draw )
 	{
-		const u32 total = CalculateAmmoCount();
+        xr_sprintf(tempStr, "%d", CalculateAmmoCount());
+        finalText = tempStr;
+    }
 		
-		string32			str;
-		xr_sprintf			(str, "%d", total);
-		m_text->TextItemControl()->SetText(str);
-		m_text->Show		(true);
+    if (m_text)
+    {
+        m_text->Show(nullptr != finalText);
+        m_text->SetText(finalText);
+    }
+    else
+    {
+        this->SetText(finalText);
 	}
 }
 
@@ -237,7 +291,7 @@ void CUIWeaponCellItem::CreateIcon(eAddonType t)
 	else if (t == eScope) sect = *object()->GetScopeName();
 	else if (t == eLauncher) sect = *object()->GetGrenadeLauncherName();
 
-	m_addons[t]->SetShader		(InventoryUtilities::GetEquipmentIconsShader(object()->IconsTexture.c_str()));
+	m_addons[t]->SetShader(GetEquipmentIconsShader(object()->IconsTexture.c_str()));
 
 	u32 color = GetTextureColor	();
 	m_addons[t]->SetTextureColor(color);
@@ -301,21 +355,29 @@ void CUIWeaponCellItem::Update()
 	
 	bool bForceReInitAddons		= (b!=Heading());
 
+	bool reinit_3d_icon = false;
+
+	static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
 	if (object()->SilencerAttachable())
 	{
-		if (object()->IsSilencerAttached())
+		if (object()->IsSilencerAttached() && !enable3DIcons)
 		{
 			if (!GetIcon(eSilencer) || bForceReInitAddons)
 			{
 				CreateIcon	(eSilencer);
 				RefreshOffset();
 				InitAddon	(GetIcon(eSilencer), *object()->GetSilencerName(), m_addon_offset[eSilencer], Heading());
+
+				reinit_3d_icon = true;
 			}
-		}
+        }
 		else
 		{
 			if (m_addons[eSilencer])
+			{
 				DestroyIcon(eSilencer);
+				reinit_3d_icon = true;
+			}
 		}
 	}
 
@@ -324,33 +386,55 @@ void CUIWeaponCellItem::Update()
 		if (m_addons[eScope])
 		{
 			DestroyIcon(eScope);
+			reinit_3d_icon = true;
 		}
 
-		if (object()->IsScopeAttached())
+		if (object()->IsScopeAttached() && !enable3DIcons)
 		{
 			if (!GetIcon(eScope) || bForceReInitAddons)
 			{
 				CreateIcon(eScope);
 				RefreshOffset();
 				InitAddon(GetIcon(eScope), *object()->GetScopeName(), m_addon_offset[eScope], Heading());
+				reinit_3d_icon = true;
 			}
 		}
 	}
 
-	if (object()->GrenadeLauncherAttachable()){
-		if (object()->IsGrenadeLauncherAttached())
+	if (object()->GrenadeLauncherAttachable())
+    {
+		if (object()->IsGrenadeLauncherAttached() && !enable3DIcons)
 		{
 			if (!GetIcon(eLauncher) || bForceReInitAddons)
 			{
 				CreateIcon	(eLauncher);
 				RefreshOffset();
 				InitAddon	(GetIcon(eLauncher), *object()->GetGrenadeLauncherName(), m_addon_offset[eLauncher], Heading());
+				reinit_3d_icon = true;
 			}
 		}
 		else
 		{
 			if (m_addons[eLauncher])
+			{
 				DestroyIcon(eLauncher);
+				reinit_3d_icon = true;
+			}
+		}
+	}
+
+  //	if (reinit_3d_icon) 
+	{
+		if (auto pItem = (CInventoryItem*)m_pData)
+		{
+			if (auto pWeapon = pItem->cast_weapon())
+			{
+				pWeapon->UpdateAddonsVisibility();
+				pWeapon->ForceUpdateHUD();
+				pWeapon->ProcessScope();
+			}
+
+			SetBonesVisible(pItem->object().Visual()->dcast_PKinematics());
 		}
 	}
 }
@@ -375,21 +459,40 @@ void CUIWeaponCellItem::SetTextureColor( u32 color )
 void CUIWeaponCellItem::OnAfterChild(CUIDragDropListEx* parent_list)
 {
 	if(is_silencer() && GetIcon(eSilencer))
-		InitAddon	(GetIcon(eSilencer), *object()->GetSilencerName(),	m_addon_offset[eSilencer], parent_list->GetVerticalPlacement());
+	{
+		InitAddon(GetIcon(eSilencer), *object()->GetSilencerName(), m_addon_offset[eSilencer], parent_list->GetVerticalPlacement());
+	}
 
 	if(is_scope() && GetIcon(eScope))
-		InitAddon	(GetIcon(eScope),	*object()->GetScopeName(),		m_addon_offset[eScope], parent_list->GetVerticalPlacement());
+	{
+		InitAddon(GetIcon(eScope), *object()->GetScopeName(), m_addon_offset[eScope], parent_list->GetVerticalPlacement());
+	}
 
 	if(is_launcher() && GetIcon(eLauncher))
-		InitAddon	(GetIcon(eLauncher), *object()->GetGrenadeLauncherName(),m_addon_offset[eLauncher], parent_list->GetVerticalPlacement());
+	{
+		InitAddon(GetIcon(eLauncher), *object()->GetGrenadeLauncherName(), m_addon_offset[eLauncher], parent_list->GetVerticalPlacement());
+	}
+
+	if (auto pItem = (CInventoryItem*)m_pData)
+	{
+		if (auto pWeapon = pItem->cast_weapon())
+		{
+			pWeapon->UpdateAddonsVisibility();
+			pWeapon->ForceUpdateHUD();
+			pWeapon->ProcessScope();
+		}
+
+		SetBonesVisible(pItem->object().Visual()->dcast_PKinematics());
+	}
 }
 
-void CUIWeaponCellItem::InitAddon(CUIStatic* s, LPCSTR section, Fvector2 addon_offset, bool b_rotate)
+void CUIWeaponCellItem::InitAddon(CUIStatic* s, const char* section, Fvector2 addon_offset, bool b_rotate)
 {
 	Frect tex_rect;
 	Fvector2 base_scale;
 
-	float scaleIcon = READ_IF_EXISTS(pSettings, r_float, section, "inv_scale", 1.0f);
+	InventoryIconParams icons_struct = GetInventoryIconParams(section);
+	float scaleIcon = icons_struct.scaleIcon;
 	if (Heading())
 	{
 		base_scale.x = GetHeight() / (INV_GRID_WIDTH(scaleIcon) * m_grid_size.x);
@@ -402,11 +505,11 @@ void CUIWeaponCellItem::InitAddon(CUIStatic* s, LPCSTR section, Fvector2 addon_o
 	}
 
 	Fvector2 cell_size;
-	cell_size.x = pSettings->r_u32(section, "inv_grid_width") * INV_GRID_WIDTH(scaleIcon);
-	cell_size.y = pSettings->r_u32(section, "inv_grid_height") * INV_GRID_HEIGHT(scaleIcon);
+	cell_size.x = icons_struct.inv_grid_width * INV_GRID_WIDTH(scaleIcon);
+	cell_size.y = icons_struct.inv_grid_height * INV_GRID_HEIGHT(scaleIcon);
 
-	tex_rect.x1 = pSettings->r_u32(section, "inv_grid_x") * INV_GRID_WIDTH(scaleIcon);
-	tex_rect.y1 = pSettings->r_u32(section, "inv_grid_y") * INV_GRID_HEIGHT(scaleIcon);
+	tex_rect.x1 = icons_struct.inv_grid_x * INV_GRID_WIDTH(scaleIcon);
+	tex_rect.y1 = icons_struct.inv_grid_y * INV_GRID_HEIGHT(scaleIcon);
 
 	tex_rect.rb.add(tex_rect.lt, cell_size);
 
@@ -457,7 +560,7 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
 		auto section = *object()->GetSilencerName();
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
+		s->SetShader	(GetEquipmentIconsShader(*object()->IconsTexture));
 		InitAddon		(s, section, m_addon_offset[eSilencer], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);
@@ -467,7 +570,7 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
 		auto section = *object()->GetScopeName();
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
+		s->SetShader	(GetEquipmentIconsShader(*object()->IconsTexture));
 		InitAddon		(s,	*object()->GetScopeName(),		m_addon_offset[eScope], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);
@@ -477,7 +580,7 @@ CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 	{
 		s				= new CUIStatic(); s->SetAutoDelete(true);
 		auto section = *object()->GetGrenadeLauncherName();
-		s->SetShader	(InventoryUtilities::GetEquipmentIconsShader(*object()->IconsTexture));
+		s->SetShader	(GetEquipmentIconsShader(*object()->IconsTexture));
 		InitAddon		(s, *object()->GetGrenadeLauncherName(),m_addon_offset[eLauncher], false);
 		s->SetTextureColor(i->wnd()->GetTextureColor());
 		i->wnd			()->AttachChild	(s);
@@ -509,7 +612,7 @@ bool CUIWeaponCellItem::EqualTo(CUICellItem* itm)
 	return true;
 }
 
-CBuyItemCustomDrawCell::CBuyItemCustomDrawCell	(LPCSTR str, CGameFont* pFont)
+CBuyItemCustomDrawCell::CBuyItemCustomDrawCell	(const char* str, CGameFont* pFont)
 {
 	m_pFont		= pFont;
 	VERIFY		(xr_strlen(str)<16);

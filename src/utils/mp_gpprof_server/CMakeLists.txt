@@ -85,6 +85,7 @@ list(APPEND MPGF_SRC_FILES ${MPGF_SOURCE_ALL_FILES})
 # mp_gpprof_server project
 add_executable(mp_gpprof_server ${MPGF_SRC_FILES})
 target_include_directories(mp_gpprof_server PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(mp_gpprof_server PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../xrCore/")
 target_include_directories(mp_gpprof_server PRIVATE "libraries/fcgi-2.4.0")
 target_include_directories(mp_gpprof_server PRIVATE "libraries/fcgi-2.4.0/include")
 target_include_directories(mp_gpprof_server PRIVATE "libraries/gamespy")
@@ -101,4 +102,6 @@ target_compile_definitions(mp_gpprof_server PRIVATE PTW32_STATIC_LIB)
 
 # Linker list
 target_link_libraries(mp_gpprof_server PUBLIC xrCore)
-target_link_libraries(mp_gpprof_server PUBLIC "ws2_32.lib")
+if (WIN32)
+    target_link_libraries(mp_gpprof_server PUBLIC WindowsSDK::WS2_32)
+endif()

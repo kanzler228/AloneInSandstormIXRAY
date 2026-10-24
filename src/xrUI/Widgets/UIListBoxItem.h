@@ -1,7 +1,6 @@
 #pragma once
 #include "UIFrameLineWnd.h"
 
-class CUITextWnd;
 class CUIStatic;
 
 class UI_API CUIListBoxItem :
@@ -22,14 +21,14 @@ public:
 			void		SetData					(void* data);
 			void*		GetData					();
 
-		CUITextWnd*		AddTextField			(LPCSTR txt, float width);
+		CUIStatic*		AddTextField			(const char* txt, float width);
 		CUIStatic*		AddIconField			(float width);
 
-		CUITextWnd*		GetTextItem				(){return m_text;}
+		CUIStatic*		GetTextItem				(){return m_text;}
 
 		//TextControl
-		void			SetText					(LPCSTR txt);
-		LPCSTR			GetText					();
+		void			SetText					(const char* txt);
+		const char*			GetText					();
 		void			SetTextColor			(u32 color);
 		u32				GetTextColor			();
 		void			SetFont					(CGameFont* F);
@@ -38,9 +37,11 @@ public:
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIListBoxItem* ui_cast_list_box_item() { return this; }
 	virtual CUISelectable* ui_cast_selectable() { return this; }
+			void		SendSelectionCallback	();
+			void		SendClickCallback		();
 
 protected:
-		CUITextWnd*		m_text;
+		CUIStatic*		m_text;
 		u32				tag;
 		void*			pData;
 		float			FieldsLength			() const;

@@ -5,15 +5,15 @@
 //	Author		: Dmitriy Iassenev
 //	Description : Physic item
 ////////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
 #include "GameObject.h"
-#include "PHShellCreator.h"
 #include "PhysicsShellHolder.h"
-class CPhysicItem : 
-			public CPhysicsShellHolder,
-			public CPHShellSimpleCreator
+#include "ph_shell_interface.h"
+
+class CPhysicItem :
+	public CPhysicsShellHolder,
+	public IPhysicShellCreator
 {
 	typedef CPhysicsShellHolder inherited;
 public:
@@ -24,12 +24,12 @@ public:
 	virtual			~CPhysicItem					();
 			void	init							();
 	virtual void	reinit							();
-	virtual void	Load							(LPCSTR section);
-	virtual void	reload							(LPCSTR section);
+	virtual void	Load							(const char* section);
+	virtual void	reload							(const char* section);
 	virtual void	OnH_B_Independent				(bool just_before_destroy);
 	virtual void	OnH_B_Chield					();
 	virtual void	UpdateCL						();
-	virtual BOOL	net_Spawn						(CSE_Abstract* DC);
+	virtual bool	net_Spawn						(CSE_Abstract* DC);
 	virtual void	net_Destroy						();
 	virtual void	activate_physic_shell			();
 	virtual void	setup_physic_shell				();
@@ -38,6 +38,5 @@ public:
 	virtual void	create_physic_shell				();
 	virtual CPhysicItem* cast_physics_item() { return this; }
 	virtual CPhysicsShellHolder* cast_physics_shell_holder() { return this; }
+	virtual void CreatePhysicsShell() override;
 };
-
-#include "physic_item_inline.h"

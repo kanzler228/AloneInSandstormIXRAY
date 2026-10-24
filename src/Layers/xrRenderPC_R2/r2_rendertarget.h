@@ -52,9 +52,9 @@ public:
 
 	// 
 	ref_rt						rt_Accumulator;		// 64bit		(r,g,b,specular)
-	ref_rt						rt_Accumulator_temp;// only for HW which doesn't feature fp16 blend
 	ref_rt						rt_Generic_0;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt						rt_Generic_1;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
+	ref_rt						rt_ui_pda;
 	//	Igor: for volumetric lights
 	ref_rt						rt_Generic_2;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt						rt_Bloom_1;			// 32bit, dim/4	(r,g,b,?)
@@ -76,7 +76,6 @@ public:
 	// smap
 	ref_rt						rt_smap_surf;	// 32bit,		color
 	ref_rt						rt_smap_depth;	// 24(32) bit,	depth 
-	IDirect3DSurface9*			rt_smap_ZB;		//
 
 	// Textures
 	IDirect3DVolumeTexture9*	t_material_surf;
@@ -102,17 +101,17 @@ private:
 	ref_geom					g_accum_omnipart;
 	ref_geom					g_accum_volumetric;
 
-	IDirect3DVertexBuffer9*		g_accum_point_vb;
-	IDirect3DIndexBuffer9*		g_accum_point_ib;
+	IRHIBuffer*		g_accum_point_vb;
+	IRHIBuffer*		g_accum_point_ib;
 
-	IDirect3DVertexBuffer9*		g_accum_omnip_vb;
-	IDirect3DIndexBuffer9*		g_accum_omnip_ib;
+	IRHIBuffer*		g_accum_omnip_vb;
+	IRHIBuffer*		g_accum_omnip_ib;
 
-	IDirect3DVertexBuffer9*		g_accum_spot_vb	;
-	IDirect3DIndexBuffer9*		g_accum_spot_ib	;
+	IRHIBuffer*		g_accum_spot_vb	;
+	IRHIBuffer*		g_accum_spot_ib	;
 
-	IDirect3DVertexBuffer9*		g_accum_volumetric_vb;
-	IDirect3DIndexBuffer9*		g_accum_volumetric_ib;
+	IRHIBuffer*		g_accum_volumetric_vb;
+	IRHIBuffer*		g_accum_volumetric_ib;
 
 	//SSAO
 	ref_shader					s_ssao;
@@ -148,7 +147,6 @@ private:
 	ref_geom					g_combine_VP;		// xy=p,zw=tc
 	ref_geom					g_combine_2UV;
 	ref_geom					g_combine_cuboid;
-	ref_geom					g_aa_blur;
 	ref_geom					g_aa_AA;
 	ref_shader					s_combine_dbg_0;
 	ref_shader					s_combine_dbg_1;
@@ -196,23 +194,24 @@ public:
 	void						accum_volumetric_geom_create();
 	void						accum_volumetric_geom_destroy();
 
-	void						u_stencil_optimize		(BOOL		common_stencil=TRUE);
+	void						u_stencil_optimize		(bool		common_stencil=true);
 	void						u_compute_texgen_screen		(Fmatrix&	dest);
 	void						u_compute_texgen_screen_asd	(Fmatrix&	dest);
 	void						u_compute_texgen_jitter	(Fmatrix&	dest);
-	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, IDirect3DSurface9* zb);
-	void						u_setrt					(u32 W, u32 H, IDirect3DSurface9* _1, IDirect3DSurface9* _2, IDirect3DSurface9* _3, IDirect3DSurface9* zb);
+	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, IRHIDepthStencilView* zb);
+	void						u_setrt					(u32 W, u32 H, IRHIRenderTargetView* _1, IRHIRenderTargetView* _2, IRHIRenderTargetView* _3, IRHIDepthStencilView* zb);
 	void						u_calc_tc_noise			(Fvector2& p0, Fvector2& p1);
 	void						u_calc_tc_duality_ss	(Fvector2& r0, Fvector2& r1, Fvector2& l0, Fvector2& l1);
-	BOOL						u_need_PP				();
+	bool						u_need_PP				();
 	bool						u_need_CM				();
-	BOOL						u_DBT_enable			(float zMin, float zMax);
+	bool						u_DBT_enable			(float zMin, float zMax);
 	void						u_DBT_disable			();
 
 	void RenderEffect(ScreenPostProcessType postProcessType);
 	void PhaseAberration();
 	void PhaseVignette();
 	void PhaseSaturation();
+	void PhaseRaindrops();
 
 	void						phase_ssao				();
 	void phase_fxaa(u32 pass);
@@ -234,7 +233,7 @@ public:
 
 	bool						need_to_render_sunshafts();
 
-	BOOL						enable_scissor			(light* L);		// true if intersects near plane
+	bool						enable_scissor			(light* L);		// true if intersects near plane
 	void						enable_dbt_bounds		(light* L);
 
 	void						disable_aniso			();
@@ -255,11 +254,11 @@ public:
 
 	virtual void				set_blur				(float	f)		{ param_blur=f;						}
 	virtual void				set_gray				(float	f)		{ param_gray=f;						}
-	virtual void				set_duality_h			(float	f)		{ param_duality_h=_abs(f);			}
-	virtual void				set_duality_v			(float	f)		{ param_duality_v=_abs(f);			}
+	virtual void				set_duality_h			(float	f)		{ param_duality_h=std::abs(f);			}
+	virtual void				set_duality_v			(float	f)		{ param_duality_v=std::abs(f);			}
 	virtual void				set_noise				(float	f)		{ param_noise=f;					}
 	virtual void				set_noise_scale			(float	f)		{ param_noise_scale=f;				}
-	virtual void				set_noise_fps			(float	f)		{ param_noise_fps=_abs(f)+EPS_S;	}
+	virtual void				set_noise_fps			(float	f)		{ param_noise_fps= std::abs(f)+EPS_S;	}
 	virtual void				set_color_base			(u32	f)		{ param_color_base=f;				}
 	virtual void				set_color_gray			(u32	f)		{ param_color_gray=f;				}
 	virtual void				set_color_add			(const Fvector	&f)		{ param_color_add=f;		}

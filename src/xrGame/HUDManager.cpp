@@ -17,6 +17,7 @@
 #include "PHDebug.h"
 #endif
 #include "../../xrUI/UIFontDefines.h"
+#include "../../xrUI/UIHelper.h"
 
 extern CUIGameCustom* CurrentGameUI() {return HUD().GetGameUI();}
 
@@ -99,10 +100,10 @@ void CHUDManager::Render_First()
 	}
 
 	// only shadow 
-	::Render->set_Invisible			(TRUE);
+	::Render->set_Invisible			(true);
 	::Render->set_Object			(O->H_Root());
 	O->renderable_Render			();
-	::Render->set_Invisible			(FALSE);
+	::Render->set_Invisible			(false);
 }
 
 bool need_render_hud()
@@ -136,10 +137,10 @@ void CHUDManager::Render_Last()
 
 	CObject*	O					= g_pGameLevel->CurrentViewEntity();
 	// hud itself
-	::Render->set_HUD				(TRUE);
+	::Render->set_HUD				(true);
 	::Render->set_Object			(O->H_Root());
 	O->OnHUDDraw					(this);
-	::Render->set_HUD				(FALSE);
+	::Render->set_HUD				(false);
 }
 
 #include "player_hud.h"
@@ -163,7 +164,7 @@ void   CHUDManager::RenderActiveItemUI()
 	g_player_hud->render_item_ui		();
 }
 
-extern ENGINE_API BOOL bShowPauseString;
+extern ENGINE_API bool bShowPauseString;
 //отрисовка элементов интерфейса
 void  CHUDManager::RenderUI()
 {
@@ -187,19 +188,26 @@ void  CHUDManager::RenderUI()
 		m_pHUDTarget->Render();
 
 
-	if( Device.Paused() && bShowPauseString){
-		CGameFont* pFont	= UI().Font().GetFont(GRAFFITI50_FONT_NAME);
-		pFont->SetColor		(0x80FF0000	);
-		LPCSTR _str			= g_pStringTable->translate("st_game_paused").c_str();
-		
-		Fvector2			_pos;
-		_pos.set			(UI_BASE_WIDTH/2.0f, UI_BASE_HEIGHT/2.0f);
-		UI().ClientToScreenScaled(_pos);
-		pFont->SetAligment	(CGameFont::alCenter);
-		pFont->Out			(_pos.x, _pos.y, _str);
-		pFont->OnRender		();
-	}
+	if( Device.Paused() && bShowPauseString)
+	{
+		if (m_pPauseStatic)
+		{
+			m_pPauseStatic->Draw();
+		}
+		else
+		{
+			CGameFont* pFont = UI().Font().GetFont(GRAFFITI50_FONT_NAME);
+			pFont->SetColor(0x80FF0000);
+			const char* _str = g_pStringTable->translate("st_game_paused").c_str();
 
+			Fvector2 _pos;
+			_pos.set(UI_BASE_WIDTH / 2.0f, UI_BASE_HEIGHT / 2.0f);
+			UI().ClientToScreenScaled(_pos);
+			pFont->SetAligment(CGameFont::alCenter);
+			pFont->Out(_pos.x, _pos.y, _str);
+			pFont->OnRender();
+		}
+	}
 }
 
 void CHUDManager::OnEvent(EVENT E, u64 P1, u64 P2)
@@ -232,7 +240,6 @@ void CHUDManager::HitMarked( int idx, float power, const Fvector& dir )
 {
 	HitMarker.Hit			(dir);
 	clamp					(power,0.0f,1.0f);
-	pInput->feedback		(u16(iFloor(u16(-1)*power)), u16(iFloor(u16(-1)*power)), 0.5f);
 }
 
 bool CHUDManager::AddGrenade_ForMark( CGrenade* grn )
@@ -245,12 +252,12 @@ void CHUDManager::Update_GrenadeView( Fvector& pos_actor )
 	HitMarker.Update_GrenadeView( pos_actor );
 }
 
-void CHUDManager::SetHitmarkType( LPCSTR tex_name )
+void CHUDManager::SetHitmarkType( const char* tex_name )
 {
 	HitMarker.InitShader( tex_name );
 }
 
-void CHUDManager::SetGrenadeMarkType( LPCSTR tex_name )
+void CHUDManager::SetGrenadeMarkType( const char* tex_name )
 {
 	HitMarker.InitShader_Grenade( tex_name );
 }
@@ -269,11 +276,23 @@ void CHUDManager::Load()
 	{
 		pUIGame->SetClGame	(&Game());
 	}
+	InitializePauseStatic();
+}
+
+void CHUDManager::InitializePauseStatic()
+{
+	CUIXml xml;
+	if (xml.Load(CONFIG_PATH, UI_PATH, "backend\\pause.xml"))
+	{
+		m_pPauseStatic = UIHelper::CreateStatic(xml, "pause_static", nullptr);
+	}
 }
 
 void CHUDManager::OnScreenResolutionChanged()
 {
 	pUIGame->HideShownDialogs			();
+	xr_delete							(m_pPauseStatic);
+	InitializePauseStatic				();
 
 	xr_delete							(pWpnScopeXml);
 

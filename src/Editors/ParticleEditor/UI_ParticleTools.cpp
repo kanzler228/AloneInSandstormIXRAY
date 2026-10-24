@@ -5,6 +5,7 @@
 
 #include "UI_ParticleTools.h"
 
+#include "../../Layers/xrRender/ParticleAnimCurve.h"
 #include "../../xrEngine/ObjectAnimator.h"
 #include "../xrECore/Editor/ParticleEffectActions.h"
 //------------------------------------------------------------------------------
@@ -57,13 +58,29 @@ bool CParticleTool::OnCreate()
     m_ItemProps->SetModifiedEvent(TOnModifiedEvent(this, &CParticleTool::OnItemModified));
 
     // item list
-    m_PList = new UIItemListForm();
-    m_PList->m_Flags.set(UIItemListForm::fMenuEdit, true);
-    m_PList->SetOnItemFocusedEvent	(TOnILItemFocused(this,&CParticleTool::OnParticleItemFocused));
-    m_PList->SetOnItemCloneEvent(TOnItemClone(this, &CParticleTool::OnParticleCloneItem));
-    m_PList->SetOnItemCreaetEvent(TOnItemCreate(this, &CParticleTool::OnParticleCreateItem));
-	m_PList->SetOnItemRenameEvent	(TOnItemRename(this,&CParticleTool::OnParticleItemRename));
-    m_PList->SetOnItemRemoveEvent	(TOnItemRemove(this,&CParticleTool::OnParticleItemRemove));
+    auto ListInitFunc = [&](UIItemListForm*& ListProp)
+    {
+        R_ASSERT(!ListProp);
+        ListProp = new UIItemListForm();
+        ListProp->m_Flags.set(UIItemListForm::fMenuEdit, true);
+        ListProp->SetOnItemFocusedEvent	({this,&CParticleTool::OnParticleItemFocused});
+        ListProp->SetVerifyItemClone({this, &CParticleTool::VerifyParticleCloneItem});
+        ListProp->SetOnItemCloneEvent({this, &CParticleTool::OnParticleCloneItem});
+        ListProp->SetVerifyItemCreate({this, &CParticleTool::VerifyParticleCreateItem});
+        ListProp->SetOnItemCreaetEvent({this, &CParticleTool::OnParticleCreateItem});
+        ListProp->SetOnItemRenameEvent	({this,&CParticleTool::OnParticleItemRename});
+        ListProp->SetOnItemPreRemoveEvent({this, &CParticleTool::OnParticlePreItemRemove});
+        ListProp->SetOnItemRemoveEvent	({this,&CParticleTool::OnParticleItemRemove});
+        ListProp->SetVerifyFolderCreate({this, &CParticleTool::VerifyParticleCreateFolder});
+        ListProp->SetVerifyItemRename({this, &CParticleTool::VerifyParticleRenameItem});
+        ListProp->SetVerifyItemMove({this, &CParticleTool::VerifyParticleMoveItem});
+        ListProp->SetGetItemMoveActionSlot({this, &CParticleTool::GetItemMoveActionSlot});
+        ListProp->SetOnMoveItemEvent(ENodeMoveActionSlot::First, {this, &CParticleTool::ActionItemMoveAction}); // Move action
+    };
+    ListInitFunc(m_PList[PEd::ListTypeBase(PEd::LisType::All)]);
+    ListInitFunc(m_PList[PEd::ListTypeBase(PEd::LisType::Groups)]);
+    ListInitFunc(m_PList[PEd::ListTypeBase(PEd::LisType::Effects)]);
+    ListInitFunc(m_PList[PEd::ListTypeBase(PEd::LisType::AnimCurve)]);
     //
     m_ParentAnimator= new CObjectAnimator();
 
@@ -83,7 +100,11 @@ void CParticleTool::OnDestroy()
 
     xr_delete(m_ObjectProps);
     xr_delete(m_ItemProps);
-    xr_delete(m_PList);
+    for (auto& elem : m_PList)
+    {
+        xr_delete(elem.second);
+    }
+    m_PList.clear();
     xr_delete			(m_EditPG);
     xr_delete			(m_EditPE);
 }
@@ -94,8 +115,8 @@ bool CParticleTool::IfModified()
     if (m_bModified){
         int mr = ELog.DlgMsg(mtConfirmation, mbYes|mbNo|mbCancel, "The particles has been modified.\nDo you want to save your changes?");
         switch(mr){
-        case mrYes: if (!ExecCommand(COMMAND_SAVE)) return false; else m_bModified = FALSE; break;
-        case mrNo: m_bModified = FALSE; break;
+        case mrYes: if (!ExecCommand(COMMAND_SAVE)) return false; else m_bModified = false; break;
+        case mrNo: m_bModified = false; break;
         case mrCancel: return false;
         }
     }
@@ -105,7 +126,6 @@ bool CParticleTool::IfModified()
 void CParticleTool::Modified()
 {
 	m_bModified = true;
-	ExecCommand(COMMAND_UPDATE_CAPTION);
 }
 //---------------------------------------------------------------------------
 
@@ -136,36 +156,66 @@ void CParticleTool::Render()
 
 	if (m_EditObject)	m_EditObject->RenderSingle(Fidentity);
 	// draw parent axis
-    DU_impl.DrawObjectAxis			(m_Transform,0.05f,true);
+    DU_impl.DrawObjectAxis(m_Transform,0.05f,true);
 	// draw domains
     switch(m_EditMode){
-    case emNone: break;
-    case emEffect:{
-		if (m_EditPE&&m_EditPE->GetDefinition())
-        	m_EditPE->GetDefinition()->Render(m_Transform);
-    }break;
-    case emGroup:{
-    	if (m_EditPG){
-         	int cnt 		= m_EditPG->items.size();
-            for (int k=0; k<cnt; k++){
-                PS::CParticleEffect* E		= (PS::CParticleEffect*)m_EditPG->items[k]._effect;
-
-                if (m_LibPGD == nullptr || m_LibPGD->m_Effects[k] == nullptr)
-                    continue;
-
-				if (E&&E->GetDefinition()&&m_LibPGD->m_Effects[k]->m_Flags.is(PS::CPGDef::SEffect::flEnabled))
-                	E->GetDefinition()->Render(m_Transform);
-            }
+    case emNone:
+        {
+            break;
         }
-    }break;
-    default: THROW;
+    case emAction:
+        {
+            break;
+        }
+    case emEffect:
+        {
+		    if (m_EditPE&&m_EditPE->GetDefinition())
+		    {
+		        m_EditPE->GetDefinition()->Render(m_Transform);
+		    }
+            break;
+        }
+    case emEffectSlot:
+        {
+            break;
+        }
+    case emGroup:
+        {
+        	if (m_EditPG){
+             	int cnt 		= m_EditPG->items.size();
+                for (int k=0; k<cnt; k++){
+                    PS::CParticleEffect* E		= (PS::CParticleEffect*)m_EditPG->items[k].root_effect;
+    
+                    if (m_LibPGD == nullptr || m_LibPGD->m_Effects[k] == nullptr)
+                    {
+                        continue;
+                    }
+    
+	    			if (E&&E->GetDefinition()&&m_LibPGD->m_Effects[k]->m_Flags.is(PS::CPGDef::SEffect::flEnabled))
+	    			{
+	    			    E->GetDefinition()->Render(m_Transform);
+	    			}
+                }
+            }
+            break;
+        }
+    case emAnimCurve:
+        {
+            break;
+        }
+    default:
+        {
+            THROW;
+        }
     }
 	// Draw the particles.
     ((CRender*)::Render)->Models->RenderSingle(m_EditPG,Fidentity,1.f);
     ((CRender*)::Render)->Models->RenderSingle(m_EditPE,Fidentity,1.f);
 
     if (m_Flags.is(flAnimatedPath))
-    	m_ParentAnimator->DrawPath();
+    {
+        m_ParentAnimator->DrawPath();
+    }
 
 //.    if (psDeviceFlags.is(rsEnvironment)) g_pGamePersistent->Environment().RenderLast	();
     inherited::Render	();
@@ -177,15 +227,30 @@ void CParticleTool::OnFrame()
 	if (m_EditObject)
     	m_EditObject->OnFrame();
 
-    if (m_Flags.is(flAnimatedParent)){
-    	m_ParentAnimator->Update(EDevice->fTimeDelta);
-        if (m_ParentAnimator->IsPlaying()){
-        	Fvector new_vel;
-            new_vel.sub (m_ParentAnimator->XFORM().c,m_Transform.c);
-            new_vel.div (EDevice->fTimeDelta);
-            m_Vel.lerp	(m_Vel,new_vel,0.9);
-            m_Transform	= m_ParentAnimator->XFORM();
-            m_Flags.set	(flApplyParent,TRUE);
+    switch (m_PreviewType)
+    {
+    case PreviewTypes::Object:
+        {
+            if (m_Flags.is(flAnimatedParent)){
+                m_ParentAnimator->Update(EDevice->fTimeDelta);
+                if (m_ParentAnimator->IsPlaying()){
+                    Fvector new_vel;
+                    new_vel.sub (m_ParentAnimator->XFORM().c,m_Transform.c);
+                    new_vel.div (EDevice->fTimeDelta);
+                    m_Vel.lerp	(m_Vel,new_vel,0.9);
+                    m_Transform	= m_ParentAnimator->XFORM();
+                    m_Flags.set	(flApplyParent,true);
+                }
+            }
+            break;
+        }
+    case PreviewTypes::Transform:
+        {
+            m_Transform.identity();
+            m_Transform.setHPB(m_Rotation.y, m_Rotation.x, m_Rotation.z);
+            m_Transform.c = m_Position;
+            m_Flags.set(flApplyParent,true);
+            break;
         }
     }
 
@@ -203,53 +268,70 @@ void CParticleTool::OnFrame()
     	RealUpdateProperties();
 
     if (m_Flags.is(flSelectEffect)){
-        m_PList->SelectItem	(sel_eff_name.c_str());
-        m_Flags.set			(flSelectEffect,FALSE);
+        auto CurrentList = GetCurrentList();
+        R_ASSERT(CurrentList);
+        CurrentList->SelectItem(sel_eff_name.c_str());
+        m_Flags.set			(flSelectEffect,false);
         sel_eff_name		= "";
     }
 
     xr_string tmp;
     switch(m_EditMode){
-    case emNone: break;
+    case emNone:
+        {
+            break;
+        }
+    case emAction:
+        {
+            break;
+        }
     case emEffect:
-        if (m_EditPE->IsPlaying())
         {
-
-            xr_string nn;
-            nn.resize(64);
-            sprintf(nn.data(), " PE Playing...[%d]", m_EditPE->ParticlesCount());
-
-            UI->SetStatus(nn.c_str(), false);
-        }
+            if (m_EditPE->IsPlaying())
+            {
+                xr_string nn;
+                nn.resize(64);
+                sprintf(nn.data(), " PE Playing...[%d]", m_EditPE->SpriteCount());
+                UI->SetStatus(nn.c_str(), false);
+            }
         
-        else
-        	UI->SetStatus(" Stopped.",false);
-    break;
-    case emGroup:
-        if (m_EditPG->IsPlaying())
-        {
-            xr_string nn;
-            nn.resize(64);
-            sprintf(nn.data(), " PE Playing...[%d]", m_EditPG->ParticlesCount());
-        	UI->SetStatus(nn.c_str(),false);
+            else
+            {
+                UI->SetStatus(" Stopped.",false);
+            }
+            break;
         }
-        else
-        	UI->SetStatus(" Stopped.",false);
-    break;
-    default: THROW;
-    }
-
-
-    {
-        PROF_EVENT("seqParallelBeforRender");
-        for (auto& it : Device.seqParallelBeforRender)
-            it();
-
-        Device.seqParallelBeforRender.clear();
+    case emEffectSlot:
+        {
+            break;
+        }
+    case emGroup:
+        {
+            if (m_EditPG->IsPlaying())
+            {
+                xr_string nn;
+                nn.resize(64);
+                sprintf(nn.data(), " PE Playing...[%d]", m_EditPG->SpriteCount());
+                UI->SetStatus(nn.c_str(),false);
+            }
+            else
+            {
+                UI->SetStatus(" Stopped.",false);
+            }
+            break;
+        }
+    case emAnimCurve:
+        {
+            break;
+        }
+    default:
+        {
+            THROW;
+        }
     }
 }
 
-void CParticleTool::ZoomObject(BOOL bSelOnly)
+void CParticleTool::ZoomObject(bool bSelOnly)
 {
 	VERIFY(m_bReady);
     if (!bSelOnly&&m_EditObject){
@@ -257,10 +339,39 @@ void CParticleTool::ZoomObject(BOOL bSelOnly)
 	}else{
     	Fbox box; box.invalidate();
         switch(m_EditMode){
-        case emNone: break;
-        case emEffect:	box.set(m_EditPE->vis.box);	break;
-        case emGroup:	box.set(m_EditPG->vis.box);	break;
-	    default: THROW;
+        case emNone:
+            {
+                break;
+            }
+        case emAction:
+            {
+                R_ASSERT(false);
+                break;
+            }
+        case emEffect:
+            {
+                box.set(m_EditPE->vis.box);
+                break;
+            }
+        case emEffectSlot:
+            {
+                R_ASSERT(false);
+                break;
+            }
+        case emGroup:
+            {
+                box.set(m_EditPG->vis.box);
+                break;
+            }
+        case emAnimCurve:
+            {
+                R_ASSERT(false);
+                break;
+            }
+	    default:
+            {
+                THROW;
+            }
         }
         if (box.is_valid()){ box.grow(1.f); UI->CurrentView().m_Camera.ZoomExtents(box); }
     }
@@ -317,7 +428,7 @@ void CParticleTool::ResetPreviewObject()
     UI->RedrawScene();
 }
 
-bool CParticleTool::Load(LPCSTR name)
+bool CParticleTool::Load(const char* name)
 {
 	VERIFY(m_bReady);
     UpdateProperties();
@@ -334,8 +445,8 @@ bool CParticleTool::Save(bool bAsXR)
     {
         if (!bAsXR)
         {
-            int RetVal = ELog.DlgMsg(mtError, mbYes | mbNo, "Should I save only valid parts or cancel saving?");
-            if (RetVal == mrNo)
+            int RetVal = ELog.DlgMsg(mtError, mbOK | mbCancel, "Should I save only valid parts or cancel saving?");
+            if (RetVal == mrCancel)
             {
                 ELog.Msg(mtConfirmation, ">>> Cancel");
                 return false;
@@ -421,7 +532,7 @@ CCommandVar CParticleTool::CreateGroupFromSelected(CCommandVar p1, CCommandVar p
     pg->m_Effects.push_back	   		(eff);
     eff->m_EffectName				= eff_name;
 
-    eff->m_Flags.set				(PS::CPGDef::SEffect::flEnabled,TRUE);
+    eff->m_Flags.set				(PS::CPGDef::SEffect::flEnabled,true);
     eff->m_Time0					= 0.0f;
     eff->m_Time1					= 0.0f;
 
@@ -438,7 +549,7 @@ CCommandVar CParticleTool::CreateGroupFromSelected(CCommandVar p1, CCommandVar p
     
    	m_PList->SelectItem				(grp_name.c_str());*/
    
-	return 							TRUE;
+	return 							true;
 }
 
 CCommandVar CParticleTool::Compact(CCommandVar p1, CCommandVar p2)
@@ -487,7 +598,7 @@ CCommandVar CParticleTool::Compact(CCommandVar p1, CCommandVar p2)
     ResetCurrent		();
     UpdateProperties	(true);
 
-	return TRUE;
+	return true;
 }
 
 bool CParticleTool::Validate(bool bMsg)
@@ -507,6 +618,13 @@ bool CParticleTool::Validate(bool bMsg)
     	if (!pg->Validate(bMsg)) 
         	error_cnt++;
 	}
+    for (auto elem : RImplementation.PSLibrary.VecPACDs())
+    {
+        if (!elem->Validate(bMsg))
+        {
+            error_cnt++;
+        }
+    }
 
     if (bMsg){
         if (error_cnt>0)ELog.DlgMsg	(mtError,"Validation FAILED! Found %d error's.",error_cnt);
@@ -515,163 +633,307 @@ bool CParticleTool::Validate(bool bMsg)
     return error_cnt==0;
 }
 
-void CParticleTool::Rename(LPCSTR old_full_name, LPCSTR ren_part, int level)
+/*void CParticleTool::Rename(const char* old_full_name, const char* ren_part, int level)
 {
     VERIFY(level<_GetItemCount(old_full_name,'\\'));
     xr_string new_full_name;
     Rename(old_full_name, new_full_name.c_str());
-}
+}*/
 
-void CParticleTool::Rename(LPCSTR old_full_name, LPCSTR new_full_name)
+void CParticleTool::Rename(UIItemListForm::Node& Node, const char* old_full_name, const char* new_full_name)
 {
 	VERIFY(m_bReady);
-    // is effect
-	PS::CPEDef* E = RImplementation.PSLibrary.FindPED(old_full_name);
-    if (E){
-        RImplementation.PSLibrary.RenamePED(E,new_full_name);
-    	return;
-    }
-    // is group
-	PS::CPGDef* G = RImplementation.PSLibrary.FindPGD(old_full_name);
-    if (G){
-        RImplementation.PSLibrary.RenamePGD(G,new_full_name);
-    	return;
-    }
-}
-
-void CParticleTool::Remove(LPCSTR name)
-{
-
-    if (RImplementation.PSLibrary.FindPED(name) == m_LibPED || RImplementation.PSLibrary.FindPGD(name) == m_LibPGD)
+    if (!Node.Object)
     {
-        m_ItemProps->ClearProperties();
+        return;
     }
+    switch (Node.Object->Type())
+    {
+    case emEffect:
+        {
+            // is effect
+            PS::CPEDef* E = RImplementation.PSLibrary.FindPED(old_full_name);
+            if (E){
+                RImplementation.PSLibrary.RenamePED(E,new_full_name);
+            }
+            break;
+        }
+    case emGroup:
+        {
+            // is group
+            PS::CPGDef* G = RImplementation.PSLibrary.FindPGD(old_full_name);
+            if (G){
+                RImplementation.PSLibrary.RenamePGD(G,new_full_name);
+            }
+            break;
+        }
+    case emAction:
+        {
+            auto PA = (EParticleAction*)(Node.Object->m_Object);
+            string_path buffer;
+            PA->actionName = _GetItem(new_full_name, _GetItemCount(new_full_name, '\\')-1, buffer, '\\');
+        }
+    case emAnimCurve:
+        {
+            PS::CPACDef* PAC = RImplementation.PSLibrary.FindPACD(old_full_name);
+            if (PAC)
+            {
+                RImplementation.PSLibrary.RenamePACD(PAC,new_full_name);
+            }
+            break;
+        }
+    }
+}
 
-	VERIFY(m_bReady);
-    SetCurrentPE(0);
-    SetCurrentPG(0);
-	RImplementation.PSLibrary.Remove	(name);
+void CParticleTool::Remove(UIItemListForm::Node& Node)
+{
+    if (!Node.Object)
+    {
+        return;
+    }
+    switch (Node.Object->Type())
+    {
+    case emEffect:
+        {
+            auto RealObj = (PS::CPEDef*)(Node.Object->m_Object);
+            if (RImplementation.PSLibrary.FindPED(RealObj->Name()) == m_LibPED)
+            {
+                m_ItemProps->ClearProperties();
+            }
+            VERIFY(m_bReady);
+            SetCurrentPE(0);
+            SetCurrentPG(0);
+            RImplementation.PSLibrary.Remove(RealObj->Name());
+            break;
+        }
+    case emGroup:
+        {
+            auto RealObj = (PS::CPGDef*)(Node.Object->m_Object);
+            if (RImplementation.PSLibrary.FindPGD(RealObj->m_Name.c_str()) == m_LibPGD)
+            {
+                m_ItemProps->ClearProperties();
+            }
+
+            VERIFY(m_bReady);
+            SetCurrentPE(0);
+            SetCurrentPG(0);
+            RImplementation.PSLibrary.Remove(RealObj->m_Name.c_str());
+            break;
+        }
+    case emAnimCurve:
+        {
+            auto RealObj = (PS::CPACDef*)(Node.Object->m_Object);
+            VERIFY(m_bReady);
+            RImplementation.PSLibrary.Remove(RealObj->getName());
+            break;
+        }
+    case emAction:
+    case emEffectSlot:
+        {
+            VERIFY(m_bReady);
+            break;
+        }
+    }
+    
 }
 
 void CParticleTool::RemoveCurrent()
 {
-    m_PList->RemoveSelectItem();
+    auto CurrentList = GetCurrentList();
+    R_ASSERT(CurrentList);
+    CurrentList->RemoveSelectItem();
 }
 
 void CParticleTool::CloneCurrent()
 {
-   auto Items = m_PList->m_SelectedItems;
+    auto CurrentList = GetCurrentList();
+    R_ASSERT(CurrentList);
+    auto& Items = CurrentList->m_SelectedItems;
 
-   if (!Items.empty()) 
-   {
-       auto Item = Items[0];
+    if (!Items.empty()) 
+    {
+        auto Item = Items[0];
 
-       PS::CPEDef* PE = FindPE(Item->Key());
+        PS::CPEDef* PE = FindPE(Item->Key());
 
-       xr_string CloneName = Item->Key();
-       CloneName += "_clone";
+        xr_string CloneName = Item->Key();
+        CloneName += "_clone";
 
-       if (PE)
-       {
-           AppendPE(PE, CloneName.c_str());
-           Modified();
-       }
-       else
-       {
-           PS::CPGDef* PG = FindPG(Item->Key());
-           if (PG) 
-           {
-               AppendPG(PG, CloneName.c_str());
-               Modified();
-           }
-       }
-   }
-   else {
-       ELog.DlgMsg(mtInformation, "At first select object.");
-   }
+        if (PE)
+        {
+            AppendPE(PE, CloneName.c_str());
+            Modified();
+        }
+        else
+        {
+            PS::CPGDef* PG = FindPG(Item->Key());
+            if (PG) 
+            {
+                AppendPG(PG, CloneName.c_str());
+                Modified();
+            }
+        }
+    }
+    else {
+        ELog.DlgMsg(mtInformation, "At first select object.");
+    }
 }
 
 void CParticleTool::ResetCurrent()
 {
 	VERIFY(m_bReady);
-    if (m_LibPED) m_EditPE->Stop(FALSE);
-    if (m_LibPGD) m_EditPG->Stop(FALSE);
+    if (m_LibPED) m_EditPE->Stop(false);
+    if (m_LibPGD) m_EditPG->Stop(false);
     m_LibPED= 0;
     m_LibPGD= 0;
+    m_CurrentEf = nullptr;
+    m_CurrentPA = nullptr;
+    m_LibAC = nullptr;
 }
 
-void CParticleTool::SetCurrentPE(PS::CPEDef* P)
+void CParticleTool::SetCurrentPE(PS::CPEDef* P, EParticleAction* CurrentPA)
 {
 	VERIFY(m_bReady);
     m_EditPG->Compile		(0);
+    m_CurrentEf = nullptr;
+    m_LibAC = nullptr;
 	if (m_LibPED!=P){
 	    m_LibPED = P;
         m_EditPE->Compile	(m_LibPED);
 		if (m_LibPED)
 			m_EditMode		= emEffect;
     }
+    if (m_CurrentPA != CurrentPA)
+    {
+        m_CurrentPA = CurrentPA;
+        m_EditMode = emAction;
+    }
 }
 
-void CParticleTool::SetCurrentPG(PS::CPGDef* P)
+void CParticleTool::SetCurrentPG(PS::CPGDef* P, PS::CPGDef::SEffect* Ef)
 {
 	VERIFY(m_bReady);
 	m_EditPE->Compile		(0);
+    m_CurrentPA = nullptr;
+    m_LibAC = nullptr;
 	if (m_LibPGD!=P){
 	    m_LibPGD = P;
         m_EditPG->Compile	(m_LibPGD);
         if (m_LibPGD)
 			m_EditMode		= emGroup;
+	}
+    if (m_CurrentEf != Ef)
+    {
+        m_CurrentEf = Ef;
+        m_EditMode = emEffectSlot;
     }
 }
 
 void CParticleTool::DrawReferenceList()
 {
-    if (m_EditMode == emGroup)
+    switch (m_EditMode)
     {
-        if (m_EditPG->GetDefinition())
+    case emEffectSlot:
         {
-            xr_vector<PS::CPGDef::SEffect*>::const_iterator pe_it = m_EditPG->GetDefinition()->m_Effects.begin();
-            xr_vector<PS::CPGDef::SEffect*>::const_iterator pe_it_e = m_EditPG->GetDefinition()->m_Effects.end();
-            for (; pe_it != pe_it_e; ++pe_it)
-            {
-                ImGui::Text((*pe_it)->m_EffectName.c_str()? (*pe_it)->m_EffectName.c_str() :0);
-            }
-            if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnPlayChild))
-                ImGui::Text((*pe_it)->m_OnPlayChildName.c_str());
-            if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnBirthChild))
-                ImGui::Text((*pe_it)->m_OnBirthChildName.c_str());
-            if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnDeadChild))
-                ImGui::Text((*pe_it)->m_OnDeadChildName.c_str());
+            R_ASSERT(false);
+            break;
         }
-    }
-    else
-    {
-        if (m_EditPE->GetDefinition())
+    case emGroup:
         {
-            PS::PGDIt G = RImplementation.PSLibrary.FirstPGD();
-            PS::PGDIt G_e = RImplementation.PSLibrary.LastPGD();
-            for (; G != G_e; ++G)
+            if (m_EditPG->GetDefinition())
             {
-                PS::CPGDef* def = (*G);
-                PS::CPGDef::EffectIt pe_it = def->m_Effects.begin();
-                PS::CPGDef::EffectIt pe_it_e = def->m_Effects.end();
+                xr_vector<PS::CPGDef::SEffect*>::const_iterator pe_it = m_EditPG->GetDefinition()->m_Effects.begin();
+                xr_vector<PS::CPGDef::SEffect*>::const_iterator pe_it_e = m_EditPG->GetDefinition()->m_Effects.end();
                 for (; pe_it != pe_it_e; ++pe_it)
                 {
-                    if ((*pe_it)->m_EffectName == m_EditPE->Name())
-                        ImGui::Text(def->m_Name.c_str());
-                    else
-                        if ((*pe_it)->m_OnPlayChildName == m_EditPE->Name())
+                    ImGui::Text((*pe_it)->m_EffectName.c_str()? (*pe_it)->m_EffectName.c_str() :0);
+                }
+                if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnPlayChild))
+                    ImGui::Text((*pe_it)->m_OnPlayChildName.c_str());
+                if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnBirthChild))
+                    ImGui::Text((*pe_it)->m_OnBirthChildName.c_str());
+                if (m_EditPG->GetDefinition()->m_Flags.test(PS::CPGDef::SEffect::flOnDeadChild))
+                    ImGui::Text((*pe_it)->m_OnDeadChildName.c_str());
+            }
+            break;
+        }
+    case emAction:
+        {
+            R_ASSERT(false);
+            break;
+        }
+    case emEffect:
+        {
+            if (m_EditPE->GetDefinition())
+            {
+                PS::PGDIt G = RImplementation.PSLibrary.FirstPGD();
+                PS::PGDIt G_e = RImplementation.PSLibrary.LastPGD();
+                for (; G != G_e; ++G)
+                {
+                    PS::CPGDef* def = (*G);
+                    PS::CPGDef::EffectIt pe_it = def->m_Effects.begin();
+                    PS::CPGDef::EffectIt pe_it_e = def->m_Effects.end();
+                    for (; pe_it != pe_it_e; ++pe_it)
+                    {
+                        if ((*pe_it)->m_EffectName == m_EditPE->Name())
+                        {
                             ImGui::Text(def->m_Name.c_str());
-                        else
-                            if ((*pe_it)->m_OnBirthChildName == m_EditPE->Name())
-                                ImGui::Text(def->m_Name.c_str());
-                            else
-                                if ((*pe_it)->m_OnDeadChildName == m_EditPE->Name())
-                                    ImGui::Text(def->m_Name.c_str());
+                        }
+                        else if ((*pe_it)->m_OnPlayChildName == m_EditPE->Name())
+                        {
+                            ImGui::Text(def->m_Name.c_str());
+                        }
+                        else if ((*pe_it)->m_OnBirthChildName == m_EditPE->Name())
+                        {
+                            ImGui::Text(def->m_Name.c_str());
+                        }
+                        else if ((*pe_it)->m_OnDeadChildName == m_EditPE->Name())
+                        {
+                            ImGui::Text(def->m_Name.c_str());
+                        }
+                    }
                 }
             }
+            break;
+        }
+    case emAnimCurve:
+        {
+            R_ASSERT(false);
+            break;
         }
     }
+}
+
+PS::CPACDef* CParticleTool::FindPAC(const char* name)
+{
+	return RImplementation.PSLibrary.FindPACD(name);
+}
+
+PS::CPACDef* CParticleTool::AppendPAC(PS::CPACDef* src, const char* path)
+{
+    VERIFY(m_bReady);
+    PS::CPACDef* S 		= RImplementation.PSLibrary.AppendPACD(src);
+    S->setName(path);
+
+    ExecCommand			(COMMAND_UPDATE_PROPERTIES,true);
+    SelectListItem(0, path,true,false,true);
+    return S;
+}
+
+void CParticleTool::SetCurrentPAC(PS::CPACDef* P)
+{
+    VERIFY(m_bReady);
+    m_EditPE->Compile(nullptr);
+    m_EditPG->Compile(nullptr);
+    m_CurrentPA = nullptr;
+    m_CurrentEf = nullptr;
+    m_LibAC = P;
+    m_EditMode = emAnimCurve;
+}
+
+void CParticleTool::EditPAC(PS::CPACDef* PAC)
+{
+    UIPACEditorForm::Open(PAC);
 }
 
 
@@ -695,7 +957,7 @@ void CParticleTool::ImportPE()
         PS::CPEDef* def = new PS::CPEDef();
         FS.TryLoad(Path);
 
-        CInifile ini(Path.c_str(), TRUE, TRUE, FALSE);
+        CInifile ini(Path.c_str(), true, true, false);
         if (def->Load2(ini))
         {
             AppendPE(def, xr_path(Path.c_str()).xfilename().c_str());
@@ -703,12 +965,12 @@ void CParticleTool::ImportPE()
     }
 }
 
-PS::CPEDef*	CParticleTool::FindPE(LPCSTR name)
+PS::CPEDef*	CParticleTool::FindPE(const char* name)
 {
 	return RImplementation.PSLibrary.FindPED(name);
 }
 
-PS::CPGDef*	CParticleTool::FindPG(LPCSTR name)
+PS::CPGDef*	CParticleTool::FindPG(const char* name)
 {
 	return RImplementation.PSLibrary.FindPGD(name);
 }
@@ -716,22 +978,52 @@ PS::CPGDef*	CParticleTool::FindPG(LPCSTR name)
 void CParticleTool::PlayCurrent(int idx)
 {
 	VERIFY(m_bReady);
-    StopCurrent		(false);
+    StopCurrent(false);
     switch(m_EditMode){
-    case emNone: break;
-    case emEffect:	m_EditPE->Play(); 		break;
-    case emGroup:
-    	if (idx>-1){
-        	VERIFY(idx<(int)m_EditPG->items.size());
-            m_LibPED = ((PS::CParticleEffect*)m_EditPG->items[idx]._effect)->GetDefinition();
-			m_EditPE->Compile(m_LibPED);
-        	m_EditPE->Play	();
-        }else{
-        	// play all
-	    	m_EditPG->Play();
+    case emNone:
+    case emAnimCurve:
+        {
+            break;
         }
-    break;
-    default: THROW;
+    case emEffect:
+        {
+            m_EditPE->Play();
+            break;
+        }
+    case emEffectSlot:
+        {
+            VERIFY(m_CurrentEf);
+            for (auto& item : m_EditPG->items)
+            {
+                VERIFY(item.root_effect);
+                auto CastedEffect = (PS::CParticleEffect*)item.root_effect;
+                if (CastedEffect->m_Def->Name() == m_CurrentEf->m_EffectName)
+                {
+                    m_LibPED = CastedEffect->GetDefinition();
+                    m_EditPE->Compile(m_LibPED);
+                    m_EditPE->Play();
+                    break;
+                }
+            }
+            break;
+        }
+    case emGroup:
+        {
+            if (idx>-1){
+                VERIFY(idx<(int)m_EditPG->items.size());
+                m_LibPED = ((PS::CParticleEffect*)m_EditPG->items[idx].root_effect)->GetDefinition();
+                m_EditPE->Compile(m_LibPED);
+                m_EditPE->Play();
+            }else{
+                // play all
+                m_EditPG->Play();
+            }
+            break;
+        }
+    default:
+        {
+            THROW;
+        }
     }
     ApplyParent		();
 }
@@ -743,10 +1035,10 @@ void CParticleTool::StopCurrent(bool bFinishPlaying)
     m_EditPG->Stop(bFinishPlaying);
 }
 
-void CParticleTool::SelectEffect(LPCSTR name)
+void CParticleTool::SelectEffect(const char* name)
 {
 	sel_eff_name 	= name;
-    m_Flags.set		(flSelectEffect,TRUE);
+    m_Flags.set		(flSelectEffect,true);
 }
 
 void CParticleTool::OnShowHint(AStringVec& SS)
@@ -844,18 +1136,42 @@ void CParticleTool::MouseMove(TShiftState Shift)
 void CParticleTool::RealApplyParent()
 {
     switch(m_EditMode){
-    case emNone: break;
-    case emEffect:	m_EditPE->UpdateParent(m_Transform,m_Vel,m_Flags.is(flSetXFORM)); 	break;
-    case emGroup:	m_EditPG->UpdateParent(m_Transform,m_Vel,m_Flags.is(flSetXFORM)); 	break;
-    default: THROW;
+    case emNone:
+        {
+            break;
+        }
+    case emAction:
+        {
+            R_ASSERT(false);
+            break;
+        }
+    case emEffect:
+        {
+            m_EditPE->UpdateParent(m_Transform,m_Vel,m_Flags.is(flSetXFORM));
+            break;
+        }
+    case emEffectSlot:
+    case emGroup:
+        {
+            m_EditPG->UpdateParent(m_Transform,m_Vel,m_Flags.is(flSetXFORM));
+            break;
+        }
+    case emAnimCurve:
+        {
+            break;
+        }
+    default:
+        {
+            THROW;
+        }
     }
-	m_Flags.set		(flApplyParent,FALSE);
+	m_Flags.set		(flApplyParent,false);
 }
 
 void CParticleTool::RealCompileEffect()
 {
 	if (m_LibPED)    m_LibPED->Compile(m_LibPED->m_EActionList);
-	m_Flags.set		(flCompileEffect,FALSE);
+	m_Flags.set		(flCompileEffect,false);
 }
 
 void CParticleTool::RealRemoveAction()
@@ -867,21 +1183,23 @@ void CParticleTool::RealRemoveAction()
 
         RealCompileEffect();
     }
-	m_Flags.set(flRemoveAction,FALSE);
+	m_Flags.set(flRemoveAction,false);
 }
 
-LPCSTR CParticleTool::GetInfo()
+const char* CParticleTool::GetInfo()
 {
 	return 0;
 }
 //------------------------------------------------------------------------------
 
-void CParticleTool::SelectListItem(LPCSTR pref, LPCSTR name, bool bVal, bool bLeaveSel, bool bExpand)
+void CParticleTool::SelectListItem(const char* pref, const char* name, bool bVal, bool bLeaveSel, bool bExpand)
 {
 	xr_string nm = (name&&name[0])?PrepareKey(pref,name).c_str():pref;
-	m_PList->SelectItem(nm.c_str());
+    UIItemListForm* List = GetCurrentList();
+    R_ASSERT(List);
+	List->SelectItem(nm.c_str());
 	if (pref){
-    	m_PList->SelectItem(pref);
+    	List->SelectItem(pref);
     }
 }
 //------------------------------------------------------------------------------
@@ -903,7 +1221,7 @@ PS::CPGDef*	CParticleTool::AppendPG(PS::CPGDef* src, const char* path)
     S->m_Name			= path;
 
     ExecCommand			(COMMAND_UPDATE_PROPERTIES,true);
-     SelectListItem(0, path,true,false,true);
+    SelectListItem(0, path,true,false,true);
     return S;
 }
 
@@ -952,7 +1270,7 @@ void CParticleTool::OnChangeObject(PropValue* sender)
     {
         Lib.RemoveEditObject(m_EditObject);
         m_EditObject = V->value->c_str() ? Lib.CreateEditObject(V->value->c_str()) : 0;
-        //	ZoomObject(TRUE); 
+        //	ZoomObject(true); 
 
         UI->RedrawScene();
     }
@@ -963,16 +1281,30 @@ void CParticleTool::FillObjectPrefs()
 {
 	PropItemVec		items;
     m_MotionName = m_ParentAnimator->Name();
-	PropValue *V;
-    V = PHelper().CreateChoose(items, "Object", &m_ObjectName, smObject);
-    V->OnChangeEvent.bind       (this, &CParticleTool::OnChangeObject);
-    V=PHelper().CreateFlag32	(items, "Parent\\Allow Animated",	&m_Flags, 		flAnimatedParent);
-	V->OnChangeEvent.bind		(this,&CParticleTool::OnChangeMotion);
-    PHelper().CreateFlag32		(items, "Parent\\Draw Path",		&m_Flags, 		flAnimatedPath);
-    V=PHelper().CreateChoose	(items, "Parent\\Motion",			&m_MotionName, 	smGameAnim);
-	V->OnChangeEvent.bind		(this,&CParticleTool::OnChangeMotion);
-    PHelper().CreateFloat		(items, "Parent\\Motion Speed",		&m_ParentAnimator->Speed(), 0.f, 10000.f);
-    m_ObjectProps->AssignItems				(items);
+
+    static xr_token PreviewTypesArr[] = {
+        {"Object", (int)PreviewTypes::Object},
+        {"Transform", (int)PreviewTypes::Transform},
+        {0, 0}
+    };
+    
+    PHelper().CreateToken8(items, "Preview Type", (u8*)&m_PreviewType, PreviewTypesArr)
+        ->OnChangeEvent.bind(this, &CParticleTool::OnChangeObject);
+    PHelper().CreateChoose(items, "Object\\Mesh", &m_ObjectName, smObject)
+        ->OnChangeEvent.bind(this, &CParticleTool::OnChangeObject);
+    PHelper().CreateFlag32(items, "Object\\Parent\\Allow Animated", &m_Flags, flAnimatedParent)
+        ->OnChangeEvent.bind(this,&CParticleTool::OnChangeMotion);
+    PHelper().CreateFlag32(items, "Object\\Parent\\Draw Path", &m_Flags, flAnimatedPath);
+    PHelper().CreateChoose(items, "Object\\Parent\\Motion", &m_MotionName, smGameAnim)
+        ->OnChangeEvent.bind(this,&CParticleTool::OnChangeMotion);
+    PHelper().CreateFloat(items, "Object\\Parent\\Motion Speed", &m_ParentAnimator->Speed(), 0.f, 10000.f);
+
+    PHelper().CreateVector(items, "Transform\\Position", &m_Position, flt_min, flt_max)
+        ->OnChangeEvent.bind(this, &CParticleTool::OnChangeObject);
+    PHelper().CreateAngle3(items, "Transform\\Rotation", &m_Rotation, -180, 180)
+        ->OnChangeEvent.bind(this,&CParticleTool::OnChangeObject);
+    
+    m_ObjectProps->AssignItems(items);
 }
 
 bool CParticleTool::GetSelectionPosition	(Fmatrix& result)
@@ -997,31 +1329,40 @@ void CParticleTool::OnDrawUI()
                 {
                     AppendPE(0, m_CreatingParticlePath.c_str());
                 }
-                else
+                else if (result == "Group")
                 {
                     AppendPG(0, m_CreatingParticlePath.c_str());
                 }
+                else if (result == "AnimCurve")
+                {
+                    AppendPAC(0, m_CreatingParticlePath.c_str());
+                } else
+                {
+                    R_ASSERT(false, "Invalid choose result type!", result.c_str());
+                }
             }
-            m_CreatingParticle = FALSE;
+            m_CreatingParticle = false;
         }
         UIChooseForm::Update();
     }
+    UIPACEditorForm::Update();
 }
 
 void CParticleTool::FillChooseParticleType(ChooseItemVec& items, void* param)
 {
-    items.push_back(SChooseItem("Effect", "Effect Patricle"));
-    items.push_back(SChooseItem("Group", "Group Patricle"));
+    items.push_back(SChooseItem("Effect", "Effect Particle"));
+    items.push_back(SChooseItem("Group", "Group Particle"));
+    items.push_back(SChooseItem("AnimCurve", "Particle Animation Curve"));
 }
 
-void CParticleTool::OnParticleCreateItem(LPCSTR path)
+void CParticleTool::OnParticleCreateItem(const char* path)
 {
     UIChooseForm::SelectItem(smCustom, 1, 0, TOnChooseFillItems(this, &CParticleTool::FillChooseParticleType), 0, 0, 0, 0);
-    m_CreatingParticle = TRUE;
+    m_CreatingParticle = true;
     m_CreatingParticlePath = path;
 }
 
-void CParticleTool::OnParticleCloneItem(LPCSTR parent_path, LPCSTR new_full_name)
+void CParticleTool::OnParticleCloneItem(const char* parent_path, const char* new_full_name)
 {
     PS::CPEDef* PE = FindPE(parent_path);
     if (PE) 
@@ -1040,15 +1381,164 @@ void CParticleTool::OnParticleCloneItem(LPCSTR parent_path, LPCSTR new_full_name
     }
 }
 
-void CParticleTool::OnParticleItemRename(LPCSTR old_name, LPCSTR new_name, EItemType type)
+bool CParticleTool::VerifyParticleCreateItem(UIItemListForm::Node* Node)
 {
-    Rename(old_name, new_name);
+    if (!Node)
+    {
+        return false;
+    }
+    return !Node->Object || !Node->Object->m_Object;
+}
+
+bool CParticleTool::VerifyParticleCreateFolder(UIItemListForm::Node* Node)
+{
+    if (!Node)
+    {
+        return false;
+    }
+    return !Node->Object || !Node->Object->m_Object;
+}
+
+bool CParticleTool::VerifyParticleRenameItem(UIItemListForm::Node* Node)
+{
+    if (!Node)
+    {
+        return false;
+    }
+    if (Node->Type == FolderHelper<ListItem, true>::FNT_Folder)
+    {
+        return true;
+    }
+    if (!Node->Object)
+    {
+        return false;
+    }
+    switch (Node->Object->Type())
+    {
+    case emEffectSlot:
+        {
+            return false;
+        }
+    default:
+        {
+            return true;
+        }
+    }
+}
+
+bool CParticleTool::VerifyParticleMoveItem(UIItemListForm::Node* Node)
+{
+    if (!Node || !Node->Object)
+    {
+        return false;
+    }
+    switch (Node->Object->Type())
+    {
+    case emEffectSlot:
+        {
+            return false;
+        }
+    default:
+        {
+            return true;
+        }
+    }
+}
+
+ENodeMoveActionSlot CParticleTool::GetItemMoveActionSlot(UIItemListForm::Node* Node)
+{
+    if (!Node || !Node->Object)
+    {
+        return ENodeMoveActionSlot::Default;
+    }
+    switch (Node->Object->Type())
+    {
+        case emAction:
+            {
+                return ENodeMoveActionSlot::First;
+            }
+        default:
+            {
+                return ENodeMoveActionSlot::Default;
+            }
+    }
+}
+
+bool CParticleTool::ActionItemMoveAction(UIItemListForm::Node* Node)
+{
+    bool IsProcessed = false;
+    EParticleAction* Action = (EParticleAction*)Node->Object->m_Object;
+    PS::CPEDef* Effect = Action->parent;
+    R_ASSERT(Effect);
+    if (ImGui::Button("Up"))
+    {
+        if (Effect->MoveUpAction(Action))
+        {
+            IsProcessed = true;
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Down"))
+    {
+        if (Effect->MoveDownAction(Action))
+        {
+            IsProcessed = true;
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+    if (IsProcessed)
+    {
+        ImGui::CloseCurrentPopup();
+    }
+    return IsProcessed;
+}
+
+void CParticleTool::OnParticleItemRename(UIItemListForm::Node& Node, const char* old_name, const char* new_name, EItemType type)
+{
+    Rename(Node, old_name, new_name);
     Modified();
 }
 
-void CParticleTool::OnParticleItemRemove(LPCSTR name, EItemType type)
+bool CParticleTool::OnParticlePreItemRemove(UIItemListForm::Node& Node)
 {
-    Remove(name);
+    
+    if (!Node.Object)
+    {
+        return true;
+    }
+    switch (Node.Object->Type())
+    {
+    case emEffect:
+    case emGroup:
+    case emAnimCurve:
+        {
+            return true;
+        }
+    case emAction:
+        {
+            auto RealObj = (EParticleAction*)(Node.Object->m_Object);
+            auto PE = RealObj->parent;
+            return PE->RemoveAction(RealObj);
+        }
+    case emEffectSlot:
+        {
+            auto RealObj = (PS::CPGDef::SEffect*)(Node.Object->m_Object);
+            auto PG = RealObj->parent;
+            return PG->RemoveEffect(RealObj);
+        }
+    }
+}
+
+void CParticleTool::OnParticleItemRemove(UIItemListForm::Node& Node)
+{
+    Remove(Node);
     Modified();
 }
 
@@ -1058,6 +1548,44 @@ void  CParticleTool::OnControlClick(ButtonValue* sender, bool& bDataModified, bo
     bDataModified = false;
 }
 
+/*const char* CParticleTool::InsertBeforeLast(LPSTR buffer, u32 buf_size, const char* path, const char* insert_str)
+{
+    xr_string builder;
+    auto ItemCount = _GetItemCount(path, '\\');
+    for (int i = 0; i < ItemCount-1; ++i)
+    {
+        builder.append(_GetItem(path, i, buffer, buf_size, '\\'));
+        builder.append("\\");
+    }
+    builder.append(insert_str);
+    builder.append(_GetItem(path, ItemCount-1, buffer, buf_size, '\\'));
+    xr_strcpy(buffer, buf_size, builder.c_str());
+    return buffer;
+}*/
+
+/*EEditMode CParticleTool::GetAffectedItemType(const char* path)
+{
+    string_path buffer;
+    xr_string Item = _GetItem(path, _GetItemCount(path, '\\')-1, buffer, sizeof(buffer), '\\');
+    if (Item.StartWith("[PE"))
+    {
+        return emEffect;
+    }
+    if (Item.StartWith("[PG"))
+    {
+        return emGroup;
+    }
+    if (Item.StartWith("[ACTION"))
+    {
+        return emAction;
+    }
+    if (Item.StartWith("[EFFECT"))
+    {
+        return emEffectSlot;
+    }
+    return emNone;
+}*/
+
 void CParticleTool::OnParticleItemFocused(ListItem* items)
 {
     PropItemVec props;
@@ -1066,6 +1594,8 @@ void CParticleTool::OnParticleItemFocused(ListItem* items)
     ButtonValue* B;
     B = PHelper().CreateButton(props, "Transform\\Edit", "Reset", ButtonValue::flFirstOnly);
     B->OnBtnClickEvent = ButtonValue::TOnBtnClick(this, &CParticleTool::OnControlClick);
+
+    // TODO: Is the difference is whether to apply full transform (if set) or only position (if not)?
     PHelper().CreateFlag32(props, "Transform\\Type", &m_Flags, flSetXFORM, "Update", "Set");
 
     // reset to default
@@ -1077,17 +1607,49 @@ void CParticleTool::OnParticleItemFocused(ListItem* items)
         if (item) {
             m_EditMode = EEditMode(item->Type());
             switch (m_EditMode) {
-            case emEffect: {
-                PS::CPEDef* def = ((PS::CPEDef*)item->m_Object);
-                SetCurrentPE(def);
-                def->FillProp(EFFECT_PREFIX, props, item);
-            }break;
-            case emGroup: {
-                PS::CPGDef* def = ((PS::CPGDef*)item->m_Object);
-                SetCurrentPG(def);
-                def->FillProp(GROUP_PREFIX, props, item);
-            }break;
-            default: THROW;
+            case emAction:
+                {
+                    auto PA = (EParticleAction*)item->m_Object;
+                    PS::CPEDef* def = PA->parent;
+                    R_ASSERT(def);
+                    SetCurrentPE(def, PA);
+                    PA->FillPropInit(props, "");
+                    break;
+                }
+            case emEffect:
+                {
+                    PS::CPEDef* def = ((PS::CPEDef*)item->m_Object);
+                    SetCurrentPE(def);
+                    def->FillProp(EFFECT_PREFIX, props, item);
+                    break;
+                }
+            case emEffectSlot:
+                {
+                    auto slot = (PS::CPGDef::SEffect*)item->m_Object;
+                    auto def = slot->parent;
+                    R_ASSERT(def);
+                    SetCurrentPG(def, slot);
+                    slot->FillPropInit(props, "");
+                    break;
+                }
+            case emGroup:
+                {
+                    PS::CPGDef* def = ((PS::CPGDef*)item->m_Object);
+                    SetCurrentPG(def);
+                    def->FillProp(GROUP_PREFIX, props, item);
+                    break;
+                }
+            case emAnimCurve:
+                {
+                    auto def = (PS::CPACDef*)item->m_Object;
+                    def->FillProp(ANIM_CURVE_PREFIX, props, item);
+                    SetCurrentPAC(def);
+                    break;
+                }
+            default:
+                {
+                    THROW;
+                }
             }
         }
 
@@ -1099,41 +1661,211 @@ void CParticleTool::OnParticleItemFocused(ListItem* items)
     UI->RedrawScene();
 }
 
+bool CParticleTool::VerifyParticleCloneItem(UIItemListForm::Node* Node)
+{
+    if (!Node || !Node->Object)
+    {
+        return false;
+    }
+    auto type = Node->Object->Type();
+    return type == emEffect || type == emGroup;
+}
+
 extern ECORE_API xr_string _item_to_select_after_edit;
 
 void CParticleTool::RealUpdateProperties()
 {
-    m_Flags.set(flRefreshProps, FALSE);
+    static string1024 buffer;
+    //static string256 buffer2;
+    
+    m_Flags.set(flRefreshProps, false);
 
-    ListItemsVec items;
+    // Make path functions
+    //auto MakePGPathFunc = [&](const char* OrigName)
+    //{
+    //    return InsertBeforeLast(buffer, sizeof(buffer), OrigName, "[PG] ");
+    //};
+    //auto MakePEPathFunc = [&](const char* OrigName)
+    //{
+    //    return InsertBeforeLast(buffer, sizeof(buffer), OrigName, "[PE] ");
+    //};
+    // Add functions
+    auto AddAllPEFunc = [&](ListItemsVec& items) -> ListItemsVec&
     {
         PS::PEDIt Pe = RImplementation.PSLibrary.FirstPED();
         PS::PEDIt Ee = RImplementation.PSLibrary.LastPED();
         for (; Pe != Ee; Pe++) {
-            ListItem* I = LHelper().CreateItem(items, *(*Pe)->m_Name, emEffect, 0, *Pe);
+            ListItem* I = LHelper().CreateItem(items,
+                *(*Pe)->m_Name,
+                emEffect,
+                0,
+                *Pe);
             I->SetIcon(1);
+            I->SetPrefix("[PE] ");
+            //xr_string ModifiedPath = buffer;
+            for (auto Action : (*Pe)->m_EActionList)
+            {
+                xr_sprintf(buffer, "%s\\%s", *(*Pe)->m_Name, Action->actionName.c_str());
+                I = LHelper().CreateItem(items, buffer, emAction, 0, Action );
+                I->SetPrefix("[ACTION] ");
+            }
         }
-    }
+        return items;
+    };
+    auto AddAllPGFunc = [&](ListItemsVec& items) -> ListItemsVec&
     {
         PS::PGDIt Pg = RImplementation.PSLibrary.FirstPGD();
         PS::PGDIt Eg = RImplementation.PSLibrary.LastPGD();
         for (; Pg != Eg; Pg++) {
-            ListItem* I = LHelper().CreateItem(items, *(*Pg)->m_Name, emGroup, 0, *Pg);
+            ListItem* I = LHelper().CreateItem(
+                items,
+                *(*Pg)->m_Name,
+                emGroup,
+                0,
+                *Pg);
             I->SetIcon(2);
+            I->SetPrefix("[PG] ");
+            for (auto Effect : (*Pg)->m_Effects)
+            {
+                const char* EffectName = nullptr;
+                if (Effect->m_EffectName.c_str())
+                {
+                    EffectName = _GetItem(
+                    Effect->m_EffectName.c_str(),
+                    _GetItemCount(Effect->m_EffectName.c_str(), '\\') - 1,
+                    buffer,
+                    sizeof(buffer),
+                    '\\');
+                } else
+                {
+                    static shared_str InvalidEffectName = "invalid";
+                    EffectName = InvalidEffectName.c_str();
+                }
+                xr_string EffectNameBuilder = *(*Pg)->m_Name;
+                EffectNameBuilder.append("\\");
+                EffectNameBuilder.append(EffectName);
+                I = LHelper().CreateItem(items, EffectNameBuilder.c_str(), emEffectSlot, 0, Effect );
+                I->SetPrefix("[EFFECT] ");
+            }
         }
-    }
-    m_PList->AssignItems(items, nullptr, true);
-    if (_item_to_select_after_edit.size())
+        return items;
+    };
+    auto AddAllPACFunc = [&](ListItemsVec& items) -> ListItemsVec&
     {
-        m_PList->SelectItem(_item_to_select_after_edit.c_str());
-        _item_to_select_after_edit = "";
-    }
-    else
+        for (auto elem : RImplementation.PSLibrary.VecPACDs())
+        {
+            ListItem* I = LHelper().CreateItem(
+                items,
+                elem->getName(),
+                emAnimCurve,
+                0,
+                elem);
+            I->SetIcon(3);
+            I->SetPrefix("[PAC] ");
+        }
+        return items;
+    };
+    // Select selected functions
+    auto SelectCurrentPEFunc = [&](UIItemListForm* List)
+    {
+        if (m_EditPE && m_EditPE->GetDefinition())
+        {
+            if (m_CurrentPA)
+            {
+                xr_sprintf(buffer, "%s\\%s", m_EditPE->Name().c_str(), m_CurrentPA->actionName.c_str());
+                List->SelectItem(buffer);
+            } else
+            {
+                List->SelectItem(m_EditPE->Name().c_str());
+            }
+        }
+    };
+    auto SelectCurrentPGFunc = [&](UIItemListForm* List)
     {
         if (m_EditPG && m_EditPG->GetDefinition())
-            m_PList->SelectItem(m_EditPG->Name().c_str());
-        if (m_EditPE && m_EditPE->GetDefinition())
-            m_PList->SelectItem(m_EditPE->Name().c_str());
+        {
+            if (m_CurrentEf)
+            {
+                auto PGDef = m_EditPG->GetDefinition();
+                xr_string EffectNameBuilder = *PGDef->m_Name;
+                EffectNameBuilder.append("\\");
+                EffectNameBuilder.append(
+                        _GetItem(
+                            m_CurrentEf->m_EffectName.c_str(),
+                            _GetItemCount(m_CurrentEf->m_EffectName.c_str(),'\\')-1,
+                            buffer,
+                            sizeof(buffer),
+                            '\\'));
+                List->SelectItem(EffectNameBuilder.c_str());
+            } else
+            {
+                List->SelectItem(m_EditPG->Name().c_str());
+            }
+        }
+    };
+
+    {
+        auto List = m_PList[PEd::ListTypeBase(PEd::LisType::All)];
+        ListItemsVec items;
+        List->AssignItems(
+            AddAllPACFunc(AddAllPGFunc(AddAllPEFunc(items))),
+            nullptr,
+            true);
+        if (_item_to_select_after_edit.size())
+        {
+            List->SelectItem(_item_to_select_after_edit.c_str());
+            _item_to_select_after_edit = "";
+        } else
+        {
+            SelectCurrentPEFunc(List);
+            SelectCurrentPGFunc(List);
+        }
+    }
+    {
+        auto List = m_PList[PEd::ListTypeBase(PEd::LisType::Groups)];
+        ListItemsVec items;
+        List->AssignItems(
+            AddAllPGFunc(items),
+            nullptr,
+            true);
+        if (_item_to_select_after_edit.size())
+        {
+            List->SelectItem(_item_to_select_after_edit.c_str());
+            _item_to_select_after_edit = "";
+        } else
+        {
+            SelectCurrentPGFunc(List);
+        }
+    }
+    {
+        auto List = m_PList[PEd::ListTypeBase(PEd::LisType::Effects)];
+        ListItemsVec items;
+        List->AssignItems(
+            AddAllPEFunc(items),
+            nullptr,
+            true);
+        if (_item_to_select_after_edit.size())
+        {
+            List->SelectItem(_item_to_select_after_edit.c_str());
+            _item_to_select_after_edit = "";
+        } else
+        {
+            SelectCurrentPEFunc(List);
+        }
+    }
+    {
+        auto List = m_PList[PEd::ListTypeBase(PEd::LisType::AnimCurve)];
+        ListItemsVec items;
+        List->AssignItems(
+            AddAllPACFunc(items),
+            nullptr,
+            true
+            );
+        if (_item_to_select_after_edit.size())
+        {
+            List->SelectItem(_item_to_select_after_edit.c_str());
+            _item_to_select_after_edit = "";
+        }
     }
 }
 

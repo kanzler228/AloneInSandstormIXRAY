@@ -6,7 +6,7 @@
 #include "../xrCore/stream_reader.h"
 #include "object_broker.h"
 
-LPCSTR GameTypeToString(EGameIDs gt, bool bShort);
+const char* GameTypeToString(EGameIDs gt, bool bShort);
 
 u32 const demo_player_info::demo_info_max_size = DEMOSTRING_MAX_SIZE + 80;
 /*
@@ -37,13 +37,9 @@ void stream_write_demostring(IWriter* writer, shared_str const & string_to_write
 	writer->w_stringZ	(string_to_write);
 }*/
 
-demo_player_info::demo_player_info()
-{
-}
+demo_player_info::demo_player_info() = default;
 
-demo_player_info::~demo_player_info()
-{
-}
+demo_player_info::~demo_player_info() = default;
 
 void demo_player_info::read_from_file(CStreamReader* file_to_read)
 {
@@ -76,7 +72,7 @@ void demo_player_info::load_from_player(game_PlayerState* player_state)
 	m_spots		= m_frags - (player_state->m_iTeamKills * 2) - player_state->m_iSelfKills + (m_artefacts * 3);
 	m_rank		= player_state->rank;
 
-	game_cl_mp*	tmp_game = smart_cast<game_cl_mp*>(&Game());
+	game_cl_mp*	tmp_game = Game().cast_game_cl_mp();
 	R_ASSERT(tmp_game);
 	s16			tmp_team = tmp_game->ModifyTeam(player_state->team);
 	if (tmp_team < 0)
@@ -94,9 +90,7 @@ u32 const demo_info::max_demo_info_size =
 	(demo_player_info::demo_info_max_size * MAX_PLAYERS_COUNT) +
 	(DEMOSTRING_MAX_SIZE * 5) + sizeof(u32);
 
-demo_info::demo_info()
-{
-}
+demo_info::demo_info() = default;
 
 demo_info::~demo_info()
 {
@@ -152,7 +146,7 @@ void demo_info::load_from_game()
 {
 	m_map_name		= Level().name();
 	m_map_version	= Level().version();
-	game_cl_mp*		tmp_game = smart_cast<game_cl_mp*>(&Game());
+	game_cl_mp*		tmp_game = Game().cast_game_cl_mp();
 	R_ASSERT2		(tmp_game, "client game not present");
 	m_game_type		= GameTypeToString(tmp_game->Type(), true);
 	string32		tmp_score_dest;

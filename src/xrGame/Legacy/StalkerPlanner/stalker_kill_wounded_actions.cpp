@@ -11,6 +11,7 @@
 #include "stalker_kill_wounded_actions.h"
 #include "ai/stalker/ai_stalker.h"
 #include "Inventory.h"
+#include "InventoryWeaponSlotLayout.h"
 #include "WeaponMagazined.h"
 #include "stalker_movement_manager_smart_cover.h"
 #include "movement_manager_space.h"
@@ -39,12 +40,24 @@ using namespace StalkerDecisionSpace;
 
 CInventoryItem *weapon_to_kill(const CAI_Stalker *object)
 {
-	if (!object->inventory().ItemFromSlot(INV_SLOT_2))
+	if (!InventoryAnySidearmCellOccupied(object->inventory()))
 		return			(object->best_weapon());
 
-	CWeaponMagazined	*temp = smart_cast<CWeaponMagazined*>(object->inventory().ItemFromSlot(INV_SLOT_2));
+	PIItem item_from_slot = object->inventory().ItemFromSlot(INV_SLOT_2);
+
+	CWeaponMagazined* temp = item_from_slot != nullptr ? item_from_slot->cast_weapon_magazined() : nullptr;
 	if (!temp)
-		return			(object->best_weapon());
+	{
+		item_from_slot = object->inventory().ItemFromSlot(PISTOL_SLOT_NEW);
+		temp = item_from_slot != nullptr ? item_from_slot->cast_weapon_magazined() : nullptr;
+		if (!temp)
+			return			(object->best_weapon());
+
+		if (!temp->can_kill())
+			return			(object->best_weapon());
+
+		return				(temp);
+	}
 
 	if (!temp->can_kill())
 		return			(object->best_weapon());
@@ -68,7 +81,7 @@ bool should_process	(CAI_Stalker &object, const CEntityAlive *enemy)
 // CStalkerActionReachWounded
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionReachWounded::CStalkerActionReachWounded		(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionReachWounded::CStalkerActionReachWounded		(CAI_Stalker *object, const char* action_name) :
 	inherited				(object, action_name)
 {
 }
@@ -150,7 +163,7 @@ void CStalkerActionReachWounded::execute					()
 // CStalkerActionAimWounded
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionAimWounded::CStalkerActionAimWounded	(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionAimWounded::CStalkerActionAimWounded	(CAI_Stalker *object, const char* action_name) :
 	inherited				(object, action_name)
 {
 }
@@ -215,7 +228,7 @@ void CStalkerActionAimWounded::finalize					()
 // CStalkerActionPrepareWounded
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionPrepareWounded::CStalkerActionPrepareWounded	(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionPrepareWounded::CStalkerActionPrepareWounded	(CAI_Stalker *object, const char* action_name) :
 	inherited				(object, action_name)
 {
 }
@@ -271,7 +284,7 @@ void CStalkerActionPrepareWounded::execute					()
 // CStalkerActionKillWounded
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionKillWounded::CStalkerActionKillWounded		(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionKillWounded::CStalkerActionKillWounded		(CAI_Stalker *object, const char* action_name) :
 	inherited				(object, action_name)
 {
 }
@@ -323,7 +336,7 @@ void CStalkerActionKillWounded::execute					()
 	HS.weaponID				= weapon_to_kill(&object())->object().ID();
 	HS.dir					= Fvector().set(0.f,0.f,1.f);
 	HS.power				= 1.f;
-	HS.boneID				= smart_cast<IKinematics*>((const_cast<CEntityAlive*>(enemy))->Visual())->LL_GetBoneRoot();
+	HS.boneID				= PKinematics((const_cast<CEntityAlive*>(enemy))->Visual())->LL_GetBoneRoot();
 	HS.p_in_bone_space		= Fvector().set(0.f,0.f,0.f);
 	HS.impulse				= 1.f;
 	HS.hit_type				= ALife::eHitTypeWound;
@@ -335,7 +348,7 @@ void CStalkerActionKillWounded::execute					()
 // CStalkerActionPauseAfterKill
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionPauseAfterKill::CStalkerActionPauseAfterKill	(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionPauseAfterKill::CStalkerActionPauseAfterKill	(CAI_Stalker *object, const char* action_name) :
 	inherited				(object, action_name)
 {
 }

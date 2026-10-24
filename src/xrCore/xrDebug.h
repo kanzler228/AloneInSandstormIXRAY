@@ -3,26 +3,44 @@
 typedef	void		crashhandler		(void);
 typedef	void		on_dialog			(bool before);
 
+class XRCORE_API ClipboardMessageCallback
+{
+public:
+	using Func = const char*(*)();
+
+	void SetFunc(Func func) {OnGetClipboardMessage = func;}
+	Func GetFunc() {return OnGetClipboardMessage;}
+
+	static ClipboardMessageCallback& instance();
+	
+private:
+	ClipboardMessageCallback() = default;
+	Func OnGetClipboardMessage = nullptr;
+};
+
 class XRCORE_API	xrDebug
 {
 private:
 	crashhandler*	handler	;
 	on_dialog*		m_on_dialog;
+
+public:
+	using SendErrorPrototype = void(const char*);
+	SendErrorPrototype* SendErrorCallback = nullptr;
 	bool SilentErrorMode = false;
 
 public:
 	void			_initialize			(bool dedicated);
 	void			_destroy			();
 	
-public:
 	crashhandler*	get_crashhandler	()							{ return handler;	};
 	void			set_crashhandler	(crashhandler* _handler)	{ handler=_handler;	};
 
 	on_dialog*		get_on_dialog		()							{ return m_on_dialog;	}
 	void			set_on_dialog		(on_dialog* on_dialog)		{ m_on_dialog = on_dialog;	}
 
-	LPCSTR			error2string		(long  code	);
-	LPCSTR			dxerror2string		(long  code	);
+	const char*			error2string		(long  code	);
+	const char*			dxerror2string		(long  code	);
 
 	void			gather_info			(const char *expression, const char *description, const char *argument0, const char *argument1, const char *file, int line, const char *function, LPSTR assertion_info, unsigned int assertion_info_size);
 	template <int count>

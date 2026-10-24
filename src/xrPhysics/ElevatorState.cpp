@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ElevatorState.h"
 #include "iclimableobject.h"
 #include "PHCharacter.h"
@@ -10,8 +10,6 @@
 #include "debug_output.h"
 #endif
 static const float getting_on_dist		=0.3f;
-static const float getting_out_dist		=0.4f;
-static const float start_climbing_dist	=0.f;
 static const float stop_climbing_dist	=0.1f;
 static const float out_dist				=1.5f;
 
@@ -361,7 +359,7 @@ void CElevatorState::GetJumpDir(const Fvector& accel,Fvector& dir)
 	Fvector ac;ac.set(accel).normalize_safe();
 	float side_component=ac.dotproduct(side);
 	dir.set(norm);
-	if(_abs(side_component)>M_SQRT1_2)
+	if(std::abs(side_component)>M_SQRT1_2)
 	{
 		if(side_component<0.f)side.invert();
 		dir.add(side);

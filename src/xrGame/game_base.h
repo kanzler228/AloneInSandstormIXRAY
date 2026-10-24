@@ -21,6 +21,7 @@ struct		RPoint
 	u32		BlockTime;
 	RPoint(){P.set(.0f,0.f,.0f);A.set(.0f,0.f,.0f); TimeToUnfreeze = 0; bBlocked = false;}
 	bool	operator ==		(const u16& ID)	const			{ return (bBlocked && BlockedByID == ID);		}
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
 
 struct Bonus_Money_Struct {
@@ -31,7 +32,7 @@ struct Bonus_Money_Struct {
 	Bonus_Money_Struct() {Money = 0; Reason = 0; Kills=0;}
 };
 
-struct game_PlayerState 
+struct game_PlayerState
 {
 	//string64	name;
 	u8			team;
@@ -88,12 +89,12 @@ struct game_PlayerState
 	explicit		game_PlayerState		(NET_Packet* account_info);
 					~game_PlayerState		();
 
-	virtual void	clear					();
+			void	clear					();
 			bool	testFlag				(u16 f) const;
 			void	setFlag					(u16 f);
 			void	resetFlag				(u16 f);
-			LPCSTR	getName					() const {return m_account.name().c_str();}
-			//void	setName					(LPCSTR s){xr_strcpy(name,s);}
+			const char*	getName					() const {return m_account.name().c_str();}
+			//void	setName					(const char* s){xr_strcpy(name,s);}
 			void	SetGameID				(u16 NewID);
 			bool	HasOldID				(u16 ID);
 			bool	IsSkip					() const {return testFlag(GAME_PLAYER_FLAG_SKIP);}
@@ -101,8 +102,8 @@ struct game_PlayerState
 			s16		frags					() const {return m_iRivalKills - m_iSelfKills - m_iTeamKills;} 
 
 #ifndef AI_COMPILER
-	virtual void	net_Export				(NET_Packet& P, BOOL Full = FALSE);
-	virtual void	net_Import				(NET_Packet& P);
+			void	net_Export				(NET_Packet& P, bool Full = false);
+			void	net_Import				(NET_Packet& P);
 	static	void	skip_Import				(NET_Packet& P);
 #endif
 	//---------------------------------------
@@ -120,6 +121,7 @@ struct game_PlayerState
 
 	s32					LastBuyAcount;
 	bool				m_bClearRun;
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
 
 struct	game_TeamState
@@ -135,13 +137,30 @@ enum ETeam
 {
 	etGreenTeam			=	0x00,
 	etBlueTeam			=	0X01,
-	etSpectatorsTeam	=	0x02
+	etSpectatorsTeam	=	0x02,
+
+	endOffset = etSpectatorsTeam
 };
 //--------------
 
 #pragma pack(pop)
 
-class	game_GameState : public DLL_Pure
+class game_cl_Single;
+class game_sv_Deathmatch;
+class game_sv_TeamDeathmatch;
+class game_sv_ArtefactHunt;
+class game_cl_mp;
+class game_cl_Deathmatch;
+class game_sv_CaptureTheArtefact;
+class game_cl_ArtefactHunt;
+class game_cl_TeamDeathmatch;
+class game_sv_mp;
+class game_cl_freemp;
+class game_cl_CaptureTheArtefact;
+class game_sv_Single;
+class game_sv_freemp;
+
+class game_GameState : public DLL_Pure
 {
 protected:
 	EGameIDs						m_type;
@@ -151,9 +170,6 @@ protected:
 
 	u32								m_round_start_time;
 	string64						m_round_start_time_str;
-protected:
-	virtual		void				switch_Phase			(u32 new_phase);
-	virtual		void				OnSwitchPhase			(u32 old_phase, u32 new_phase)	{};	
 
 public:
 									game_GameState			();
@@ -163,10 +179,28 @@ public:
 				s32					Round					() const						{return m_round;};
 				u32					StartTime				() const						{return m_start_time;};
 	virtual		void				Create					(shared_str& options)				{};
-	virtual		LPCSTR				type_name				() const						{return "base game";};
+	virtual		const char*				type_name				() const						{return "base game";};
+	virtual		void				switch_Phase			(u32 new_phase);
+	virtual		void				OnSwitchPhase			(u32 old_phase, u32 new_phase)	{};	
 //for scripting enhancement
-	static		CLASS_ID			getCLASS_ID				(LPCSTR game_type_name, bool bServer);
+	static		CLASS_ID			getCLASS_ID				(const char* game_type_name, bool bServer);
 	virtual		game_PlayerState*	createPlayerState		(NET_Packet* account_info)		{return new game_PlayerState(account_info); };
+
+	virtual game_cl_Single* cast_game_cl_single() { return nullptr; }
+	virtual game_cl_mp* cast_game_cl_mp() { return nullptr; }
+	virtual game_cl_freemp* cast_game_cl_freemp() { return nullptr; }
+	virtual game_cl_CaptureTheArtefact* cast_game_cl_capturetheartefact() { return nullptr; }
+	virtual game_cl_Deathmatch* cast_game_cl_deathmatch() { return nullptr; }
+	virtual game_cl_ArtefactHunt* cast_game_cl_artefacthunt() { return nullptr; }
+	virtual game_cl_TeamDeathmatch* cast_game_cl_teamdeathmatch() { return nullptr; }
+
+	virtual game_sv_mp* cast_game_sv_mp() { return nullptr; }
+	virtual game_sv_Deathmatch* cast_game_sv_deathmatch() { return nullptr; }
+	virtual game_sv_TeamDeathmatch* cast_game_sv_teamdeathmatch() { return nullptr; }
+	virtual game_sv_ArtefactHunt* cast_game_sv_artefacthunt() { return nullptr; }
+	virtual game_sv_CaptureTheArtefact* cast_game_sv_capturetheartefact() { return nullptr; }
+	virtual game_sv_Single* cast_game_sv_single() { return nullptr; }
+	virtual game_sv_freemp* cast_game_sv_freemp() { return nullptr; }
 
 //moved from game_sv_base (time routines)
 private:
@@ -192,4 +226,5 @@ public:
 	virtual		float				GetEnvironmentGameTimeFactor		();
 				void				SetEnvironmentGameTimeFactor		(ALife::_TIME_ID GameTime, const float fTimeFactor);
 	virtual		void				SetEnvironmentGameTimeFactor		(const float fTimeFactor);
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

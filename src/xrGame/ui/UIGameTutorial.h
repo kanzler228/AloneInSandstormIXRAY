@@ -7,7 +7,10 @@ class CUISequenceItem;
 class CUIXml;
 class IUISequenceVideoItem;
 
-class CUISequencer :public pureFrame, public pureRender,	public IInputReceiver
+class CUISequencer final :
+	public pureFrame,
+	public pureRender,
+	public IInputReceiver
 {
 protected:
 	CUIWindow*				m_UIWindow;
@@ -22,7 +25,7 @@ protected:
 public:
 	IInputReceiver*			m_pStoredInputReceiver;
 							CUISequencer		();
-	void					Start				(LPCSTR tutor_name);
+	void					Start				(const char* tutor_name);
 	void					Stop				();
 	void					Next				();
 
@@ -32,9 +35,10 @@ public:
 	virtual void			OnRender			();
 	CUIWindow*				MainWnd				()				{return m_UIWindow;}
 	bool					IsActive			()				{return !!m_flags.test(etsActive);}
+	bool					Need3DRender		();
 
 
-	LPCSTR					m_name;
+	const char*					m_name;
 	//IInputReceiver
 	virtual void			IR_OnMousePress		(int btn);
 	virtual void			IR_OnMouseRelease	(int btn);
@@ -46,12 +50,16 @@ public:
 	virtual void			IR_OnKeyboardRelease(int dik);
 	virtual void			IR_OnKeyboardHold	(int dik);
 
-	virtual void			IR_GamepadKeyPress(int id);
+	virtual void			IR_GamepadUpdateStick(int id, Fvector2 value);
+	virtual void			IR_GamepadKeyPress	(int id);
+    virtual void			IR_GamepadKeyRelease(int id);
+	virtual void			IR_GamepadKeyHold	(int id);
+	virtual void			IR_OnGyroscopeMove	(Fvector3 value);
 
 	virtual void			IR_OnMouseWheel		(int direction)	;
 	virtual void			IR_OnActivate		(void);
 			bool			Persistent			() {return !!m_flags.test(etsPersistent);}
-
+			bool			ButtonPress			(int id);
 	xr_delegate<void()>	m_on_destroy_event;
 	
 	enum {	
@@ -80,16 +88,23 @@ protected:
 		etiStoredCursorState= (1<<6),
 		eti_last			= 7,
 	};
+	Flags32					m_flags;
 	xr_vector<shared_str>	m_start_lua_functions;
 	xr_vector<shared_str>	m_stop_lua_functions;
 	luabind::functor<void>	m_onframe_functor;
 
-	Flags32					m_flags;
 	CUISequencer*			m_owner;
+	enum CompatibilityMode
+	{
+		eCompatibilityDefault,
+		eCompatibilityCS,
+		eCompatibilitySoC
+	};
+	CompatibilityMode		m_compatibility_mode;
 
 	virtual float			current_factor		(){return 1;}
 public:
-							CUISequenceItem		(CUISequencer* owner):m_owner(owner){m_flags.zero();}
+							CUISequenceItem		(CUISequencer* owner);
 	virtual					~CUISequenceItem	(){}
 	virtual void			Load				(CUIXml* xml, int idx)=0;
 
@@ -108,9 +123,10 @@ public:
 
 	shared_str				m_check_lua_function;
 	shared_str				m_onframe_lua_function;
+	string64				m_pda_section{};
 };
 
-class CUISequenceSimpleItem: public CUISequenceItem
+class CUISequenceSimpleItem final : public CUISequenceItem
 {
 	typedef CUISequenceItem	inherited;
 	struct SSubItem{
@@ -137,9 +153,8 @@ public:
 	ref_sound				m_sound;
 	float					m_time_start;
 	float					m_time_length;
-	string64				m_pda_section;
 	Fvector2				m_desired_cursor_pos;
-	int						m_continue_dik_guard;
+	EGameActions			m_continue_dik_guard;
 	xr_vector<SActionItem>	m_actions;
 public:
 							CUISequenceSimpleItem(CUISequencer* owner):CUISequenceItem(owner){}
@@ -159,10 +174,11 @@ protected:
 	virtual float			current_factor		();
 };
 
-class CUISequenceVideoItem: public CUISequenceItem
+class CUISequenceVideoItem final : public CUISequenceItem
 {
 	typedef CUISequenceItem	inherited;
 	ref_sound				m_sound;
+	ref_sound				m_sound_mono[2];
 	FactoryPtr<IUISequenceVideoItem>	m_texture;
 	enum {	
 		etiPlaying			= (1<<(eti_last+0)),

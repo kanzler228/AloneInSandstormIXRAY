@@ -30,9 +30,13 @@ public:
 
 			bool			Engaged				()				{return m_owner!= nullptr;}
 	virtual void			OnMouseMove			(int x, int y)	= 0;
+	virtual void			OnGamepadAxisMove	(int id, Fvector2 value) = 0;
+	virtual void			OnGamepadKeyPress	(int id)		= 0;
+	virtual void			OnGamepadKeyRelease	(int id)		= 0;
 	virtual void			OnKeyboardPress		(int dik)		= 0;
 	virtual void			OnKeyboardRelease	(int dik)		= 0;
 	virtual void			OnKeyboardHold		(int dik)		= 0;
+	virtual void			OnGyroscopeMove		(Fvector3 value) = 0;
 	// Inventory for the car
 	virtual CInventory*		GetInventory		()				= 0;
 

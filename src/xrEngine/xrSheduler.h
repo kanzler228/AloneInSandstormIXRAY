@@ -14,13 +14,13 @@ private:
 		ISheduled*	Object;
 		u32			dwPadding;				// for align-issues
 
-		IC bool		operator < (Item& I)
+		IC bool operator<(const Item& I) const
 		{	return dwTimeForExecute > I.dwTimeForExecute; }
 	};
 	struct	ItemReg
 	{
-		BOOL		OP;
-		BOOL		RT;
+		bool		OP;
+		bool		RT;
 		ISheduled*	Object;
 	};
 private:
@@ -37,8 +37,8 @@ private:
 	{
 		return Items.front();
 	}
-	void			internal_Register		(ISheduled* A, BOOL RT=FALSE		);
-	bool			internal_Unregister		(ISheduled* A, BOOL RT, bool warn_on_not_found = true);
+	void			internal_Register		(ISheduled* A, bool RT=false		);
+	bool			internal_Unregister		(ISheduled* A, bool RT, bool warn_on_not_found = true);
 	void			internal_Registration	();
 public:
 	u64				cycles_start;
@@ -51,7 +51,7 @@ public:
 #ifdef DEBUG
 	bool			Registered	(ISheduled *object) const;
 #endif // DEBUG
-	void			Register	(ISheduled* A, BOOL RT=FALSE		);
+	void			Register	(ISheduled* A, bool RT=false		);
 	void			Unregister	(ISheduled* A						);
 	void			EnsureOrder	(ISheduled* Before, ISheduled* After);
 

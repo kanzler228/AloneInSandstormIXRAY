@@ -88,12 +88,12 @@ stalker_movement_manager_base::~stalker_movement_manager_base	()
 {
 }
 
-void stalker_movement_manager_base::Load					(LPCSTR section)
+void stalker_movement_manager_base::Load					(const char* section)
 {
 	inherited::Load				(section);
 }
 
-void stalker_movement_manager_base::reload				(LPCSTR section)
+void stalker_movement_manager_base::reload				(const char* section)
 {
 	inherited::reload			(section);
 	m_velocities				= &stalker_velocity_holder().collection(pSettings->r_string(section,"movement_speeds"));
@@ -411,7 +411,7 @@ void stalker_movement_manager_base::parse_velocity_mask	(stalker_movement_params
 		if (movement_params.m_mental_state == eMentalStateFree) {
 			setup_body_orientation	();
 			guard.enable			(false);
-//			Msg						("%d FALSE",Device.dwTimeGlobal);
+//			Msg						("%d false",Device.dwTimeGlobal);
 		}
 		if	(
 				(movement_params.m_mental_state != eMentalStateFree) ||
@@ -422,7 +422,7 @@ void stalker_movement_manager_base::parse_velocity_mask	(stalker_movement_params
 		{
 			m_last_turn_index			= detail().curr_travel_point_index();
 			guard.enable			(true);
-//			Msg						("%d TRUE",Device.dwTimeGlobal);
+//			Msg						("%d true",Device.dwTimeGlobal);
 			if (detail().curr_travel_point_index() + 1 < path().size()) {
 				point				= path()[detail().curr_travel_point_index() + 1];
 				current_velocity	= detail().velocity(point.velocity);

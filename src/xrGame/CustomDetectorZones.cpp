@@ -4,8 +4,10 @@
 ////////////////////////////////////////////////////////////////////////
 // CAfList
 
-BOOL CAfList::feel_touch_contact(CObject* O)
+bool CAfList::feel_touch_contact(CObject* O)
 {
+	if (!O)
+		return false;
 	TypesMapIt it = m_TypesMap.find(O->cNameSect());
 
 	bool res = (it != m_TypesMap.end());
@@ -25,12 +27,14 @@ BOOL CAfList::feel_touch_contact(CObject* O)
 ////////////////////////////////////////////////////////////////////////
 // CZoneList
 
-BOOL CZoneList::feel_touch_contact(CObject* O)
+bool CZoneList::feel_touch_contact(CObject* O)
 {
+	if (!O)
+		return false;
 	TypesMapIt it = m_TypesMap.find(O->cNameSect());
 	bool res = (it != m_TypesMap.end());
 
-	CCustomZone* pZone = O && O->cast_game_object() ? O->cast_game_object()->cast_custom_zone() : nullptr;
+	CAnomalyZone* pZone = O && O->cast_game_object() ? O->cast_game_object()->cast_anomaly_zone() : nullptr;
 	if (pZone != nullptr && !pZone->IsEnabled())
 	{
 		res = false;

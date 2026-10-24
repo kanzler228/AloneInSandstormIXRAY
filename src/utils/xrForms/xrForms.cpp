@@ -3,148 +3,80 @@
 #include "cl_log.h"
 #include "CompilersUI.h"
 
-#include <luabind/luabind.hpp>
 #include <imgui.h>
+#include <timeapi.h>
 
-#include "../../editors/xrEUI/imgui_impl_sdl3.h"
+#include "../../Editors/xrEUI/imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
 #include "CompilerIcons.h"
 
-static LPVOID __cdecl luabind_allocator(luabind::memory_allocation_function_parameter const, void const* const pointer, size_t const size)
-{
-	if (!size)
-	{
-		LPVOID	non_const_pointer = const_cast<LPVOID>(pointer);
-		xr_free(non_const_pointer);
-		return	(0);
-	}
 
-	if (!pointer)
-	{
-		return	(Memory.mem_alloc(size));
-	}
-
-	LPVOID non_const_pointer = const_cast<LPVOID>(pointer);
-	return (Memory.mem_realloc(non_const_pointer, size));
-}
-
-void setup_luabind_allocator()
-{
-	luabind::allocator = &luabind_allocator;
-	luabind::allocator_parameter = 0;
-}
-
-#pragma warning(disable:4995)
-#include <timeapi.h>
-#include <commctrl.h>
-#pragma warning(default:4995)
+extern int item_current_lightmap;
+extern int item_current_cform;
+extern int item_current_geom;
+extern int item_current_jitter;
+extern int item_current_jitter_mu;
+extern int current_format;
 
 void StartupAI();
 void StartupLC();
 void StartupDO();
 
-void InitialFactory();
-void DestroyFactory();
-
-void Help(const char* h_str)
-{
-	MessageBoxA(0, h_str, "Command line options", MB_OK | MB_ICONINFORMATION);
-}
-
 CompilersMode gCompilerMode;
+CJsonSerializer* Serializer = nullptr;
 
 extern bool ShowMainUI;
 void Startup(LPSTR lpCmdLine) 
 {
+ 	xrLogger::EnableFastDebugLog();
+
+	SaveCompilerCfg();
+
 	GetIterationData().push_back({ "xrLC" });
 	GetIterationData().push_back({ "xrAI" });
 	GetIterationData().push_back({ "xrDO" });
-
-	u32 dwStartupTime = timeGetTime();
-
-	SetActiveIteration(&(GetIterationData()[0]));
-	u32 dwTimeLC = 0;
-	if (gCompilerMode.LC)
+	 
+	auto InitilizeIteration = [](LCBuildingType Type, bool active, LPCSTR phase)
 	{
-		GetActiveIteration()->status = InProgress;
-		dwTimeLC = timeGetTime();
-		Phase("xrLC Startup");
-		StartupLC();
+		SetActiveIteration(&(GetIterationData()[(int)Type]));
+		gCompilerMode.builder_type = Type;
+		if (active)
+		{
+			GetActiveIteration()->status = InProgress;
+			u32 dwTime = timeGetTime();
+			Phase(phase);
+			
+			if (Type == LCBuildingType::eLC)
+				StartupLC();
+			else if (Type == LCBuildingType::eDO)
+				StartupDO();
+			else if (Type == LCBuildingType::eAI)
+  				StartupAI();
+ 			
+			dwTime = (timeGetTime() - dwTime) / 1000;
 
-		dwTimeLC = (timeGetTime() - dwTimeLC) / 1000;
+			GetActiveIteration()->status = Complete;
+			GetActiveIteration()->elapsed_time = dwTime;
+		}
+		else
+ 			GetActiveIteration()->status = Skip;
 
-		GetActiveIteration()->status = Complete;
-		GetActiveIteration()->elapsed_time = dwTimeLC;
-	}
-	else
-	{
-		GetActiveIteration()->status = Skip;
-	}
+		PhaseEnd();
+ 	};
 
-	SetActiveIteration(&(GetIterationData()[1]));
-	u32 dwTimeAI = 0;
-	if (gCompilerMode.AI)
-	{
-		GetActiveIteration()->status = InProgress;
-
-		dwTimeAI = timeGetTime();
-		Phase("xrAI Startup");
-
-		setup_luabind_allocator();
-		InitialFactory();
-		StartupAI();
-		DestroyFactory();
-		dwTimeAI = (timeGetTime() - dwTimeAI) / 1000;
-
-		GetActiveIteration()->status = Complete;
-		GetActiveIteration()->elapsed_time = dwTimeLC;
-	}
-	else
-	{
-		GetActiveIteration()->status = Skip;
-	}
-
-	SetActiveIteration(&(GetIterationData()[2]));
-	u32 dwTimeDO = 0;
-	if (gCompilerMode.DO) {
-		GetActiveIteration()->status = InProgress;
-		dwTimeDO = timeGetTime();
-		Phase("xrDO Startup");
-		StartupDO();
-		dwTimeDO = (timeGetTime() - dwTimeDO) / 1000;
-
-		GetActiveIteration()->status = Complete;
-		GetActiveIteration()->elapsed_time = dwTimeLC;
-	}
-	else
-	{
-		GetActiveIteration()->status = Skip;
-	}
+	InitilizeIteration(LCBuildingType::eLC, gCompilerMode.LC, "xrLC Startup");
+	InitilizeIteration(LCBuildingType::eAI, gCompilerMode.AI, "xrAI Startup");
+	InitilizeIteration(LCBuildingType::eDO, gCompilerMode.DO, "xrDO Startup");
 
 	// Show statistic
-	string256 stats;
 	extern xr_string make_time(u32 sec);
-	u32 dwEndTime = timeGetTime();
-
-	xr_sprintf(
-		stats, 
-		"Time elapsed: %s \r\n xrLC: %s\r\n xrAI: %s\r\n xrDO: %s", 
-		make_time((dwEndTime - dwStartupTime) / 1000).c_str(), 
-		make_time(dwTimeLC).c_str(),
-		make_time(dwTimeAI).c_str(), 
-		make_time(dwTimeDO).c_str()
-	);
-
-	if (!gCompilerMode.Silent)
+	for (auto& I : GetIterationData())
 	{
-		MessageBoxA(nullptr, stats, "Congratulations!", MB_OK | MB_ICONINFORMATION);
-	}
-
-	extern volatile BOOL bClose;
+		clMsg("* Compiler (%s) : Time elapsed: %s ", I.iterationName.c_str(), make_time(I.elapsed_time).c_str());
+	} 
 
 	// Close log
-	bClose = TRUE;
 	xrLogger::FlushLog();
 
 	ShowMainUI = true;
@@ -169,10 +101,9 @@ void SDL_Application()
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
 	// Setup Dear ImGui style
-	XRay::ImGui::MakeEditorTheme();
+	XRay::ImGui::MakeRedTheme();
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplSDL3_InitForSDLRenderer(g_AppInfo.Window, renderer);
@@ -186,9 +117,11 @@ void SDL_Application()
 	config.FontDataOwnedByAtlas = false;
 
 	gCompilerMode.CompilerIconsFont = io.Fonts->AddFontFromMemoryTTF(IconsFont, sizeof(IconsFont), 16.f, &config, io.Fonts->GetGlyphRangesDefault());
-	gCompilerMode.ThreadsPerWork = CPU::ID.n_threads - 1;
+	gCompilerMode.ThreadsPerWork = CPU::ID().n_threads - 1;
 
 	bool done = false;
+
+	// se7kills (4000 FPS) !!!
 	while (!done)
 	{
 		// Poll and handle events (inputs, window resize, etc.)
@@ -222,6 +155,9 @@ void SDL_Application()
 		SDL_RenderClear(renderer);
 		ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData());
 		SDL_RenderPresent(renderer);
+
+		// se7kills (fix big GPU Usage)
+		Sleep(41);
 	}
 
 	// Cleanup
@@ -238,9 +174,68 @@ void SDL_Application()
 void StartCompile()
 {
 	// Give a LOG-thread a chance to startup
-	InitCommonControls();
+	//InitCommonControls();
 	Sleep(150);
 	thread_spawn(logThread, "log-update", 1024 * 1024, 0);
+}
+
+void SaveCompilerCfg()
+{
+	Serializer->Write("ai", gCompilerMode.AI);
+	Serializer->Write("lc", gCompilerMode.LC);
+	Serializer->Write("do", gCompilerMode.DO);
+	Serializer->Write("Silent", gCompilerMode.Silent);
+	Serializer->Write("Embree", gCompilerMode.Embree);
+	Serializer->Write("CUDA", gCompilerMode.CUDA);
+	Serializer->Write("EmbreeBVHCompact", gCompilerMode.EmbreeBVHCompact);
+	Serializer->Write("EmbreeBVHRobust", gCompilerMode.EmbreeBVHRobust);
+	Serializer->Write("ClearTemp", gCompilerMode.ClearTemp);
+	Serializer->Write("SkipTHM", gCompilerMode.SkipTHM);
+   	
+	Serializer->Write("LC_SkipStaticMap", gCompilerMode.LC_SkipStaticMap);
+	Serializer->Write("LC_NoSun", gCompilerMode.LC_NoSun);
+	Serializer->Write("LC_NoSMG", gCompilerMode.LC_NoSMG);
+ 	Serializer->Write("LC_Tess", gCompilerMode.LC_Tess);
+	Serializer->Write("LC_SkipInvalidFaces", gCompilerMode.LC_SkipInvalidFaces);
+	Serializer->Write("LC_tex_format", current_format);
+ 	Serializer->Write("LC_skipWeld", gCompilerMode.LC_skipWeld);
+	Serializer->Write("IsOverloadedSettings", gCompilerMode.IsOverloadedSettings);
+	Serializer->Write("LC_sizeLmaps", gCompilerMode.LC_sizeLmaps);
+ 	Serializer->Write("LC_JSampleMU", gCompilerMode.LC_JSampleMU);
+	Serializer->Write("LC_JSample", gCompilerMode.LC_JSample);
+	Serializer->Write("ThreadsPerWork", gCompilerMode.ThreadsPerWork);
+	Serializer->Write("LC_Pixels", gCompilerMode.LC_Pixels);
+	Serializer->Write("WeldDistance", gCompilerMode.WeldDistance);
+ 	Serializer->Write("AI_BuildSpawn", gCompilerMode.AI_BuildSpawn);
+	Serializer->Write("AI_NoSeparatorCheck", gCompilerMode.AI_NoSeparatorCheck);
+	Serializer->Write("AI_FreeMPBuild", gCompilerMode.AI_FreeMPBuild);
+	Serializer->Write("AI_StartActor", gCompilerMode.AI_StartActor);
+	Serializer->Write("AI_spawn_name", gCompilerMode.AI_spawn_name);
+	Serializer->Write("AI_BuildLevel", gCompilerMode.AI_BuildLevel);
+	Serializer->Write("AI_PureCovers", gCompilerMode.AI_PureCovers);
+	Serializer->Write("AI_Draft", gCompilerMode.AI_Draft);
+	Serializer->Write("AI_Verify", gCompilerMode.AI_Verify);
+	Serializer->Write("AI_Verbose", gCompilerMode.AI_Verbose);
+
+	Serializer->Write("item_current_selected", item_current_lightmap);
+	Serializer->Write("item_current_cform", item_current_cform);
+	Serializer->Write("item_current_geom", item_current_geom);
+	Serializer->Write("item_current_jitter", item_current_jitter);
+	Serializer->Write("item_current_jitter_mu", item_current_jitter_mu);
+
+	Serializer->Write("LC_fast_way", gCompilerMode.LC_fast_way);
+	Serializer->Write("LC_legacyLM", gCompilerMode.LC_legacyLM);
+	Serializer->Write("LC_CformType", gCompilerMode.LC_CformType);
+	Serializer->Write("LC_CFormChunkSize", gCompilerMode.LC_CFormChunkSize);
+	Serializer->Write("LC_GeomType", gCompilerMode.LC_GeomType);
+	Serializer->Write("LC_GeomChunkSize", gCompilerMode.LC_GeomChunkSize);
+
+	// new Geometry Optimization off
+	Serializer->Write("LC_Skip_Progressive", gCompilerMode.LC_OGF_PROGRESSIVE);
+	Serializer->Write("LC_Skip_Striptify",   gCompilerMode.LC_OGF_STRIPTIFY);
+	Serializer->Write("LC_Skip_Tangents", gCompilerMode.LC_OGF_TANGENT);
+
+	Serializer->Save();
 }
 
 int APIENTRY WinMain 
@@ -253,87 +248,78 @@ int APIENTRY WinMain
 {
 	// Initialize debugging
 	Debug._initialize(false);
-	Core._initialize("IX-Ray Compilers");
 
-	CJsonSerializer Serializer("xrlevelbuilder.json");
-	Serializer.Read("ai", gCompilerMode.AI);
-	Serializer.Read("lc", gCompilerMode.LC);
-	Serializer.Read("do", gCompilerMode.DO);
-	Serializer.Read("Silent", gCompilerMode.Silent);
-	Serializer.Read("Embree", gCompilerMode.Embree);
-	Serializer.Read("EmbreeBVHCompact", gCompilerMode.EmbreeBVHCompact);
-	Serializer.Read("EmbreeBVHRobust", gCompilerMode.EmbreeBVHRobust);
-	Serializer.Read("ClearTemp", gCompilerMode.ClearTemp);
-	Serializer.Read("SkipTHM", gCompilerMode.SkipTHM);
-	Serializer.Read("LC_BackingDisabled", gCompilerMode.LC_BackingDisabled);
-	Serializer.Read("LC_SaveOFG", gCompilerMode.LC_SaveOFG);
-	Serializer.Read("LC_GI", gCompilerMode.LC_GI);
-	Serializer.Read("LC_NoSun", gCompilerMode.LC_NoSun);
-	Serializer.Read("LC_NoSMG", gCompilerMode.LC_NoSMG);
-	Serializer.Read("LC_Noise", gCompilerMode.LC_Noise);
-	Serializer.Read("LC_Tess", gCompilerMode.LC_Tess);
-	Serializer.Read("LC_SkipInvalidFaces", gCompilerMode.LC_SkipInvalidFaces);
-	Serializer.Read("LC_tex_rgba", gCompilerMode.LC_tex_rgba);
-	Serializer.Read("LC_NoSubdivide", gCompilerMode.LC_NoSubdivide);
-	Serializer.Read("LC_skipWeld", gCompilerMode.LC_skipWeld);
-	Serializer.Read("IsOverloadedSettings", gCompilerMode.IsOverloadedSettings);
-	Serializer.Read("LC_sizeLmaps", gCompilerMode.LC_sizeLmaps);
-	Serializer.Read("LC_JSampleMU", gCompilerMode.LC_JSampleMU);
-	Serializer.Read("LC_JSample", gCompilerMode.LC_JSample);
-	Serializer.Read("ThreadsPerWork", gCompilerMode.ThreadsPerWork);
-	Serializer.Read("LC_Pixels", gCompilerMode.LC_Pixels);
-	Serializer.Read("WeldDistance", gCompilerMode.WeldDistance);
-	Serializer.Read("DO_NoSun", gCompilerMode.DO_NoSun);
-	Serializer.Read("AI_BuildSpawn", gCompilerMode.AI_BuildSpawn);
-	Serializer.Read("AI_NoSeparatorCheck", gCompilerMode.AI_NoSeparatorCheck);
-	Serializer.Read("AI_StartActor", gCompilerMode.AI_StartActor);
-	Serializer.Read("AI_spawn_name", gCompilerMode.AI_spawn_name);
-	Serializer.Read("AI_BuildLevel", gCompilerMode.AI_BuildLevel);
-	Serializer.Read("AI_PureCovers", gCompilerMode.AI_PureCovers);
-	Serializer.Read("AI_Draft", gCompilerMode.AI_Draft);
-	Serializer.Read("AI_Verify", gCompilerMode.AI_Verify);
-	Serializer.Read("AI_Verbose", gCompilerMode.AI_Verbose);
-	
+	const char* fsgame_ltx_name = "-fsltx ";
+	string_path fsgame = "";
+
+	if (strstr(lpCmdLine, fsgame_ltx_name))
+	{
+		int sz = xr_strlen(fsgame_ltx_name);
+		sscanf(strstr(lpCmdLine, fsgame_ltx_name) + sz, "%519[^ ] ", fsgame);
+	}
+	Core._initialize("IX-Ray Compilers", nullptr, true, fsgame[0] ? fsgame : nullptr);
+
+	Serializer = new CJsonSerializer("xrlevelbuilder.json");
+	Serializer->Read("ai", gCompilerMode.AI);
+	Serializer->Read("lc", gCompilerMode.LC);
+	Serializer->Read("do", gCompilerMode.DO);
+	Serializer->Read("Silent", gCompilerMode.Silent);
+	Serializer->Read("Embree", gCompilerMode.Embree);
+	Serializer->Read("CUDA", gCompilerMode.CUDA);
+	Serializer->Read("EmbreeBVHCompact", gCompilerMode.EmbreeBVHCompact);
+	Serializer->Read("EmbreeBVHRobust", gCompilerMode.EmbreeBVHRobust);
+	Serializer->Read("ClearTemp", gCompilerMode.ClearTemp);
+	Serializer->Read("SkipTHM", gCompilerMode.SkipTHM);
+ 	Serializer->Read("LC_SkipStaticMap", gCompilerMode.LC_SkipStaticMap);
+	Serializer->Read("LC_NoSun", gCompilerMode.LC_NoSun);
+	Serializer->Read("LC_NoSMG", gCompilerMode.LC_NoSMG);
+ 	Serializer->Read("LC_Tess", gCompilerMode.LC_Tess);
+	Serializer->Read("LC_SkipInvalidFaces", gCompilerMode.LC_SkipInvalidFaces);
+	Serializer->Read("LC_tex_format", current_format);
+ 	Serializer->Read("LC_skipWeld", gCompilerMode.LC_skipWeld);
+	Serializer->Read("IsOverloadedSettings", gCompilerMode.IsOverloadedSettings);
+	Serializer->Read("LC_sizeLmaps", gCompilerMode.LC_sizeLmaps);
+	Serializer->Read("LC_JSampleMU", gCompilerMode.LC_JSampleMU);
+	Serializer->Read("LC_JSample", gCompilerMode.LC_JSample);
+	Serializer->Read("ThreadsPerWork", gCompilerMode.ThreadsPerWork);
+	Serializer->Read("LC_Pixels", gCompilerMode.LC_Pixels);
+	Serializer->Read("WeldDistance", gCompilerMode.WeldDistance);
+ 	Serializer->Read("AI_BuildSpawn", gCompilerMode.AI_BuildSpawn);
+	Serializer->Read("AI_NoSeparatorCheck", gCompilerMode.AI_NoSeparatorCheck);
+	Serializer->Read("AI_FreeMPBuild", gCompilerMode.AI_FreeMPBuild);
+	Serializer->Read("AI_StartActor", gCompilerMode.AI_StartActor);
+	Serializer->Read("AI_spawn_name", gCompilerMode.AI_spawn_name);
+	Serializer->Read("AI_BuildLevel", gCompilerMode.AI_BuildLevel);
+	Serializer->Read("AI_PureCovers", gCompilerMode.AI_PureCovers);
+	Serializer->Read("AI_Draft", gCompilerMode.AI_Draft);
+	Serializer->Read("AI_Verify", gCompilerMode.AI_Verify);
+	Serializer->Read("AI_Verbose", gCompilerMode.AI_Verbose);
+	Serializer->Read("item_current_selected", item_current_lightmap);
+	Serializer->Read("item_current_cform", item_current_cform);
+	Serializer->Read("item_current_geom", item_current_geom);
+	Serializer->Read("item_current_jitter", item_current_jitter);
+	Serializer->Read("item_current_jitter_mu", item_current_jitter_mu);
+ 	
+	Serializer->Read("LC_fast_way", gCompilerMode.LC_fast_way);
+	Serializer->Read("LC_legacyLM", gCompilerMode.LC_legacyLM);
+	Serializer->Read("LC_CformType", gCompilerMode.LC_CformType);
+	Serializer->Read("LC_CFormChunkSize", gCompilerMode.LC_CFormChunkSize);
+	Serializer->Read("LC_GeomType", gCompilerMode.LC_GeomType);
+	Serializer->Read("LC_GeomChunkSize", gCompilerMode.LC_GeomChunkSize);
+
+	// Geometry
+ 	Serializer->Read("LC_Skip_Progressive", gCompilerMode.LC_OGF_PROGRESSIVE);
+	Serializer->Read("LC_Skip_Striptify", gCompilerMode.LC_OGF_STRIPTIFY);
+	Serializer->Read("LC_Skip_Tangents", gCompilerMode.LC_OGF_TANGENT);
+
+	gCompilerMode.LmapsFormat = (LCLightmapFormat) current_format;
+
 	InitializeUIData();
 	SDL_Application();
 
-	Serializer.Write("ai", gCompilerMode.AI);
-	Serializer.Write("lc", gCompilerMode.LC);
-	Serializer.Write("do", gCompilerMode.DO);
-	Serializer.Write("Silent", gCompilerMode.Silent);
-	Serializer.Write("Embree", gCompilerMode.Embree);
-	Serializer.Write("EmbreeBVHCompact", gCompilerMode.EmbreeBVHCompact);
-	Serializer.Write("EmbreeBVHRobust", gCompilerMode.EmbreeBVHRobust);
-	Serializer.Write("ClearTemp", gCompilerMode.ClearTemp);
-	Serializer.Write("SkipTHM", gCompilerMode.SkipTHM);
-	Serializer.Write("LC_BackingDisabled", gCompilerMode.LC_BackingDisabled);
-	Serializer.Write("LC_SaveOFG", gCompilerMode.LC_SaveOFG);
-	Serializer.Write("LC_GI", gCompilerMode.LC_GI);
-	Serializer.Write("LC_NoSun", gCompilerMode.LC_NoSun);
-	Serializer.Write("LC_NoSMG", gCompilerMode.LC_NoSMG);
-	Serializer.Write("LC_Noise", gCompilerMode.LC_Noise);
-	Serializer.Write("LC_Tess", gCompilerMode.LC_Tess);
-	Serializer.Write("LC_SkipInvalidFaces", gCompilerMode.LC_SkipInvalidFaces);
-	Serializer.Write("LC_tex_rgba", gCompilerMode.LC_tex_rgba);
-	Serializer.Write("LC_NoSubdivide", gCompilerMode.LC_NoSubdivide);
-	Serializer.Write("LC_skipWeld", gCompilerMode.LC_skipWeld);
-	Serializer.Write("IsOverloadedSettings", gCompilerMode.IsOverloadedSettings);
-	Serializer.Write("LC_sizeLmaps", gCompilerMode.LC_sizeLmaps);
-	Serializer.Write("LC_JSampleMU", gCompilerMode.LC_JSampleMU);
-	Serializer.Write("LC_JSample", gCompilerMode.LC_JSample);
-	Serializer.Write("ThreadsPerWork", gCompilerMode.ThreadsPerWork);
-	Serializer.Write("LC_Pixels", gCompilerMode.LC_Pixels);
-	Serializer.Write("WeldDistance", gCompilerMode.WeldDistance);
-	Serializer.Write("DO_NoSun", gCompilerMode.DO_NoSun);
-	Serializer.Write("AI_BuildSpawn", gCompilerMode.AI_BuildSpawn);
-	Serializer.Write("AI_NoSeparatorCheck", gCompilerMode.AI_NoSeparatorCheck);
-	Serializer.Write("AI_StartActor", gCompilerMode.AI_StartActor);
-	Serializer.Write("AI_spawn_name", gCompilerMode.AI_spawn_name);
-	Serializer.Write("AI_BuildLevel", gCompilerMode.AI_BuildLevel);
-	Serializer.Write("AI_PureCovers", gCompilerMode.AI_PureCovers);
-	Serializer.Write("AI_Draft", gCompilerMode.AI_Draft);
-	Serializer.Write("AI_Verify", gCompilerMode.AI_Verify);
-	Serializer.Write("AI_Verbose", gCompilerMode.AI_Verbose);
+	SaveCompilerCfg();
+
+	xr_delete(Serializer);
 
 	return 0;
 }

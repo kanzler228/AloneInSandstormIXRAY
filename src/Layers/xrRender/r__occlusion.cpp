@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "r__occlusion.h"
 
 #include "QueryHelper.h"
@@ -79,7 +79,7 @@ u32		R_occlusion::occq_begin		(u32&	ID		)
 		if (pool.empty())//error in recreating stage :(
 		{
 			occq_destroy();
-			enabled = FALSE;
+			enabled = false;
 		}
 
 		return 0;

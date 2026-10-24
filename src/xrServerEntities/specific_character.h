@@ -6,7 +6,6 @@
 #pragma		once
 
 
-#include "character_info_defs.h"
 #include "shared_data.h"
 #include "xml_str_id_loader.h"
 
@@ -69,22 +68,22 @@ struct SSpecificCharacterData : CSharedResource
 #endif
 	
 	//ранг
-	CHARACTER_RANK_VALUE m_Rank;
+	s32 m_Rank;
 	struct SRankDef {
-		CHARACTER_RANK_VALUE minRank = NO_RANK;
-		CHARACTER_RANK_VALUE maxRank = NO_RANK;
+		s32 minRank = -type_max(s32);
+		s32 maxRank = -type_max(s32);
 	};
 	SRankDef rankDef;
 	//репутация
-	CHARACTER_REPUTATION_VALUE	m_Reputation;
+	s32	m_Reputation;
 	struct SReputationDef {
-		CHARACTER_REPUTATION_VALUE minReputation = NO_REPUTATION;
-		CHARACTER_REPUTATION_VALUE maxReputation = NO_REPUTATION;
+		s32 minReputation = -type_max(s32);
+		s32 maxReputation = -type_max(s32);
 	};
 	SReputationDef reputationDef;
 	//классы персонажа (военные-ветераны, ученые и т.д.)
 	//к которым он принадлежит
-	xr_vector<CHARACTER_CLASS>	m_Classes;
+	xr_vector<shared_str>	m_Classes;
 
 
 	//указание на то что персонаж не предназначен для случайного выбора
@@ -130,14 +129,14 @@ protected:
 	SSpecificCharacterData*		  data					()			{ VERIFY(inherited_shared::get_sd()); return inherited_shared::get_sd();}
 
 	//загрузка из XML файла
-	virtual void				load_shared				(LPCSTR);
+	virtual void				load_shared				(const char*);
 	static void					InitXmlIdToIndex		();
 
 	shared_str		m_OwnId;
 public:
 
 #ifdef  XRGAME_EXPORTS
-	LPCSTR						Name					() const ;
+	const char*						Name					() const ;
 	shared_str					Bio						() const ;
 	const CHARACTER_COMMUNITY&	Community				() const ;
 	SSpecificCharacterData::SReputationDef& ReputationDef() 	{return data()->reputationDef;}
@@ -146,19 +145,19 @@ public:
 	void						updateMechanic			(bool cond) const { data()->m_upgrade_mechanic = cond; };
 #endif
 
-	CHARACTER_RANK_VALUE		Rank					() const ;
-	CHARACTER_REPUTATION_VALUE	Reputation				() const ;
-	LPCSTR						Visual					() const ;
+	s32		Rank					() const ;
+	s32	Reputation				() const ;
+	const char*						Visual					() const ;
 
 #ifdef  XRGAME_EXPORTS
-	LPCSTR						SupplySpawn				() const ;
-	LPCSTR						NpcConfigSect			() const ;
-	LPCSTR						sound_voice_prefix		() const ;
+	const char*						SupplySpawn				() const ;
+	const char*						NpcConfigSect			() const ;
+	const char*						sound_voice_prefix		() const ;
 	float						panic_threshold			() const ;
 	float						hit_probability_factor	() const ;
 	int							crouch_type				() const ;
 	bool						upgrade_mechanic		() const ;
-	LPCSTR						critical_wound_weights	() const ;
+	const char*						critical_wound_weights	() const ;
 
 	const shared_str&			IconName				() const	{return data()->m_icon_name;};
 #endif

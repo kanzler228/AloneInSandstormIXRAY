@@ -193,7 +193,7 @@ void CEditableObject::Save(IWriter& F)
     F.close_chunk		();
 
     // set modif desc
-	SetVersionToCurrent	(FALSE, TRUE);
+	SetVersionToCurrent	(false, true);
 
 	bOnModified			= false;
 }
@@ -315,7 +315,7 @@ bool CEditableObject::Load(IReader& F)
 			{
                 int chunk = 0;
                 IReader* O;
-                while (0!=(O=B_CHUNK->open_chunk(chunk++)))
+                while (nullptr!=(O=B_CHUNK->open_chunk(chunk++)))
 				{
                     m_Bones.push_back(new CBone());
                     m_Bones.back()->Load_1(*O);
@@ -434,24 +434,24 @@ bool CEditableObject::Load(IReader& F)
 		if (!bRes) break;
 		UpdateBox		();
 		VerifyMeshNames	();
-	}while(0);
+	}while(false);
 
 	return bRes;
 }
 
-bool CEditableObject::ExportOGF(LPCSTR fn, u8 infl)
+bool CEditableObject::ExportOGF(const char* fn, u8 infl)
 {
 	UpdateBox		();
 	CMemoryWriter	F;
 
-    if (PrepareOGF(F,infl,true,NULL))
+    if (PrepareOGF(F,infl,true, nullptr))
 	{
     	return F.save_to(fn);
     }
     return false;
 }
 //------------------------------------------------------------------------------
-bool CEditableObject::ExportOMF(LPCSTR fn)
+bool CEditableObject::ExportOMF(const char* fn)
 {
 	UpdateBox		();
 	CMemoryWriter	F;
@@ -462,7 +462,7 @@ bool CEditableObject::ExportOMF(LPCSTR fn)
     return false;
 }
 //------------------------------------------------------------------------------
-bool CEditableObject::ExportOBJ(LPCSTR fn)
+bool CEditableObject::ExportOBJ(const char* fn)
 {
 	UpdateBox			();
     CExportObjectOGF E(this);

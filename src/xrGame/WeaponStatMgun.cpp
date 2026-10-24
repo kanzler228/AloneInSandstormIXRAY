@@ -10,6 +10,7 @@
 #include "CameraFirstEye.h"
 #include "game_object_space.h"
 #include "Level.h"
+#include "ParticlesObject.h"
 
 void 	CWeaponStatMgun::BoneCallbackX		(CBoneInstance *B)
 {
@@ -43,7 +44,7 @@ CWeaponStatMgun::~CWeaponStatMgun()
 
 void CWeaponStatMgun::SetBoneCallbacks()
 {
-	m_pPhysicsShell->EnabledCallbacks(FALSE);
+	m_pPhysicsShell->EnabledCallbacks(false);
 
 	IKinematics* pK = PKinematics(Visual());
 
@@ -62,20 +63,20 @@ void CWeaponStatMgun::ResetBoneCallbacks()
 	CBoneInstance& biY = pK->LL_GetBoneInstance(m_rotate_y_bone);
 	biY.reset_callback();
 
-	m_pPhysicsShell->EnabledCallbacks(TRUE);
+	m_pPhysicsShell->EnabledCallbacks(true);
 }
 
-void CWeaponStatMgun::Load(LPCSTR section)
+void CWeaponStatMgun::Load(const char* section)
 {
 	inheritedPH::Load(section);
 	inheritedShooting::Load(section);
 
-	m_sounds_layered.LoadSound(section, "snd_shoot", "sndShot", false, SOUND_TYPE_WEAPON_SHOOTING);
+	m_sounds_layered.LoadSound(section, "snd_shoot", "sndShot", false, SOUND_TYPE_WEAPON_SHOOTING, st_Shooting);
 	m_Ammo->Load(pSettings->r_string(section, "ammo_class"), 0);
 	camMaxAngle = pSettings->r_float(section, "cam_max_angle");
-	camMaxAngle = _abs(deg2rad(camMaxAngle));
+	camMaxAngle = std::abs(deg2rad(camMaxAngle));
 	camRelaxSpeed = pSettings->r_float(section, "cam_relax_speed");
-	camRelaxSpeed = _abs(deg2rad(camRelaxSpeed));
+	camRelaxSpeed = std::abs(deg2rad(camRelaxSpeed));
 
 	m_overheat_enabled = !!READ_IF_EXISTS(pSettings, r_bool, section, "overheat_enabled", false);
 	m_overheat_time_quant = READ_IF_EXISTS(pSettings, r_float, section, "overheat_time_quant", 0.025f);
@@ -86,15 +87,19 @@ void CWeaponStatMgun::Load(LPCSTR section)
 	m_bEnterLocked = !!READ_IF_EXISTS(pSettings, r_bool, section, "lock_enter", false);
 	m_bExitLocked = !!READ_IF_EXISTS(pSettings, r_bool, section, "lock_exit", false);
 
+	m_vibration_time = READ_IF_EXISTS(pSettings, r_float, section, "vibration_time", 0.1f);
+	m_vibration_factor_left = READ_IF_EXISTS(pSettings, r_float, section, "vibration_factor_left", 1.0f);
+	m_vibration_factor_right = READ_IF_EXISTS(pSettings, r_float, section, "vibration_factor_right", 1.0f);
+
 	VERIFY(!fis_zero(camMaxAngle));
 	VERIFY(!fis_zero(camRelaxSpeed));
 }
 
-BOOL CWeaponStatMgun::net_Spawn(CSE_Abstract* DC)
+bool CWeaponStatMgun::net_Spawn(CSE_Abstract* DC)
 {
 	if (!inheritedPH::net_Spawn(DC))
 	{
-		return FALSE;
+		return false;
 	}
 
 	IKinematics* K = PKinematics(Visual());
@@ -131,12 +136,10 @@ BOOL CWeaponStatMgun::net_Spawn(CSE_Abstract* DC)
 	m_destEnemyDir.setHP(m_bind_y_rot, m_bind_x_rot);
 	XFORM().transform_dir(m_destEnemyDir);
 
-	inheritedShooting::Light_Create();
-
 	processing_activate();
-	setVisible(TRUE);
-	setEnabled(TRUE);
-	return TRUE;
+	setVisible(true);
+	setEnabled(true);
+	return true;
 }
 
 void CWeaponStatMgun::net_Destroy()
@@ -144,11 +147,12 @@ void CWeaponStatMgun::net_Destroy()
 	if (p_overheat)
 	{
 		if (p_overheat->IsPlaying())
-			p_overheat->Stop(FALSE);
+			p_overheat->Stop(false);
 		Particles::Details::Destroy(p_overheat);
 	}
 	inheritedPH::net_Destroy	();
 	processing_deactivate		();
+	CShootingObject::DestroyEffects();
 }
 
 void CWeaponStatMgun::net_Export(NET_Packet& P)	// export to server
@@ -164,8 +168,8 @@ void CWeaponStatMgun::net_Import(NET_Packet& P)	// import from server
 	u8 state = P.r_u8();
 	load_data						(m_destEnemyDir, P);
 
-	if(TRUE==IsWorking()&&!state)			FireEnd		();
-	if(FALSE==IsWorking()&&state)			FireStart	();
+	if(true==IsWorking()&&!state)			FireEnd		();
+	if(false==IsWorking()&&state)			FireStart	();
 
 }
 
@@ -216,14 +220,14 @@ void CWeaponStatMgun::UpdateBarrelDir()
 		float sv_x		= m_tgt_x_rot;
 		
 		clamp			(m_tgt_x_rot,-m_lim_x_rot.y,-m_lim_x_rot.x);
-		if (!fsimilar(sv_x,m_tgt_x_rot,EPS_L)) m_allow_fire=FALSE;
+		if (!fsimilar(sv_x,m_tgt_x_rot,EPS_L)) m_allow_fire=false;
 	}
 	{// y angle
 		m_i_bind_y_xform.transform_dir(dep); dep.normalize();
 		m_tgt_y_rot		= angle_normalize_signed(m_bind_y_rot-dep.getH());
 		float sv_y		= m_tgt_y_rot;
 		clamp			(m_tgt_y_rot,-m_lim_y_rot.y,-m_lim_y_rot.x);
-		if (!fsimilar(sv_y,m_tgt_y_rot,EPS_L)) m_allow_fire=FALSE;
+		if (!fsimilar(sv_y,m_tgt_y_rot,EPS_L)) m_allow_fire=false;
 	}
 
 	m_cur_x_rot		= angle_inertion_var(m_cur_x_rot,m_tgt_x_rot,0.5f,3.5f,PI_DIV_6,Device.fTimeDelta);
@@ -239,7 +243,7 @@ void CWeaponStatMgun::cam_Update			(float dt, float fov)
 
 	IKinematics* K					= Visual()->dcast_PKinematics();
 	K->CalculateBones_Invalidate	();
-	K->CalculateBones				(TRUE);
+	K->CalculateBones				(true);
 	const Fmatrix& C				= K->LL_GetTransform(m_camera_bone);
 	XFORM().transform_tiny			(P,C.c);
 
@@ -265,7 +269,6 @@ void CWeaponStatMgun::cam_Update			(float dt, float fov)
 	
 
 	Camera()->Update							(P,Da);
-	Level().Cameras().UpdateFromCamera			(Camera());
 
 }
 

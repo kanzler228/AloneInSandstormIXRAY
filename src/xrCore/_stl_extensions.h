@@ -1,10 +1,12 @@
 #pragma once
 #include <vector>
 
+#include "_stl_extensions_nonalloc.h"
+
 using std::swap;
 
-#ifdef	_M_AMD64
-#define M_DONTDEFERCLEAR_EXT
+#ifdef _M_AMD64
+#	define M_DONTDEFERCLEAR_EXT
 #endif
 
 template <class T>
@@ -28,7 +30,7 @@ public:
 	xalloc			(const xalloc<T>&) = default;
 	template<class _Other>							xalloc			(const xalloc<_Other>&)					{	}
 	template<class _Other>	xalloc<T>&				operator=		(const xalloc<_Other>&)					{	return (*this);	}
-							pointer					allocate		(size_type n, const void* p=0) const	{	return xr_alloc<T>((u32)n);	}
+							pointer					allocate		(size_type n, const void* p=nullptr) const	{	return xr_alloc<T>((u32)n);	}
 							char*					_charalloc		(size_type n)							{	return (char*)allocate(n); }
 							void					deallocate		(pointer p, size_type n) const			{	xr_free	(p);				}
 							void					deallocate		(void* p, size_type n) const			{	xr_free	(p);				}
@@ -68,21 +70,20 @@ namespace std
 template <typename T, typename allocator = xalloc<T> >
 using xr_vector = std::vector<T, allocator>;
 
-template <typename K, typename V>
-using xr_pair = std::pair<K, V>;
-
-template<typename... Args>
-using xr_tuple = std::tuple<Args...>;
+template <typename T>
+ICF T& fast_erase(xr_vector<T>& vec, typename xr_vector<T>::iterator it)
+{
+	T& moved = *it = std::move(vec.back());
+	vec.pop_back();
+	return moved;
+}
 
 template <typename T>
-void clear_and_reserve(xr_vector<T> &vector_object) {
-    if (vector_object.capacity() <= (vector_object.size() + vector_object.size() / 4)) {
-        vector_object.resize(0);
-    } else {
-        u32 old = (u32)vector_object.size();
-        vector_object.clear();
-        vector_object.reserve(old);
-    }
+ICF T& fast_erase(xr_vector<T>& vec, size_t idx)
+{
+	T& moved = vec[idx] = std::move(vec.back());
+	vec.pop_back();
+	return moved;
 }
 
 // deque
@@ -115,13 +116,29 @@ using xr_multimap = std::multimap<K, V, P, allocator>;
 template <typename K, class V, class _Traits = std::equal_to<K>, typename allocator = xalloc<std::pair<const K,V> > >	
 using xr_hash_map = std::unordered_map<K, V, std::hash<K>, _Traits, allocator>;
 
-template <typename K, class _Traits = std::equal_to<K>, typename allocator = xalloc<K> >
-using xr_hash_set = std::unordered_set<K, std::hash<K>, _Traits, allocator>;
+template <typename K, typename H = std::hash<K>, class _Traits = std::equal_to<K>, typename allocator = xalloc<K> >
+using xr_hash_set = std::unordered_set<K, H, _Traits, allocator>;
 
-using xr_string_view = std::string_view;
+//#if __cplusplus > 202002L
+//#include <scope>
+//using xr_scope_exit = std::scope_exit;
+//#else
+template<typename T>
+requires requires(T a) { {a()} -> std::convertible_to<void>; }
+struct xr_scope_exit
+{
+	T Func;
+	bool IsActive = true;
+	xr_scope_exit(T &&t) : Func(t) {}
+	~xr_scope_exit(){ if (IsActive) { Func(); }}
+	void release() { IsActive = false; }
 
-template<typename Type, size_t Size>
-using xr_array = std::array<Type, Size>;
+	xr_scope_exit(const xr_scope_exit&) = delete;
+	xr_scope_exit& operator=(const xr_scope_exit&) = delete;
+	xr_scope_exit(xr_scope_exit&&) noexcept = default;
+	xr_scope_exit& operator=(xr_scope_exit&&) noexcept = default;
+};
+//#endif
 
 struct pred_str {
 	IC bool operator()(const char* x, const char* y) const				{	return xr_strcmp(x,y)<0;	}
@@ -131,7 +148,7 @@ struct pred_stri {
 };
 
 // STL extensions
-#include "buffer_vector.h"
+#include "Containers/buffer_vector.h"
 
 // auxilary definition
 using FvectorVec = xr_vector<Fvector>;	 
@@ -140,7 +157,7 @@ using FvectorIt = FvectorVec::iterator;
 using LPSTRVec = xr_vector<LPSTR>;		 
 using LPSTRIt = LPSTRVec::iterator;
 
-using LPCSTRVec = xr_vector<LPCSTR>;	 
+using LPCSTRVec = xr_vector<const char*>;	 
 using LPCSTRIt = LPCSTRVec::iterator;
 
 using U16Vec = xr_vector<u16>;			 
@@ -155,10 +172,10 @@ using FloatIt = FloatVec::iterator;
 using IntVec = xr_vector<int>;			 
 using IntIt = IntVec::iterator;
 
-using BOOLVec = xr_vector<BOOL>;
+using BOOLVec = xr_vector<bool>;
 using BOOLIt = BOOLVec::iterator;
 
-using LPBOOLVec = xr_vector<BOOL*>;
+using LPBOOLVec = xr_vector<bool*>;
 using LPBOOLIt = LPBOOLVec::iterator;
 
 using FrectVec = xr_vector<Frect>;

@@ -47,7 +47,7 @@ st_BoneMotion* CSMotion::FindBoneMotion(shared_str name)
 {
     for (BoneMotionIt bm_it = bone_mots.begin(); bm_it != bone_mots.end(); bm_it++)
         if (bm_it->name.equal(name)) return &*bm_it;
-    return 0;
+    return nullptr;
 }
 
 void CSMotion::add_empty_motion(shared_str const& bone_id)
@@ -329,42 +329,4 @@ void CSMotion::SortBonesBySkeleton(BoneVec& bones)
     }
     bone_mots.clear();
     bone_mots = new_bone_mots;
-}
-
-
-void SAnimParams::Set(float start_frame, float end_frame, float fps)
-{
-    min_t = start_frame / fps;
-    max_t = end_frame / fps;
-}
-
-void SAnimParams::Set(CCustomMotion* M)
-{
-    Set((float)M->FrameStart(), (float)M->FrameEnd(), M->FPS());
-    t_current = min_t;
-    tmp = t_current;
-    //    bPlay=true;
-}
-void SAnimParams::Update(float dt, float speed, bool loop)
-{
-    if (!bPlay) return;
-    bWrapped = false;
-
-    t_current += speed * dt;
-    tmp = t_current;
-
-    if (t_current > max_t)
-    {
-        bWrapped = true;
-        if (loop)
-        {
-            float len = max_t - min_t;
-            float k = float(iFloor((t_current - min_t) / len));
-            t_current = t_current - k * len;
-        }
-        else
-            t_current = max_t;
-
-        tmp = t_current;
-    }
 }

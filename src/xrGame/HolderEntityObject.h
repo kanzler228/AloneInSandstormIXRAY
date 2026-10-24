@@ -28,9 +28,9 @@ public:
 							CHolderEntityObject		();
 	virtual					~CHolderEntityObject	();
 
-	virtual void			Load				(LPCSTR section);
+	virtual void			Load				(const char* section);
 
-	virtual BOOL			net_Spawn			(CSE_Abstract* DC);
+	virtual bool			net_Spawn			(CSE_Abstract* DC);
 	virtual void			net_Destroy			();
 	virtual void			net_Export			(NET_Packet& P);	// export to server
 	virtual void			net_Import			(NET_Packet& P);	// import from server
@@ -54,10 +54,14 @@ protected:
 public:
 	virtual bool			Use					(const Fvector& pos,const Fvector& dir,const Fvector& foot_pos) {return !Owner();};
 	virtual void			OnMouseMove			(int x, int y);
+	virtual void			OnGamepadAxisMove	(int id, Fvector2 value);
+	virtual void			OnGamepadKeyPress	(int id);
+	virtual void			OnGamepadKeyRelease	(int id);
 	virtual void			OnKeyboardPress		(int dik);
 	virtual void			OnKeyboardRelease	(int dik);
 	virtual void			OnKeyboardHold		(int dik);
-	virtual CInventory*		GetInventory		(){return NULL;};
+	virtual void			OnGyroscopeMove		(Fvector3 value);
+	virtual CInventory*		GetInventory		(){return nullptr;};
 	virtual void			cam_Update			(float dt, float fov=90.0f);
 
 	virtual void			renderable_Render	();

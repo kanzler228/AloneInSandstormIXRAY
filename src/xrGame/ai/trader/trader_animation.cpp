@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "trader_animation.h"
 #include "ai_trader.h"
@@ -38,29 +38,29 @@ void  CTraderAnimation::head_callback(CBlend* B)
 /////////////////////////////////////////////////////////////////////////////////////////
 // Animation management
 /////////////////////////////////////////////////////////////////////////////////////////
-void CTraderAnimation::set_animation(LPCSTR anim)
+void CTraderAnimation::set_animation(const char* anim)
 {
-	m_anim_global								= anim;
+	m_anim_global = anim;
 
-	IKinematicsAnimated	*kinematics_animated	= smart_cast<IKinematicsAnimated*>(m_trader->Visual());
-	m_motion_global								= kinematics_animated->ID_Cycle(m_anim_global);
-	kinematics_animated->PlayCycle				(m_motion_global,TRUE,global_callback,this);
+	IKinematicsAnimated* kinematics_animated = m_trader->Visual()->dcast_PKinematicsAnimated();
+	m_motion_global = kinematics_animated->ID_Cycle(m_anim_global);
+	kinematics_animated->PlayCycle(m_motion_global, true, global_callback, this);
 }
 
-void CTraderAnimation::set_head_animation(LPCSTR anim)
+void CTraderAnimation::set_head_animation(const char* anim)
 {
 	m_anim_head = anim;
 
 	// назначить анимацию головы
-	IKinematicsAnimated	*kinematics_animated	= smart_cast<IKinematicsAnimated*>(m_trader->Visual());
-	m_motion_head								= kinematics_animated->ID_Cycle(m_anim_head);
-	kinematics_animated->PlayCycle				(m_motion_head,TRUE,head_callback,this);	
+	IKinematicsAnimated* kinematics_animated = m_trader->Visual()->dcast_PKinematicsAnimated();
+	m_motion_head = kinematics_animated->ID_Cycle(m_anim_head);
+	kinematics_animated->PlayCycle(m_motion_head, true, head_callback, this);
 }
 
 //////////////////////////////////////////////////////////////////////////
 // Sound management
 //////////////////////////////////////////////////////////////////////////
-void CTraderAnimation::set_sound(LPCSTR sound, LPCSTR anim)
+void CTraderAnimation::set_sound(const char* sound, const char* anim)
 {
 	if (m_sound)		remove_sound();	
 	
@@ -75,7 +75,7 @@ void CTraderAnimation::remove_sound()
 {
 	VERIFY				(m_sound);
 	
-	if (m_sound->_feedback()) 
+	if (m_sound->is_playing())
 						m_sound->stop();
 	
 	m_sound->destroy	();
@@ -89,7 +89,7 @@ void CTraderAnimation::update_frame()
 {
 	if (m_sound)
 	{
-		if (m_sound->_feedback())
+		if (m_sound->is_playing())
 			m_sound->set_position(m_trader->Position());
 		else
 		{
@@ -104,7 +104,7 @@ void CTraderAnimation::update_frame()
 	}
 
 	// назначить анимацию головы
-	if (!m_motion_head && m_sound && m_sound->_feedback())
+	if (!m_motion_head && m_sound && m_sound->is_playing())
 	{
 		m_trader->callback(GameObject::eTraderHeadAnimationRequest)();
 	}
@@ -113,7 +113,7 @@ void CTraderAnimation::update_frame()
 //////////////////////////////////////////////////////////////////////////
 // External sound support 
 //////////////////////////////////////////////////////////////////////////
-void CTraderAnimation::external_sound_start(LPCSTR phrase)
+void CTraderAnimation::external_sound_start(const char* phrase)
 {
 	if (m_sound)			remove_sound();	
 	

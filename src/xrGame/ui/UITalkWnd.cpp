@@ -1,6 +1,5 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UITalkWnd.h"
-
 #include "UITalkDialogWnd.h"
 
 #include "../Actor.h"
@@ -23,7 +22,7 @@
 #include "ActorEffector.h"
 #include "GamePersistent.h"
 
-BOOL EnableTalkDof = true;
+bool EnableTalkDof = true;
 
 CUITalkWnd::CUITalkWnd()
 {
@@ -31,7 +30,6 @@ CUITalkWnd::CUITalkWnd()
 
 	m_pOurInvOwner			= nullptr;
 	m_pOthersInvOwner		= nullptr;
-
 	m_pOurDialogManager		= nullptr;
 	m_pOthersDialogManager	= nullptr;
 
@@ -47,6 +45,11 @@ CUITalkWnd::CUITalkWnd()
 	InitTalkWnd				();
 	m_bNeedToUpdateQuestions = false;
 	b_disable_break			= false;
+	
+	ActionRepeaters()->Register(this, kUI_UP);
+	ActionRepeaters()->Register(this, kUI_DOWN);
+	ActionRepeaters()->Register(this, kUI_SECONDARY_UP, 1, 50);
+	ActionRepeaters()->Register(this, kUI_SECONDARY_DOWN, 1, 50);
 }
 
 CUITalkWnd::~CUITalkWnd()
@@ -79,12 +82,31 @@ void CUITalkWnd::InitTalkDialog()
 	m_pOthersDialogManager = m_pOthersInvOwner->cast_phrase_dialog_manager();
 
 	//имена собеседников
-	UITalkDialogWnd->UICharacterInfoLeft.InitCharacter(m_pOurInvOwner);
-	UITalkDialogWnd->UICharacterInfoRight.InitCharacter(m_pOthersInvOwner);
+	if (UITalkDialogWnd->UIDialogFrameTop)
+		UITalkDialogWnd->UIDialogFrameTop->SetTextIfNodeExist(m_pOthersInvOwner->Name());
+	else if (UITalkDialogWnd->UIDialogFrame)
+		UITalkDialogWnd->UIDialogFrame->UITitleText.SetTextIfNodeExist(m_pOthersInvOwner->Name());
 
+	if (UITalkDialogWnd->UIDialogFrameBottom)
+		UITalkDialogWnd->UIDialogFrameBottom->SetTextIfNodeExist(m_pOurInvOwner->Name());
+	else if (UITalkDialogWnd->UIOurPhrasesFrame)
+		UITalkDialogWnd->UIOurPhrasesFrame->UITitleText.SetTextIfNodeExist(m_pOurInvOwner->Name());
+
+	UITalkDialogWnd->swapCharacterNames = !CurrentGameUI()->ActorMenu();
+	if (UITalkDialogWnd->swapCharacterNames)
+	{
+		UITalkDialogWnd->UICharacterInfoRight.InitCharacter(m_pOurInvOwner);
+		UITalkDialogWnd->UICharacterInfoLeft.InitCharacter(m_pOthersInvOwner);
+	}
+	else
+	{
+		UITalkDialogWnd->UICharacterInfoLeft.InitCharacter(m_pOurInvOwner);
+		UITalkDialogWnd->UICharacterInfoRight.InitCharacter(m_pOthersInvOwner);
+	}
 
 	//очистить лог сообщений
 	UITalkDialogWnd->ClearAll();
+	UITalkDialogWnd->ResetQuestionSelection();
 
 	InitOthersStartDialog();
 	NeedUpdateQuestions();
@@ -105,7 +127,7 @@ void CUITalkWnd::InitOthersStartDialog()
 		m_pOthersDialogManager->InitDialog(m_pOurDialogManager, m_pCurrentDialog);
 		
 		//сказать фразу
-		AddAnswer(m_pCurrentDialog->GetPhraseText("0"), m_pOthersInvOwner->Name());
+		AddAnswer(m_pCurrentDialog->GetPhraseText("0"), m_pOthersInvOwner->NameReal());
 		m_pOthersDialogManager->SayPhrase(m_pCurrentDialog, "0");
 
 		//если диалог завершился, перейти в режим выбора темы
@@ -244,7 +266,13 @@ void CUITalkWnd::Update()
 	if (m_bNeedToUpdateQuestions)
 	{
 		UpdateQuestions();
+
+		if (!UITalkDialogWnd->m_ClickedQuestionID.size() || !UITalkDialogWnd->HasQuestionWithID(UITalkDialogWnd->m_ClickedQuestionID))
+			UITalkDialogWnd->SetFirstQuestionSelected();
+
+		UITalkDialogWnd->ScrollSelectionIntoView();
 	}
+	UITalkDialogWnd->UpdateQuestionSelection();
 
 	inherited::Update();
 	UpdateCameraDirection(m_pOthersInvOwner->cast_game_object(), m_pOthersInvOwner->GetFocusingOnNpc());
@@ -269,6 +297,7 @@ void CUITalkWnd::Show(bool status)
 	inherited::Show					(status);
 	if(status)
 	{
+		ActionRepeaters()->ResetAll(nullptr);
 		InitTalkDialog				();
 
 		if (m_pOthersInvOwner->GetFocusingOnNpc())
@@ -330,7 +359,7 @@ void CUITalkWnd::AskQuestion()
 
 			string128	s;
 			xr_sprintf		(s,"ID = [%s] of selected question is out of range of available dialogs ",UITalkDialogWnd->m_ClickedQuestionID.c_str());
-			VERIFY2(FALSE, s);
+			VERIFY2(false, s);
 		}
 
 		m_pCurrentDialog = m_pOurDialogManager->GetDialogByID( UITalkDialogWnd->m_ClickedQuestionID);
@@ -349,8 +378,7 @@ void CUITalkWnd::AskQuestion()
 
 void CUITalkWnd::SayPhrase(const shared_str& phrase_id)
 {
-
-	AddAnswer(m_pCurrentDialog->GetPhraseText(phrase_id), m_pOurInvOwner->Name());
+	AddAnswer(m_pCurrentDialog->GetPhraseText(phrase_id), m_pOurInvOwner->NameReal());
 	m_pOurDialogManager->SayPhrase(m_pCurrentDialog, phrase_id);
 	//если диалог завершился, перейти в режим выбора темы
 	if(m_pCurrentDialog->IsFinished()) ToTopicMode();
@@ -361,10 +389,10 @@ void CUITalkWnd::AddQuestion(const shared_str& text, const shared_str& value, in
 	if(text.size() == 0)
 		return;
 
-	UITalkDialogWnd->AddQuestion(g_pStringTable->translate(text).c_str(), value.c_str(), number, phInfo);
+	UITalkDialogWnd->AddQuestion(text.c_str(), value.c_str(), number, phInfo);
 }
 
-void CUITalkWnd::AddAnswer(const shared_str& text, LPCSTR SpeakerName)
+void CUITalkWnd::AddAnswer(const shared_str& text, const char* SpeakerName)
 {
 	//для пустой фразы вообще ничего не выводим
 	if(text.size() == 0)
@@ -373,8 +401,8 @@ void CUITalkWnd::AddAnswer(const shared_str& text, LPCSTR SpeakerName)
 	}
 	PlaySnd			(text.c_str());
 
-	bool i_am = (0 == xr_strcmp(SpeakerName, m_pOurInvOwner->Name()));
-	UITalkDialogWnd->AddAnswer(SpeakerName,*g_pStringTable->translate(text),i_am);
+	bool i_am = (0 == xr_strcmp(SpeakerName, m_pOurInvOwner->NameReal()));
+	UITalkDialogWnd->AddAnswer(SpeakerName, text.c_str(), i_am);
 }
 
 void CUITalkWnd::SwitchToTrade()
@@ -382,10 +410,7 @@ void CUITalkWnd::SwitchToTrade()
 	if ( m_pOurInvOwner->IsTradeEnabled() && m_pOthersInvOwner->IsTradeEnabled() )
 	{
 		UITalkDialogWnd->Hide();
-		if (CurrentGameUI())
-		{
-			CurrentGameUI()->StartTrade	(m_pOurInvOwner, m_pOthersInvOwner);
-		}
+		CurrentGameUI()->StartTrade	(m_pOurInvOwner, m_pOthersInvOwner);
 		StopSnd();
 	}
 }
@@ -428,7 +453,111 @@ bool CUITalkWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 	return inherited::OnKeyboardAction(dik,keyboard_action);
 }
 
-void CUITalkWnd::PlaySnd(LPCSTR text)
+bool CUITalkWnd::OnGamepadKeyAction(int id, EUIMessages gamepad_action)
+{
+	if (gamepad_action==WINDOW_KEY_PRESSED)
+	{
+		switch (get_binded_action(id, agUIGeneral))
+		{
+			case kUI_BACK:
+			{
+				if (!b_disable_break)
+				{
+					HideDialog();
+					return true;
+				}
+				else
+				{
+					// Exiting without picking a question is disabled
+					// So we need to pick a question with finalizer mark (if there is one) and select it
+					// In kbd mode this question(btn) has an accelerator key (ESC) tied to it
+					return UITalkDialogWnd->TryClickFinalizerQuestion();
+				}
+			}
+			case kUI_ACTION_2:
+			{
+				if (UITalkDialogWnd->mechanic_mode)
+					SwitchToUpgrade();
+				else
+					SwitchToTrade();
+				return true;
+			}
+			case kUI_UP:
+			{
+				if (!any_binded_key_for_action_pressed_c(kUI_DOWN))
+					UITalkDialogWnd->OffsetQuestionSelection(false, true);
+				ActionRepeaters()->SetActionStarted(this, kUI_UP);
+				return true;
+			}
+			case kUI_DOWN:
+			{
+				if (!any_binded_key_for_action_pressed_c(kUI_UP))
+					UITalkDialogWnd->OffsetQuestionSelection(true, true);
+				ActionRepeaters()->SetActionStarted(this, kUI_DOWN);
+				return true;
+			}
+			case kUI_SECONDARY_DOWN:
+			{
+				ActionRepeaters()->SetActionStarted(this, kUI_SECONDARY_DOWN);
+				return true;
+			}
+			case kUI_SECONDARY_UP:
+			{
+				ActionRepeaters()->SetActionStarted(this, kUI_SECONDARY_UP);
+				return true;
+			}
+			case kUI_ACCEPT:
+			{
+				VERIFY(UITalkDialogWnd->m_ClickedQuestionID != "");
+				if (UITalkDialogWnd->m_ClickedQuestionID != "")
+				{
+					SendMessage(UITalkDialogWnd, TALK_DIALOG_QUESTION_CLICKED);
+				}
+				return true;
+			}
+		}
+	}
+
+	return inherited::OnGamepadKeyAction(id,gamepad_action);
+}
+
+bool CUITalkWnd::OnGamepadKeyHold(int id)
+{
+	if (!IR_process()) 
+		return false;
+
+	switch (get_binded_action(id, agUIGeneral))
+	{
+		case kUI_SECONDARY_UP: 
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_SECONDARY_UP) && !any_binded_key_for_action_pressed_c(kUI_SECONDARY_DOWN))
+				UITalkDialogWnd->ScrollLogUp();
+			return true;
+		}
+		case kUI_SECONDARY_DOWN:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_SECONDARY_DOWN) && !any_binded_key_for_action_pressed_c(kUI_SECONDARY_UP))
+				UITalkDialogWnd->ScrollLogDown();
+			return true;
+		}
+		case kUI_UP:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_UP) && !any_binded_key_for_action_pressed_c(kUI_DOWN))
+				UITalkDialogWnd->OffsetQuestionSelection(false, false);
+			return true;
+		}
+		case kUI_DOWN:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_DOWN) && !any_binded_key_for_action_pressed_c(kUI_UP))
+				UITalkDialogWnd->OffsetQuestionSelection(true, false);
+			return true;
+		}
+	}
+
+	return inherited::OnGamepadKeyHold(id);
+}
+
+void CUITalkWnd::PlaySnd(const char* text)
 {
 	u32 text_len = xr_strlen(text);
 	
@@ -441,8 +570,8 @@ void CUITalkWnd::PlaySnd(LPCSTR text)
 	
 	string_path	fn;
 	
-	LPCSTR path = "characters_voice\\dialogs\\";
-	LPCSTR ext  = ".ogg";
+	const char* path = "characters_voice\\dialogs\\";
+	const char* ext  = ".ogg";
 	u32 tsize   = sizeof(fn) - xr_strlen(path) - xr_strlen(ext) - 1;
 	if ( text_len > tsize )
 	{
@@ -450,13 +579,13 @@ void CUITalkWnd::PlaySnd(LPCSTR text)
 	}
 
 	strncpy_s( fn, sizeof(fn), path, xr_strlen(path) );
-	strncat_s( fn, sizeof(fn), text, text_len );
-	strncat_s( fn, sizeof(fn), ext,  xr_strlen(ext) );
+	strncat(fn, text, text_len);
+	strncat(fn, ext, xr_strlen(ext));
 
 	//	strconcat( sizeof(fn), fn, "characters_voice\\dialogs\\", text2, ".ogg" );
 
 	StopSnd();
-	if (FS.exist("$game_sounds$", fn))
+	if (FS.exist(_game_sounds_, fn))
 	{
 		VERIFY(m_pActor);
 		if (!m_pActor->OnDialogSoundHandlerStart(m_pOthersInvOwner, fn))
@@ -474,18 +603,28 @@ void CUITalkWnd::StopSnd()
 {
 	if (m_pActor && m_pActor->OnDialogSoundHandlerStop(m_pOthersInvOwner)) return;
 
-	if(m_sound._feedback()) 
+	if(m_sound.is_playing()) 
 		m_sound.stop	();
 }
 
-void CUITalkWnd::AddIconedMessage(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name)
+void CUITalkWnd::AddIconedMessage(const char* caption, const char* text, const char* texture_name, const char* templ_name)
 {
 	UITalkDialogWnd->AddIconedAnswer(caption, text, texture_name, templ_name);
+}
+
+void CUITalkWnd::AddIconedMessage(const char* text, const char* texture_name, Frect texture_rect, const char* templ_name)
+{
+	UITalkDialogWnd->AddIconedAnswer(text, texture_name, texture_rect, templ_name);
 }
 
 void CUITalkWnd::StopTalk()
 {
 	HideDialog();
+}
+
+bool CUITalkWnd::IsActiveTalkUi()
+{
+	return IsShown();
 }
 
 void CUITalkWnd::Stop()

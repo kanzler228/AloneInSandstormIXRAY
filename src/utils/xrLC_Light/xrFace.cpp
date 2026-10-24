@@ -1,7 +1,6 @@
 #include "stdafx.h"
 
 #include "xrFace.h"
-//#include "build.h"
 #include "xrDeflector.h"
 #include "xrLC_GlobalData.h"
 #include "Lightmap.h"
@@ -35,8 +34,6 @@ void base_Face::CacheOpacity()
 	}
 }
 
-static bool do_not_add_to_vector_in_global_data = false;
-
 bool g_bUnregister = true;
 
 void destroy_vertex( Vertex* &v, bool unregister )
@@ -55,16 +52,12 @@ void destroy_face( Face* &v, bool unregister )
 	g_bUnregister = tmp_unregister;
 }
 
-
+template<>
 Tvertex<DataVertex>::Tvertex()
 {
  	R_ASSERT( inlc_global_data() );
 	if( inlc_global_data()->vert_construct_register() )
-	{	
- 		inlc_global_data()->g_vertices().push_back(this);
-	}
-	
-	// m_adjacents.reserve	(4);
+	  	inlc_global_data()->g_vertices().push_back(this);
 }
 
 template<>
@@ -81,8 +74,12 @@ Tvertex<DataVertex>::~Tvertex()
 		}
 		else clMsg("* ERROR: Unregistered VERTEX destroyed");
 	}
+
+	m_adjacents.clear();
+	m_adjacents.shrink_to_fit();
 }
 
+template<>
 Vertex*	Vertex::CreateCopy_NOADJ( vecVertex& vertises_storage ) const
 {
 	R_ASSERT( &vertises_storage == &inlc_global_data()->g_vertices() );
@@ -100,10 +97,8 @@ Tface<DataVertex>::Tface()
 {
  	pDeflector				= 0;
 	flags.bSplitted			= false;
- 	if( !do_not_add_to_vector_in_global_data )
-	{
- 		inlc_global_data()->g_faces().push_back		(this);
-	}
+ 	inlc_global_data()->g_faces().push_back		(this);
+
 	sm_group				= u32(-1);
 	lmap_layer				= NULL;
 }
@@ -119,15 +114,14 @@ Tface<DataVertex>::~Tface()
 			vecFace& faces = inlc_global_data()->g_faces();
 			std::swap( *F, *( faces.end()-1 ) );
 			faces.pop_back();
-			//faces.erase(F);
-		}
+ 		}
 		else clMsg("* ERROR: Unregistered FACE destroyed");
 	}
+
 	// Remove 'this' from adjacency info in vertices
 	for (int i=0; i<3; ++i)
 		v[i]->prep_remove(this);
-
-	lmap_layer				= NULL;
+ 	lmap_layer				= NULL;
 }
  
 template<>
@@ -135,23 +129,13 @@ void Face::	Failure		()
 {
 	dwInvalidFaces			++;
 
-	// clMsg		("* ERROR: Invalid face. (A=%f,e0=%f,e1=%f,e2=%f)",
-	// 	CalcArea(),
-	// 	v[0]->P.distance_to(v[1]->P),
-	// 	v[0]->P.distance_to(v[2]->P),
-	// 	v[1]->P.distance_to(v[2]->P)
-	// 	);
-	// clMsg		("*        v0[%f,%f,%f], v1[%f,%f,%f], v2[%f,%f,%f]",
-	// 	VPUSH(v[0]->P),
-	// 	VPUSH(v[1]->P),
-	// 	VPUSH(v[2]->P)
-	// 	);
 	inlc_global_data()->err_invalid().w_fvector3	(v[0]->P);
 	inlc_global_data()->err_invalid().w_fvector3	(v[1]->P);
 	inlc_global_data()->err_invalid().w_fvector3	(v[2]->P);
 }
 
-void	Face::Verify		()
+template<>
+void Face::Verify()
 {
 	// 1st :: area
 	float	_a	= CalcArea();
@@ -177,6 +161,7 @@ void start_unwarp_recursion()
 	affected				= 1;
 }
 
+template<>
 void Face::OA_Unwarp( CDeflector *D, xr_vector<type_face*>& faces)
 { 
 	// range: no recursive method realisation
@@ -189,11 +174,9 @@ void Face::OA_Unwarp( CDeflector *D, xr_vector<type_face*>& faces)
 		{
 			for (auto it : f->v[i]->m_adjacents)
 			{
-				if (it->pDeflector)
-					continue;
+				if (it->pDeflector) continue;
 				
-				if (!D->OA_Place(it))
-					continue;
+				if (!D->OA_Place(it)) continue;
 
 				affected++;
 				st.push(it);
@@ -210,11 +193,11 @@ void Face::OA_Unwarp( CDeflector *D, xr_vector<type_face*>& faces)
 	}
 }
 
-BOOL DataFace::RenderEqualTo(Face *F)
+bool DataFace::RenderEqualTo(Face *F)
 {
 	if (F->dwMaterial	!= dwMaterial		)	
-		return FALSE;
- 	return TRUE;
+		return false;
+ 	return true;
 }
 
 void DataFace::AddChannel(Fvector2 &p1, Fvector2 &p2, Fvector2 &p3) 
@@ -224,13 +207,32 @@ void DataFace::AddChannel(Fvector2 &p1, Fvector2 &p2, Fvector2 &p3)
 	tc.push_back(TC);
 }
 
-BOOL DataFace::hasImplicitLighting()
+bool DataFace::hasImplicitLighting()
 {
-	if (0==this)								return FALSE;
-	if (!Shader().flags.bRendering)				return FALSE;
+	if (0==this)								return false;
+	if (!Shader().flags.bRendering)				return false;
 	VERIFY( inlc_global_data() );
 	b_material& M		= inlc_global_data()->materials()		[dwMaterial];
 	b_BuildTexture&	T	= inlc_global_data()->textures()		[M.surfidx];
 	return (T.THM.flags.test(STextureParams::flImplicitLighted));
 }
 
+void GetBarycentric(Face* F, Fvector& wP, Fvector& wN, Fvector& B)
+{
+	Vertex * V1 = F->v[0];
+	Vertex* V2 = F->v[1];
+	Vertex* V3 = F->v[2];
+	wP.from_bary(V1->P, V2->P, V3->P, B);
+	wN.from_bary(V1->N, V2->N, V3->N, B);
+	wN.normalize();
+};
+
+void GetBarycentricNormalized(Face* F, Fvector& wP, Fvector& wN, Fvector& B)
+{
+	Vertex* V1 = F->v[0];
+	Vertex* V2 = F->v[1];
+	Vertex* V3 = F->v[2];
+	wP.from_bary(V1->P, V2->P, V3->P, B);
+	wN.from_bary(V1->N, V2->N, V3->N, B);   exact_normalize(wN);
+	wN.add(F->N);							exact_normalize(wN);
+};

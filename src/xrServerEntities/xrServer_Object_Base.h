@@ -24,6 +24,7 @@ class CSE_ALifeObject;
 class CSE_ALifeDynamicObject;
 class CSE_ALifeItemAmmo;
 class CSE_ALifeItemWeapon;
+class CSE_ALifeItemWeaponMagazinedWGL;
 class CSE_ALifeItemDetector;
 class CSE_ALifeMonsterAbstract;
 class CSE_ALifeHumanAbstract;
@@ -38,7 +39,7 @@ class CSE_ALifeItemPDA;
 #pragma warning(disable:4005)
 
 SERVER_ENTITY_DECLARE_BEGIN(CPureServerObject,IPureServerObject)
-	virtual							~CPureServerObject(){}
+	virtual							~CPureServerObject() = default;
 	virtual void					load(IReader	&tFileStream);
 	virtual void					save(IWriter	&tMemoryStream);
 	virtual void					load(NET_Packet	&tNetPacket);
@@ -60,8 +61,8 @@ private:
 	LPSTR							s_name_replace;
 
 public:
-	BOOL							net_Ready;
-	BOOL							net_Processed;	// Internal flag for connectivity-graph
+	bool							net_Ready;
+	bool							net_Processed;	// Internal flag for connectivity-graph
 	
 	u16								m_wVersion;
 	u16								m_script_version;
@@ -102,12 +103,12 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////
 	
-									CSE_Abstract			(LPCSTR caSection);
+									CSE_Abstract			(const char* caSection);
 	virtual							~CSE_Abstract			();
 	virtual void					OnEvent					(NET_Packet &tNetPacket, u16 type, u32 time, ClientID sender ){};
 #if !defined(XRGAME_EXPORTS)
-	virtual void					FillProps				(LPCSTR pref, PropItemVec &items);
-	virtual void					FillProp				(LPCSTR pref, PropItemVec &items);
+	virtual void					FillProps				(const char* pref, PropItemVec &items);
+	virtual void					FillProp				(const char* pref, PropItemVec &items);
 #if !defined(AI_COMPILER)
 	virtual void 			on_render				(CDUInterface* du, ISE_AbstractLEOwner* owner_, bool bSelected, const Fmatrix& parent,int priority, bool strictB2F){} 
 	virtual	visual_data*	visual_collection		() const { return 0; }
@@ -115,17 +116,17 @@ public:
 	virtual	void			set_additional_info		(void* info) {};
 #endif
 #endif
-	virtual BOOL					Net_Relevant			(){return FALSE;}; // !!!! WARNING!!!
+	virtual bool					Net_Relevant			(){return false;}; // !!!! WARNING!!!
 	//
-	virtual void			Spawn_Write				(NET_Packet &tNetPacket, BOOL bLocal);
-	virtual BOOL			Spawn_Read				(NET_Packet &tNetPacket);
-	virtual LPCSTR			name					() const override;
-	virtual LPCSTR			name_replace			() const override;
-	virtual void			set_name				(LPCSTR s) override
+	virtual void			Spawn_Write				(NET_Packet &tNetPacket, bool bLocal);
+	virtual bool			Spawn_Read				(NET_Packet &tNetPacket);
+	virtual const char*			name					() const override;
+	virtual const char*			name_replace			() const override;
+	virtual void			set_name				(const char* s) override
 	{
 		s_name		= s;
 	};
-	virtual void			set_name_replace		(LPCSTR s) override {xr_free(s_name_replace); s_name_replace = xr_strdup(s);};
+	virtual void			set_name_replace		(const char* s) override {xr_free(s_name_replace); s_name_replace = xr_strdup(s);};
 	virtual Fvector&		position				();
 	virtual Fvector&		angle					();
 	virtual Flags16&		flags					();
@@ -146,25 +147,26 @@ public:
 			CInifile				&spawn_ini				();
 
 // for smart cast
-	virtual CSE_ALifeGroupAbstract		*cast_group_abstract		() {return 0;};
-	virtual CSE_ALifeSchedulable		*cast_schedulable			() {return 0;};
-	virtual CSE_ALifeInventoryItem		*cast_inventory_item		() {return 0;};
-	virtual CSE_ALifeTraderAbstract		*cast_trader_abstract		() {return 0;};
+	virtual CSE_ALifeGroupAbstract		*cast_group_abstract		() {return nullptr;}
+	virtual CSE_ALifeSchedulable		*cast_schedulable			() {return nullptr;}
+	virtual CSE_ALifeInventoryItem		*cast_inventory_item		() {return nullptr;}
+	virtual CSE_ALifeTraderAbstract		*cast_trader_abstract		() {return nullptr;}
 
-	virtual CSE_ALifeObject				*cast_alife_object			() {return 0;}
-	virtual CSE_ALifeDynamicObject		*cast_alife_dynamic_object	() {return 0;}
-	virtual CSE_ALifeItemAmmo			*cast_item_ammo				() {return 0;}
-	virtual CSE_ALifeItemWeapon			*cast_item_weapon			() {return 0;}
-	virtual CSE_ALifeItemDetector		*cast_item_detector			() {return 0;}
-	virtual CSE_ALifeMonsterAbstract	*cast_monster_abstract		() {return 0;};
-	virtual CSE_ALifeHumanAbstract		*cast_human_abstract		() {return 0;};
-	virtual CSE_ALifeAnomalousZone		*cast_anomalous_zone		() {return 0;};
-	virtual CSE_ALifeTrader				*cast_trader				() {return 0;};
+	virtual CSE_ALifeObject				*cast_alife_object			() {return nullptr;}
+	virtual CSE_ALifeDynamicObject		*cast_alife_dynamic_object	() {return nullptr;}
+	virtual CSE_ALifeItemAmmo			*cast_item_ammo				() {return nullptr;}
+	virtual CSE_ALifeItemWeapon			*cast_item_weapon			() {return nullptr;}
+	virtual CSE_ALifeItemWeaponMagazinedWGL	*cast_item_weapon_magazined_wgl	() {return nullptr;}
+	virtual CSE_ALifeItemDetector		*cast_item_detector			() {return nullptr;}
+	virtual CSE_ALifeMonsterAbstract	*cast_monster_abstract		() {return nullptr;}
+	virtual CSE_ALifeHumanAbstract		*cast_human_abstract		() {return nullptr;}
+	virtual CSE_ALifeAnomalousZone		*cast_anomalous_zone		() {return nullptr;}
+	virtual CSE_ALifeTrader				*cast_trader				() {return nullptr;}
 
-	virtual CSE_ALifeCreatureAbstract	*cast_creature_abstract		() {return 0;};
-	virtual CSE_ALifeSmartZone			*cast_smart_zone			() {return 0;};
-	virtual CSE_ALifeOnlineOfflineGroup	*cast_online_offline_group	() {return 0;};
-	virtual CSE_ALifeItemPDA			*cast_item_pda				() {return 0;};
+	virtual CSE_ALifeCreatureAbstract	*cast_creature_abstract		() {return nullptr;}
+	virtual CSE_ALifeSmartZone			*cast_smart_zone			() {return nullptr;}
+	virtual CSE_ALifeOnlineOfflineGroup	*cast_online_offline_group	() {return nullptr;}
+	virtual CSE_ALifeItemPDA			*cast_item_pda				() {return nullptr;}
 
 	// For new sync system
 	virtual void SyncRead(NET_Packet& Packet)  {};

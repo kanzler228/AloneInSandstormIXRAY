@@ -1,6 +1,6 @@
 #pragma once
 #include "UIWindow.h"
-
+#include "UIStatic.h"
 
 class UI_API CUIFrameWindow: public CUIWindow,
 					  public ITextureOwner
@@ -16,8 +16,8 @@ public:
 	virtual void	SetTextureColor				(u32 color)										{m_texture_color = color;}
 	virtual u32		GetTextureColor				()										const	{return m_texture_color;}
 
-	virtual bool	InitTexture					(LPCSTR texture, bool fatal = true);
-	virtual bool	InitTextureEx				(LPCSTR texture, LPCSTR  shader, bool fatal = true);
+	virtual bool	InitTexture					(const char* texture, bool fatal = true);
+	virtual bool	InitTextureEx				(const char* texture, const char*  shader, bool fatal = true);
 
 	virtual void	SetStretchTexture			(bool stretch)	{}
 	virtual bool	GetStretchTexture			()				{return false;};	
@@ -27,6 +27,9 @@ public:
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual ITextureOwner* ui_cast_texture_owner() { return this; }
 
+	//текст заголовка
+	CUIStatic*		UITitleText;
+	CUIStatic*		GetTitleStatic				()										{return UITitleText;};
 protected:
 	bool			m_bTextureVisible;
 

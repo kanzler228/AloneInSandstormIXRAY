@@ -46,8 +46,10 @@ function on_game_start()
 	RegisterScriptCallback("npc_on_item_take",npc_on_item_take)
 	RegisterScriptCallback("actor_on_item_drop",actor_on_item_drop)
 	RegisterScriptCallback("actor_on_item_take",actor_on_item_take)
-	RegisterScriptCallback("save_state",save_state)
-	RegisterScriptCallback("load_state",load_state)
+    if (USE_MARSHAL) then
+	    RegisterScriptCallback("save_state",save_state)
+	    RegisterScriptCallback("load_state",load_state)
+    end
 	RegisterScriptCallback("on_game_load",on_game_load)
 end
 
@@ -55,8 +57,7 @@ end
 --
 -----------------------------------------------------------
 function clear()
-
-	if (axr_main.config:r_value("mm_options","enable_release_dropped_items",1,false)) then
+	if GetRegistryValue("coc_core", "coc_release_dropped_items", true) then
 		local sim = alife()
 		for id,t in pairs(items_marked_for_removal) do 
 			local se_obj = sim:object(id)

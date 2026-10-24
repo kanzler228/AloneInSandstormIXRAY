@@ -25,8 +25,8 @@ source_group("callback" FILES ${XRPS_CALLBACK})
 source_group("plugins" FILES ${XRPS_PLUG_PLUG})
 source_group("plugins/socket" FILES ${XRPS_PLUG_SOCKET})
 source_group("plugins/panda" FILES ${XRPS_PLUG_PANDA})
-source_group("plugins/marshal" FILES ${XRPS_PLUG_LFS})
-source_group("plugins/lfs" FILES ${XRPS_PLUG_MARSHAL})
+source_group("plugins/marshal" FILES ${XRPS_PLUG_MARSHAL})
+source_group("plugins/lfs" FILES ${XRPS_PLUG_LFS})
 source_group("plugins/xml" FILES ${XRPS_PLUG_XML})
 source_group("plugins/utf8" FILES ${XRPS_PLUG_UTF8})
 
@@ -47,6 +47,7 @@ set_target_properties(xrScripts PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
 # Include directories
 target_include_directories(xrScripts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(xrScripts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../xrCore/")
 target_include_directories(xrScripts PUBLIC "${IXRAY_SDK_INC}")
 
 # Project defines
@@ -56,10 +57,13 @@ target_compile_definitions(xrScripts PRIVATE _USRDLL)
 
 # Linker list
 target_link_libraries(xrScripts PUBLIC xrCore)
-target_link_libraries(xrScripts PUBLIC xrAbstractions)
-target_link_libraries(xrScripts PRIVATE "ws2_32.lib")
+target_link_libraries(xrScripts PUBLIC xrEngineCore)
+
+if (WIN32)
+    target_link_libraries(xrScripts PRIVATE WindowsSDK::WS2_32)
 
 ## LuaJIT
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LUAJIT_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/${LUAJIT_NAME}
-)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LUAJIT_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/${LUAJIT_NAME}
+    )
+endif()

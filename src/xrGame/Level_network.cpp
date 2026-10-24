@@ -24,6 +24,12 @@
 #include "holder_custom.h"
 
 #include "../xrPhysics/PhysicsCommon.h"
+
+// lua to cpp
+#include "ScriptsSubsystems/Condlist/script_xr_conditions.h"
+#include "ScriptsSubsystems/Condlist/script_xr_effects.h"
+#include "ScriptsSubsystems/Condlist/script_xr_logic.h"
+
 ENGINE_API bool g_dedicated_server;
 
 const int max_objects_size			= 2*1024;
@@ -35,7 +41,7 @@ void CLevel::remove_objects	()
 {
 	PROF_EVENT("remove_objects");
 	if (!IsGameTypeSingle()) Msg("CLevel::remove_objects - Start");
-	BOOL						b_stored = psDeviceFlags.test(rsDisableObjectsAsCrows);
+	bool						b_stored = psDeviceFlags.test(rsDisableObjectsAsCrows);
 	
 	int loop = 5;
 	while(loop)
@@ -52,11 +58,11 @@ void CLevel::remove_objects	()
 		for (int i=0; i<20; ++i) 
 		{
 			snd_Events.clear		();
-			psNET_Flags.set			(NETFLAG_MINIMIZEUPDATES,FALSE);
+			psNET_Flags.set			(NETFLAG_MINIMIZEUPDATES,false);
 			// ugly hack for checks that update is twice on frame
 			// we need it since we do updates for checking network messages
 			++(Device.dwFrame);
-			psDeviceFlags.set		(rsDisableObjectsAsCrows,TRUE);
+			psDeviceFlags.set		(rsDisableObjectsAsCrows,true);
 			ClientReceive			();
 			ProcessGameEvents		();
 			Objects.Update			(false);
@@ -90,7 +96,7 @@ void CLevel::remove_objects	()
 	stalker_animation_data_storage().clear		();
 	
 	VERIFY										(Render);
-	Render->models_Clear						(FALSE);
+	Render->models_Clear						(false);
 	
 	Render->clear_static_wallmarks				();
 
@@ -128,24 +134,24 @@ void CLevel::net_Stop()
 	if(CurrentGameUI())
 	{
 		CurrentGameUI()->HideShownDialogs();
-		CurrentGameUI()->PdaMenu().Reset();
+		CurrentGameUI()->PdaMenu()->Reset();
 	}
 
 	if(g_tutorial && !g_tutorial->Persistent())
 		g_tutorial->Stop();
 
-	if(g_tutorial2 && !g_tutorial->Persistent())
+	if(g_tutorial2 && !g_tutorial2->Persistent())
 		g_tutorial2->Stop();
 
 	bReady						= false;
-	m_bGameConfigStarted		= FALSE;
+	m_bGameConfigStarted		= false;
 
 	if (m_file_transfer)
 		xr_delete(m_file_transfer);
 
 	if (IsDemoPlay() && m_current_spectator)	//destroying demo spectator ...
 	{
-		m_current_spectator->setDestroy	(TRUE);
+		m_current_spectator->setDestroy	(true);
 		SetControlEntity(nullptr); //m_current_spectator == CurrentControlEntity()
 		m_current_spectator = nullptr;
 		
@@ -156,7 +162,7 @@ void CLevel::net_Stop()
 	remove_objects				();
 	
 	//WARNING ! remove_objects() uses this flag, so position of this line must e here ..
-	game_configured				= FALSE;
+	game_configured				= false;
 	
 	IGame_Level::net_Stop		();
 	IPureClient::Disconnect		();
@@ -168,6 +174,24 @@ void CLevel::net_Stop()
 	}
 
 	ai().script_engine().collect_all_garbage();
+
+	#if defined(IXRAY_USE_LUA_AND_CPP_IMPLEMENTATION) || \
+	defined(IXRAY_USE_CPP_ONLY_IMPLEMENTATION)
+	if (m_pScriptXRCondition)
+	{
+		m_pScriptXRCondition->destroy();
+	}
+
+	if (m_pScriptXREffects)
+	{
+		m_pScriptXREffects->destroy();
+	}
+
+	if (m_pScriptXRParser)
+	{
+		m_pScriptXRParser->destroy();
+	}
+	#endif
 
 #ifdef DEBUG
 	show_animation_stats		();
@@ -192,7 +216,7 @@ void CLevel::ClientSend()
 		{
 			CObject* pObj = CurrentControlEntity();
 
-			if (CActor* act = smart_cast<CActor*>(pObj))
+			if (CActor* act = pObj != nullptr ? pObj->cast_actor() : nullptr)
 			{
 				if (act->Holder() != nullptr)
 				{
@@ -215,7 +239,7 @@ void CLevel::ClientSend()
 				if (P.B.count>9)				
 				{
 					if (!OnServer())
-						Send	(P, net_flags(FALSE));
+						Send	(P, net_flags(false));
 				}				
 			}			
 		}		
@@ -239,7 +263,7 @@ void CLevel::ClientSend()
 		if (P.B.count>2)
 		{
 			Device.Statistic->TEST3.Begin();
-				Send	(P, net_flags(FALSE));
+				Send	(P, net_flags(false));
 			Device.Statistic->TEST3.End();
 		}else
 			break;
@@ -272,35 +296,36 @@ void CLevel::ClientSave()
 
 		if (Packet.B.count > 2)
 		{
-			Send(Packet, net_flags(FALSE));
+			Send(Packet, net_flags(false));
 		}
 	}
 }
 
-extern BOOL g_SV_Disable_Auth_Check;
+extern bool g_SV_Disable_Auth_Check;
 
 void CLevel::Send(NET_Packet& P, u32 dwFlags, u32 dwTimeout)
 {
 	if (IsDemoPlayStarted() || IsDemoPlayFinished()) return;
 	// optimize the case when server located in our memory
-	if(psNET_direct_connect){
-		ClientID	_clid;
-		_clid.set	(1);
-		Server->OnMessage		(P,	_clid );
-	}else
-	if (Server && game_configured && OnServer() )
-	{
-#ifdef DEBUG
-		VERIFY2(Server->IsPlayersMonitorLockedByMe() == false, "potential deadlock detected");
-#endif
-		Server->OnMessageSync	(P,Game().local_svdpnid	);
-	}else											
-		IPureClient::Send	(P,dwFlags,dwTimeout	);
 
-	if (g_pGameLevel && Level().game && !IsGameTypeSingle() && !g_SV_Disable_Auth_Check)		{
+	if (psNET_direct_connect)
+	{
+		ClientID	_clid;
+		_clid.set(1);
+		Server->OnMessage(P, _clid);
+	}
+	else if (Server && game_configured && OnServer())
+	{
+		Server->OnMessageSync(P, Game().local_svdpnid);
+	}
+	else
+	{
+		IPureClient::Send(P, dwFlags, dwTimeout);
+	}
+
+	if (g_pGameLevel && Level().game && !IsGameTypeSingle() && !g_SV_Disable_Auth_Check) {
 		// anti-cheat
-		phTimefactor		= 1.f					;
-		psDeviceFlags.set	(rsConstantFPS,FALSE)	;	
+		phTimefactor = 1.f;
 	}
 }
 
@@ -332,7 +357,7 @@ pureFrame*	g_pNetProcessor	= &NET_processor;
 
 const int ConnectionTimeOut = 60000; //1 min
 
-BOOL CLevel::Connect2Server(LPCSTR options)
+bool CLevel::Connect2Server(const char* options)
 {
 	NET_Packet					P;
 	m_bConnectResultReceived	= false	;
@@ -346,7 +371,7 @@ BOOL CLevel::Connect2Server(LPCSTR options)
 		FS.auth_generate		(tmp_ignore, tmp_check);
 	}
 
-	if (!Connect(options))		return	FALSE;
+	if (!Connect(options))		return	false;
 	//---------------------------------------------------------------------------
 	if (psNET_direct_connect)
 	{
@@ -363,7 +388,7 @@ BOOL CLevel::Connect2Server(LPCSTR options)
 			{
 				OnConnectRejected();
 				Disconnect();
-				return	FALSE;
+				return	false;
 			}
 		}
 
@@ -393,7 +418,7 @@ BOOL CLevel::Connect2Server(LPCSTR options)
 			{
 				OnConnectRejected();
 				Disconnect();
-				return	FALSE;
+				return	false;
 			}
 		}
 	}
@@ -408,12 +433,12 @@ BOOL CLevel::Connect2Server(LPCSTR options)
 		}
 		OnConnectRejected			();	
 		Disconnect					();
-		return FALSE		;
+		return false		;
 	};
 
 	
 	if(psNET_direct_connect)
-		net_Syncronised = TRUE;
+		net_Syncronised = true;
 	else
 		net_Syncronize	();
 
@@ -423,15 +448,15 @@ BOOL CLevel::Connect2Server(LPCSTR options)
 		{
 			OnConnectRejected	();	
 			Disconnect			();
-			return FALSE;
+			return false;
 		}
 	};
 
 	//---------------------------------------------------------------------------
 	//P.w_begin	(M_CLIENT_REQUEST_CONNECTION_DATA);
-	//Send		(P, net_flags(TRUE, TRUE, TRUE, TRUE));
+	//Send		(P, net_flags(true, true, true, true));
 	//---------------------------------------------------------------------------
-	return TRUE;
+	return true;
 };
 
 void CLevel::OnBuildVersionChallenge()
@@ -445,7 +470,7 @@ void CLevel::OnBuildVersionChallenge()
 	u64 auth = FS.auth_get();
 #endif //#ifdef DEBUG
 	P.w_u64					(auth);
-	SecureSend				(P, net_flags(TRUE, TRUE, TRUE, TRUE));
+	SecureSend				(P, net_flags(true, true, true, true));
 };
 
 void CLevel::OnConnectResult(NET_Packet*	P)
@@ -607,7 +632,17 @@ void				CLevel::OnConnectRejected		()
 
 //	if (MainMenu()->GetErrorDialogType() != CMainMenu::ErrNoError)
 //		MainMenu()->SetErrorDialog(CMainMenu::ErrServerReject);
-};
+}
+
+CScriptXRConditionsStorage* CLevel::getScriptXRConditions(void) const
+{
+	return m_pScriptXRCondition;
+}
+
+CScriptXRParser* CLevel::getScriptXRParser(void) const
+{
+	return m_pScriptXRParser;
+}
 
 void				CLevel::net_OnChangeSelfName			(NET_Packet* P)
 {

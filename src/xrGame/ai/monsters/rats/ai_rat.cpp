@@ -6,7 +6,7 @@
 //	Description : AI Behaviour for monster "Rat"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_rat.h"
 #include "../../ai_monsters_misc.h"
 #include "../../../../xrPhysics/PhysicsShell.h"
@@ -123,11 +123,15 @@ void CAI_Rat::reinit					()
 	init_state_manager		();
 }
 
-void CAI_Rat::reload					(LPCSTR	section)
+void CAI_Rat::reload					(const char*	section)
 {
 	inherited::reload		(section);
 	CEatableItem::reload	(section);
-	LPCSTR					head_bone_name = pSettings->r_string(section,"bone_head");
+	if (!g_Alive())
+	{
+		return;
+	}
+	const char*					head_bone_name = pSettings->r_string(section,"bone_head");
 	sound().add		(pSettings->r_string(section,"sound_death"),	100, SOUND_TYPE_MONSTER_DYING,		0, u32(eRatSoundMaskDie),		eRatSoundDie,		head_bone_name);
 	sound().add		(pSettings->r_string(section,"sound_hit"),		100, SOUND_TYPE_MONSTER_INJURING,	1, u32(eRatSoundMaskInjuring),	eRatSoundInjuring,	head_bone_name);
 	sound().add		(pSettings->r_string(section,"sound_attack"),	100, SOUND_TYPE_MONSTER_ATTACKING,	2, u32(eRatSoundMaskAttack),	eRatSoundAttack,	head_bone_name);
@@ -141,7 +145,7 @@ void CAI_Rat::Die(CObject* who)
 
 	m_eCurrentState = aiRatDeath;
 
-	m_flags.set		(FCanTake, TRUE);
+	m_flags.set		(FCanTake, true);
 
 	SelectAnimation(XFORM().k,movement().detail().direction(),movement().speed());
 
@@ -156,7 +160,7 @@ void CAI_Rat::Die(CObject* who)
 	m_eCurrentState = aiRatDeath;
 }
 
-void CAI_Rat::Load(LPCSTR section)
+void CAI_Rat::Load(const char* section)
 { 
 	init();
 
@@ -213,7 +217,7 @@ void CAI_Rat::Load(LPCSTR section)
 	m_dwActiveScheduleMax			= shedule.t_max;
 }
 
-BOOL CAI_Rat::net_Spawn	(CSE_Abstract* DC)
+bool CAI_Rat::net_Spawn	(CSE_Abstract* DC)
 {
 	//////////////////////////////////////////////////////////////////////////
 	CSE_Abstract					*e	= (CSE_Abstract*)(DC);
@@ -221,10 +225,10 @@ BOOL CAI_Rat::net_Spawn	(CSE_Abstract* DC)
 
 	// model
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 	// model
 	if (!CEatableItem::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 
 	monster_squad().register_member			((u8)g_Team(),(u8)g_Squad(),(u8)g_Group(), this);
 
@@ -296,7 +300,7 @@ BOOL CAI_Rat::net_Spawn	(CSE_Abstract* DC)
 	if (g_Alive())
 		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).m_dwLastActionTime = 0;
 
-	m_flags.set						(FCanTake, FALSE);
+	m_flags.set						(FCanTake, false);
 
 	CInifile *m_spawn_ini = spawn_ini();
 
@@ -313,7 +317,7 @@ BOOL CAI_Rat::net_Spawn	(CSE_Abstract* DC)
 		m_path = ai().patrol_paths().path(m_spawn_ini->r_string("patrol","way"));
 	}
 
-	return							(TRUE);
+	return							(true);
 }
 
 void CAI_Rat::net_Destroy()
@@ -391,11 +395,11 @@ void CAI_Rat::net_Import(NET_Packet& P)
 
 	if (NET.empty() || (NET.back().dwTimeStamp<N.dwTimeStamp))	{
 		NET.push_back			(N);
-		NET_WasInterpolating	= TRUE;
+		NET_WasInterpolating	= true;
 	}
 
-	setVisible				(TRUE);
-	setEnabled				(TRUE);
+	setVisible				(true);
+	setEnabled				(true);
 
 	CEatableItem::net_Import(P);
 }
@@ -415,42 +419,17 @@ void CAI_Rat::CreateSkeleton(){
 	//sphere.R=0.25;
 	//element->add_Sphere(sphere);
 	element->setDensity(m_phMass);
-	element->SetMaterial(smart_cast<IKinematics*>(Visual())->LL_GetData(smart_cast<IKinematics*>(Visual())->LL_GetBoneRoot()).game_mtl_idx);
+	IKinematics* kin = PKinematics(Visual());
+	element->SetMaterial(kin->LL_GetData(kin->LL_GetBoneRoot()).game_mtl_idx);
 	m_pPhysicsShell=P_create_Shell();
 	m_pPhysicsShell->add_Element(element);
 	m_pPhysicsShell->Activate(XFORM(),0,XFORM());
 	m_pPhysicsShell->set_PhysicsRefObject( this );
-	if(!fsimilar(0.f,m_saved_impulse)){
+
+	if(!fsimilar(0.f,m_saved_impulse))
+	{
 		m_pPhysicsShell->applyHit(m_saved_hit_position,m_saved_hit_dir,m_saved_impulse,0,m_saved_hit_type);
 	}
-	/*
-	IKinematics* M		= smart_cast<IKinematics*>(Visual());			VERIFY(M);
-	m_pPhysicsShell		= P_create_Shell();
-
-	//get bone instance
-	int id=M->LL_BoneID("bip01_pelvis");
-	CBoneInstance& instance=M->LL_GetBoneInstance				(id);
-
-	//create root element
-	CPhysicsElement* element=P_create_Element				();
-	element->mXFORM.identity();
-	instance.set_callback(m_pPhysicsShell->GetBonesCallback(),element);
-	Fobb box;
-	box.m_rotate.identity();
-	box.m_translate.set(0,0,0);
-	box.m_halfsize.set(0.10f,0.085f,0.25f);
-	element->add_Box(box);
-
-	element->setDensity(200.f);
-	m_pPhysicsShell->add_Element(element);
-	element->SetMaterial("materials/skel1");
-
-	//set shell start position
-	Fmatrix m;
-	m.set(mRotate);
-	m.c.set(Position());
-	m_pPhysicsShell->mXFORM.set(m);
-	*/
 }
 
 void CAI_Rat::shedule_Update(u32 dt)
@@ -486,7 +465,7 @@ void CAI_Rat::UpdateCL			()
 
 		if (squad && 
 			((squad->GetLeader() != this && !squad->GetLeader()->g_Alive()) ||
-			squad->get_index(this) == u32(-1))
+			squad->get_index(this) == u8(-1))
 			) squad->SetLeader(this);
 
 		if (squad &&
@@ -558,8 +537,8 @@ void CAI_Rat::OnH_A_Chield		()
 
 void CAI_Rat::OnH_B_Chield		()
 {
-	setVisible					(FALSE);
-	setEnabled					(FALSE);
+	setVisible					(false);
+	setEnabled					(false);
 
 	if (m_pPhysicsShell)
 		m_pPhysicsShell->Deactivate	();
@@ -569,14 +548,14 @@ void CAI_Rat::OnH_B_Chield		()
 
 void CAI_Rat::OnH_B_Independent	()
 {
-	CEatableItem::OnH_B_Independent	(TRUE);
-	inherited::OnH_B_Independent	(TRUE);
+	CEatableItem::OnH_B_Independent	(true);
+	inherited::OnH_B_Independent	(true);
 	
 	if (!Useful())
 		return;
 
-	setVisible					(TRUE);
-	setEnabled					(TRUE);
+	setVisible					(true);
+	setEnabled					(true);
 
 	if (m_pPhysicsShell)
 		activate_physic_shell	();
@@ -606,9 +585,9 @@ void CAI_Rat::OnRender()
 }
 #endif
 
-BOOL CAI_Rat::UsedAI_Locations()
+bool CAI_Rat::UsedAI_Locations()
 {
-	return					(TRUE);
+	return					(true);
 }
 
 void CAI_Rat::make_Interpolation ()
@@ -661,7 +640,7 @@ void CAI_Rat::activate_physic_shell	()
 
 void CAI_Rat::on_activate_physic_shell	()
 {
-	CObject						*object = smart_cast<CObject*>(H_Parent());
+	CObject						*object = H_Parent();
 	R_ASSERT					(object);
 	XFORM().set					(object->XFORM());
 	inherited::activate_physic_shell();
@@ -685,19 +664,19 @@ float CAI_Rat::get_custom_pitch_speed	(float def_speed)
 	return					(PI_DIV_2);
 }
 
-BOOL CAI_Rat::renderable_ShadowReceive	()
+bool CAI_Rat::renderable_ShadowReceive	()
 {
-	return TRUE;
+	return true;
 }
 
-BOOL CAI_Rat::renderable_ShadowGenerate	()
+bool CAI_Rat::renderable_ShadowGenerate	()
 {
-	return FALSE;
+	return false;
 }
 
 DLL_Pure *CAI_Rat::_construct			()
 {
-	CCustomMonster::_construct	();
+	CCreature::_construct	();
 	CEatableItem::_construct	();
 	return						(this);
 }

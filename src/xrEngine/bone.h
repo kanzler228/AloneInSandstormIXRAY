@@ -31,7 +31,7 @@ public:
 private:
 	BoneCallback		Callback;
 	void*				Callback_Param;
-	BOOL				Callback_overwrite;					// performance hint - don't calc anims
+	bool				Callback_overwrite;					// performance hint - don't calc anims
 	u32					Callback_type;	
 public:
 	float				param			[MAX_BONE_PARAMS];	// 
@@ -40,12 +40,12 @@ public:
 public:
 	IC	BoneCallback	_BCL	callback()					{ return  Callback; }
 	IC	void*			_BCL	callback_param()			{ return Callback_Param;	}
-	IC	BOOL			_BCL	callback_overwrite()		{ return Callback_overwrite; }					// performance hint - don't calc anims
+	IC	bool			_BCL	callback_overwrite()		{ return Callback_overwrite; }					// performance hint - don't calc anims
 	IC	u32				_BCL	callback_type()				{ return Callback_type; }	
 public:
 	IC void				_BCL	construct();
 
-	void	_BCL set_callback	(u32 Type, BoneCallback C, void* Param,  BOOL overwrite=FALSE)
+	void	_BCL set_callback	(u32 Type, BoneCallback C, void* Param,  bool overwrite=false)
 	{	
 		Callback			= C; 
 		Callback_Param		= Param; 
@@ -57,78 +57,15 @@ public:
 	{
 		Callback			= 0; 
 		Callback_Param		= 0; 
-		Callback_overwrite	= FALSE;
+		Callback_overwrite	= false;
 		Callback_type		= 0;
 	}
-	void		_BCL		set_callback_overwrite(BOOL v){ Callback_overwrite = v; }
+	void		_BCL		set_callback_overwrite(bool v){ Callback_overwrite = v; }
 
 	void				set_param		(u32 idx, float data);
 	float				get_param		(u32 idx);
 
 	u32					mem_usage		(){return sizeof(*this);}
-};
-#pragma pack(pop)
-
-#pragma pack( push,2 )
-struct ENGINE_API vertBoned1W			// (3+3+3+3+2+1)*4 = 15*4 = 60 bytes
-{
-	Fvector	P;
-	Fvector	N;
-	Fvector	T;
-	Fvector	B;
-	float	u,v;
-	u32		matrix;
-	void	get_pos( Fvector& p ) const { p.set(P); }
-#ifdef	DEBUG	
-	static const u8 bones_count = 1;
-	u16		get_bone_id(u8 bone)const{ VERIFY(bone<bones_count); return u16(matrix); }
-#endif
-};
-struct ENGINE_API vertBoned2W			// (1+3+3 + 1+3+3 + 2)*4 = 16*4 = 64 bytes
-{
-	u16		matrix0;
-	u16		matrix1;
-	Fvector	P;
-	Fvector	N;
-	Fvector	T;
-	Fvector	B;
-	float	w;
-	float	u,v;
-	void	get_pos( Fvector& p ) { p.set(P); }
-#ifdef	DEBUG
-	static const u8 bones_count = 2;
-	u16		get_bone_id(u8 bone)const{ VERIFY(bone<bones_count); return bone==0 ? matrix0 : matrix1; }
-#endif
-};
-struct ENGINE_API vertBoned3W          // 70 bytes
-{
-	u16		m		[3];
-	Fvector	P;
-	Fvector	N;
-	Fvector	T;
-	Fvector	B;
-	float	w		[2];
-	float	u,v;
-	void	get_pos( Fvector& p ) { p.set(P); }
-#ifdef	DEBUG
-	static const u8 bones_count = 3;
-	u16		get_bone_id(u8 bone)const{ VERIFY(bone<bones_count); return m[bone]; }
-#endif
-};
-struct ENGINE_API vertBoned4W       //76 bytes
-{
-	u16		m		[4];
-	Fvector	P;
-	Fvector	N;
-	Fvector	T;
-	Fvector	B;
-	float	w		[3];
-	float	u,v;
-	void	get_pos( Fvector& p ) { p.set(P); }
-#ifdef	DEBUG
-	static const u8 bones_count = 4;
-	u16		get_bone_id(u8 bone)const{ VERIFY(bone<bones_count); return m[bone]; }
-#endif
 };
 #pragma pack(pop)
 
@@ -258,8 +195,8 @@ struct ECORE_API SJointIKData
             //F.w_float	(_min(-limits[k].limit.x,-limits[k].limit.y)); // min (swap special for ODE) 
             //F.w_float	(_max(-limits[k].limit.x,-limits[k].limit.y)); // max (swap special for ODE)
 
-			VERIFY(_min(-limits[k].limit.x,-limits[k].limit.y) == -limits[k].limit.y );
-			VERIFY(_max(-limits[k].limit.x,-limits[k].limit.y) == -limits[k].limit.x );
+			VERIFY(std::min(-limits[k].limit.x,-limits[k].limit.y) == -limits[k].limit.y );
+			VERIFY(std::max(-limits[k].limit.x,-limits[k].limit.y) == -limits[k].limit.x );
 			
 			F.w_float	(-limits[k].limit.y); // min (swap special for ODE) 
             F.w_float	(-limits[k].limit.x); // max (swap special for ODE)
@@ -379,7 +316,7 @@ public:
 	shared_str		    ParentName		(){return parent_name;}
 	shared_str		    WMap			(){return wmap;}
 	IC CBone*		    Parent			(){return parent;}
-    IC BOOL			    IsRoot			(){return (parent==0);}
+    IC bool			    IsRoot			(){return (parent==0);}
 	shared_str&		    NameRef			(){return name;}
 
     // transformation
@@ -431,7 +368,7 @@ IC	float	_BCL		editor_hi_limit ( u8 k ) const	{ return IK_data.limits[k].limit.y
 
 	bool 			    Pick			(float& dist, const Fvector& S, const Fvector& D, const Fmatrix& parent);
 
-    void			    Select			(BOOL flag)	{ flags.set(flSelected,flag); }
+    void			    Select			(bool flag)	{ flags.set(flSelected,flag); }
     bool			    Selected		(){return !!flags.is(flSelected);}
 
     void			    ClampByLimits	();
@@ -503,7 +440,7 @@ public:
 	CBoneData		(u16 ID):SelfID(ID)	{VERIFY(SelfID!=BI_NONE);}
 	virtual				~CBoneData		()					{}
 #ifdef DEBUG
-	typedef svector<int,128>	BoneDebug;
+	typedef FixedVector<int,128>	BoneDebug;
 	void						DebugQuery		(BoneDebug& L);
 #endif
 	IC void				SetParentID		(u16 id){ParentID=id;}
@@ -562,7 +499,7 @@ IC void		CBoneInstance::construct	()
 	mRenderTransform_old.identity	();
 	mRenderTransform_tmp.identity	();
 
-	Callback_overwrite			= FALSE;
+	Callback_overwrite			= false;
 }
 
 

@@ -7,12 +7,12 @@ class ECORE_API XrGamePersistentEditors :public IGame_Persistent
 public:
 	XrGamePersistentEditors();
 	virtual ~XrGamePersistentEditors();
-	virtual void					PreStart			(LPCSTR op);
-	virtual void					Start				(LPCSTR op);
+	virtual void					PreStart			(const char* op);
+	virtual void					Start				(const char* op);
 	virtual void					Disconnect			();
 
 
-	virtual bool					OnRenderPPUI_query	() { return FALSE; };	// should return true if we want to have second function called
+	virtual bool					OnRenderPPUI_query	() { return false; };	// should return true if we want to have second function called
 	virtual void					OnRenderPPUI_main	() {};
 	virtual void					OnRenderPPUI_PP		() {};
 

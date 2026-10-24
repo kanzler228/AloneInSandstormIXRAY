@@ -2,11 +2,15 @@
 #include "stdafx.h"
 #include "GameFont.h"
 #include "string_table.h"
-
+#include "IGame_Persistent.h"
 #include "../xrCore/API/xrAPI.h"
 #include "../Include/xrRender/RenderFactory.h"
 #include "../Include/xrRender/FontRender.h"
 #include <freetype/freetype.h>
+#include <freetype/ftfntfmt.h>
+
+extern u32 TextureDimension;
+thread_local xr_vector<u32> FontBitmap;
 
 FT_Library FreetypeLib = nullptr;
 
@@ -98,15 +102,47 @@ xr_vector<xr_string> split(const xr_string& s, char delim)
 	{
 		elems.push_back(item);
 	}
-	return std::move(elems);
+	return elems;
 }
-#include <freetype/ftfntfmt.h>
 
-extern u32 TextureDimension;
-extern xr_vector<u32> FontBitmap;
+bool GetDisplayMetricsSDL3(float& width_mm, float& height_mm, float& width_px, float& height_px) 
+{
+	SDL_DisplayID* displays = SDL_GetDisplays(nullptr);
+	if (!displays)
+	{
+		return false;
+	}
+
+	SDL_DisplayID display_id = displays[0];
+	SDL_free(displays);
+
+	float scale = SDL_GetDisplayContentScale(display_id);
+	float dpi = scale * 96.0f;  // scale в DPI
+
+	float dpi_horizontal = scale * 96.0f;
+	float dpi_vertical = scale * 96.0f;
+
+	const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display_id);
+	if (mode)
+	{
+		width_px = static_cast<float>(mode->w);
+		height_px = static_cast<float>(mode->h);
+	}
+	else
+	{
+		width_px = 1920.0f;
+		height_px = 1080.0f;
+	}
+
+	width_mm = (width_px / dpi_horizontal) * 25.4f;
+	height_mm = (height_px / dpi_vertical) * 25.4f;
+
+	return true;
+}
 
 void CGameFont::Initialize2(const char* name, const char* shader, const char* style, u32 size)
 {
+	FontBitmap.resize(TextureDimension * TextureDimension);
 	if (!bFreetypeInitialized)
 	{
 		InitializeFreetype();
@@ -145,7 +181,7 @@ void CGameFont::Initialize2(const char* name, const char* shader, const char* st
 	// есть кучу способов высчитать размер шрифта для скейлинга
 	// 1. основываясь на DPI(PPI), однако, как не вычисляй его он всегда считается исходя из разрешения моника(системы) и 23 дюймов(мб с дровами на моник - из реальных дюймов)
 	// 2. основываясь на том, как ПЫС делают скейлинг из UI_BASE_HEIGHT/UI_BASE_WIDTH и тд...
-
+#ifdef IXR_WINDOWS
 	SetProcessDPIAware();
 	HDC hDCScreen = GetDC(NULL);
 
@@ -155,8 +191,16 @@ void CGameFont::Initialize2(const char* name, const char* shader, const char* st
 	auto Wpx = (float)GetDeviceCaps(hDCScreen, HORZRES);
 
 	ReleaseDC(NULL, hDCScreen);
+#else
+	float Hmm = 0.f;
+	float Wmm = 0.f;
+	float Hpx = 0.f;
+	float Wpx = 0.f;
 
-	auto is_res_depend = !!READ_IF_EXISTS(pSettings, r_bool, Name, "res_depend", TRUE);
+	GetDisplayMetricsSDL3(Wmm, Hmm, Wpx, Hpx);
+#endif
+
+	auto is_res_depend = !!READ_IF_EXISTS(pSettings, r_bool, Name, "res_depend", true);
 	auto is_dpi_depend = !!READ_IF_EXISTS(pSettings, r_bool, Name, "dpi_depend", !is_res_depend);
 
 	auto ppi = int(25.4f * sqrt(Hpx * Hpx + Wpx * Wpx) / sqrt(Hmm * Hmm + Wmm * Wmm));
@@ -200,12 +244,11 @@ void CGameFont::Initialize2(const char* name, const char* shader, const char* st
 	req.horiResolution = 0;
 	req.vertResolution = 0;
 	FT_Request_Size(OurFont, &req);
-
 #define FT_CEIL(X)  (((X + 63) & -64) / 64)
 
 	float FontSizeInPixels = (float)(OurFont->size->metrics.ascender - OurFont->size->metrics.descender) / 64.0f;
 
-	auto CopyGlyphImageToAtlas = [this, &TargetX, &TargetX2, &TargetY, &TargetY2, FontSizeInPixels](FT_Bitmap& GlyphBitmap)
+	auto CopyGlyphImageToAtlas = [&TargetX, &TargetX2, &TargetY, &TargetY2, FontSizeInPixels](FT_Bitmap& GlyphBitmap)
 		{
 			TargetX2 = TargetX + GlyphBitmap.width;
 			if (TargetX2 >= TextureDimension)
@@ -280,7 +323,6 @@ void CGameFont::Initialize2(const char* name, const char* shader, const char* st
 
 	//const char* Format = FT_Get_Font_Format(OurFont);
 	u32 index = 0;
-
 	auto LoadGlyph = [&](FT_UInt glyphID)
 	{
 		u32 TrueGlyph = glyphID;
@@ -353,6 +395,7 @@ void CGameFont::Initialize2(const char* name, const char* shader, const char* st
 
 	pFontRender->CreateFontAtlas(TextureDimension, TargetDemensionY, textureName, FontBitmap.data());
 
+
 	FS.r_close(FontFile);
 	pFontRender->Initialize(shader, textureName);
 }
@@ -392,12 +435,12 @@ u16 CGameFont::SplitByWidth(u16* puBuffer, u16 uBufferSize, float fTargetWidth, 
 }
 
 void CGameFont::MasterOut(
-	BOOL bCheckDevice, BOOL bUseCoords, BOOL bScaleCoords, BOOL bUseSkip,
+	bool bCheckDevice, bool bUseCoords, bool bScaleCoords, bool bUseSkip,
 	float _x, float _y, float _skip, const char* fmt, va_list p)
 {
 	if (bCheckDevice && (!Device.b_is_Active))
 		return;
-
+	
 	String rs;
 
 	rs.x = (bUseCoords ? (bScaleCoords ? (DI2PX(_x)) : _x) : fCurrentX);
@@ -424,6 +467,27 @@ void CGameFont::MasterOut(
 	if (vs_sz)
 	{
 		xrCriticalSectionGuard g(&s_cs);
+
+		if (fOutlineEnabled && fOutlineOffset > 0.f)
+		{
+			static constexpr float outline_offsets[8][2] =
+			{
+				{ -1.f, 0.f }, { 1.f, 0.f }, { 0.f, -1.f }, { 0.f, 1.f },
+				{ -1.f, -1.f }, { -1.f, 1.f }, { 1.f, -1.f }, { 1.f, 1.f }
+			};
+
+			String outline = rs;
+			outline.c = dwOutlineColor;
+			outline.gradient = false;
+
+			for (const auto& [dx, dy] : outline_offsets)
+			{
+				outline.x = rs.x + dx * fOutlineOffset;
+				outline.y = rs.y + dy * fOutlineOffset;
+				strings.push_back(outline);
+			}
+		}
+
 		strings.push_back(rs);
 	}
 
@@ -438,18 +502,43 @@ void CGameFont::MasterOut(
 
 void CGameFont::OutI(float _x, float _y, const char* fmt, ...)
 {
-	MASTER_OUT(FALSE, TRUE, TRUE, FALSE, _x, _y, 0.0f, fmt);
-};
+	MASTER_OUT(false, true, true, false, _x, _y, 0.0f, fmt);
+}
 
 void CGameFont::Out(float _x, float _y, const char* fmt, ...)
 {
-	MASTER_OUT(TRUE, TRUE, FALSE, FALSE, _x, _y, 0.0f, fmt);
-};
+	MASTER_OUT(true, true, false, false, _x, _y, 0.0f, fmt);
+}
 
 void CGameFont::OutNext(const char* fmt, ...)
 {
-	MASTER_OUT(TRUE, FALSE, FALSE, TRUE, 0.0f, 0.0f, LineSpacing, fmt);
-};
+	MASTER_OUT(true, false, false, true, 0.0f, 0.0f, LineSpacing, fmt);
+}
+
+void CGameFont::OutLeft(float x)
+{
+	fCurrentX = 0 + x;
+}
+
+void CGameFont::OutRight(float x)
+{
+	float max_str_size_in_px = 0.f;
+	
+	for (const String& str : strings)
+		max_str_size_in_px = std::max(max_str_size_in_px, SizeOf_(str.string));
+	
+	fCurrentX = static_cast<float>(Device.TargetWidth) - max_str_size_in_px - x;
+}
+
+void CGameFont::OutTop(float y)
+{
+	fCurrentY = 0 + y;
+}
+
+void CGameFont::OutBottom(float y)
+{
+	fCurrentY = static_cast<float>(Device.TargetHeight) - GetHeight() * static_cast<float>(strings.size()) - y;
+}
 
 void CGameFont::OutSkip(float val)
 {
@@ -495,15 +584,43 @@ const CGameFont::Glyph* CGameFont::GetGlyphInfo(int ch)
 	return &symbolInfoIterator->second;
 }
 
+bool CGameFont::GetAtlasTexSize(u32& outW, u32& outH) const
+{
+	if (pFontRender == nullptr)
+	{
+		return false;
+	}
+
+	return pFontRender->GetAtlasTexSize(outW, outH);
+}
+
 float CGameFont::WidthOf(int ch)
 {
 	if (ch == '\t' || ch == '\n')
 		return 0.f;
 
 	if (const Glyph* glyphInfo = GetGlyphInfo(ch))
-		return float(glyphInfo->Abc.abcA + glyphInfo->Abc.abcB + glyphInfo->Abc.abcC);
+	{
+		return float(glyphInfo->Abc.abcA + (glyphInfo->Abc.abcB * GetWidthCoef()) + glyphInfo->Abc.abcC);
+	}
 
-	return float(OurFont->glyph->metrics.width) / 64.f;
+	if (OurFont && OurFont->glyph)
+		return float(OurFont->glyph->metrics.width) / 64.f;
+
+	return 0.f;
+}
+
+template <typename T>
+size_t DynamicFontLen(T String)
+{
+	if constexpr (std::is_same_v<T, const char*>)
+	{
+		return std::strlen(String);
+	}
+	else
+	{
+		return std::wcslen(String);
+	}
 }
 
 float CGameFont::WidthOf(const char* str)
@@ -514,12 +631,24 @@ float CGameFont::WidthOf(const char* str)
 	int length = 0;
 	const float spacing = GetLetterSpacing();
 
-	if (IsUTF8(str)) {
+	if (IsUTF8(str)) 
+	{
 		auto wideStr = Platform::ANSI_TO_TCHAR(str);
-		length = std::wcslen(wideStr);
+		length = DynamicFontLen(wideStr);
 		for (int i = 0; i < length; i++)
 		{
-			size += WidthOf(wideStr[i]);
+			if (g_FontManager->GamepadButtonMappings[wideStr[i]] && 
+				wideStr[i] >= GAMEPAD_GLYPH_START && wideStr[i] <= GAMEPAD_GLYPH_END)
+			{
+				Frect rect;
+				shared_str fn;
+				g_pGamePersistent->GetTextureParams(g_FontManager->GamepadButtonMappings[wideStr[i]], rect, fn);
+				size += sizeOfImage(rect).x;
+			}
+			else
+			{
+				size += WidthOf(wideStr[i]);
+			}
 			size += spacing;
 		}
 

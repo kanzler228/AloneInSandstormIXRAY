@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
-void CRenderTarget::phase_smaa() {
+void CRenderTarget::phase_smaa()
+{
     u32 Offset;
     Fvector2 p0, p1;
     float d_Z = EPS_S;
@@ -16,10 +17,8 @@ void CRenderTarget::phase_smaa() {
 
     // Phase 0: edge detection ////////////////////////////////////////////////
     u_setrt(rt_smaa_edgetex, nullptr, nullptr, nullptr);
-    RCache.set_CullMode(CULL_NONE);
-    //RCache.set_Stencil(TRUE, D3DCMP_ALWAYS, 0x1, 0, 0, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
-    CHK_DX(RDevice->Clear(0, 0, D3DCLEAR_TARGET, color_rgba(0, 0, 0, 0), 1, 0));
-    //RDevice->Clear(RCache.get_RT(), ColorRGBA);
+    GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+    GRHI->ClearTarget(RCache.get_RT());
 
     // Fill vertex buffer
     FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, Offset);
@@ -36,14 +35,13 @@ void CRenderTarget::phase_smaa() {
     // Draw COLOR
     RCache.set_Element(s_smaa->E[0]);
     RCache.set_Geometry(g_combine);
-    RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+    RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 
     // Phase 1: blend weights calculation ////////////////////////////////////
     u_setrt(rt_smaa_blendtex, nullptr, nullptr, nullptr);
-    RCache.set_CullMode(CULL_NONE);
-    RCache.set_Stencil(TRUE, D3DCMP_EQUAL, 0x1, 0, 0, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
-
-    CHK_DX(RDevice->Clear(0, 0, D3DCLEAR_TARGET, color_rgba(0, 0, 0, 0), 1, 0));
+    GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+    RCache.set_Stencil(true, D3DCMP_EQUAL, 0x1, 0, 0, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+    GRHI->ClearTarget(RCache.get_RT());
 
     // Fill vertex buffer
     pv = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, Offset);
@@ -60,13 +58,13 @@ void CRenderTarget::phase_smaa() {
     // Draw COLOR
     RCache.set_Element(s_smaa->E[1]);
     RCache.set_Geometry(g_combine);
-    RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+    RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 
     // Phase 2: neighbour blend //////////////////////////////////////////////
     u_setrt(rt_Color, nullptr, nullptr, nullptr);
 
-    RCache.set_CullMode(CULL_NONE);
-    RCache.set_Stencil(FALSE);
+    GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+    RCache.set_Stencil(false);
 
     // Fill vertex buffer
     pv = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, Offset);
@@ -83,8 +81,8 @@ void CRenderTarget::phase_smaa() {
     // Draw COLOR
     RCache.set_Element(s_smaa->E[2]);
     RCache.set_Geometry(g_combine);
-    RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+    RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 
     // Resolve RT
-    RDevice->StretchRect(rt_Color->pRT, 0, rt_Generic_0->pRT, 0, D3DTEXF_NONE);
+    GRHI->CopySurface(rt_Generic_0->pRT, rt_Color->pRT);
 }

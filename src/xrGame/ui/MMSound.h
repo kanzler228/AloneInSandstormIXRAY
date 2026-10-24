@@ -2,12 +2,12 @@
 
 class CUIXml;
 
-class CMMSound
+class CMMSound final
 {
 public:
 					CMMSound	();
 					~CMMSound	();
-	void 			Init		(CUIXml& xml_doc, LPCSTR path);
+	void 			Init		(CUIXml& xml_doc, const char* path);
 	void 			whell_Play	();
 	void 			whell_Stop	();
 	void 			whell_Click	();
@@ -20,8 +20,10 @@ public:
 	void 			all_Stop	();
 protected:
 
-	IC	bool		check_file			(LPCSTR fname);
+	IC	bool		check_file			(const char* fname);
 
+	ref_sound		m_music_l;
+	ref_sound		m_music_r;
 	ref_sound		m_music_stereo;
 
 	ref_sound		m_whell;

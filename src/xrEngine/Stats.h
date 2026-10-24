@@ -11,11 +11,13 @@ class ENGINE_API CGameFont;
 #include "../Include/xrRender/FactoryPtr.h"
 #include "../Include/xrRender/StatsRender.h"
 
-DECLARE_MESSAGE(Stats);
+CREATE_PURE_DEFINITION(Stats);
 
 class ENGINE_API CStatsPhysics
 {
 public:
+	virtual ~CStatsPhysics() = default;
+
 	CStatTimer	ph_collision;		// collision
 	CStatTimer	ph_core;			// integrate
 	CStatTimer	Physics;			// movement+collision
@@ -111,8 +113,8 @@ public:
 	xr_vector		<shared_str>	errors;
 	CRegistrator	<pureStats>		seqStats;
 public:
-					CStats			();
-					~CStats			();
+			CStats();
+	virtual ~CStats();
 
 	IC CGameFont*	Font			(){return pFont;}
 

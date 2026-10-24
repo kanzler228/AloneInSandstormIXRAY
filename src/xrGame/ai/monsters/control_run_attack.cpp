@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_run_attack.h"
 #include "basemonster/base_monster.h"
 #include "monster_velocity_space.h"
@@ -6,7 +6,7 @@
 #include "control_direction_base.h"
 #include "control_movement_base.h"
 
-void CControlRunAttack::load(LPCSTR section)
+void CControlRunAttack::load(const char* section)
 {
 	read_distance	(section,"Run_Attack_Dist", m_min_dist, m_max_dist);
 	read_delay		(section,"Run_Attack_Delay", m_min_delay, m_max_delay);
@@ -47,7 +47,7 @@ void CControlRunAttack::activate()
 	{
 		return;
 	}
-	ctrl_anim->global.set_motion ( smart_cast<IKinematicsAnimated*>(m_object->Visual())->ID_Cycle_Safe("stand_attack_run_0") );
+	ctrl_anim->global.set_motion (m_object->Visual()->dcast_PKinematicsAnimated()->ID_Cycle_Safe("stand_attack_run_0") );
 	ctrl_anim->global.actual	= false;
 }
 

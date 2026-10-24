@@ -5,16 +5,16 @@
 #include "../../xrEngine/CustomHUD.h"
 #include "../../xrEngine/xr_object.h"
 
-#include "../../xrParticles/ParticlesAsyncManager.h"
-
 #include "../xrRender/QueryHelper.h"
 
-#include "OverlayAPI\FSR2Wrapper.h"
+#include "OverlayAPI/FSR3Wrapper.h"
 
 #include "../../xrEngine/GameFont.h"
 #include "../../xrEngine/x_ray.h"
 #include "../xrRender/SkeletonCustom.h"
-static	float	CalcSSADynamic				(const Fvector& C, float R)
+#include "../../xrEngine/IGame_Actor.h"
+
+ICF	float	CalcSSADynamic				(const Fvector& C, float R)
 {
     Fvector4 v_res1, v_res2;
     Device.mFullTransform.transform(v_res1, C);
@@ -24,7 +24,7 @@ static	float	CalcSSADynamic				(const Fvector& C, float R)
 constexpr float base_fov = 67.f;
 
 // Aproximate, adjusted by fov, distance from camera to position (For right work when looking though binoculars and scopes)
-static float GetDistFromCamera(const Fvector& from_position)
+ICF float GetDistFromCamera(const Fvector& from_position)
 {
 	float distance = Device.vCameraPosition.distance_to(from_position);
 	float fov_K = base_fov / Device.fFOV;
@@ -53,7 +53,7 @@ void CRender::render_main	(bool deffered, bool zfill)
 			(
 			lstRenderablesMain,
 			ISpatial_DB::O_ORDERED,
-			STYPE_RENDERABLE + STYPE_RENDERABLESHADOW + STYPE_PARTICLE + STYPE_LIGHTSOURCE,
+			ESPATIAL_TYPE::RENDERABLE | ESPATIAL_TYPE::RENDERABLESHADOW | ESPATIAL_TYPE::PARTICLE | ESPATIAL_TYPE::LIGHTSOURCE,
 			ViewBase);//nearest sorting
 
 			// Determine visibility for dynamic part of scene
@@ -105,7 +105,7 @@ void CRender::render_main	(bool deffered, bool zfill)
 				(
 				pLastSector,
 				ViewBase,
-				Device.vCameraPosition,
+				vLastCameraPos,
 				mftrans,
 				CPortalTraverser::VQ_HOM + CPortalTraverser::VQ_SSA + CPortalTraverser::VQ_FADE
 				//. disabled scissoring (HW.Caps.bScissor?CPortalTraverser::VQ_SCISSOR:0)	// generate scissoring info
@@ -118,33 +118,59 @@ void CRender::render_main	(bool deffered, bool zfill)
 
 			if (dont_test_sectors)
 			{
-				CSector*	sector		= (CSector*)Sectors[0];
-				set_Frustum			(&ViewBase);
-				add_Geometry		(sector->root());
+				CSector* sector = (CSector*)Sectors[0];
+				set_Frustum(&ViewBase);
+				add_Geometry(sector->root());
 			}
 			else
 			{
-				for (u32 s_it=0; s_it<PortalTraverser.r_sectors.size(); s_it++)
+				if (psDeviceFlags.test(rsClearBB))
 				{
-					CSector*	sector		= (CSector*)PortalTraverser.r_sectors[s_it];
-					dxRender_Visual*	root	= sector->root();
-					for (u32 v_it=0; v_it<sector->r_frustums.size(); v_it++)	{
-						set_Frustum			(&(sector->r_frustums[v_it]));
-						add_Geometry		(root);
+					for (auto visual : Visuals)
+					{
+						r_dsgraph_insert_static(visual);
+					}
+				}
+				else
+				{
+					for (u32 s_it = 0; s_it < PortalTraverser.r_sectors.size(); s_it++)
+					{
+						CSector* sector = (CSector*)PortalTraverser.r_sectors[s_it];
+						dxRender_Visual* root = sector->root();
+
+						for (u32 v_it = 0; v_it < sector->r_frustums.size(); v_it++) 
+						{
+							set_Frustum(&(sector->r_frustums[v_it]));
+							add_Geometry(root);
+						}
 					}
 				}
 			}
 		}
 		PROF_EVENT("add_dynamic")
+		const bool use_full_detail_distance = ps_r1_full_detail_distance_scale < 1.f;
+		const float full_detail_distance = use_full_detail_distance ?
+			std::max(100.f, g_pGamePersistent->Environment().CurrentEnv->far_plane * ps_r1_full_detail_distance_scale) : 0.f;
 		// Traverse frustums
 		for (u32 o_it=0; o_it<lstRenderablesMain.size(); o_it++)
 		{
 			ISpatial*	spatial	= lstRenderablesMain[o_it].get();
-			if	(0==spatial) continue; spatial->spatial_updatesector();
-			CSector* sector = (CSector*)spatial->spatial.sector;
+			if	(0==spatial) continue;
+
+			if (use_full_detail_distance &&
+				Device.vCameraPosition.distance_to_sqr(spatial->sphere.P) > _sqr(full_detail_distance + spatial->sphere.R))
+			{
+				light* L = (spatial->type & ESPATIAL_TYPE::LIGHTSOURCE) != ESPATIAL_TYPE::NONE ?
+					(light*)spatial->dcast_Light() : nullptr;
+				if (!L || !L->flags.bHudMode)
+					continue;
+			}
+
+			spatial->spatial_updatesector();
+			CSector* sector = (CSector*)spatial->sector;
 			if	(0==sector) continue;
 
-			if ((spatial->spatial.type & STYPE_LIGHTSOURCE) && deffered)
+			if ((spatial->type & ESPATIAL_TYPE::LIGHTSOURCE) != ESPATIAL_TYPE::NONE && deffered)
 			{
 				// hud lightsource
 				if(light* L = (light*)(spatial->dcast_Light()))
@@ -157,9 +183,9 @@ void CRender::render_main	(bool deffered, bool zfill)
 				}
 			}
 
-			if(!HOM.visible(spatial->spatial.sphere)) continue;
+			if(!HOM.visible(spatial->sphere)) continue;
 
-			if ((spatial->spatial.type & STYPE_LIGHTSOURCE) && deffered)
+			if ((spatial->type & ESPATIAL_TYPE::LIGHTSOURCE) != ESPATIAL_TYPE::NONE && deffered)
 			{
 				// lightsource
 				if(light* L = (light*)(spatial->dcast_Light()))
@@ -171,26 +197,26 @@ void CRender::render_main	(bool deffered, bool zfill)
 			}
 			if (dont_test_sectors)
 			{
-				if (spatial->spatial.type & STYPE_RENDERABLE && psDeviceFlags.test(rsDrawDynamic))
+				if ((spatial->type & ESPATIAL_TYPE::RENDERABLE) != ESPATIAL_TYPE::NONE && psDeviceFlags.test(rsDrawDynamic))
 				{
 					// renderable
 					if (IRenderable* renderable = spatial->dcast_Renderable())
 					{
-						if (Device.vCameraPosition.distance_to_sqr(spatial->spatial.sphere.P) < _sqr(g_pGamePersistent->Environment().CurrentEnv->fog_distance))
+						if (Device.vCameraPosition.distance_to_sqr(spatial->sphere.P) < _sqr(g_pGamePersistent->Environment().CurrentEnv->fog_distance))
 						{
-							if (CalcSSADynamic(spatial->spatial.sphere.P, spatial->spatial.sphere.R) > spatial->spatial.ssa_dyn_factor && GetDistFromCamera(spatial->spatial.sphere.P) < spatial->spatial.ssa_d_cam)
+							if (CalcSSADynamic(spatial->sphere.P, spatial->sphere.R) > spatial->ssa_dyn_factor && GetDistFromCamera(spatial->sphere.P) < spatial->ssa_d_cam)
 							{
 								if (deffered)
 								{
 									CKinematics* pKin = (CKinematics*)renderable->renderable.visual;
 									if (pKin)
 									{
-										pKin->CalculateBones(TRUE);
+										pKin->CalculateBones(true);
 										pKin->CalculateWallmarks();
-										//dbg_text_renderer(spatial->spatial.sphere.P);
+										//dbg_text_renderer(spatial->sphere.P);
 									}
 								}
-								if (spatial->spatial.sphere.R > 1.f)
+								if (spatial->sphere.R > 1.f)
 								{
 									// Rendering
 									set_Object(renderable);
@@ -198,7 +224,7 @@ void CRender::render_main	(bool deffered, bool zfill)
 									set_Object(0);
 								}
 							}
-							if (spatial->spatial.sphere.R <= 1.f)
+							if (spatial->sphere.R <= 1.f)
 							{
 								// Rendering
 								set_Object(renderable);
@@ -208,8 +234,8 @@ void CRender::render_main	(bool deffered, bool zfill)
 						}
 					}
 				}
-
-				if (spatial->spatial.type & STYPE_PARTICLE && !deffered)
+				
+				if ((spatial->type & ESPATIAL_TYPE::PARTICLE) != ESPATIAL_TYPE::NONE && !deffered)
 				{
 					// renderable
 					if	(IRenderable* renderable = spatial->dcast_Renderable())
@@ -227,28 +253,27 @@ void CRender::render_main	(bool deffered, bool zfill)
 				for (u32 v_it=0; v_it<sector->r_frustums.size(); v_it++)
 				{
 					CFrustum&	view	= sector->r_frustums[v_it];
-					if (!view.testSphere_dirty(spatial->spatial.sphere.P,spatial->spatial.sphere.R))	continue;
+					if (!view.testSphere_dirty(spatial->sphere.P,spatial->sphere.R))	continue;
 
-					if (spatial->spatial.type & STYPE_RENDERABLE && psDeviceFlags.test(rsDrawDynamic))
+					if ((spatial->type & ESPATIAL_TYPE::RENDERABLE) != ESPATIAL_TYPE::NONE && psDeviceFlags.test(rsDrawDynamic))
 					{
 						// renderable
 						if	(IRenderable* renderable = spatial->dcast_Renderable())
 						{
-							if(Device.vCameraPosition.distance_to_sqr(spatial->spatial.sphere.P)<_sqr(g_pGamePersistent->Environment().CurrentEnv->fog_distance))
+							if(Device.vCameraPosition.distance_to_sqr(spatial->sphere.P)<_sqr(g_pGamePersistent->Environment().CurrentEnv->fog_distance))
 							{
-								if(CalcSSADynamic(spatial->spatial.sphere.P,spatial->spatial.sphere.R)>spatial->spatial.ssa_dyn_factor&&GetDistFromCamera(spatial->spatial.sphere.P)<spatial->spatial.ssa_d_cam)
+								if(CalcSSADynamic(spatial->sphere.P,spatial->sphere.R)>spatial->ssa_dyn_factor&&GetDistFromCamera(spatial->sphere.P)<spatial->ssa_d_cam)
 								{
 									if(deffered)
 									{
 										CKinematics* pKin = (CKinematics*)renderable->renderable.visual;
 										if(pKin)
 										{
-											pKin->CalculateBones(TRUE);
+											pKin->CalculateBones(true);
 											pKin->CalculateWallmarks();
-											//dbg_text_renderer(spatial->spatial.sphere.P);
 										}
 									}
-									if(spatial->spatial.sphere.R>1.f)
+									if(spatial->sphere.R>1.f)
 									{
 										// Rendering
 										set_Object						(renderable);
@@ -256,7 +281,7 @@ void CRender::render_main	(bool deffered, bool zfill)
 										set_Object						(0);
 									}
 								}
-								if(spatial->spatial.sphere.R<=1.f)
+								if(spatial->sphere.R<=1.f)
 								{
 									// Rendering
 									set_Object						(renderable);
@@ -267,7 +292,7 @@ void CRender::render_main	(bool deffered, bool zfill)
 						}
 					}
 
-					if (spatial->spatial.type & STYPE_PARTICLE && !deffered)
+					if ((spatial->type & ESPATIAL_TYPE::PARTICLE) != ESPATIAL_TYPE::NONE && !deffered)
 					{
 						// renderable
 						if	(IRenderable* renderable = spatial->dcast_Renderable())
@@ -301,8 +326,8 @@ void CRender::render_main	(bool deffered, bool zfill)
 void CRender::render_menu() {
 	GPU_EVENT(render_menu);
 	//	Globals
-	RCache.set_CullMode(CULL_CCW);
-	RCache.set_Stencil(FALSE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+	RCache.set_Stencil(false);
 	RCache.set_ColorWriteEnable();
 
 	// Main Render
@@ -315,10 +340,9 @@ void CRender::render_menu() {
 
 	// Distort
 	{
-		FLOAT ColorRGBA[4] = {127.0f / 255.0f, 127.0f / 255.0f, 0.0f, 127.0f / 255.0f};
 		Target->u_setrt(Target->rt_Generic_1, 0, 0, 0);		// Now RT is a distortion mask
 		rmNormal();
-		RContext->ClearRenderTargetView(Target->rt_Generic_1->pRT, ColorRGBA);
+		GRHI->ClearTarget(Target->rt_Generic_1->pRT, ERTColor::Gray);
 		g_pGamePersistent->OnRenderPPUI_PP();	// PP-UI
 	}
 
@@ -348,33 +372,80 @@ void CRender::render_menu() {
 	pv->set(float(_w + EPS), EPS, d_Z, d_W, C, p1.x, p0.y);	pv++;
 
 	RCache.Vertex.Unlock(4, Target->g_menu->vb_stride);
-	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 }
 
-Fvector3 ps_r_taa_jitter_full = {0,0,0};
+#include "../../Include/xrRender/UIRender.h"
 
-extern u32 g_r;
-bool is_render_cubemap = false;
+void CRender::RenderUI(Fcolor* color)
+{
+	auto pRT_0 = RCache.get_RT(0);
+	auto pRT_1 = RCache.get_RT(1);
+	auto pRT_2 = RCache.get_RT(2);
+	auto pRT_3 = RCache.get_RT(3);
+
+	auto dwWidth = Target->get_width();
+	auto dwHeight = Target->get_height();
+
+	auto pZRT = GRHI->GetDepthStencilView();
+
+	ps_r_taa_jitter.set(0, 0, -1);
+	ps_r_taa_jitter_full.set(ps_r_taa_jitter);
+
+	GRHI->ClearDepthStencil(Target->rt_ui_depth->pZRT, ERHI_CLEAR_TARGET::DEPTH, 1.0f, 0L);
+	Target->u_setrt(Target->rt_ui_color, NULL, Target->rt_ui_depth->pZRT);
+
+	auto Scissor = UIRender->GetScissor();
+	Scissor.mul(2, 2);
+
+	UIRender->SetScissor(&Scissor);
+	rmNormal();
+
+	if(Target->rt_BackbufferLUT->pRT == pRT_0)
+	{
+		Target->phase_ui_postprocess_copy();
+	}
+	else
+	{
+		GRHI->ClearTarget(Target->rt_ui_color->pRT, ERTColor::Transparent);
+	}
+
+	bool ui_saved = val_bUI;
+	set_UI(true);
+	r_dsgraph_render_ui();
+	r_dsgraph_render_sorted_ui();
+	set_UI(ui_saved);
+
+	Scissor.div(2, 2);
+
+	Target->u_setrt(dwWidth, dwHeight, pRT_0, pRT_1, pRT_2, pRT_3, pZRT);
+
+	UIRender->SetScissor(&Scissor);
+	RImplementation.rmNormal();
+
+	Target->phase_ui_postprocess(color);
+	++marker;
+}
 
 void CRender::Render()
 {
 	GPU_EVENT(CRender_Render);
+	VERIFY(0 == mapDistort.size() + mapHUDDistort.size());
 
-	g_r						= 1;
-	VERIFY					(0==mapDistort.size() + mapHUDDistort.size());
+	bool _menu_pp = g_pGamePersistent ? g_pGamePersistent->OnRenderPPUI_query() : false;
 
-//	rmNormal();
-
-	bool	_menu_pp		= g_pGamePersistent?g_pGamePersistent->OnRenderPPUI_query():false;
-	if (_menu_pp)			{
-		render_menu			()	;
-		return					;
+	if (_menu_pp)
+	{
+		render_menu();
+		return;
 	};
 
-	IMainMenu*	pMainMenu = g_pGamePersistent?g_pGamePersistent->m_pMainMenu:0;
-	bool	bMenu = pMainMenu?pMainMenu->CanSkipSceneRendering():false;
+	IMainMenu* pMainMenu = g_pGamePersistent ? g_pGamePersistent->m_pMainMenu : 0;
+	bool bMenu = pMainMenu ? pMainMenu->CanSkipSceneRendering() : false;
+	bMenu |= !(g_pGameLevel && g_hud);
 
-	if (!(g_pGameLevel && g_hud) || bMenu) {
+	if (bMenu)
+	{
 		Target->u_setrt((u32)RCache.get_target_width(), (u32)RCache.get_target_height(), RImplementation.Target->rt_BackbufferLUT->pRT, nullptr, nullptr, nullptr);
 		return;
 	}
@@ -386,98 +457,20 @@ void CRender::Render()
 		return;
 	}
 
-	if(RImplementation.o.offscreen_reflecitons && pLastSector) {
-		GPU_EVENT(FORWARD_REFLECTIONS);
+	RImplementation.o.distortion = false;
 
-		is_render_cubemap = true;
-		static Fmatrix cProj{}, cView{}, cTrans{};
-		static Fvector cmNorm[6]{}, cmDir[6]{};
-
-		auto& CurrentEnv = *g_pGamePersistent->Environment().CurrentEnv;
-		u32 RefSize = Target->rt_Reflection->dwSize;
-
-		Fvector4 fog_color4 = {
-			CurrentEnv.fog_color.x / (1.0f + CurrentEnv.fog_color.x),
-			CurrentEnv.fog_color.y / (1.0f + CurrentEnv.fog_color.y),
-			CurrentEnv.fog_color.z / (1.0f + CurrentEnv.fog_color.z),
-			CurrentEnv.far_plane
-		};
-
-		cProj.build_projection(PI_DIV_2 + 0.002f, 1.0f,
-			Device.fViewportNear, CurrentEnv.far_plane * ps_r4_vslr_distance);
-
-		cmDir[2].mul(Device.vCameraTop, +1.0f);
-		cmDir[3].mul(Device.vCameraTop, -1.0f);
-
-		cmNorm[2].mul(Device.vCameraDirection, -1.0f);
-		cmNorm[3].mul(Device.vCameraDirection, +1.0f);
-
-		cmDir[0].mul(Device.vCameraRight, +1.0f);
-		cmDir[1].mul(Device.vCameraRight, -1.0f);
-
-		cmNorm[0].mul(Device.vCameraTop, +1.0f);
-		cmNorm[1].mul(Device.vCameraTop, +1.0f);
-
-		cmDir[4].mul(Device.vCameraDirection, +1.0f);
-		cmDir[5].mul(Device.vCameraDirection, -1.0f);
-
-		cmNorm[4].mul(Device.vCameraTop, +1.0f);
-		cmNorm[5].mul(Device.vCameraTop, +1.0f);
-
-		RCache.set_xform_project(cProj);
-
-		phase = PHASE_REFLECT;
-
-		HOM.Disable();
-		r_pmask(true, false, true);
-
+	if (o.offscreen_reflecitons && !o.dx11_use_legacy_light)
+	{
 		ps_r_taa_jitter.set(0, 0, -1);
 		ps_r_taa_jitter_full.set(ps_r_taa_jitter);
-		
-		Fvector PointPos = Device.vCameraPosition;
-		RContext->CopyResource(Target->rt_Reflection_temp->pSurface, Target->rt_Reflection->pSurface);
 
-		for(auto i = 0; i < 6; ++i) {
-			GPU_EVENT(FORWARD_REFLECTION_SIDE);
-
-			cView.build_camera_dir(PointPos, cmDir[i], cmNorm[i]);
-			cTrans.mul(cProj, cView);
-
-			r_dsgraph_render_subspace(pLastSector, cTrans, PointPos, FALSE, FALSE);
-
-			RCache.set_xform_view(cView);
-			mapWmark.clear();
-
-			RContext->ClearRenderTargetView(Target->rt_Reflection->pRT[i], (FLOAT*)&fog_color4);
-			RContext->ClearDepthStencilView(Target->rt_Depth->pZRT, D3D_CLEAR_DEPTH, 1.0f, 0);
-
-			Target->u_setrt(RefSize, RefSize,
-				Target->rt_Reflection->pRT[i], NULL, NULL, Target->rt_Depth->pZRT);
-			
-			RImplementation.rmNormal();
-
-			RCache.set_Stencil(FALSE);
-			RCache.set_ColorWriteEnable();
-
-			r_dsgraph_render_graph(0);
-		}
-
-		{
-			GPU_EVENT(FORWARD_REFLECTION_MIPS_GEN);
-			RContext->GenerateMips(Target->rt_Reflection->pTexture->get_SRView());
-		}
-
-		RCache.set_xform_project(Device.mProject);
-		RCache.set_xform_view(Device.mView);
-
-		is_render_cubemap = false;
-		phase = PHASE_NORMAL;
+		render_reflections();
 	}
 
 	if(ps_r_scale_mode > 1 || ps_r2_aa_type == 3)
 	{
-		int32_t jitterPhaseCount = ffxFsr2GetJitterPhaseCount((int32_t)RCache.get_width(), (int32_t)RCache.get_target_width());
-		ffxFsr2GetJitterOffset(&ps_r_taa_jitter_full.x, &ps_r_taa_jitter_full.y, Device.dwFrame, jitterPhaseCount);
+		int32_t jitterPhaseCount = ffxFsr3UpscalerGetJitterPhaseCount((int32_t)RCache.get_width(), (int32_t)RCache.get_target_width());
+		ffxFsr3UpscalerGetJitterOffset(&ps_r_taa_jitter_full.x, &ps_r_taa_jitter_full.y, Device.dwFrame, jitterPhaseCount);
 
 		ps_r_taa_jitter_full = ps_r_taa_jitter_full.mul(ps_r_taa_jitter_scale);
 
@@ -491,27 +484,32 @@ void CRender::Render()
 		ps_r_taa_jitter_full.set(ps_r_taa_jitter);
 	}
 
+	if (GActorInterface)
+	{
+		Target->u_setrt(Target->rt_ui_pda, 0, 0);
+		rmNormal();
+
+		GActorInterface->RenderItemUI();
+	}
+
 	Target->u_setrt(Target->rt_Generic_0, Target->rt_Velocity, 0, 0);
+	rmNormal();
 
-	FLOAT ColorRGBA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	RContext->ClearRenderTargetView(Target->rt_Generic_0->pRT, ColorRGBA);
-	RContext->ClearRenderTargetView(Target->rt_Velocity->pRT, ColorRGBA);
+	GRHI->ClearTarget(Target->rt_Generic_0->pRT);
+	GRHI->ClearTarget(Target->rt_Velocity->pRT);
 
-	RCache.set_CullMode(CULL_NONE);
-	RCache.set_Stencil(FALSE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+	RCache.set_Stencil(false);
 
 	g_pGamePersistent->Environment().RenderSky();
-
-	RImplementation.o.distortion = FALSE;
-	Fcolor sun_color = ((light*)Lights.sun_adapted._get())->color;
-	bool bSUN = !o.sunstatic && u_diffuse2s(sun_color) > EPS;
 
 	RCache.set_xform_world(Fidentity);
 
 	ViewBase.CreateFromMatrix(Device.mFullTransform, FRUSTUM_P_LRTB + FRUSTUM_P_FAR);
 	View = 0;
 
-	if(!ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC)) {
+	if(!ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))
+	{
 		HOM.Enable();
 		HOM.Render(ViewBase);
 	}
@@ -530,7 +528,7 @@ void CRender::Render()
 
 			// flush
 			Target->phase_scene_prepare();
-			RCache.set_ColorWriteEnable(FALSE);
+			RCache.set_ColorWriteEnable(false);
 			r_dsgraph_render_graph(0);
 			RCache.set_ColorWriteEnable();
 		}
@@ -550,10 +548,11 @@ void CRender::Render()
 	r_pmask										(true,false);	// disable priority "1"
 	Device.Statistic->RenderCALC.End			();
 
-	BOOL	split_the_scene_to_minimize_wait		= FALSE;
-	if (ps_r2_ls_flags.test(R2FLAG_EXP_SPLIT_SCENE))	split_the_scene_to_minimize_wait=TRUE;
+	bool	split_the_scene_to_minimize_wait		= false;
+	if (ps_r2_ls_flags.test(R2FLAG_EXP_SPLIT_SCENE))	split_the_scene_to_minimize_wait=true;
 
-	if (mapHUDScopeMask.size() > 0) {
+	if (mapHUDScopeMask.size() > 0) 
+	{
 		split_the_scene_to_minimize_wait = FALSE;
 	}
 
@@ -663,15 +662,11 @@ void CRender::Render()
 		Target->phase_scene_end					();
 	}
 
+	Target->copy_position();
+
+	if (!!o.dx11_disable_motion_vectors)
 	{
-		GPU_EVENT(ZBUFFER_COPY);
-		RCache.set_ZB(NULL);
-
-		ID3D11Resource* res{};
-		RDepth->GetResource(&res);
-
-		RContext->CopyResource(Target->rt_Position->pSurface, res);
-		_RELEASE(res);
+		Target->pharse_velocity();
 	}
 
 	static bool UseWinterPass = EngineExternal()[EEngineExternalRender::UseDynamicSnowMask];
@@ -679,40 +674,49 @@ void CRender::Render()
 	{
 		GPU_EVENT(PhaseWinter);
 
-		RContext->CopyResource(Target->rt_NormalTemp->pSurface, Target->rt_Normal->pSurface);
-		RContext->CopyResource(Target->rt_SurfaceTemp->pSurface, Target->rt_Surface->pSurface);
+		Target->u_setrt((u32)RCache.get_width(), (u32)RCache.get_height(), nullptr, nullptr, nullptr, nullptr);
 
-		Target->phase_scene_begin();
-		RCache.set_ZB(nullptr);
+		GRHI->SetUnorderedAccessViews(Target->rt_Color->pUAView, 0);
+		GRHI->SetUnorderedAccessViews(Target->rt_Normal->pUAView, 1);
+		GRHI->SetUnorderedAccessViews(Target->rt_Surface->pUAView, 2);
 
-		RCache.set_ColorWriteEnable(D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_GREEN | D3DCOLORWRITEENABLE_BLUE);
 		Target->PhaseWinter();
 
-		RCache.set_ColorWriteEnable();
+		GRHI->SetUnorderedAccessViews(NULL, 0);
+		GRHI->SetUnorderedAccessViews(NULL, 1);
+		GRHI->SetUnorderedAccessViews(NULL, 2);
 	}
 
 	// Wall marks
-	if(Wallmarks)	
+	if(Wallmarks)
 	{
 		GPU_EVENT(DEFER_WALLMARKS);
-		Target->phase_wallmarks					();
-		g_r										= 0;
-		Wallmarks->Render						();				// wallmarks has priority as normal geometry
+
+		Target->phase_wallmarks();
+		Wallmarks->Render();
 	}
 
 	// Update incremental shadowmap-visibility solver
 	{
 		GPU_EVENT(DEFER_FLUSH_OCCLUSION);
-		u32 it=0;
-		for (it=0; it<Lights_LastFrame.size(); it++)	{
-			if (0==Lights_LastFrame[it])	continue	;
-			try {
-				Lights_LastFrame[it]->svis.flushoccq()	;
-			} catch (...)
+
+		for (u32 it = 0; it < Lights_LastFrame.size(); it++)
+		{
+			if (0 == Lights_LastFrame[it])
 			{
-				Msg	("! Failed to flush-OCCq on light [%d] %X",it,*(u32*)(&Lights_LastFrame[it]));
+				continue;
+			}
+
+			try
+			{
+				Lights_LastFrame[it]->svis.flushoccq();
+			}
+			catch (...)
+			{
+				Msg("! Failed to flush-OCCq on light [%d] %X", it, *(u32*)(&Lights_LastFrame[it]));
 			}
 		}
+
 		Lights_LastFrame.clear	();
 	}
 
@@ -725,11 +729,14 @@ void CRender::Render()
 
 	rmNormal();
 
-	// Directional light - fucking sun
+	Fcolor sun_color = ((light*)Lights.sun_adapted._get())->color;
+	bool bSUN = !o.sunstatic && u_diffuse2s(sun_color) > EPS;
+
 	if (bSUN)	
 	{
 		GPU_EVENT(DEFER_SUN);
-		RImplementation.stats.l_visible		++;
+
+		RImplementation.stats.l_visible++;
 		render_sun_cascades();
 		Target->increment_light_marker();
 	}
@@ -738,34 +745,30 @@ void CRender::Render()
 
 	{
 		GPU_EVENT(DEFER_SELF_ILLUM);
-		Target->phase_accumulator			();
-		// Render emissive geometry, stencil - write 0x0 at pixel pos
-		RCache.set_xform_project			(Device.mProject); 
-		RCache.set_xform_view				(Device.mView);
-		// Stencil - write 0x1 at pixel pos - 
-		RCache.set_Stencil(TRUE, D3DCMP_ALWAYS, 0x01, 0xff, 0xff, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
-		//RCache.set_Stencil				(TRUE,D3DCMP_ALWAYS,0x00,0xff,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE,D3DSTENCILOP_KEEP);
-		RCache.set_CullMode					(CULL_CCW);
-		RCache.set_ColorWriteEnable			();
-		RImplementation.r_dsgraph_render_emissive();
-	}
-
-	if(g_hud && g_hud->RenderActiveItemUIQuery()) {
 		Target->phase_accumulator();
-		r_dsgraph_render_hud_ui();
+
+		// Render emissive geometry, stencil - write 0x0 at pixel pos
+		RCache.set_xform_project(Device.mProject);
+		RCache.set_xform_view(Device.mView);
+
+		// Stencil - write 0x1 at pixel pos - 
+		RCache.set_Stencil(true, D3DCMP_ALWAYS, 0x01, 0xff, 0xff, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+		GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+		RCache.set_ColorWriteEnable();
+		RImplementation.r_dsgraph_render_emissive();
 	}
 
 	// Lighting, non dependant on OCCQ
 	{
 		GPU_EVENT(DEFER_LIGHT_NO_OCCQ);
-		Target->phase_accumulator				();
-		render_lights							(LP_normal);
+		Target->phase_accumulator();
+		render_lights(LP_normal);
 	}
 
 	// Lighting, dependant on OCCQ
 	{
 		GPU_EVENT(DEFER_LIGHT_OCCQ);
-		render_lights							(LP_pending);
+		render_lights(LP_pending);
 	}
 
 	phase = PHASE_NORMAL;
@@ -773,37 +776,87 @@ void CRender::Render()
 	// Postprocess
 	{
 		GPU_EVENT(DEFER_LIGHT_COMBINE);
-		Target->phase_combine					();
+		Target->phase_combine();
 	}
 
-	VERIFY	(0==mapDistort.size() + mapHUDDistort.size());
-
-	//HWOCC.occq_stats();
+	VERIFY(0 == mapDistort.size() + mapHUDDistort.size());
 }
 
-void CRender::render_forward				()
+void CRender::render_forward()
 {
-	VERIFY	(0==mapDistort.size() + mapHUDDistort.size());
-	RImplementation.o.distortion				= RImplementation.o.distortion_enabled;	// enable distorion
+	VERIFY(0 == mapDistort.size() + mapHUDDistort.size());
+	RImplementation.o.distortion = RImplementation.o.distortion_enabled;
 
-	//******* Main render - second order geometry (the one, that doesn't support deffering)
-	//.todo: should be done inside "combine" with estimation of of luminance, tone-mapping, etc.
+	// level enable priority "1"
+	r_pmask(false, true);
+	phase = PHASE_NORMAL;
+
+	render_main(false);
+	mapLOD.clear();
+
+	bool bSpecial = mapNormalPasses[1][0].size() || mapMatrixPasses[1][0].size();
+	bSpecial |= mapNormalPasses[1][1].size() || mapMatrixPasses[1][1].size();
+
+	if (ps_r2_ls_flags_ext.test(R4FLAG_PUDDLES))
 	{
-		// level
-		r_pmask									(false,true);			// enable priority "1"
-		phase									= PHASE_NORMAL;
-		render_main								(false);//
-		//	Igor: we don't want to render old lods on next frame.
-		mapLOD.clear							();
-		CParticlesAsync::Wait();
-		r_dsgraph_render_graph					(1)	;					// normal level, secondary priority
-		PortalTraverser.fade_render				()	;					// faded-portals
-		r_dsgraph_render_sorted					(false)	;					// strict-sorted geoms
-		g_pGamePersistent->Environment().RenderLast()	;					// rain/thunder-bolts
-
-		RContext->CopyResource(Target->rt_Accumulator->pSurface, Target->rt_Generic_0->pSurface);
-		r_dsgraph_render_sorted_hud();
+		GPU_EVENT(Forward_rendering_puddles);
+		bSpecial |= Target->phase_puddles();
 	}
 
-	RImplementation.o.distortion				= FALSE;				// disable distorion
+	// May be WBOIT
+	r_dsgraph_render_graph(1);
+
+	bool bDistort = RImplementation.mapDistort.size() || RImplementation.mapHUDDistort.size();
+	GRHI->ClearTarget(Target->rt_Generic_1->pRT, ERTColor::Gray);
+
+	if (bDistort)
+	{
+		GPU_EVENT(render_distort_objects);
+		Target->u_setrt(Target->rt_Generic_1, 0, 0, RDepth);
+
+		RImplementation.rmNormal();
+		GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+		RCache.set_Stencil(FALSE);
+		RCache.set_ColorWriteEnable();
+		RImplementation.r_dsgraph_render_distort();
+	}
+
+	if(bDistort || bSpecial)
+	{
+		Target->u_setrt(Target->rt_Accumulator, 0, 0, 0);
+
+		RCache.set_Element(Target->s_combine->E[1]);
+		RCache.set_Geometry(Target->FSTriangleGeom);
+
+		RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, 0, 0, 3, 0, 1);
+		GRHI->CopySurface(Target->rt_Generic_0->pSurface, Target->rt_Accumulator->pSurface);
+	}
+
+	RImplementation.o.distortion = false;
+
+	if(RImplementation.o.dx11_disable_motion_vectors)
+	{
+		Target->u_setrt(Target->rt_Generic_0, nullptr, RDepth);
+	}
+	else
+	{
+		Target->u_setrt(Target->rt_Generic_0, Target->rt_Velocity, RDepth);
+	}
+
+	PortalTraverser.fade_render();
+	r_dsgraph_render_sorted(false);
+
+	g_pGamePersistent->Environment().RenderLast();
+	Target->phase_combine_volumetric();
+
+	const bool bHUD_UI = g_hud && g_hud->RenderActiveItemUIQuery();
+	if(bSpecial = mapHUDSorted.size() > 0; bSpecial || mapHUDEmissive.size() > 0 || bHUD_UI)
+	{
+		if(bSpecial)
+		{
+			GRHI->CopySurface(Target->rt_Accumulator->pSurface, Target->rt_Generic_0->pSurface);
+		}
+
+		r_dsgraph_render_sorted_hud();
+	}
 }

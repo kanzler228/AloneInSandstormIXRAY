@@ -55,11 +55,11 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeSchedulable,IPureSchedulableObject)
 	CSE_ALifeDynamicObject			*m_tpBestDetector;
 	u64								m_schedule_counter;
 
-									CSE_ALifeSchedulable	(LPCSTR caSection);
+									CSE_ALifeSchedulable	(const char* caSection);
 	virtual							~CSE_ALifeSchedulable	();
 	// we need this to prevent virtual inheritance :-(
-	virtual CSE_Abstract			*base					() = 0;
-	virtual const CSE_Abstract		*base					() const = 0;
+	virtual CSE_Abstract			*base					() { return nullptr; }
+	virtual const CSE_Abstract		*base					() const { return nullptr; }
 	virtual CSE_Abstract			*init					();
 	virtual CSE_ALifeSchedulable	*cast_schedulable		() {return this;};
 	virtual CSE_Abstract			*cast_abstract			() {return 0;};
@@ -89,7 +89,7 @@ public:
 	shared_str						m_caConnectionPointName;
 	u8								m_tLocations[GameGraph::LOCATION_TYPE_COUNT];
 
-									CSE_ALifeGraphPoint	(LPCSTR caSection);
+									CSE_ALifeGraphPoint	(const char* caSection);
 	virtual							~CSE_ALifeGraphPoint();
 	virtual bool					match_configuration	() const { return false; }
 
@@ -128,12 +128,13 @@ public:
 	flags32							m_flags;
 	ALife::_STORY_ID				m_story_id;
 	ALife::_SPAWN_STORY_ID			m_spawn_story_id;
+	shared_str						m_script_story_ID;
 
 #ifdef XRGAME_EXPORTS
 	CALifeSimulator					*m_alife_simulator;
 #endif
 
-									CSE_ALifeObject		(LPCSTR caSection);
+									CSE_ALifeObject		(const char* caSection);
 	virtual							~CSE_ALifeObject	();
 	virtual bool					used_ai_locations	() const;
 	virtual bool					can_save			() const;
@@ -153,8 +154,26 @@ public:
 	virtual u32						ef_main_weapon_type	() const;
 	virtual u32						ef_weapon_type		() const;
 	virtual u32						ef_detector_type	() const;
+
 #ifdef XRGAME_EXPORTS
-	virtual void					spawn_supplies		(LPCSTR);
+private:
+	virtual u32						getCountValueToSpawn(const char* spawnArgs);
+	virtual float					parseFloatParameterValue(const char* spawnArgs, const char* parameterName, float defaultValue = 0.0f);
+	virtual int						parseIntParameterValue(const char* spawnArgs, const char* parameterName, int defaultValue = 0);
+	virtual bool					parseBoolParameterValue(const char* spawnArgs, const char* parameterName);
+	virtual CSE_Abstract*			setAddonFlagsIsWeapon(CSE_Abstract* E, const char* spawnArgs);
+	virtual void					spawnAmmoForWeapon(const char* wpnSection, CSE_Abstract* E, int i_ammo_type, u32 countAmmoBoxesToSpawn);
+	virtual void					setItemCondition(CSE_Abstract* E, float condition);
+	virtual void					parseLoadouts(CInifile& ini, xr_vector <CInifile::Sect*>& m_loadouts);
+	virtual void					processingSpawnFullRandomLoadout(CInifile& ini);
+	virtual void					processingSpawnOnceRandomitemByRandomLoadout(CInifile& ini);
+	virtual void					processingSpawnOnceRandomItemPerEachLoadouts(CInifile& ini);
+	virtual void					processingVanillaSpawn(CInifile& ini);
+#endif
+
+public:
+#ifdef XRGAME_EXPORTS
+	virtual void					spawn_supplies		(const char*);
 	virtual void					spawn_supplies		();
 			CALifeSimulator			&alife				() const;
 	virtual Fvector					draw_level_position	() const;
@@ -168,11 +187,11 @@ SERVER_ENTITY_DECLARE_BEGIN0(CSE_ALifeGroupAbstract)
 	u16								m_wCount;
 	ALife::_TIME_ID					m_tNextBirthTime;
 
-									CSE_ALifeGroupAbstract	(LPCSTR caSection);
+									CSE_ALifeGroupAbstract	(const char* caSection);
 	virtual							~CSE_ALifeGroupAbstract	();
 	virtual	CSE_Abstract			*init					();
-	virtual CSE_Abstract			*base					() = 0;
-	virtual const CSE_Abstract		*base					() const = 0;
+	virtual CSE_Abstract			*base					() { return nullptr; }
+	virtual const CSE_Abstract		*base					() const { return nullptr; }
 	virtual CSE_ALifeGroupAbstract	*cast_group_abstract	() {return this;};
 	virtual CSE_Abstract			*cast_abstract			() {return 0;};
 #ifdef XRGAME_EXPORTS
@@ -189,13 +208,11 @@ template<class __A> class CSE_ALifeGroupTemplate : public __A, public CSE_ALifeG
 	typedef __A					inherited1;
 	typedef CSE_ALifeGroupAbstract inherited2;
 public:
-									CSE_ALifeGroupTemplate(LPCSTR caSection) : __A(pSettings->line_exist(caSection,"monster_section") ? pSettings->r_string(caSection,"monster_section") : caSection), CSE_ALifeGroupAbstract(caSection)
+									CSE_ALifeGroupTemplate(const char* caSection) : __A(pSettings->line_exist(caSection,"monster_section") ? pSettings->r_string(caSection,"monster_section") : caSection), CSE_ALifeGroupAbstract(caSection)
 	{
 	};
 	
-	virtual							~CSE_ALifeGroupTemplate()
-	{
-	};
+	virtual							~CSE_ALifeGroupTemplate() = default;
 	
 	virtual void STATE_Read			(NET_Packet	&tNetPacket, u16 size)
 	{
@@ -239,7 +256,7 @@ public:
 	}
 
 #ifndef XRGAME_EXPORTS
-	virtual void		FillProps	(LPCSTR pref, PropItemVec& items)
+	virtual void		FillProps	(const char* pref, PropItemVec& items)
 	{
    		inherited1::FillProps		(pref, items);
    		inherited2::FillProps		(pref, items);
@@ -293,7 +310,7 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeDynamicObject,CSE_ALifeObject)
 	ALife::_TIME_ID					m_tTimeID;
 	u64								m_switch_counter;
 	
-									CSE_ALifeDynamicObject	(LPCSTR caSection);
+									CSE_ALifeDynamicObject	(const char* caSection);
 	virtual							~CSE_ALifeDynamicObject	();
 #ifdef XRGAME_EXPORTS
 	virtual void					on_spawn				();
@@ -317,13 +334,13 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeDynamicObject,CSE_ALifeObject)
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeDynamicObjectVisual,CSE_ALifeDynamicObject,CSE_Visual)
-									CSE_ALifeDynamicObjectVisual(LPCSTR caSection);
+									CSE_ALifeDynamicObjectVisual(const char* caSection);
 	virtual							~CSE_ALifeDynamicObjectVisual();
 	virtual CSE_Visual* 	visual					();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifePHSkeletonObject,CSE_ALifeDynamicObjectVisual,CSE_PHSkeleton)
-									CSE_ALifePHSkeletonObject(LPCSTR caSection);
+									CSE_ALifePHSkeletonObject(const char* caSection);
 	virtual							~CSE_ALifePHSkeletonObject();
 	virtual bool					can_save				() const;
 	virtual bool					used_ai_locations		() const;
@@ -335,11 +352,21 @@ SERVER_ENTITY_DECLARE_END
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeSpaceRestrictor,CSE_ALifeDynamicObject,CSE_Shape)
 	u8								m_space_restrictor_type;
 
-									CSE_ALifeSpaceRestrictor	(LPCSTR caSection);
+									CSE_ALifeSpaceRestrictor	(const char* caSection);
 	virtual							~CSE_ALifeSpaceRestrictor	();
 	virtual ISE_Shape*  	shape						();
 	virtual bool					can_switch_offline			() const;
 	virtual bool					used_ai_locations			() const;
+SERVER_ENTITY_DECLARE_END
+
+SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeDynamicWallmark,CSE_ALifeSpaceRestrictor)
+
+	shared_str shader = "effects\\wallmark";
+	shared_str texture = "";
+	float h = 1.0f, w = 1.0f, r = 0.0f;
+
+	CSE_ALifeDynamicWallmark(const char* caSection);
+	virtual							~CSE_ALifeDynamicWallmark	();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeLevelChanger,CSE_ALifeSpaceRestrictor)
@@ -349,15 +376,15 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeLevelChanger,CSE_ALifeSpaceRestrictor)
 	Fvector							m_tAngles;
 	shared_str						m_caLevelToChange;
 	shared_str						m_caLevelPointToChange;
-	BOOL							m_bSilentMode;
+	bool							m_bSilentMode;
 	LPSTR							destLeveName;
 
-									CSE_ALifeLevelChanger		(LPCSTR caSection);
+									CSE_ALifeLevelChanger		(const char* caSection);
 	virtual							~CSE_ALifeLevelChanger		();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeSmartZone,CSE_ALifeSpaceRestrictor,CSE_ALifeSchedulable)
-									CSE_ALifeSmartZone			(LPCSTR caSection);
+									CSE_ALifeSmartZone			(const char* caSection);
 	virtual							~CSE_ALifeSmartZone			();
 	virtual CSE_Abstract			*base						();
 	virtual const CSE_Abstract		*base						() const;
@@ -387,7 +414,7 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeObjectPhysic,CSE_ALifeDynamicObjectVisual,
 	u32 							type;
 	f32 							mass;
     shared_str 						fixed_bones;
-									CSE_ALifeObjectPhysic	(LPCSTR caSection);
+									CSE_ALifeObjectPhysic	(const char* caSection);
     virtual 						~CSE_ALifeObjectPhysic	();
 	virtual bool					used_ai_locations		() const;
 	virtual bool					can_save				() const;
@@ -425,7 +452,7 @@ public:
 	bool							freezed;
 	SPHNetState						State;
 	
-	virtual BOOL					Net_Relevant			();
+	virtual bool					Net_Relevant			();
 
 SERVER_ENTITY_DECLARE_END
 
@@ -472,7 +499,7 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeObjectHangingLamp,CSE_ALifeDynamicObjectVi
 // game
     float							m_health;
 	
-                                    CSE_ALifeObjectHangingLamp	(LPCSTR caSection);
+                                    CSE_ALifeObjectHangingLamp	(const char* caSection);
     virtual							~CSE_ALifeObjectHangingLamp	();
 	virtual	void					load						(NET_Packet &tNetPacket);
 	virtual bool					used_ai_locations			() const;
@@ -485,21 +512,21 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeObjectHangingLamp,CSE_ALifeDynamicObjectVi
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeObjectProjector,CSE_ALifeDynamicObjectVisual)
-									CSE_ALifeObjectProjector	(LPCSTR caSection);
+									CSE_ALifeObjectProjector	(const char* caSection);
 	virtual							~CSE_ALifeObjectProjector	();
 	virtual bool					used_ai_locations	() const;
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN3(CSE_ALifeHelicopter,CSE_ALifeDynamicObjectVisual,CSE_Motion,CSE_PHSkeleton)
 	shared_str							engine_sound;
-									CSE_ALifeHelicopter			(LPCSTR caSection);
+									CSE_ALifeHelicopter			(const char* caSection);
 	virtual							~CSE_ALifeHelicopter		();
 	virtual	void					load						(NET_Packet &tNetPacket);
 	virtual bool					can_save					() const;
 	virtual bool					used_ai_locations			() const;
 	virtual CSE_Motion*		motion						();
 	virtual CSE_Abstract			*cast_abstract			() {return this;}
-	virtual BOOL					Net_Relevant() override;
+	virtual bool					Net_Relevant() override;
 
 	// For new sync system
 	Fvector PointPos;
@@ -533,7 +560,7 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeCar,CSE_ALifeDynamicObjectVisual,CSE_PHSke
 	u32 Transmission;
 	xr_vector<SPHNetState> StateVec;
 
-									CSE_ALifeCar		(LPCSTR caSection);
+									CSE_ALifeCar		(const char* caSection);
 	virtual							~CSE_ALifeCar		();
 	virtual bool					used_ai_locations	() const;
 	virtual	void					load				(NET_Packet &tNetPacket);
@@ -545,7 +572,7 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeCar,CSE_ALifeDynamicObjectVisual,CSE_PHSke
 	virtual void					add_online			(const bool& update_registries);
 #endif
 
-	BOOL Net_Relevant() override;
+	bool Net_Relevant() override;
 	virtual void SyncRead(NET_Packet& Packet);
 	virtual void SyncWrite(NET_Packet& Packet);
 
@@ -556,14 +583,14 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeObjectBreakable,CSE_ALifeDynamicObjectVisual)
     float							m_health;
-									CSE_ALifeObjectBreakable	(LPCSTR caSection);
+									CSE_ALifeObjectBreakable	(const char* caSection);
 	virtual							~CSE_ALifeObjectBreakable	();
 	virtual bool					used_ai_locations	() const;
 	virtual bool					can_switch_offline	() const;
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeObjectClimable,CSE_Shape,CSE_ALifeDynamicObject)
-CSE_ALifeObjectClimable	(LPCSTR caSection);
+CSE_ALifeObjectClimable	(const char* caSection);
 shared_str						material;
 virtual							~CSE_ALifeObjectClimable	();
 virtual bool					used_ai_locations	() const;
@@ -577,7 +604,7 @@ virtual	void			set_additional_info	(void* info);
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeMountedWeapon,CSE_ALifeDynamicObjectVisual)
-									CSE_ALifeMountedWeapon	(LPCSTR caSection);
+									CSE_ALifeMountedWeapon	(const char* caSection);
 	virtual							~CSE_ALifeMountedWeapon	();
 SERVER_ENTITY_DECLARE_END
 
@@ -585,13 +612,13 @@ SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeStationaryMgun,CSE_ALifeDynamicObjectVisual
 	bool							m_bWorking;
 	Fvector							m_destEnemyDir;
 
-									CSE_ALifeStationaryMgun	(LPCSTR caSection);
+									CSE_ALifeStationaryMgun	(const char* caSection);
 	virtual							~CSE_ALifeStationaryMgun	();
 	
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeTeamBaseZone,CSE_ALifeSpaceRestrictor)
-									CSE_ALifeTeamBaseZone	(LPCSTR caSection);
+									CSE_ALifeTeamBaseZone	(const char* caSection);
 	virtual							~CSE_ALifeTeamBaseZone	();
 
 	u8								m_team;
@@ -606,12 +633,35 @@ shared_str						m_point_name;
 SERVER_ENTITY_DECLARE_END
 
 
+SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeInteractiveObject, CSE_ALifeDynamicObjectVisual)
+bool				m_can_take;
+bool				m_closed;
+shared_str			m_tip_text;
+
+CSE_ALifeInteractiveObject(const char* caSection);
+virtual				~CSE_ALifeInteractiveObject();
+SERVER_ENTITY_DECLARE_END
+
+SERVER_ENTITY_DECLARE_BEGIN(CSE_Shell, CSE_ALifeObjectPhysic)
+	ALife::_OBJECT_ID weapon_id;
+	Fvector eject_dir;
+	Fvector parent_vel;
+	float eject_speed;
+	float eject_dispersion_angle;
+
+	CSE_Shell(const char* section);
+	virtual ~CSE_Shell() override;
+
+	virtual bool Spawn_Read(NET_Packet& tNetPacket) override;
+	virtual void Spawn_Write(NET_Packet& tNetPacket, bool bLocal) override;
+SERVER_ENTITY_DECLARE_END
+
 SERVER_ENTITY_DECLARE_BEGIN(CSE_ALifeInventoryBox,CSE_ALifeDynamicObjectVisual)
 	bool				m_can_take;
 	bool				m_closed;
 	shared_str			m_tip_text;
 
-						CSE_ALifeInventoryBox	(LPCSTR caSection);
+						CSE_ALifeInventoryBox	(const char* caSection);
 	virtual				~CSE_ALifeInventoryBox	();
 #ifdef XRGAME_EXPORTS
 	virtual void		add_offline				(const xr_vector<ALife::_OBJECT_ID> &saved_children, const bool &update_registries);

@@ -10,7 +10,7 @@ class CCustomDevice : public CHudItemObject
 {
 	using inherited = CHudItemObject;
 public:
-	enum EDeviceStates
+	enum EDeviceStates : u8
 	{
 		eHandHide = eLastBaseState + 1,
 		eHandDraw,
@@ -26,6 +26,7 @@ public:
 		eHandDry,
 		eHandJammed,
 		eHandLightMisfire,
+		eHandFiremode,
 	};
 protected:
 	bool m_bFastAnimMode = false;
@@ -38,8 +39,8 @@ public:
 	CCustomDevice() = default;
 	~CCustomDevice() override;
 
-	BOOL net_Spawn(CSE_Abstract* DC) override;
-	void LoadSounds(LPCSTR section) override;
+	bool net_Spawn(CSE_Abstract* DC) override;
+	void LoadSounds(const char* section) override;
 
 	void OnH_B_Independent(bool just_before_destroy) override;
 
@@ -51,10 +52,10 @@ public:
 	bool need_renderable() final override;
 	void OnMoveToRuck(const SInvItemPlace& prev) override;
 	void ShowingCallback(CBlend* B);
-	void OnStateSwitch(u32 S) override;
-	void OnAnimationEnd(u32 state) override;
+	void OnStateSwitch(u8 S) override;
+	void OnAnimationEnd(u8 state) override;
 	void UpdateXForm() override;
-	void SwitchState(u32 S) final override;
+	void SwitchState(u8 S) final override;
 	void UpdateHudAdditonal(Fmatrix& trans) override;
 	void ToggleDetector(bool bFastMode, bool switching = false);
 	void HideDetector(bool bFastMode, bool force = false);
@@ -74,7 +75,7 @@ public:
 	virtual bool can_be_attached() const;
 	void PlayWpnFinishDetector();
 	virtual void TurnDetectorInternal(bool b);
-	void SwitchZoom();
+	void SwitchZoom(bool status);
 
 	bool NeedBlockSprint() const;
 	bool CanDrawHand() const;
@@ -82,12 +83,15 @@ public:
 	bool CanThrowHand() const;
 	bool CanKick() const;
 	bool CanLam() const;
+	bool CanFiremode() const;
 	bool CanShooting(bool dry = false) const;
 	bool CanJammed() const;
 	bool CanLightMisfire() const;
-	bool IsZoomed() const { return m_bIsZoomed; }
+	IC virtual bool IsZoomed() const final override { return m_bIsZoomed; }
 
 	virtual CCustomDevice* cast_custom_device() { return this; }
+
+	virtual bool NeedMovementBlend() const final override;
 
 protected:
 	bool CheckCompatibilityInt(CHudItem* itm, u16* slot_to_activate);

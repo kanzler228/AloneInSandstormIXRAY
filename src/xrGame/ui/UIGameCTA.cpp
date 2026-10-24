@@ -62,14 +62,14 @@ void CUIGameCTA::Init(int stage)
 {
 	if(stage==0)
 	{
-		m_round_result_caption		= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_round_result", m_window);
-		m_pressbuy_caption			= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_pressbuy", m_window);
-		m_pressjump_caption			= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_pressjump", m_window);
-		m_spectator_caption			= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_spectator", m_window);
-		m_spectrmode_caption		= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_spetatormode", m_window);
-		m_warm_up_caption			= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_warm_up", m_window);
-		m_time_caption				= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_timelimit", m_window);
-		m_demo_play_caption			= UIHelper::CreateTextWnd(*m_msgs_xml, "mp_demo_play", m_window);
+		m_round_result_caption		= UIHelper::CreateStatic(*m_msgs_xml, "mp_round_result", m_window);
+		m_pressbuy_caption			= UIHelper::CreateStatic(*m_msgs_xml, "mp_pressbuy", m_window);
+		m_pressjump_caption			= UIHelper::CreateStatic(*m_msgs_xml, "mp_pressjump", m_window);
+		m_spectator_caption			= UIHelper::CreateStatic(*m_msgs_xml, "mp_spectator", m_window);
+		m_spectrmode_caption		= UIHelper::CreateStatic(*m_msgs_xml, "mp_spetatormode", m_window);
+		m_warm_up_caption			= UIHelper::CreateStatic(*m_msgs_xml, "mp_warm_up", m_window);
+		m_time_caption				= UIHelper::CreateStatic(*m_msgs_xml, "mp_timelimit", m_window);
+		m_demo_play_caption			= UIHelper::CreateStatic(*m_msgs_xml, "mp_demo_play", m_window);
 
 		teamPanels					= new UITeamPanels();
 		teamPanels->Init			(TEAM_PANELS_XML_NAME, "team_panels_wnd");
@@ -95,9 +95,9 @@ void CUIGameCTA::Init(int stage)
 		}
 		else
 		{
-			m_pReinforcementInidcator = new CUITextWnd();
+			m_pReinforcementInidcator = new CUIStatic();
 			m_pReinforcementInidcator->SetAutoDelete(true);
-			CUIXmlInit::InitTextWnd(uiXml, "reinforcement", 0, m_pReinforcementInidcator);
+			CUIXmlInit::InitStatic(uiXml, "reinforcement", 0, m_pReinforcementInidcator);
 		}
 
 		m_team1_icon					= new CUIStatic();
@@ -175,7 +175,7 @@ void CUIGameCTA::UpdateTeamPanels()
 void CUIGameCTA::SetClGame(game_cl_GameState* g)
 {
 	inherited::SetClGame(g);
-	m_game = smart_cast<game_cl_CaptureTheArtefact*>(g);
+	m_game = g->cast_game_cl_capturetheartefact();
 	VERIFY(m_game);
 	
 	if (m_pMapDesc)
@@ -344,7 +344,8 @@ void CUIGameCTA::TryToDefuseAllWeapons	(aditional_ammo_t & dest_ammo)
 {
 	game_PlayerState* ps = Game().local_player;
 	VERIFY2(ps, "local player not initialized");
-	CActor* actor = smart_cast<CActor*> (Level().Objects.net_Find(ps->GameID));
+	CObject* finded_item = Level().Objects.net_Find(ps->GameID);
+	CActor* actor = finded_item != nullptr ? finded_item->cast_actor() : nullptr;
 	R_ASSERT2(actor || ps->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD),
 		make_string<const char*>("bad actor: not found in game (GameID = %d)", ps->GameID));
 
@@ -403,24 +404,24 @@ void TryToDefuseGrenadeLauncher(CWeaponMagazinedWGrenade const * weapon,
 		return;
 
 	xr_vector<shared_str> const *	tmp_ammo_types = nullptr;
-	u8 const *						tmp_ammo_type = nullptr;
+	u8								tmp_ammo_type = 0;
 	u16								ammo_elapsed = 0;
 	if (weapon->m_bGrenadeMode)
 	{
 		tmp_ammo_types	= &weapon->m_ammoTypes;
-		tmp_ammo_type	= &weapon->m_ammoType;
+		tmp_ammo_type	= weapon->AmmoType.MagazineType;
 		ammo_elapsed	= (u16)weapon->GetAmmoElapsed();
 	} else
 	{
 		tmp_ammo_types	= &weapon->m_ammoTypes2;
-		tmp_ammo_type	= &weapon->m_ammoType2;
+		tmp_ammo_type	= weapon->AmmoType.GrenadeType;
 		ammo_elapsed	= (u16)weapon->m_magazine2.size();
 	}
 	
-	if (tmp_ammo_types->size() <= u32(*tmp_ammo_type))
+	if (tmp_ammo_types->size() <= u32(tmp_ammo_type))
 		return;
 
-	shared_str ammo_section = (*tmp_ammo_types)[*tmp_ammo_type];
+	shared_str ammo_section = (*tmp_ammo_types)[tmp_ammo_type];
 
 	VERIFY2(ammo_section.size(), make_string<const char*>(
 		"grenade ammo type of [%s] hasn't section name", weapon->cNameSect().c_str()));
@@ -453,7 +454,7 @@ void TryToDefuseGrenadeLauncher(CWeaponMagazinedWGrenade const * weapon,
 	if (temp_iter == all_items.end())
 		return;
 
-	CWeaponAmmo* temp_ammo = smart_cast<CWeaponAmmo*>(*temp_iter);
+	CWeaponAmmo* temp_ammo = (*temp_iter)->cast_weapon_ammo();
 	R_ASSERT2(temp_ammo, "failed to create ammo after defusing weapon");
 	temp_ammo->m_boxCurr = temp_ammo->m_boxSize;
 }
@@ -466,29 +467,31 @@ void TryToDefuseWeapon(CWeapon const * weapon,
 	if (!weapon)
 		return;
 
-	CWeaponMagazinedWGrenade const * tmp_gl_weapon = smart_cast<CWeaponMagazinedWGrenade const *>(weapon);
+	CWeapon* cast_weapon = const_cast<CWeapon*>(weapon);
+
+	CWeaponMagazinedWGrenade const * tmp_gl_weapon = cast_weapon->cast_weapon_magazined_w_grenade();
 	if (weapon->IsGrenadeLauncherAttached())
 		TryToDefuseGrenadeLauncher(tmp_gl_weapon, all_items, dest_ammo);
 
 	xr_vector<shared_str> const *	tmp_ammo_types = nullptr;
-	u8 const *						tmp_ammo_type = nullptr;
+	u8								tmp_ammo_type = 0;
 	u16								ammo_elapsed = 0;
 	if (tmp_gl_weapon && tmp_gl_weapon->m_bGrenadeMode)
 	{
 		tmp_ammo_types	= &tmp_gl_weapon->m_ammoTypes2;
-		tmp_ammo_type	= &tmp_gl_weapon->m_ammoType2;
+		tmp_ammo_type	= tmp_gl_weapon->AmmoType.GrenadeType;
 		ammo_elapsed	= (u16)tmp_gl_weapon->m_magazine2.size();
 	} else
 	{
 		tmp_ammo_types	= &weapon->m_ammoTypes;
-		tmp_ammo_type	= &weapon->m_ammoType;
+		tmp_ammo_type	= weapon->AmmoType.MagazineType;
 		ammo_elapsed	= (u16)weapon->GetAmmoElapsed();
 	}
 	
-	if (tmp_ammo_types->size() <= u32(*tmp_ammo_type))
+	if (tmp_ammo_types->size() <= u32(tmp_ammo_type))
 		return;
 
-	shared_str ammo_section = (*tmp_ammo_types)[*tmp_ammo_type];
+	shared_str ammo_section = (*tmp_ammo_types)[tmp_ammo_type];
 
 	VERIFY2(ammo_section.size(), make_string<const char*>(
 		"ammo type of [%s] hasn't section name", weapon->cName().c_str()));
@@ -515,7 +518,7 @@ void TryToDefuseWeapon(CWeapon const * weapon,
 	if (temp_iter == all_items.end())
 		return;
 
-	CWeaponAmmo* temp_ammo = smart_cast<CWeaponAmmo*>(*temp_iter);
+	CWeaponAmmo* temp_ammo = (*temp_iter)->cast_weapon_ammo();
 	R_ASSERT2(temp_ammo, "failed to create ammo after defusing weapon");
 	temp_ammo->m_boxCurr = temp_ammo->m_boxSize;
 }
@@ -742,7 +745,7 @@ void CUIGameCTA::SetReinforcementTimes(u32 curTime, u32 maxTime)
 	}
 }
 
-void CUIGameCTA::DisplayMoneyChange(LPCSTR deltaMoney)
+void CUIGameCTA::DisplayMoneyChange(const char* deltaMoney)
 {
 	m_pMoneyIndicator->SetMoneyChange(deltaMoney);
 }
@@ -751,7 +754,7 @@ void CUIGameCTA::DisplayMoneyBonus(KillMessageStruct* bonus){
 	m_pMoneyIndicator->AddBonusMoney(*bonus);
 }
 
-void CUIGameCTA::ChangeTotalMoneyIndicator(LPCSTR newMoneyString)
+void CUIGameCTA::ChangeTotalMoneyIndicator(const char* newMoneyString)
 {
 	m_pMoneyIndicator->SetMoneyAmount(newMoneyString);
 }
@@ -805,41 +808,41 @@ void CUIGameCTA::Render()
 	if (m_voteStatusWnd) m_voteStatusWnd->Draw		();
 }
 
-void CUIGameCTA::SetRoundResultCaption(LPCSTR str)
+void CUIGameCTA::SetRoundResultCaption(const char* str)
 {
 	m_round_result_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetPressBuyMsgCaption(LPCSTR str)
+void CUIGameCTA::SetPressBuyMsgCaption(const char* str)
 {
 	m_pressbuy_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetPressJumpMsgCaption(LPCSTR str)
+void CUIGameCTA::SetPressJumpMsgCaption(const char* str)
 {
 	m_pressjump_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetSpectatorMsgCaption(LPCSTR str)
+void CUIGameCTA::SetSpectatorMsgCaption(const char* str)
 {
 	m_spectator_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetSpectrModeMsgCaption(LPCSTR str)
+void CUIGameCTA::SetSpectrModeMsgCaption(const char* str)
 {
 	m_spectrmode_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetWarmUpCaption(LPCSTR str)
+void CUIGameCTA::SetWarmUpCaption(const char* str)
 {
 	m_warm_up_caption->SetTextST(str);
 }
-void CUIGameCTA::SetTimeMsgCaption(LPCSTR str)
+void CUIGameCTA::SetTimeMsgCaption(const char* str)
 {
 	m_time_caption->SetTextST(str);
 }
 
-void CUIGameCTA::SetDemoPlayCaption(LPCSTR str)
+void CUIGameCTA::SetDemoPlayCaption(const char* str)
 {
 	m_demo_play_caption->SetTextST(str);
 }
@@ -874,7 +877,7 @@ void CUIGameCTA::ShowBuySpawn(s32 spawn_cost)
 	if (m_pBuySpawnMsgBox->IsShown())
 		return;
 
-	LPCSTR	format_str		= g_pStringTable->translate("mp_press_yes2pay").c_str();
+	const char*	format_str		= g_pStringTable->translate("mp_press_yes2pay").c_str();
 	VERIFY(format_str);
 	size_t	pay_frm_size	= xr_strlen(format_str)*sizeof(char) + 64;
 	char*	pay_frm_str		= static_cast<char*>(_alloca(pay_frm_size));
@@ -899,7 +902,7 @@ void CUIGameCTA::HideBuySpawn()
 	}
 }
 
-void CUIGameCTA::SetVoteMessage(LPCSTR str)
+void CUIGameCTA::SetVoteMessage(const char* str)
 {
 	if (m_voteStatusWnd)
 	{
@@ -915,7 +918,7 @@ void CUIGameCTA::SetVoteMessage(LPCSTR str)
 	}
 };
 
-void CUIGameCTA::SetVoteTimeResultMsg(LPCSTR str)
+void CUIGameCTA::SetVoteTimeResultMsg(const char* str)
 {
 	if (m_voteStatusWnd)
 		m_voteStatusWnd->SetVoteTimeResultMsg(str);

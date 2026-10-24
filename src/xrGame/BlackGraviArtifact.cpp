@@ -14,6 +14,7 @@
 #include "Explosive.h"
 #include "../xrPhysics/IPHWorld.h"
 #include "CharacterPhysicsSupport.h"
+#include "ParticlesObject.h"
 //extern CPHWorld*	ph_world;
 CBlackGraviArtefact::CBlackGraviArtefact(void) 
 {
@@ -31,7 +32,7 @@ CBlackGraviArtefact::~CBlackGraviArtefact(void)
 
 
 
-void CBlackGraviArtefact::Load(LPCSTR section) 
+void CBlackGraviArtefact::Load(const char* section) 
 {
 	inherited::Load(section);
 
@@ -41,11 +42,11 @@ void CBlackGraviArtefact::Load(LPCSTR section)
 	m_sParticleName = pSettings->r_string(section,"particle");
 }
 
-BOOL CBlackGraviArtefact::net_Spawn(CSE_Abstract* DC)
+bool CBlackGraviArtefact::net_Spawn(CSE_Abstract* DC)
 {
-	if(!inherited::net_Spawn(DC)) return FALSE;
+	if(!inherited::net_Spawn(DC)) return false;
 
-	CParticlesObject* pStaticPG = Particles::Details::Create("anomaly\\galantine",FALSE).get();
+	CParticlesObject* pStaticPG = Particles::Details::Create("anomaly\\galantine",false).get();
 	Fmatrix pos;
 	//pos.rotateY(1.57);
 	//pos.mulA(pos);
@@ -59,7 +60,7 @@ BOOL CBlackGraviArtefact::net_Spawn(CSE_Abstract* DC)
 
 
 
-	return TRUE;
+	return true;
 }
 struct SRP
 {
@@ -77,7 +78,7 @@ void CBlackGraviArtefact::net_Relcase(CObject* O)
 {
 	inherited::net_Relcase(O);
 	//for vector
-	GAME_OBJECT_LIST_it I=std::remove_if(m_GameObjectList.begin(),m_GameObjectList.end(),SRP(smart_cast<CPhysicsShellHolder*>(O)));
+	GAME_OBJECT_LIST_it I=std::remove_if(m_GameObjectList.begin(),m_GameObjectList.end(),SRP(O->cast_physics_shell_holder()));
 	m_GameObjectList.erase(I,m_GameObjectList.end());
 	//for list
 	//m_GameObjectList.remove_if(SRP(smart_cast<CPhysicsShellHolder*>(O)));
@@ -95,7 +96,7 @@ void CBlackGraviArtefact::UpdateCLChild()
 
 			GraviStrike();
 
-			CParticlesObject* pStaticPG = Particles::Details::Create(*m_sParticleName,TRUE).get();
+			CParticlesObject* pStaticPG = Particles::Details::Create(*m_sParticleName,true).get();
 			Fmatrix pos; 
 			pos.set(XFORM()); 
 			Fvector vel; 
@@ -131,8 +132,8 @@ void	CBlackGraviArtefact::Hit					(SHit* pHDS)
 
 void CBlackGraviArtefact::feel_touch_new(CObject* O) 
 {
-	CPhysicsShellHolder* pGameObject = smart_cast<CPhysicsShellHolder*>(O);
-	CArtefact* pArtefact = smart_cast<CArtefact*>(O);
+	CPhysicsShellHolder* pGameObject = O->cast_physics_shell_holder();
+	CArtefact* pArtefact = O->cast_artefact();
 
 	if(pGameObject && !pArtefact) 
 	{
@@ -143,7 +144,7 @@ void CBlackGraviArtefact::feel_touch_new(CObject* O)
 void CBlackGraviArtefact::feel_touch_delete(CObject* O) 
 {
 	CGameObject* pGameObject = static_cast<CGameObject*>(O);
-	CArtefact* pArtefact = smart_cast<CArtefact*>(O);
+	CArtefact* pArtefact = O->cast_artefact();
 
 	if(pGameObject && !pArtefact)
 	{
@@ -153,14 +154,14 @@ void CBlackGraviArtefact::feel_touch_delete(CObject* O)
 	}
 }
 
-BOOL CBlackGraviArtefact::feel_touch_contact(CObject* O) 
+bool CBlackGraviArtefact::feel_touch_contact(CObject* O) 
 {
 	CGameObject* pGameObject = static_cast<CGameObject*>(O);
 
 	if(pGameObject)
-		return TRUE;
+		return true;
 	else
-		return FALSE;
+		return false;
 }
 
 void CBlackGraviArtefact::GraviStrike()
@@ -192,14 +193,14 @@ void CBlackGraviArtefact::GraviStrike()
 						
 		if(impulse > .001f) 
 		{
-//?			BOOL		enabled = getEnabled();
-//?			setEnabled	(FALSE);
+//?			bool		enabled = getEnabled();
+//?			setEnabled	(false);
 			impulse		*= CExplosive::ExplosionEffect	(rq_storage,nullptr,pGameObject, Position(),m_fRadius);
 //?			setEnabled	(enabled);
 		}
 
 		float hit_power		;
-		CEntityAlive* pEntityAlive = smart_cast<CEntityAlive*>(pGameObject);
+		CEntityAlive* pEntityAlive = pGameObject->cast_entity_alive();
 		if(pGameObject->m_pPhysicsShell)	hit_power = 0;
 		else if(pEntityAlive && pEntityAlive->g_Alive() && 
 				pEntityAlive->character_physics_support()->movement()->CharacterExist())

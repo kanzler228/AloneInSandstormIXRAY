@@ -13,9 +13,10 @@ class CMotionDef;
 class CBlend;
 class IKinematicsAnimated;
 
-class CAI_Crow : public CEntity
+class CAI_Crow final : public CEntity
 {
-	typedef	CEntity inherited;
+	using inherited = CEntity;
+
 	enum ECrowStates 	{
 		eUndef		= -1,
 		eDeathFall	= 0,
@@ -31,18 +32,18 @@ class CAI_Crow : public CEntity
 	// animations
 	struct SAnim
 	{
-		typedef			svector<MotionID,MAX_ANIM_COUNT> MotionSVec;
+		using MotionSVec = FixedVector<MotionID,MAX_ANIM_COUNT>;
 		MotionSVec		m_Animations;
 		const MotionID	&GetRandom	(){return m_Animations[Random.randI(0,m_Animations.size())];}
-		void			Load		(IKinematicsAnimated* visual, LPCSTR prefix);
+		void			Load		(IKinematicsAnimated* visual, const char* prefix, const char* prefix2);
 	};
 
 	struct SSound
 	{
-		typedef			svector<ref_sound,MAX_SND_COUNT>		SoundSVec;
+		using SoundSVec = FixedVector<ref_sound,MAX_SND_COUNT>;
 		SoundSVec		m_Sounds;
 		ref_sound&		GetRandom		()	{return m_Sounds[Random.randI(0,m_Sounds.size())];}
-		void			Load			(LPCSTR prefix);
+		void			Load			(const char* prefix);
 		void			SetPosition		(const Fvector& pos);
 		void			Unload			();
 	};
@@ -100,18 +101,20 @@ protected:
 	
 	void			UpdateWorkload				(float DT);
 
+	xr_vector<ISpatialShared> nearbyObjects;
+
 public:						
 	u32				o_workload_frame	;
 	u32				o_workload_rframe	;
 public:
 					CAI_Crow();
 	virtual			~CAI_Crow();
-	virtual void	Load						( LPCSTR section );
+	virtual void	Load						( const char* section );
 			void	init						();
-	virtual BOOL	net_Spawn					( CSE_Abstract* DC );
+	virtual bool	net_Spawn					( CSE_Abstract* DC );
 	virtual void	net_Destroy					();
-	virtual BOOL	renderable_ShadowGenerate	()			{ return FALSE;	}
-	virtual BOOL	renderable_ShadowReceive	()			{ return FALSE;	}
+	virtual bool	renderable_ShadowGenerate	()			{ return false;	}
+	virtual bool	renderable_ShadowReceive	()			{ return false;	}
 	virtual void	renderable_Render			();
 	virtual void	shedule_Update				(u32 DT);
 	virtual void	UpdateCL					();
@@ -121,9 +124,6 @@ public:
 	virtual void	net_Export					(NET_Packet& P);
 	virtual void	net_Import					(NET_Packet& P);
 
-	virtual void	g_fireParams				(const CHudItem* /**pHudItem/**/, Fvector& /**P/**/, Fvector& /**D/**/)	{};
-	virtual void	g_WeaponBones				(int &/**L/**/, int &/**R1/**/, int &/**R2/**/)	{};
-
 	virtual void	HitSignal					(float	HitAmount,	Fvector& local_dir, CObject* who, s16 element);
 	virtual void	HitImpulse					(float	amount,		Fvector& vWorldDir, Fvector& vLocalDir);
 	virtual	void	Hit							(SHit* pHDS);
@@ -131,10 +131,11 @@ public:
 	virtual	float	ffGetFov					() const {return 150.f;	}
 	virtual	float	ffGetRange					() const {return 30.f;	}
 
-	virtual BOOL	IsVisibleForHUD	()			{ return FALSE;		}
 	virtual bool	IsVisibleForZones()			{ return false;		}
-	virtual BOOL	UsedAI_Locations()			;
+	virtual bool	UsedAI_Locations()			;
 	virtual void	create_physic_shell	()		;
+
+	virtual	void	net_Relcase(CObject* O);
 
 public:
 	DECLARE_SCRIPT_REGISTER_FUNCTION

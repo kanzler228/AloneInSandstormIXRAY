@@ -3,17 +3,16 @@
 
 class CUIXml;
 class CUIStatic;
-class CUITextWnd;
 class UIHint;
 class CUIScrollView;
 
-class CUIRankingsCoC : public CUIWindow
+class CUIRankingsCoC final : public CUIWindow
 {
 	typedef CUIWindow inherited;
 private:
 	CUIScrollView*				m_parent;
-	CUITextWnd*					m_name;
-	CUITextWnd*					m_descr;
+	CUIStatic*					m_name;
+	CUIStatic*					m_descr;
 	CUIStatic*					m_icon;
 	//CUIStatic*					m_border;
 	UIHint*						m_hint;
@@ -26,11 +25,11 @@ public:
 			void		init_from_xml		(CUIXml& xml,u8 index,bool bUnique);
 			void		Update				();
 
-			void		SetName				(LPCSTR name);
-			void		SetDescription		(LPCSTR desc);
-			void		SetHint				(LPCSTR hint);
-			void		SetIcon				(LPCSTR icon);
-			void		SetFunctor			(LPCSTR func);
+			void		SetName				(const char* name);
+			void		SetDescription		(const char* desc);
+			void		SetHint				(const char* hint);
+			void		SetIcon				(const char* icon);
+			void		SetFunctor			(const char* func);
 
 	virtual void		DrawHint			();
 	virtual void		Reset				();

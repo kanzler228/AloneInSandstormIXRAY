@@ -11,7 +11,7 @@
 #include "CameraFirstEye.h"
 
 #include "ActorEffector.h"
-
+#include "ui/UIArtefactPanel.h"
 #include "../xrPhysics/IPHWorld.h"
 #include "../xrPhysics/ActorCameraCollision.h"
 #include "Level.h"
@@ -43,7 +43,7 @@
 #include "holder_custom.h"
 #include "actor_memory.h"
 #include "actor_statistic_mgr.h"
-#include "CharacterPhysicsSupport.h"
+#include "ParticlesObject.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "../xrEngine/xr_collide_form.h"
 #include "actor_mp_client.h"
@@ -55,7 +55,10 @@
 int			g_cl_InterpolationType		= 0;
 u32			g_cl_InterpolationMaxPoints = 0;
 int			g_dwInputUpdateDelta		= 20;
-BOOL		net_cl_inputguaranteed		= FALSE;
+bool		net_cl_inputguaranteed		= false;
+int g_start_game_vertex_id = 0;
+shared_str g_start_position_smart = nullptr;
+Fvector g_start_position {};
 CActor* g_actor = nullptr;
 CActor* g_actor_single = nullptr;
 
@@ -159,12 +162,9 @@ void CActor::net_Export	(NET_Packet& P)					// export to server
 	}
 }
 
-static void w_vec_q8(NET_Packet& P,const Fvector& vec,const Fvector& min,const Fvector& max)
-{
-	P.w_float_q8(vec.x,min.x,max.x);
-	P.w_float_q8(vec.y,min.y,max.y);
-	P.w_float_q8(vec.z,min.z,max.z);
-}
+void w_vec_q8(NET_Packet& P, const Fvector& vec, const Fvector& min, const Fvector& max);
+void w_qt_q8(NET_Packet& P, const Fquaternion& q);
+
 static void r_vec_q8(NET_Packet& P,Fvector& vec,const Fvector& min,const Fvector& max)
 {
 	P.r_float_q8(vec.x,min.x,max.x);
@@ -175,28 +175,7 @@ static void r_vec_q8(NET_Packet& P,Fvector& vec,const Fvector& min,const Fvector
 	clamp(vec.y,min.y,max.y);
 	clamp(vec.z,min.z,max.z);
 }
-static void w_qt_q8(NET_Packet& P,const Fquaternion& q)
-{
-	//Fvector Q;
-	//Q.set(q.x,q.y,q.z);
-	//if(q.w<0.f)	Q.invert();
-	//P.w_float_q8(Q.x,-1.f,1.f);
-	//P.w_float_q8(Q.y,-1.f,1.f);
-	//P.w_float_q8(Q.z,-1.f,1.f);
-	///////////////////////////////////////////////////
-	P.w_float_q8(q.x,-1.f,1.f);
-	P.w_float_q8(q.y,-1.f,1.f);
-	P.w_float_q8(q.z,-1.f,1.f);
-	P.w_float_q8(q.w,-1.f,1.f);
 
-	///////////////////////////////////////////
-
-
-	//P.w_float_q8(q.x,-1.f,1.f);
-	//P.w_float_q8(q.y,-1.f,1.f);
-	//P.w_float_q8(q.z,-1.f,1.f);
-	//P.w(sign())
-}
 static void r_qt_q8(NET_Packet& P,Fquaternion& q)
 {
 	//// x^2 + y^2 + z^2 + w^2 = 1
@@ -396,8 +375,8 @@ void CActor::net_Import_Base_proceed()
 {
 	if (g_Alive())
 	{
-		setVisible((BOOL)!HUDview());
-		setEnabled(TRUE);
+		setVisible((bool)!HUDview());
+		setEnabled(true);
 	};
 	//---------------------------------------------
 
@@ -420,7 +399,6 @@ void		CActor::net_Import_Physic			( NET_Packet& P)
 		{
 			SPHNetState state, stateL;
 			PHGetSyncItem(i)->get_State(state);
-//			stateL.net_Load(P, min, max);
 			r_vec_q8(P, stateL.position, min, max);
 			r_qt_q8(P, stateL.quaternion);
 			//---------------------------------------
@@ -495,13 +473,11 @@ void	CActor::net_Import_Physic_proceed	( )
 	CrPr_SetActivationStep(0);
 };
 
-BOOL CActor::net_Spawn		(CSE_Abstract* DC)
+bool CActor::net_Spawn(CSE_Abstract* DC)
 {
 	m_holder_id				= ALife::_OBJECT_ID(-1);
-	m_feel_touch_characters = 0;
 	m_snd_noise			= 0.0f;
-	m_sndShockEffector	= nullptr;
-/*	m_followers			= nullptr;*/
+
 	if (m_pPhysicsShell)
 	{
 		m_pPhysicsShell->Deactivate();
@@ -517,13 +493,13 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 		{
 			if (!smart_cast<CActorMP*>(this))
 			{
-				E->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);
-				E->s_flags.set(M_SPAWN_OBJECT_ASPLAYER, FALSE);
+				E->s_flags.set(M_SPAWN_OBJECT_LOCAL, true);
+				E->s_flags.set(M_SPAWN_OBJECT_ASPLAYER, false);
 				
 				Msg("[Actor.cpp] single_actor_spawn");
 				g_actor = this;
 				g_actor_single = this;
-				g_pIGameActor = this;
+				GActorInterface = this;
 			}
 		}
 
@@ -531,13 +507,13 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 		{
 			if (smart_cast<CActorMP*>(this)) 
 			{
-				if (TRUE == E->s_flags.test(M_SPAWN_OBJECT_LOCAL))
+				if (true == E->s_flags.test(M_SPAWN_OBJECT_LOCAL))
 				{
-					if (TRUE == E->s_flags.test(M_SPAWN_OBJECT_ASPLAYER))
+					if (true == E->s_flags.test(M_SPAWN_OBJECT_ASPLAYER))
 					{
 						Msg("[Actor.cpp] mp_actor_spawn");
 						g_actor = this;
-						g_pIGameActor = this;
+						GActorInterface = this;
 
 						// St4lker0k765: Do not trigger actor spawn event if playing on vanilla game modes
 						if (g_pGamePersistent->GameType() == eGameIDFreeMP)
@@ -559,12 +535,12 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 	{
 		if (OnServer())
 		{
-			E->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);
+			E->s_flags.set(M_SPAWN_OBJECT_LOCAL, true);
 		}
 
-		if (TRUE == E->s_flags.test(M_SPAWN_OBJECT_LOCAL) && TRUE == E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
+		if (true == E->s_flags.test(M_SPAWN_OBJECT_LOCAL) && true == E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
 		{
-			g_pIGameActor = this;
+			GActorInterface = this;
 			g_actor = this;
 		}
 
@@ -572,10 +548,6 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 			g_actor_single = this;
 		}
 	}
-
-	VERIFY(m_pActorEffector == nullptr);
-
-	m_pActorEffector			= new CActorCameraManager();
 
 	// motions
 	m_bAnimTorsoPlayed			= false;
@@ -586,18 +558,20 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 	m_current_head.invalidate	();
 	//-------------------------------------
 	//  ,  
+	encyclopedia_registry->registry().init(ID());
 	game_news_registry->registry().init(ID());
 
 
-	if (!CInventoryOwner::net_Spawn(DC)) return FALSE;
-	if (!inherited::net_Spawn(DC))	return FALSE;
+	if (!CInventoryOwner::net_Spawn(DC)) return false;
+	if (!inherited::net_Spawn(DC))	return false;
 
 	CSE_ALifeTraderAbstract	 *pTA	= smart_cast<CSE_ALifeTraderAbstract*>(e);
 	set_money				(pTA->m_dwMoney, false);
 
-//.	if(	TRUE == E->s_flags.test(M_SPAWN_OBJECT_LOCAL) && TRUE == E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
+	m_ArtefactsOnBelt.clear();
+//.	if(	true == E->s_flags.test(M_SPAWN_OBJECT_LOCAL) && true == E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
 //.		CurrentGameUI()->UIMainIngameWnd->m_artefactPanel->InitIcons(m_ArtefactsOnBelt);
-		
+
 	if (ROS())
 	{
 		ROS()->force_mode(IRender_ObjectSpecific::TRACE_ALL);
@@ -636,20 +610,20 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 	//mstate_wishful			= 0;
 	//mstate_real				= 0;
 	//mstate_old				= 0;
-	m_bJumpKeyPressed		= FALSE;
+	m_bJumpKeyPressed		= false;
 //
 //	m_bJumpKeyPressed = ((mstate_wishful&mcJump)!=0);
 //		
 	NET_SavedAccel.set		(0,0,0);
-	NET_WasInterpolating	= TRUE;
+	NET_WasInterpolating	= true;
 
 	setEnabled				(E->s_flags.is(M_SPAWN_OBJECT_LOCAL));
 
-	Engine.Sheduler.Register	(this,TRUE);
+	Engine.Sheduler.Register	(this,true);
 
 	if (!IsGameTypeSingle())
 	{
-		setEnabled(TRUE);
+		setEnabled(true);
 	}
 
 	m_hit_slowmo = 0.f;
@@ -739,20 +713,31 @@ BOOL CActor::net_Spawn		(CSE_Abstract* DC)
 		m_statistic_manager = new CActorStatisticMgr();
 	}
 
+	SpatialComponent->type |= ESPATIAL_TYPE::ACTOR;
 
-	SpatialComponent->spatial.type |=STYPE_REACTTOSOUND;
-	psHUD_Flags.set(HUD_WEAPON_RT,TRUE);
-	psHUD_Flags.set(HUD_WEAPON_RT2,TRUE);
+	if(GetfHealth()>0.f)
+		SpatialComponent->type |= ESPATIAL_TYPE::ACTOR_ALIVE;
+	else
+		SpatialComponent->type |= ESPATIAL_TYPE::ACTOR_DEAD;
+
+	SpatialComponent->type |= ESPATIAL_TYPE::REACTTOSOUND;
+
+	psHUD_Flags.set(HUD_WEAPON_RT,true);
+	psHUD_Flags.set(HUD_WEAPON_RT2,true);
 	
 	if (Level().IsDemoPlay() && OnClient())
 	{
-		setLocal(FALSE);
+		setLocal(false);
 	};
-	return					TRUE;
+	return					true;
 }
 
 void CActor::net_Destroy	()
 {
+	if (g_pGameLevel)
+	{
+		g_pGameLevel->SoundEvent_OnDestDestroy(this);
+	}
 	inherited::net_Destroy	();
 
 	if (m_holder_id != ALife::_OBJECT_ID(-1))
@@ -774,7 +759,8 @@ void CActor::net_Destroy	()
 	};
 	m_pPhysics_support->in_NetDestroy	();
 
-	xr_delete		(m_sndShockEffector);
+	DestroyComponent<TSndShockEffector>();
+
 	xr_delete		(pStatGraph);
 	xr_delete		(m_pActorEffector);
 	pCamBobbing		= nullptr;
@@ -788,14 +774,24 @@ void CActor::net_Destroy	()
 	processing_deactivate();
 	m_holder=nullptr;
 	m_holderID=u16(-1);
-	
+
+	m_ArtefactsOnBelt.clear();
+
+	if (!g_dedicated_server)
+	{
+		if (CurrentGameUI()->UIMainIngameWnd->m_artefactPanel && Level().CurrentViewEntity() == this)
+		{
+			CurrentGameUI()->UIMainIngameWnd->m_artefactPanel->InitIcons(m_ArtefactsOnBelt);
+		}
+	}
+
 	SetDefaultVisualOutfit(nullptr);
 
 
 	if (g_actor == this)
 	{
 		g_actor = nullptr;
-		g_pIGameActor = nullptr;
+		GActorInterface = nullptr;
 	}
 
 	Engine.Sheduler.Unregister	(this);
@@ -815,7 +811,7 @@ void CActor::net_Relcase(CObject* O)
 	if(GO&&m_pObjectWeLookingAt==GO){
 		m_pObjectWeLookingAt=nullptr;
 	}
-	CHolderCustom* HC= GO->cast_holder_custom();
+	CHolderCustom* HC = GO ? GO->cast_holder_custom() : nullptr;
 	if(HC&&HC==m_pVehicleWeLookingAt){
 		m_pVehicleWeLookingAt=nullptr;
 	}
@@ -830,19 +826,12 @@ void CActor::net_Relcase(CObject* O)
 		memory().remove_links(O);
 
 	m_pPhysics_support->in_NetRelcase(O);
-	HUD().net_Relcase	(O);
+	HUD().net_Relcase(O);
 
-	if (OnClient() || IsGameTypeSingle())
-	{
-		auto Iter = std::find(q_nearest.begin(), q_nearest.end(), O);
-		if (Iter != q_nearest.end())
-		{
-			q_nearest.erase(Iter);
-		}
-	}
+	feel_touch_relcase(O);
 }
 
-BOOL	CActor::net_Relevant		()				// relevant for export to server
+bool	CActor::net_Relevant		()				// relevant for export to server
 { 
 	if (OnServer())
 	{
@@ -854,7 +843,7 @@ BOOL	CActor::net_Relevant		()				// relevant for export to server
 	};
 };
 
-//костыли для ног
+//пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ
 void CActor::Center(Fvector& C)	const
 {
 	VERIFY2(renderable.visual, *cName());
@@ -882,7 +871,7 @@ void	CActor::SetCallbacks()
 	V->LL_GetBoneInstance(u16(shoulder_bone)).set_callback	(bctCustom,ShoulderCallback,this);
 	V->LL_GetBoneInstance(u16(head_bone)).set_callback		(bctCustom,HeadCallback,this);
 
-	//костыли для ног
+	//пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ
 	V->LL_GetBoneInstance(V->LL_GetBoneRoot()).set_callback(bctCustom,
 		[](CBoneInstance* B)
 		{
@@ -918,7 +907,7 @@ void CActor::ResetCallbacks()
 	V->LL_GetBoneInstance(u16(shoulder_bone)).reset_callback();
 	V->LL_GetBoneInstance(u16(head_bone)).reset_callback();
 
-	//костыли для ног
+	//пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ
 	V->LL_GetBoneInstance(V->LL_GetBoneRoot()).reset_callback();
 	if (CCF_Skeleton* skeleton = smart_cast<CCF_Skeleton*>(CFORM()))
 		skeleton->CCF_SetCallback(nullptr, nullptr);
@@ -952,7 +941,10 @@ void CActor::OnChangeVisual()
 	SetCallbacks();
 	m_anims->Create(V);
 	m_vehicle_anims->Create(V);
-	CDamageManager::reload(*cNameSect(), "damage", pSettings);
+
+	TDamageManager* DmgManager = GetComponent<TDamageManager>();
+	DmgManager->reload(*cNameSect(), "damage", pSettings);
+
 	//-------------------------------------------------------------------------------
 
 	IKinematics* kinematics = PKinematics(Visual());
@@ -997,7 +989,7 @@ void	CActor::ChangeVisual			( shared_str NewVisual )
 
 	g_SetAnimation(mstate_real);
 	Visual()->dcast_PKinematics()->CalculateBones_Invalidate();
-	Visual()->dcast_PKinematics()->CalculateBones(TRUE);
+	Visual()->dcast_PKinematics()->CalculateBones(true);
 };
 
 void ACTOR_DEFS::net_update::lerp(ACTOR_DEFS::net_update& A, ACTOR_DEFS::net_update& B, float f)
@@ -1459,11 +1451,21 @@ void CActor::save(NET_Packet &output_packet)
 	inherited::save(output_packet);
 	CInventoryOwner::save(output_packet);
 	output_packet.w_u8(u8(m_bOutBorder));
-	CUITaskWnd* task_wnd = HUD().GetGameUI()->PdaMenu().pUITaskWnd;
-	output_packet.w_u8(task_wnd->IsTreasuresEnabled() ? 1 : 0);
-	output_packet.w_u8(task_wnd->IsQuestNpcsEnabled() ? 1 : 0);
-	output_packet.w_u8(task_wnd->IsSecondaryTasksEnabled() ? 1 : 0);
-	output_packet.w_u8(task_wnd->IsPrimaryObjectsEnabled() ? 1 : 0);
+	CUITaskWnd* task_wnd = HUD().GetGameUI()->PdaMenu()->pUITaskWnd;
+	if (task_wnd)
+	{
+		output_packet.w_u8(task_wnd->IsTreasuresEnabled() ? 1 : 0);
+		output_packet.w_u8(task_wnd->IsQuestNpcsEnabled() ? 1 : 0);
+		output_packet.w_u8(task_wnd->IsSecondaryTasksEnabled() ? 1 : 0);
+		output_packet.w_u8(task_wnd->IsPrimaryObjectsEnabled() ? 1 : 0);
+	}
+	else
+	{
+		output_packet.w_u8(1);
+		output_packet.w_u8(1);
+		output_packet.w_u8(1);
+		output_packet.w_u8(1);
+	}
 
 	cam_Active()->save(output_packet);
 	output_packet.w_u8(cam_active);
@@ -1473,8 +1475,17 @@ void CActor::save(NET_Packet &output_packet)
 	output_packet.w_stringZ(g_quick_use_slots[2]);
 	output_packet.w_stringZ(g_quick_use_slots[3]);
 
-	output_packet.w_u8(u8(m_inventory_disabled));
-	output_packet.w_u8(u8(m_pda_disabled));
+	output_packet.w_u32(m_statMoneyEarned);
+	output_packet.w_u32(m_statMoneySpent);
+	output_packet.w_float(m_statDistanceMeters);
+	output_packet.w_u32(m_statHeadshots);
+	OnDeathStatSavedToGame();
+	output_packet.w_u32(m_statDeaths);
+	output_packet.w_u32(m_statHelpWounded);
+
+	//output_packet.w_u8(u8(m_inventory_disabled));
+	//output_packet.w_u8(u8(m_pda_disabled));
+	//output_packet.w_u8(u8(m_use_disabled));
 }
 
 void CActor::load(IReader &input_packet)
@@ -1482,12 +1493,21 @@ void CActor::load(IReader &input_packet)
 	inherited::load(input_packet);
 	CInventoryOwner::load(input_packet);
 	m_bOutBorder=!!(input_packet.r_u8());
-	CUITaskWnd* task_wnd = HUD().GetGameUI()->PdaMenu().pUITaskWnd;
-	task_wnd->TreasuresEnabled(!!input_packet.r_u8());
-	task_wnd->QuestNpcsEnabled(!!input_packet.r_u8());
-	task_wnd->SecondaryTasksEnabled(!!input_packet.r_u8());
-	task_wnd->PrimaryObjectsEnabled(!!input_packet.r_u8());
-
+	CUITaskWnd* task_wnd = HUD().GetGameUI()->PdaMenu()->pUITaskWnd;
+	if (task_wnd)
+	{
+		task_wnd->TreasuresEnabled(!!input_packet.r_u8());
+		task_wnd->QuestNpcsEnabled(!!input_packet.r_u8());
+		task_wnd->SecondaryTasksEnabled(!!input_packet.r_u8());
+		task_wnd->PrimaryObjectsEnabled(!!input_packet.r_u8());
+	}
+	else
+	{
+		input_packet.r_u8();
+		input_packet.r_u8();
+		input_packet.r_u8();
+		input_packet.r_u8();
+	}
 	cam_Active()->load(input_packet);
 	cam_Set(EActorCameras(input_packet.r_u8()));
 
@@ -1498,8 +1518,30 @@ void CActor::load(IReader &input_packet)
 	input_packet.r_stringZ(g_quick_use_slots[2], sizeof(g_quick_use_slots[2]));
 	input_packet.r_stringZ(g_quick_use_slots[3], sizeof(g_quick_use_slots[3]));
 
-	set_inventory_disabled(!!input_packet.r_u8());
-	set_pda_disabled(!!input_packet.r_u8());
+	constexpr u32 actorStatsBlockSize = sizeof(u32) * 5 + sizeof(float);
+	if (input_packet.tell() + actorStatsBlockSize <= input_packet.length())
+	{
+		m_statMoneyEarned = input_packet.r_u32();
+		m_statMoneySpent = input_packet.r_u32();
+		m_statDistanceMeters = input_packet.r_float();
+		m_statHeadshots = input_packet.r_u32();
+		OnDeathStatLoadedFromSave(input_packet.r_u32());
+		m_statHelpWounded = input_packet.r_u32();
+	}
+	else
+	{
+		m_statMoneyEarned = 0;
+		m_statMoneySpent = 0;
+		m_statDistanceMeters = 0.0f;
+		m_statHeadshots = 0;
+		OnDeathStatLoadedFromSave(0);
+		m_statHelpWounded = 0;
+	}
+	m_isMoneyStatInitialized = true;
+
+	//set_inventory_disabled(!!input_packet.r_u8());
+	//set_pda_disabled(!!input_packet.r_u8());
+	//set_use_disabled(!!input_packet.r_u8());
 }
 
 #ifdef DEBUG
@@ -1764,7 +1806,7 @@ void	CActor::OnRender_Network()
 				half_dim.y = 0.1f;
 				half_dim.z = 0.1f;
 
-				u32 Color = color_rgba(255, 0, 0, 255);
+				constexpr u32 Color = color_rgba(255, 0, 0, 255);
 
 				Fmatrix M;
 				
@@ -1776,11 +1818,11 @@ void	CActor::OnRender_Network()
 				if (!PHGetSyncItem(u16(i))) continue;
 				PHGetSyncItem(u16(i))->get_State(state);
 
-				Color = color_rgba(0, 255, 0, 255);
+				constexpr u32 Color1 = color_rgba(0, 255, 0, 255);
 				M = Fidentity;
 				M.rotation(state.quaternion);
 				M.translate_add(state.position);
-				Level().debug_renderer().draw_obb				(M, half_dim, Color);
+				Level().debug_renderer().draw_obb				(M, half_dim, Color1);
 			};
 		}
 		else
@@ -1852,7 +1894,7 @@ void	CActor::OnRender_Network()
 					half_dim.y = 0.1f;
 					half_dim.z = 0.1f;
 
-					u32 Color = color_rgba(255, 0, 0, 255);
+					constexpr u32 Color = color_rgba(255, 0, 0, 255);
 					Level().debug_renderer().draw_obb				(M, half_dim, Color);
 				};	
 				Fvector LC, LS;
@@ -1889,9 +1931,9 @@ void CActor::net_Save(NET_Packet& P)
 #endif
 }
 
-BOOL CActor::net_SaveRelevant()
+bool CActor::net_SaveRelevant()
 {
-	return TRUE;
+	return true;
 }
 
 
@@ -2025,11 +2067,12 @@ void				CActor::OnPlayHeadShotParticle (NET_Packet P)
 	P.r_vec3(HitPos);
 	//-----------------------------------
 	if (!m_sHeadShotParticle.size()) return;
-	Fmatrix pos; 	
-	CParticlesPlayer::MakeXFORM(this,element,HitDir,HitPos,pos);
+	Fmatrix pos;
+	TParticlesPlayer* PPlayer = GetOrCreateComponent<TParticlesPlayer>();
+	PPlayer->MakeXFORM(this,element,HitDir,HitPos,pos);
 
 	//  particles
-	xr_shared_ptr<CParticlesObject> ps = Particles::Details::Create(m_sHeadShotParticle.c_str(),TRUE);
+	xr_shared_ptr<CParticlesObject> ps = Particles::Details::Create(m_sHeadShotParticle.c_str(),true);
 
 	ps->UpdateParent(pos,Fvector().set(0.f,0.f,0.f));
 	GamePersistent().ps_needtoplay.push_back(ps);
@@ -2095,7 +2138,7 @@ bool CActor::InventoryAllowSprint()
 	return true;
 };
 
-BOOL CActor::BonePassBullet(int boneID)
+bool CActor::BonePassBullet(u16 boneID)
 {
 	if (IsGameTypeSingle())
 	{
@@ -2107,7 +2150,7 @@ BOOL CActor::BonePassBullet(int boneID)
 	{
 		IKinematics* V = PKinematics(Visual());
 		VERIFY(V);
-		CBoneInstance& bone_instance = V->LL_GetBoneInstance(u16(boneID));
+		CBoneInstance& bone_instance = V->LL_GetBoneInstance(boneID);
 		return (bone_instance.get_param(3) > 0.5f);
 	}
 

@@ -1,8 +1,6 @@
-#include "PHSynchronize.h"
-#include "xrserver_space.h"
-
 #pragma once
-
+#include "PHSynchronize.h"
+#include "xrServer_Space.h"
 
 #define ACTOR_HEIGHT			1.75f
 #define ACTOR_LOOKOUT_SPEED		2.f
@@ -41,6 +39,9 @@ enum EActorKeyflags
 	kfLASER = (1ul << 12ul),
 	kfMAGCHECK = (1ul << 13ul),
 	kfFIREMODECHECK = (1ul << 14ul),
+	kfCHAMBERLOAD = (1ul << 15ul),
+	kfCHAMBERUNLOAD = (1ul << 16ul),
+	kfCHAMBERCHECK = (1ul << 17ul),
 };
 
 enum EMovementStates
@@ -75,30 +76,7 @@ enum EMoveCommand
 	mcJumpSeq	= (mcJump | mcFall | mcLanding | mcLanding2),
 };
 
-// enum дл€ определени€ действи€ над вещью на которую наведен в текущее врем€ прицел.
-// »спользуетс€ дл€ показа всплывающих динамических подсказок
-enum EActorAction
-{
-	eaaNoAction			= 0,
-	eaaPickup,
-	eaaTalk,
-	eaaOpenDoor,
-	eaaSearchCorpse,
-};
-
-typedef const char*		EActorSleep;
-extern EActorSleep		easCanSleepResult;
 extern 	string32		g_quick_use_slots[4];
-
-/*
-//результат функции GoSleep у актера
-enum EActorSleep
-{
-	easCanSleep			= 0,
-	easNotSolidGround,
-	easEnemies		
-};
-*/
 
 //---------------------------------------------
 // ввод с клавиатуры и мыши

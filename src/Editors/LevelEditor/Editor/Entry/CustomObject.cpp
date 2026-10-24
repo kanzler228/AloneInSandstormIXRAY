@@ -11,7 +11,7 @@
 #define CUSTOMOBJECT_CHUNK_MOTION_PARAM	0xF908
 
 
-CCustomObject::CCustomObject(LPVOID data, LPCSTR name)
+CCustomObject::CCustomObject(LPVOID data, const char* name)
 {
 	save_id				= 0;
     FClassID 			= OBJCLASS_DUMMY;
@@ -22,7 +22,7 @@ CCustomObject::CCustomObject(LPVOID data, LPCSTR name)
     m_RT_Flags.assign	(flRT_Valid|flRT_Visible);
     m_pOwnerObject		= 0;
     ResetTransform		();
-    m_RT_Flags.set		(flRT_UpdateTransform,TRUE);
+    m_RT_Flags.set		(flRT_UpdateTransform,true);
     m_Motion			= NULL;
     m_MotionParams 		= NULL;
 
@@ -54,7 +54,7 @@ bool CCustomObject::IsRender()
 void CCustomObject::OnUpdateTransform()
 {
 
-	m_RT_Flags.set			(flRT_UpdateTransform,FALSE);
+	m_RT_Flags.set			(flRT_UpdateTransform,false);
     // update transform matrix
 
 	FTransformR.setXYZi		(-GetRotation().x, -GetRotation().y, -GetRotation().z);
@@ -73,7 +73,7 @@ void CCustomObject::Select( int flag )
 {
     if (m_RT_Flags.is(flRT_Visible) && (!!m_RT_Flags.is(flRT_Selected) != flag))
     {
-        m_RT_Flags.set(flRT_Selected, (flag == -1) ? (m_RT_Flags.is(flRT_Selected) ? FALSE : TRUE) : flag);
+        m_RT_Flags.set(flRT_Selected, (flag == -1) ? (m_RT_Flags.is(flRT_Selected) ? false : true) : flag);
         //UI->RedrawScene		();
         ExecCommand(COMMAND_UPDATE_PROPERTIES);
 
@@ -84,29 +84,29 @@ void CCustomObject::Select( int flag )
     }
 }
 
-void CCustomObject::Show( BOOL flag )
+void CCustomObject::Show( bool flag )
 {
 	m_RT_Flags.set	   	(flRT_Visible,flag);
 
     if (!m_RT_Flags.is(flRT_Visible)) 
-    	m_RT_Flags.set(flRT_Selected, FALSE);
+    	m_RT_Flags.set(flRT_Selected, false);
         
     UI->RedrawScene();
 };
 
-void CCustomObject::Lock( BOOL flag )
+void CCustomObject::Lock( bool flag )
 {
     m_CO_Flags.set		(flRT_Locked,flag);
 }
 
-BOOL   CCustomObject::Editable() const 
+bool   CCustomObject::Editable() const 
 {
-	BOOL b1 = m_CO_Flags.is(flObjectInGroup);
-    BOOL b2 = m_CO_Flags.is(flObjectInGroupUnique);
+	bool b1 = m_CO_Flags.is(flObjectInGroup);
+    bool b2 = m_CO_Flags.is(flObjectInGroupUnique);
 	return !b1 || (b1&&b2);
 }
 
-bool  CCustomObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool  CCustomObject::LoadLTX(CInifile& ini, const char* sect_name)
 {
     u32 flags = ini.r_u32(sect_name, "co_flags");
     m_CO_Flags.assign(flags);
@@ -128,7 +128,7 @@ bool  CCustomObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
     // object motion
     if (m_CO_Flags.is(flMotion))
     {
-    	m_CO_Flags.set(flMotion, FALSE);
+    	m_CO_Flags.set(flMotion, false);
 //    	R_ASSERT		(0);
 /*
     	VERIFY			(m_Motion);
@@ -182,7 +182,7 @@ bool CCustomObject::LoadStream(IReader& F)
 	return true;
 }
 
-void CCustomObject::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void CCustomObject::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	ini.w_u32		(sect_name, "co_flags", m_CO_Flags.get());
     ini.w_u32		(sect_name, "rt_flags", m_RT_Flags.get());
@@ -244,13 +244,7 @@ void CCustomObject::OnFrame()
     if (m_Motion) 			AnimationOnFrame();
 	if (m_RT_Flags.is(flRT_UpdateTransform)) OnUpdateTransform();
     if(m_CO_Flags.test(flObjectInGroup) && m_pOwnerObject==NULL)
-		m_CO_Flags.set(flObjectInGroup, FALSE);
-}
-
-void CCustomObject::RenderRoot(int priority, bool strictB2F)
-{
-	if(FParentTools->IsVisible())
-		Render(priority, strictB2F);
+		m_CO_Flags.set(flObjectInGroup, false);
 }
 
 void CCustomObject::Render(int priority, bool strictB2F)

@@ -12,65 +12,65 @@ public:
 	_vector2<T>	n;
 	T			d = 0;
 public:
-	IC	SelfRef	set		(Self &P)
+	ICF	SelfRef	set		(Self &P)
 	{
 		n.set	(P.n);
 		d		= P.d;
 		return *this;
 	}
-	IC	 BOOL 	similar (Self &P, T eps_n=EPS, T eps_d=EPS)
+	ICF	 bool 	similar (Self &P, T eps_n=EPS, T eps_d=EPS)
 	{
 		return (n.similar(P.n,eps_n)&&(_abs(d-P.d)<eps_d));
 	}
-	IC	SelfRef	build(const _vector2<T> &_p, const _vector2<T> &_n)
+	ICF	SelfRef	build(const _vector2<T> &_p, const _vector2<T> &_n)
 	{
 		d			= - n.normalize(_n).dotproduct(_p);
 		return *this;
 	}
-	IC	SelfRef	project		(_vector2<T> &pdest, _vector2<T> &psrc)
+	ICF	SelfRef	project		(_vector2<T> &pdest, _vector2<T> &psrc)
 	{
 		pdest.mad	(psrc,n,-classify(psrc));
 		return *this;
 	}
-	IC	T		classify	(const _vector2<T> &v) const	
+	ICF	T		classify	(const _vector2<T> &v) const	
 	{
 		return n.dotproduct(v)+d;
 	}
-	IC	SelfRef	normalize	() 
+	ICF	SelfRef	normalize	() 
 	{
 		T denom = 1.f / n.magnitude();
 		n.mul(denom);
 		d*=denom;
 		return *this;
 	}
-	IC	T		distance	(const _vector2<T> &v)	
+	ICF	T		distance	(const _vector2<T> &v)	
 	{
-		return _abs(classify(v));
+		return std::abs(classify(v));
 	}
-	IC BOOL intersectRayDist(const _vector2<T>& P, const _vector2<T>& D, T& dist)
+	ICF bool intersectRayDist(const _vector2<T>& P, const _vector2<T>& D, T& dist)
 	{
 		T numer = classify(P);
 		T denom = n.dotproduct(D);
 
-		if (_abs(denom)<EPS_S)  // normal is orthogonal to vector3, cant intersect
-			return FALSE;
+		if (std::abs(denom)<EPS_S)  // normal is orthogonal to vector3, cant intersect
+			return false;
 
 		dist = -(numer / denom);
 		return ((dist>0.f)||fis_zero(dist));
 	}
-	IC BOOL intersectRayPoint(const _vector2<T>& P, const _vector2<T>& D, _vector2<T>& dest) 
+	ICF bool intersectRayPoint(const _vector2<T>& P, const _vector2<T>& D, _vector2<T>& dest) 
 	{
 		T numer = classify(P);
 		T denom = n.dotproduct(D);
 
-		if (_abs(denom)<EPS_S) return FALSE; // normal is orthogonal to vector3, cant intersect
+		if (std::abs(denom)<EPS_S) return false; // normal is orthogonal to vector3, cant intersect
 		else {
 			float dist	= -(numer / denom);
 			dest.mad	(P,D,dist);
 			return 		((dist>0.f)||fis_zero(dist));
 		}
 	}
-	IC	BOOL	intersect (
+	ICF	bool	intersect (
 		const _vector2<T>& u, const _vector2<T>& v,	// segment
 		_vector2<T>&	isect)                  // intersection point
 	{
@@ -79,7 +79,7 @@ public:
 
 		t.sub(v,u);
 		denom = n.dotproduct(t);
-		if (_abs(denom) < EPS) return false; // they are parallel
+		if (std::abs(denom) < EPS) return false; // they are parallel
 
 		dist = -(n.dotproduct(u) + d) / denom;
 		if (dist < -EPS || dist > 1+EPS) return false;
@@ -87,7 +87,7 @@ public:
 		return true;
 	}
 
-	IC	BOOL	intersect_2 (
+	ICF	bool	intersect_2 (
 		const _vector2<T>& u, const _vector2<T>& v,				// segment
 		_vector2<T>& isect)						// intersection point
 	{
@@ -101,7 +101,7 @@ public:
 			return false;
 
 		t.sub		(v,u);
-		isect.mad	(u,t,dist1/_abs(dist1-dist2));
+		isect.mad	(u,t,dist1/ std::abs(dist1-dist2));
 
 		return true;
 	}
@@ -111,6 +111,6 @@ typedef _plane2<float>	Fplane2;
 typedef _plane2<double>	Dplane2;
 
 template <class T>
-BOOL	_valid			(const _plane2<T>& s)		{ return _valid(s.n) && _valid(s.d);	}
+bool	_valid			(const _plane2<T>& s)		{ return _valid(s.n) && _valid(s.d);	}
 
 #endif

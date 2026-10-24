@@ -10,7 +10,7 @@
 #include "pch_script.h"
 #include "hit_memory_manager.h"
 #include "memory_space_impl.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "ai_object_location.h"
 #include "level_graph.h"
 #include "script_game_object.h"
@@ -23,7 +23,7 @@
 #include "../xrEngine/IGame_Persistent.h"
 
 #ifndef MASTER_GOLD
-#	include "actor.h"
+#	include "Actor.h"
 #	include "ai_debug.h"
 #endif // MASTER_GOLD
 
@@ -72,7 +72,7 @@ void CHitMemoryManager::add					(const CEntityAlive *entity_alive)
 	add						(0,Fvector().set(0,0,1),entity_alive,0);
 }
 
-void CHitMemoryManager::Load				(LPCSTR section)
+void CHitMemoryManager::Load				(const char* section)
 {
 }
 
@@ -83,7 +83,7 @@ void CHitMemoryManager::reinit				()
 	m_last_hit_time			= 0;
 }
 
-void CHitMemoryManager::reload				(LPCSTR section)
+void CHitMemoryManager::reload				(const char* section)
 {
 #ifdef USE_SELECTED_HIT
 	xr_delete				(m_selected_hit);
@@ -123,7 +123,7 @@ void CHitMemoryManager::add					(float amount, const Fvector &vLocalDir, const C
 	Fvector						direction;
 	m_object->XFORM().transform_dir	(direction,vLocalDir);
 
-	const CEntityAlive			*entity_alive = const_cast<CObject*>(who)->cast_entity_alive();
+	const CEntityAlive* entity_alive = who ? const_cast<CObject*>(who)->cast_entity_alive() : nullptr;
 	if (!entity_alive || (m_object->tfGetRelationType(entity_alive) == ALife::eRelationTypeFriend))
 		return;
 
@@ -145,7 +145,7 @@ void CHitMemoryManager::add					(float amount, const Fvector &vLocalDir, const C
 	}
 	else {
 		(*J).fill				(entity_alive,m_object,(!m_stalker ? (*J).m_squad_mask.get() : ((*J).m_squad_mask.get() | m_stalker->agent_manager().member().mask(m_stalker))));
-		(*J).m_amount			= _max(amount,(*J).m_amount);
+		(*J).m_amount			= std::max(amount,(*J).m_amount);
 	}
 }
 
@@ -161,7 +161,7 @@ void CHitMemoryManager::add(const CHitObject& _hit_object)
 		return;
 
 	CHitObject hit_object = _hit_object;
-	hit_object.m_squad_mask.set(!m_stalker ? u64(-1) : m_stalker->agent_manager().member().mask(m_stalker), TRUE);
+	hit_object.m_squad_mask.set(!m_stalker ? u64(-1) : m_stalker->agent_manager().member().mask(m_stalker), true);
 
 	const CGameObject* entity_alive = hit_object.m_object;
 	HITS::iterator J = std::find(m_hits->begin(), m_hits->end(), CMemoryObject::object_id(entity_alive));

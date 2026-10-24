@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "../../CustomMonster.h"
+#include "../../Creature.h"
 #include "../../InventoryOwner.h"
 #include "../../script_entity.h"
 #include "../../sound_player.h"
@@ -43,22 +43,21 @@ public:
 	virtual CEntity*					cast_entity				()						{return this;}
 	virtual CGameObject*				cast_game_object		()						{return this;}
 	virtual CPhysicsShellHolder*		cast_physics_shell_holder	()					{return this;}
-	virtual CParticlesPlayer*			cast_particles_player	()						{return this;}
 	virtual CScriptEntity*				cast_script_entity		()						{return this;}
 	virtual CAI_Trader*					cast_trader				()						{ return this; }
 	virtual CPhraseDialogManager*		cast_phrase_dialog_manager()					{ return this; }
 	virtual CAI_PhraseDialogManager*		cast_ai_phrase_dialog_manager()				{ return this; }
 
 	virtual DLL_Pure	*_construct		();
-	virtual void		Load			( LPCSTR section );
-	virtual BOOL		net_Spawn		( CSE_Abstract* DC );
+	virtual void		Load			( const char* section );
+	virtual bool		net_Spawn		( CSE_Abstract* DC );
 	virtual void		net_Export		(NET_Packet& P);
 	virtual void		net_Import		(NET_Packet& P);
 	virtual	void		net_Destroy		();
 
 	virtual void		save			(NET_Packet &output_packet);
 	virtual void		load			(IReader &input_packet);
-	virtual BOOL		net_SaveRelevant()							{return inherited::net_SaveRelevant();}
+	virtual bool		net_SaveRelevant()							{return inherited::net_SaveRelevant();}
 
 	virtual void		Die				(CObject* who);
 	virtual void		Think			();
@@ -67,8 +66,8 @@ public:
 	virtual	void		Hit				(SHit* pHDS){inherited::Hit(pHDS);}
 	virtual	void		UpdateCL		();
 
-	virtual void		g_fireParams			(const CHudItem* pHudItem, Fvector& P, Fvector& D);
-	virtual void		g_WeaponBones			(int &L, int &R1, int &R2);
+	virtual void		g_fireParams			(const CHudItem* pHudItem, Fvector& P, Fvector& D) final override;
+	virtual void		g_WeaponBones			(u16 &L, u16 &R1, u16 &R2) final override;
 	virtual	float		ffGetFov				()	const {return 150.f;}
 	virtual	float		ffGetRange				()	const {return 30.f;}
 	virtual	void		OnEvent					(NET_Packet& P, u16 type);
@@ -76,7 +75,7 @@ public:
 	virtual	void		DropItemSendMessage		(CObject *O);
 	virtual void		shedule_Update			(u32 dt);
 
-	virtual BOOL		UsedAI_Locations		();
+	virtual bool		UsedAI_Locations		();
 
 	virtual bool			CanPutInSlot(PIItem item, u32 slot) override { return (slot == PDA_SLOT); }
 	///////////////////////////////////////////////////////////////////////
@@ -87,7 +86,7 @@ public:
 	///////////////////////////////////////////////////////////////////////
 
 	virtual void			reinit					();
-	virtual void			reload					(LPCSTR section);
+	virtual void			reload					(const char* section);
 
 static	void	_BCL		BoneCallback			(CBoneInstance *B);
 
@@ -97,7 +96,7 @@ static	void	_BCL		BoneCallback			(CBoneInstance *B);
 	void			OnStopTrade				();
 
 	//игровое имя 
-	virtual LPCSTR			Name					() const {return CInventoryOwner::Name();}
+	virtual const char*			Name					() const {return CInventoryOwner::Name();}
 
 	virtual	bool			can_attach				(const CInventoryItem *inventory_item) const;
 	virtual bool			use_bolts				() const;
@@ -137,7 +136,7 @@ public:
 	virtual bool			natural_detector		() const {return false;}
 	virtual bool			AllowItemToTrade 		(CInventoryItem const * item, const SInvItemPlace& place) const;
 
-			void			dialog_sound_start		(LPCSTR phrase);
+			void			dialog_sound_start		(const char* phrase);
 			void			dialog_sound_stop		();
 
 private:

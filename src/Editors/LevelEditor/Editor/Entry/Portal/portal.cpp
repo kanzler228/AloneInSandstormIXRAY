@@ -7,7 +7,7 @@
 #define PORTAL_CHUNK_SECTOR_BACK			0xFA40
 #define PORTAL_CHUNK_VERTICES				0xFA50
 
-CPortal::CPortal(LPVOID data, LPCSTR name):CCustomObject(data,name){
+CPortal::CPortal(LPVOID data, const char* name):CCustomObject(data,name){
 	Construct(data);
 }
 
@@ -39,57 +39,81 @@ bool CPortal::GetBox( Fbox& box )
 void CPortal::Render(int priority, bool strictB2F)
 {
 	if (!IsLoaded)
+	{
 		return;
+	}
 
-	if ((1==priority)&&(false==strictB2F)){
-		FvectorVec& src 	= m_SimplifyVertices;//(fraBottomBar->miDrawPortalSimpleModel->Checked)?m_SimplifyVertices:m_Vertices;
-		if (src.size()<2) 	return;
-
-		EDevice->SetShader	(EDevice->m_WireShader);
-		RCache.set_xform_world	(Fidentity);
-
-		u32 				i;
-		FvectorVec	 		V;
-		V.resize			(src.size()+2);
-		V[0].set			(m_Center);
-		for(i=0; i<src.size(); i++) V[i+1].set(src[i]);
-		V[V.size()-1].set	(src[0]);
-		// render portal tris
-		Fcolor 				col;
-		// front
-		if (m_SectorFront){
-			col.set			(m_SectorFront->sector_color);
-			if (!Selected())col.mul_rgb(0.7f);
-			EDevice->SetRS(D3DRS_CULLMODE,D3DCULL_CCW);
-			DU_impl.DrawPrimitiveL	(D3DPT_TRIANGLEFAN, V.size()-2, V.data(), V.size(), col.get(), true, false);
-			EDevice->SetRS(D3DRS_CULLMODE,D3DCULL_CCW);
+	if ((priority == 1) && !strictB2F)
+	{
+		FvectorVec& src = m_SimplifyVertices;
+		if (src.size() < 3)
+		{
+			return;
 		}
-		// back
-		if (m_SectorBack){
-			col.set			(m_SectorBack->sector_color);
-			if (!Selected())col.mul_rgb(0.7f);
-			EDevice->SetRS(D3DRS_CULLMODE,D3DCULL_CW);
-			DU_impl.DrawPrimitiveL	(D3DPT_TRIANGLEFAN, V.size()-2, V.data(), V.size(), col.get(), true, false);
-			EDevice->SetRS(D3DRS_CULLMODE,D3DCULL_CCW);
+
+		EDevice->SetShader(EDevice->m_WireShader);
+		RCache.set_xform_world(Fidentity);
+
+		FvectorVec V;
+		V.reserve((src.size()) * 3);
+		Fvector center = m_Center;
+
+		for (u32 i = 0; i < src.size(); ++i)
+		{
+			const Fvector& v1 = src[i];
+			const Fvector& v2 = src[(i + 1) % src.size()];
+
+			V.push_back(center);
+			V.push_back(v1);
+			V.push_back(v2);
 		}
-		col.set				(1.f,1.f,1.f,1.f);
+
+		Fcolor Color;
+
+		if (m_SectorFront)
+		{
+			Color.set(m_SectorFront->sector_color);
+			if (!Selected())
+			{
+				Color.mul_rgb(0.7f);
+			}
+
+			EDevice->SetRS(D3DRS_CULLMODE, D3DCULL_CCW);
+			DU_impl.DrawPrimitiveL(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, V.size() / 3, V.data(), V.size(), Color.get(), true, false);
+			EDevice->SetRS(D3DRS_CULLMODE, D3DCULL_CCW);
+		}
+
+		if (m_SectorBack)
+		{
+			Color.set(m_SectorBack->sector_color);
+			if (!Selected())
+			{
+				Color.mul_rgb(0.7f);
+			}
+
+			EDevice->SetRS(D3DRS_CULLMODE, D3DCULL_CW);
+			DU_impl.DrawPrimitiveL(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, V.size() / 3, V.data(), V.size(), Color.get(), true, false);
+			EDevice->SetRS(D3DRS_CULLMODE, D3DCULL_CCW);
+		}
+
+		Color.set(1.f, 1.f, 1.f, 1.f);
 		EDevice->RenderNearer(0.0002);
-		if (!Selected())	col.mul_rgb(0.5f);
-		// render portal edges
-		EScenePortalTool* lt = smart_cast<EScenePortalTool*>(FParentTools); VERIFY(lt);
-		FvectorVec& src_ln 	= (lt->m_Flags.is(EScenePortalTool::flDrawSimpleModel))?m_SimplifyVertices:m_Vertices;
-		DU_impl.DrawPrimitiveL	(D3DPT_LINESTRIP, src_ln.size(), src_ln.data(), src_ln.size(), col.get(), true, true);
-		EDevice->ResetNearer	();
-		DU_impl.DrawFaceNormal	(m_Center,m_Normal,1,0xFFFFFFFF);
-		DU_impl.DrawFaceNormal	(m_Center,m_Normal,1,0x00000000);
-/*		for (int k=0; k<1000; k++){
-			Fvector dir;
-			dir.random_dir(m_Normal,deg2rad(45.f));
-			DU.DrawFaceNormal	(m_Center,dir,1,0x00FF0000);
+		if (!Selected())
+		{
+			Color.mul_rgb(0.5f);
 		}
-*/
+
+		EScenePortalTool* lt = static_cast<EScenePortalTool*>(FParentTools);
+		FvectorVec& src_ln = (lt->m_Flags.is(EScenePortalTool::flDrawSimpleModel)) ? m_SimplifyVertices : m_Vertices;
+
+		DU_impl.DrawPrimitiveL(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP, src_ln.size(), src_ln.data(), src_ln.size(), Color.get(), true, true);
+
+		EDevice->ResetNearer();
+		DU_impl.DrawFaceNormal(m_Center, m_Normal, 1, 0xFFFFFFFF);
+		DU_impl.DrawFaceNormal(m_Center, m_Normal, 1, 0x00000000);
 	}
 }
+
 
 void CPortal::Move( Fvector& amount ){
 // internal use only!!!
@@ -101,9 +125,9 @@ void CPortal::Move( Fvector& amount ){
 	m_Center.add(amount);
 }
 
-bool CPortal::FrustumPick(const CFrustum& frustum){
-	if (frustum.testPolyInside(m_Vertices.data(),m_Vertices.size())) return true;
-	return false;
+bool CPortal::FrustumPick(const CFrustum& frustum)
+{
+	return frustum.testPolyInside(m_Vertices.data(), m_Vertices.size());
 }
 
 bool CPortal::RayPick(float& distance, const Fvector& start, const Fvector& direction, SRayPickInfo* pinf)
@@ -386,7 +410,7 @@ void CPortal::Simplify()
 	}
 }
 
-bool CPortal::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool CPortal::LoadLTX(CInifile& ini, const char* sect_name)
 {
 	u32 version = ini.r_u32(sect_name, "version");
 
@@ -398,7 +422,7 @@ bool CPortal::LoadLTX(CInifile& ini, LPCSTR sect_name)
 	}
 
 	CCustomObject::LoadLTX(ini, sect_name);
-	LPCSTR str = ini.r_string(sect_name, "sector_front");
+	const char* str = ini.r_string(sect_name, "sector_front");
 	m_SectorFront = (CSector*)Scene->FindObjectByName(str, OBJCLASS_SECTOR);
 
 	str = ini.r_string(sect_name, "sector_back");
@@ -434,7 +458,7 @@ bool CPortal::LoadLTX(CInifile& ini, LPCSTR sect_name)
 	return true;
 }
 
-void CPortal::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void CPortal::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	CCustomObject::SaveLTX	(ini, sect_name);
 

@@ -4,6 +4,7 @@
 
 #include "../../xrEngine/VisMask.h"
 #include "RenderVisual.h"
+#include "../../xrEngine/AI/alife_space.h"	
 
 typedef void (* UpdateCallback)		(IKinematics*	P);
 
@@ -20,6 +21,7 @@ struct	SEnumVerticesCallback;
 class IKinematics
 {
 public:
+	ALife::_OBJECT_ID parent_object_id = ALife::_OBJECT_ID(-1);
 	typedef xr_vector<std::pair<shared_str,u16> >	accel;
 	struct	pick_result
 	{
@@ -27,17 +29,23 @@ public:
 		float	dist;
 		Fvector	tri[3];
 	};
-public:
+
+	ALife::_OBJECT_ID GetParentObjectId() { return parent_object_id; }
+	void SetParentObjectId(ALife::_OBJECT_ID id) { parent_object_id = id; }
+
 	virtual		void					Bone_Calculate		(CBoneData* bd, Fmatrix* parent) = 0;
 	virtual		void					Bone_GetAnimPos(Fmatrix& pos,u16 id, u8 channel_mask, bool ignore_callbacks) = 0;
 
 	virtual		bool					PickBone			(const Fmatrix &parent_xform, pick_result &r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id) = 0;
-	virtual		void					EnumBoneVertices	(SEnumVerticesCallback &C, u16 bone_id) = 0;
+	virtual		void					EnumBoneVertices	(SEnumVerticesCallback &C, u16 bone_id = u16(-1)) = 0;
+	virtual		void					EnumBoneVertices	(xr_vector<Fvector>& m_vec, u16 bone_id = u16(-1)) {};
+	virtual		void					EnumBoneVertices	(buffer_vector<Fvector>& m_vec, u16 bone_id = u16(-1)) {};
 
+	virtual		u32						GetFacesCount(u16 bone_id = u16(-1)) { return 0; }
 	// Low level interface
-	virtual u16					_BCL	LL_BoneID(LPCSTR  B) = 0;
+	virtual u16					_BCL	LL_BoneID(const char*  B) = 0;
 	virtual u16					_BCL	LL_BoneID(const shared_str& B) = 0;
-	virtual LPCSTR				_BCL	LL_BoneName_dbg(u16 ID) = 0;
+	virtual const char*				_BCL	LL_BoneName_dbg(u16 ID) = 0;
 
 	virtual CInifile*			_BCL	LL_UserData() = 0;
 	virtual accel*						LL_Bones() = 0;
@@ -58,25 +66,31 @@ virtual	const IBoneData&		_BCL	GetBoneData(u16 bone_id) const = 0;
 	virtual ICF			void	 _BCL	LL_GetBoneLocalTransform(u16 bone_id, Fmatrix& result) {};
 	virtual ICF			void	 _BCL	LL_GetBoneWorldPosition(u16 bone_id, const Fmatrix& xform, Fvector& result) {};
 	virtual ICF			void	 _BCL	LL_GetBoneWorldTransform(u16 bone_id, const Fmatrix& xform, Fmatrix& result) {};
-	virtual ICF			void	 _BCL	CalculateBBox(BOOL bforce = TRUE) {};
+	virtual ICF			void	 _BCL	CalculateBBox(bool bforce = true) {};
 
 	virtual ICF Fmatrix&				LL_GetTransform_R(u16 bone_id) = 0;
 	virtual Fobb&						LL_GetBox(u16 bone_id) = 0;
 	virtual const Fbox&			_BCL	GetBox()const = 0;
 	virtual void						LL_GetBindTransform(xr_vector<Fmatrix>& matrices) = 0;
+	virtual void						LL_GetBindTransform(buffer_vector<Fmatrix>& matrices) {};
 	virtual int 						LL_GetBoneGroups(xr_vector<xr_vector<u16> >& groups) = 0;
 
 	virtual u16					_BCL	LL_GetBoneRoot() = 0;
 	virtual void						LL_SetBoneRoot(u16 bone_id) = 0;
 
-	virtual BOOL				_BCL	LL_GetBoneVisible(u16 bone_id) = 0;
-	virtual void						LL_SetBoneVisible(u16 bone_id, BOOL val, BOOL bRecursive) = 0;
+	virtual bool				_BCL	LL_GetBoneVisible(u16 bone_id) = 0;
+	virtual void						LL_SetBoneVisible(u16 bone_id, bool val, bool bRecursive) = 0;
 	virtual VisMask				_BCL	LL_GetBonesVisible() = 0;
 	virtual void						LL_SetBonesVisible(VisMask mask) = 0;
 	virtual void						LL_SetBonesVisibleAll() = 0;
 
+	virtual void						LL_SetSimpleBoneVisible(u16 bone_id, bool val){};
+	virtual bool						LL_GetSimpleBoneVisible(u16 bone_id){return false;};
+
+	virtual void						BonesHistory_Invalidate() = 0;
+
 	// Main functionality
-	virtual void						CalculateBones(BOOL bForceExact	= FALSE) = 0; // Recalculate skeleton
+	virtual void						CalculateBones(bool bForceExact	= false) = 0; // Recalculate skeleton
 	virtual void						CalculateBones_Invalidate() = 0;
 	virtual void						Callback(UpdateCallback C, void* Param) = 0;
 

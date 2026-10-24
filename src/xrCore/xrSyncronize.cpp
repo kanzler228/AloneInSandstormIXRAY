@@ -4,7 +4,7 @@ xrCriticalSection::xrCriticalSection()
 {
 #ifdef IXR_WINDOWS
 	InitializeCriticalSection(&pmutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -17,17 +17,16 @@ xrCriticalSection::~xrCriticalSection()
 {
 #ifdef IXR_WINDOWS
 	DeleteCriticalSection(&pmutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_mutex_destroy(&pmutex);
 #endif
 }
 
 void xrCriticalSection::Enter()
 {
-	PROF_EVENT("xrCriticalSection::Enter");
 #ifdef IXR_WINDOWS
 	EnterCriticalSection(&pmutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_mutex_lock(&pmutex);
 #else
     pmutex.lock();
@@ -36,25 +35,23 @@ void xrCriticalSection::Enter()
 
 void xrCriticalSection::Leave()
 {
-	PROF_EVENT("xrCriticalSection::Leave");
 #ifdef IXR_WINDOWS
 	LeaveCriticalSection(&pmutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_mutex_unlock(&pmutex);
 #else
     pmutex.unlock();
 #endif
 }
 
-BOOL xrCriticalSection::TryEnter()
+bool xrCriticalSection::TryEnter()
 {
-	PROF_EVENT("xrCriticalSection::TryEnter");
 #ifdef IXR_WINDOWS
 	return TryEnterCriticalSection(&pmutex);
-#elif defined(IXR_LINUX)
-	return (pthread_mutex_trylock(&pmutex) == 0) ? TRUE : FALSE;
+#elifdef IXR_LINUX
+	return (pthread_mutex_trylock(&pmutex) == 0) ? true : false;
 #else
-	return pmutex.try_lock() ? TRUE : FALSE;
+	return pmutex.try_lock() ? true : false;
 #endif
 }
 
@@ -81,24 +78,25 @@ xrSRWLock::xrSRWLock()
 {
 #ifdef IXR_WINDOWS
     InitializeSRWLock(&smutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_rwlock_init(&smutex, nullptr);
 #endif
 }
 
+#ifdef IXR_LINUX
 xrSRWLock::~xrSRWLock()
 {
-#ifdef IXR_LINUX
 	pthread_rwlock_destroy(&smutex);
-#endif
 }
+#else
+xrSRWLock::~xrSRWLock() = default;
+#endif
 
 void xrSRWLock::AcquireExclusive()
 {
-	PROF_EVENT("xrSRWLock::AcquireExclusive");
 #ifdef IXR_WINDOWS
     AcquireSRWLockExclusive(&smutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_rwlock_wrlock(&smutex);
 #else
     smutex.lock();
@@ -107,10 +105,9 @@ void xrSRWLock::AcquireExclusive()
 
 void xrSRWLock::ReleaseExclusive()
 {
-	PROF_EVENT("xrSRWLock::ReleaseExclusive");
 #ifdef IXR_WINDOWS
     ReleaseSRWLockExclusive(&smutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_rwlock_unlock(&smutex);
 #else
     smutex.unlock();
@@ -119,10 +116,9 @@ void xrSRWLock::ReleaseExclusive()
 
 void xrSRWLock::AcquireShared()
 {
-	PROF_EVENT("xrSRWLock::AcquireShared");
 #ifdef IXR_WINDOWS
     AcquireSRWLockShared(&smutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_rwlock_rdlock(&smutex);
 #else
     smutex.lock_shared();
@@ -131,35 +127,34 @@ void xrSRWLock::AcquireShared()
 
 void xrSRWLock::ReleaseShared()
 {
-	PROF_EVENT("xrSRWLock::ReleaseShared");
 #ifdef IXR_WINDOWS
     ReleaseSRWLockShared(&smutex);
-#elif defined(IXR_LINUX)
+#elifdef IXR_LINUX
 	pthread_rwlock_unlock(&smutex);
 #else
     smutex.unlock_shared();
 #endif
 }
 
-BOOL xrSRWLock::TryAcquireExclusive()
+bool xrSRWLock::TryAcquireExclusive()
 {
 #ifdef IXR_WINDOWS
-	return TryAcquireSRWLockExclusive(&smutex) ? TRUE : FALSE;
-#elif defined(IXR_LINUX)
-	return (pthread_rwlock_trywrlock(&smutex) == 0) ? TRUE : FALSE;
+	return TryAcquireSRWLockExclusive(&smutex) ? true : false;
+#elifdef IXR_LINUX
+	return (pthread_rwlock_trywrlock(&smutex) == 0) ? true : false;
 #else
-	return smutex.try_lock() ? TRUE : FALSE;
+	return smutex.try_lock() ? true : false;
 #endif
 }
 
-BOOL xrSRWLock::TryAcquireShared()
+bool xrSRWLock::TryAcquireShared()
 {
 #ifdef IXR_WINDOWS
-	return TryAcquireSRWLockShared(&smutex) ? TRUE : FALSE;
-#elif defined(IXR_LINUX)
-	return (pthread_rwlock_tryrdlock(&smutex) == 0) ? TRUE : FALSE;
+	return TryAcquireSRWLockShared(&smutex) ? true : false;
+#elifdef IXR_LINUX
+	return (pthread_rwlock_tryrdlock(&smutex) == 0) ? true : false;
 #else
-	return smutex.try_lock_shared() ? TRUE : FALSE;
+	return smutex.try_lock_shared() ? true : false;
 #endif
 }
 

@@ -1,172 +1,132 @@
 #include "stdafx.h"
-
-#include "xrLight_Implicit.h"
 #include "xrLight_ImplicitDeflector.h"
 
 #include "light_point.h"
 #include "xrDeflector.h"
 #include "xrLC_GlobalData.h"
 #include "xrFace.h"
-#include "xrLight_ImplicitCalcGlobs.h"
 
 #include "../../xrCore/Collision/xrCDB.h"
-
-using Implicit = xr_map<u32, ImplicitDeflector>;
-using Implicit_it = Implicit::iterator;
-
-#include "../xrForms/xrThread.h"
 #include "../xrForms/CompilersUI.h"
 
-class ImplicitThread :
-	public CThread
+// 2 : Mainthread + UI thread
+xr_atomic_u32 ThreadTaskID_Implication = 0;
+
+struct LummelData
 {
-public:
+	u32 Jcount;
+	Fvector2* JD;
 
-	ImplicitExecute	execute;
-	ImplicitThread(u32 ID, ImplicitDeflector* _DATA) : CThread(ID), execute()
-	{
-
-	}
-	virtual void Execute();
+ 	Fvector2 dim;
+	Fvector2 half;
+	Fvector2 JS;
 };
 
-void ImplicitThread::Execute()
-{
-	// Priority
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-	Sleep(0);
-	execute.Execute();
-}
-
-// 2 : Mainthread + UI thread
-ImplicitCalcGlobs cl_globs;
-int ThreadTaskID_Implication = 0;
-CTimer tImplicit;
 
 void RunImplicitMultithread(ImplicitDeflector& defl)
 {
+ 	// Thread Local Update
+	thread_local xr_vector<JiterPixel> EmbreePacket;
+ 
 	// Start threads
 	ThreadTaskID_Implication = 0;
 
-	tImplicit.Start();
-
-	CThreadManager tmanager;
-	for (u32 thID = 0; thID < gCompilerMode.ThreadsPerWork; thID++)
+	ImplicitCalcGlobs* cl_globs_cpu = new ImplicitCalcGlobs(); // 4096 превышает !
+	cl_globs_cpu->Initialize(defl);
+ 
+	xr_std_parallel_for([&cl_globs_cpu, &defl]()
 	{
-		tmanager.start(new ImplicitThread(thID, &defl));
-	}
+ 		Fvector2* Jitter2D; u32 Jcount;
+		Jitter_Select(Jitter2D, Jcount);
 
-	tmanager.wait();
-}
-
-xrCriticalSection csLockImplicit;
-
-void ImplicitExecute::Execute()
-{
-	ImplicitDeflector& defl = cl_globs.DATA();
-	CDB::COLLIDER DB;
-
-	// Setup variables
-	Fvector2 dim, half;
-	dim.set(float(defl.Width()), float(defl.Height()));
-	half.set(.5f / dim.x, .5f / dim.y);
-
-	// Jitter data
-	Fvector2 JS;
-	JS.set(.499f / dim.x, .499f / dim.y);
-	u32 Jcount;
-	Fvector2* Jitter;
-	Jitter_Select(Jitter, Jcount);
-
-	// Lighting itself
-	DB.ray_options(0);
-
-	while (true)
-	{
-		csLockImplicit.Enter();
-		int V = ThreadTaskID_Implication;
-		if (ThreadTaskID_Implication >= defl.Height())
+		LummelData Pixel;
+		Pixel.dim.set(float(defl.Width()), float(defl.Height()));
+		Pixel.half.set(.5f / Pixel.dim.x, .5f / Pixel.dim.y);
+		Pixel.JS.set(.499f / Pixel.dim.x, .499f / Pixel.dim.y);
+		Pixel.Jcount = Jcount;
+		Pixel.JD = Jitter2D;
+		
+ 		// Размер сетки !
+		u32 TILE_SIZE = 8;
+ 		while (true)
 		{
-			csLockImplicit.Leave();
-			break;
-		}
-		ThreadTaskID_Implication++;
+			u32 Y = ThreadTaskID_Implication.fetch_add(TILE_SIZE);
+			if (Y >= defl.Height()) break;
 
-		Progress(float(V) / float(defl.Height()));
-		csLockImplicit.Leave();
-
-		for (u32 U = 0; U < defl.Width(); U++)
-		{
-			base_color_c C;
-			u32 Fcount = 0;
-
-			try
+			AditionalData("Implict Deflector: {%u/%u}", Y, defl.Height());
+			for (u32 X = 0; X < defl.Width(); X += TILE_SIZE)
 			{
-				for (u32 J = 0; J < Jcount; J++)
+				EmbreePacket.clear();
+				 				
+				// Packed Way
+ 				for (u32 tX = X; tX < std::min(defl.Width(), X + TILE_SIZE); tX++)
+				for (u32 tY = Y; tY < std::min(defl.Height(), Y + TILE_SIZE); tY++)
 				{
-					// LUMEL space
-					Fvector2				P;
-					P.x = float(U) / dim.x + half.x + Jitter[J].x * JS.x;
-					P.y = float(V) / dim.y + half.y + Jitter[J].y * JS.y;
-					xr_vector<Face*>& space = cl_globs.Hash().query(P.x, P.y);
-
-					// World space
-					Fvector wP, wN, B;
-					for (vecFaceIt it = space.begin(); it != space.end(); it++)
+				
+ 					Fvector wP, wN, B;
+					for (auto J = 0; J < Pixel.Jcount; J++)
 					{
-						Face* F = *it;
-						_TCF& tc = F->tc[0];
-						if (tc.isInside(P, B))
-						{
-							// We found triangle and have barycentric coords
-							Vertex* V1 = F->v[0];
-							Vertex* V2 = F->v[1];
-							Vertex* V3 = F->v[2];
-							wP.from_bary(V1->P, V2->P, V3->P, B);
-							wN.from_bary(V1->N, V2->N, V3->N, B);
-							wN.normalize();
+						// LUMEL space
+						Fvector2 P;
+						P.x = float(tX) / Pixel.dim.x + Pixel.half.x + Pixel.JD[J].x * Pixel.JS.x;
+						P.y = float(tY) / Pixel.dim.y + Pixel.half.y + Pixel.JD[J].y * Pixel.JS.y;
 
-							u32 flags = (inlc_global_data()->b_nosun() ? LP_dont_sun : 0);
-							LightPoint(&DB, inlc_global_data()->RCAST_Model(), C, wP, wN, inlc_global_data()->L_static(), flags, F);
-							Fcount++;
+						// World space
+						for (auto F : cl_globs_cpu->query(P.x, P.y))
+						{
+							_TCF& tc = F->tc[0];
+							if (tc.isInside(P, B))
+							{
+								// We found triangle and have barycentric coords
+								GetBarycentric(F, wP, wN, B);
+								EmbreePacket.emplace_back().SetDataRays(tY, tX, wP, wN, F);
+ 								break;
+							}
 						}
 					}
+				
+				}
+
+				LightPoint_Jitters(EmbreePacket, lc_global_data()->L_static(), LGetCurrentFlags());
+				
+				for (auto& WP : EmbreePacket)
+				{
+					defl.Lumel(WP.U, WP.V)._add(WP.C);
+					defl.Samples(WP.U, WP.V) += 1;
 				}
 			}
-			catch (...)
-			{
-				clMsg("* THREAD #%d: Access violation. Possibly recovered.");//,thID
-			}
-
-			if (Fcount)
-			{
-				// Calculate lighting amount
-				C.scale(Fcount);
-				C.mul(.5f);
-				defl.Lumel(U, V)._set(C);
-				defl.Marker(U, V) = 255;
-			}
-			else
-			{
-				defl.Marker(U, V) = 0;
-			}
 		}
-
-		if (V % 8 == 0)
-			AditionalData("CurrentV: %u | time: %.0f", V, tImplicit.GetElapsed_sec());
+	}, gCompilerMode.ThreadsPerWork );
+   
+	// Apply Colors !
+	for (auto V = 0; V<defl.Height(); V++)
+	for (auto U = 0; U<defl.Width(); U++)
+	{
+		u32 Samples = defl.Samples(U, V);
+		if (Samples)
+		{
+			// Calculate lighting amount
+			base_color_c C;
+			defl.Lumel(U, V)._get(C);
+			C.scale(Samples);
+			C.mul(.5f);
+			defl.Lumel(U, V)._set(C);
+			defl.Marker(U, V) = 255;
+		}
 	}
+
+	xr_delete(cl_globs_cpu);
 }
 
-static xr_vector<u32> not_clear;
+extern void RunImplicitGPU(ImplicitDeflector& defl); 
+
 void ImplicitLightingExec()
 {
-
-	Implicit		calculator;
-
-	cl_globs.Allocate();
-	not_clear.clear();
+	UpdateCurrentPhase("Implicit");
+ 
 	// Sorting
 	Status("Sorting faces...");
+	xr_map<u32, ImplicitDeflector>	calculator;
 	for (vecFaceIt I = inlc_global_data()->g_faces().begin(); I != inlc_global_data()->g_faces().end(); I++)
 	{
 		Face* F = *I;
@@ -178,15 +138,14 @@ void ImplicitLightingExec()
 		u32				Tid = M.surfidx;
 		b_BuildTexture* T = &(inlc_global_data()->textures()[Tid]);
 
-		Implicit_it		it = calculator.find(Tid);
+		auto		it = calculator.find(Tid);
 		if (it == calculator.end())
 		{
 			ImplicitDeflector	ImpD;
 			ImpD.texture = T;
 			ImpD.faces.push_back(F);
 			calculator.insert(std::make_pair(Tid, ImpD));
-			not_clear.push_back(Tid);
-		}
+ 		}
 		else {
 			ImplicitDeflector& ImpD = it->second;
 			ImpD.faces.push_back(F);
@@ -194,96 +153,24 @@ void ImplicitLightingExec()
 	}
 
 	// Lighing
-	for (Implicit_it imp = calculator.begin(); imp != calculator.end(); imp++)
+	for (auto& imp : calculator)
 	{
-		ImplicitDeflector& defl = imp->second;
+		ImplicitDeflector& defl = imp.second;
 		Status("Lighting implicit map '%s'...", defl.texture->name);
-		Progress(0);
-		defl.Allocate();
 
 		// Setup cache
-		Progress(0);
-		cl_globs.Initialize(defl);
+#ifdef LCCUDA_BUILD
+		if (gCompilerMode.CUDA)
+			RunImplicitGPU(defl);
+		else
+#endif
+			RunImplicitMultithread(defl);
 
-		RunImplicitMultithread(defl);
+ 		defl.faces.clear();
+		defl.faces.shrink_to_fit();
 
-		defl.faces.clear();
-
-		// Expand
-		Status("Processing lightmap...");
-		for (u32 ref = 254; ref > 0; ref--)	if (!ApplyBorders(defl.lmap, ref)) break;
-
-		Status("Mixing lighting with texture...");
-		{
-			b_BuildTexture& TEX = *defl.texture;
-			VERIFY(TEX.pSurface);
-			u32* color = TEX.pSurface;
-			for (u32 V = 0; V < defl.Height(); V++) {
-				for (u32 U = 0; U < defl.Width(); U++) {
-					// Retreive Texel
-					float	h = defl.Lumel(U, V).h._r();
-					u32& C = color[V * defl.Width() + U];
-					C = subst_alpha(C, u8_clr(h));
-				}
-			}
-		}
-
-		xr_vector<u32> packed;
-		defl.lmap.Pack(packed);
-		defl.Deallocate();
-
-		// base
-		Status("Saving base...");
-		{
-			string128 name;
-			string_path out_name;
-			xr_strcpy(name, lc_global_data()->GetLavelName());
-
-			R_ASSERT(name[0] && defl.texture);
-
-			b_BuildTexture& TEX = *defl.texture;
-			xr_strconcat(out_name, name, "\\", TEX.name, ".dds");
-			FS.update_path(out_name, "$game_levels$", out_name);
-			clMsg("Saving texture '%s'...", out_name);
-			VerifyPath(out_name);
-			BYTE* raw_data = LPBYTE(TEX.pSurface);
-			u32	w = TEX.dwWidth;
-			u32	h = TEX.dwHeight;
-			u32	pitch = w * 4;
-			STextureParams fmt = TEX.THM;
-			fmt.fmt = lc_global_data()->GetLmapRGBA() ? STextureParams::tfRGBA : STextureParams::tfDXT5;
-			fmt.flags.set(STextureParams::flDitherColor, FALSE);
-			fmt.flags.set(STextureParams::flGenerateMipMaps, FALSE);
-			fmt.flags.set(STextureParams::flBinaryAlpha, FALSE);
-			DXTUtils::Compress(out_name, raw_data, 0, w, h, pitch, &fmt, 4);
-		}
-
-		// lmap
-		Status("Saving lmap...");
-		{
-			string128 name;
-			string_path out_name;
-			xr_strcpy(name, lc_global_data()->GetLavelName());
-
-			b_BuildTexture& TEX = *defl.texture;
-			xr_strconcat(out_name, name, "\\", TEX.name, "_lm.dds");
-			FS.update_path(out_name, "$game_levels$", out_name);
-			clMsg("Saving texture '%s'...", out_name);
-			VerifyPath(out_name);
-			BYTE* raw_data = LPBYTE(&*packed.begin());
-			u32	w = TEX.dwWidth;
-			u32	h = TEX.dwHeight;
-			u32	pitch = w * 4;
-			STextureParams			fmt;
-			fmt.fmt = lc_global_data()->GetLmapRGBA() ? STextureParams::tfRGBA : STextureParams::tfDXT5;
-			fmt.flags.set(STextureParams::flDitherColor, FALSE);
-			fmt.flags.set(STextureParams::flGenerateMipMaps, FALSE);
-			fmt.flags.set(STextureParams::flBinaryAlpha, FALSE);
-			DXTUtils::Compress(out_name, raw_data, 0, w, h, pitch, &fmt, 4);
-		}
-		//defl.Deallocate				();
-	}
-	not_clear.clear();
-	cl_globs.Deallocate();
-	calculator.clear();
+		// Saving DDS
+		defl.SaveTextures();
+ 	}
+ 	calculator.clear();
 }

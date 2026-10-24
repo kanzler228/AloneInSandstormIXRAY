@@ -5,6 +5,7 @@
 #include "Entity.h"
 #include "Actor.h"
 #include "Inventory.h"
+#include "InventoryWeaponSlotLayout.h"
 #include "Level.h"
 #include "xrMessages.h"
 #include "../xrEngine/xr_level_controller.h"
@@ -21,11 +22,7 @@ CGrenade::CGrenade(void)
 	m_eExplosionHitTypes.clear();
 }
 
-CGrenade::~CGrenade(void) 
-{
-}
-
-void CGrenade::Load(LPCSTR section) 
+void CGrenade::Load(const char* section) 
 {
 	inherited::Load(section);
 	CExplosive::Load(section);
@@ -36,7 +33,7 @@ void CGrenade::Load(LPCSTR section)
 	if (m_bExplosionOnHit)
 	{
 		string128 S1;
-		LPCSTR S_ = pSettings->r_string(section, "explosion_hit_types");
+		const char* S_ = pSettings->r_string(section, "explosion_hit_types");
 		int count = _GetItemCount(S_);
 		for (int i = 0; i < count; ++i)
 		{
@@ -60,7 +57,7 @@ void CGrenade::Load(LPCSTR section)
 	m_grenade_detonation_threshold_hit=READ_IF_EXISTS(pSettings,r_float,section,"detonation_threshold_hit",default_grenade_detonation_threshold_hit);
 }
 
-void CGrenade::LoadSounds(LPCSTR section)
+void CGrenade::LoadSounds(const char* section)
 {
 	inherited::LoadSounds(section);
 
@@ -71,22 +68,21 @@ bool CGrenade::CheckGrenadeExplosionByHit(SHit* SHit)
 {
 	if (m_bExplosionOnHit)
 	{
-		if (m_grenade_detonation_threshold_hit < SHit->power)
+		if (!Useful() || m_bExplosionWhileNotActivated)
 		{
-			if (!Useful() || m_bExplosionWhileNotActivated)
+			if (SHit->hit_type == ALife::eHitTypeExplosion)
 			{
-				if (!m_eExplosionHitTypes.empty())
+				return true;
+			}
+
+			if (!m_eExplosionHitTypes.empty())
+			{
+				for (u32 hit_type : m_eExplosionHitTypes)
 				{
-					for (u32 i = 0; i < m_eExplosionHitTypes.size(); i++)
+					if (SHit->hit_type == hit_type)
 					{
-						if (SHit->hit_type == static_cast<ALife::EHitType>(m_eExplosionHitTypes[i]))
-							return true;
-					}
-				}
-				else
-				{
-					if (SHit->hit_type == ALife::eHitTypeExplosion)
 						return true;
+					}
 				}
 			}
 		}
@@ -95,9 +91,9 @@ bool CGrenade::CheckGrenadeExplosionByHit(SHit* SHit)
 	return false;
 }
 
-void CGrenade::Hit					(SHit* pHDS)
+void CGrenade::Hit(SHit* pHDS)
 {
-	if (ALife::eHitTypeExplosion == pHDS->hit_type && m_grenade_detonation_threshold_hit < pHDS->damage() && CExplosive::Initiator() == u16(-1) || CheckGrenadeExplosionByHit(pHDS))
+	if (CExplosive::Initiator() == u16(-1) || CheckGrenadeExplosionByHit(pHDS))
 	{
 		CExplosive::SetCurrentParentID(pHDS->who->ID());
 		Destroy();
@@ -105,12 +101,12 @@ void CGrenade::Hit					(SHit* pHDS)
 	inherited::Hit(pHDS);
 }
 
-BOOL CGrenade::net_Spawn(CSE_Abstract* DC) 
+bool CGrenade::net_Spawn(CSE_Abstract* DC) 
 {
 	m_dwGrenadeIndependencyTime			= 0;
-	BOOL ret= inherited::net_Spawn		(DC);
+	bool ret= inherited::net_Spawn		(DC);
 	Fvector box;BoundingBox().getsize	(box);
-	float max_size						= _max(_max(box.x,box.y),box.z);
+	float max_size						= std::max(std::max(box.x,box.y),box.z);
 	box.set								(max_size,max_size,max_size);
 	box.mul								(3.f);
 	CExplosive::SetExplosionSize		(box);
@@ -148,7 +144,7 @@ void CGrenade::OnH_A_Chield()
 	inherited::OnH_A_Chield				();
 }
 
-void CGrenade::State(u32 state) 
+void CGrenade::State(u8 state) 
 {
 	switch (state)
 	{
@@ -164,6 +160,10 @@ void CGrenade::State(u32 state)
 				SndPos.set(H_Parent()->Position());
 
 			PlaySound("sndCheckout", SndPos);
+		} 
+		else
+		{
+			PlaySound("sndCheckout", Position());
 		}
 	}break;
 	case eThrowEnd:
@@ -211,7 +211,9 @@ bool CGrenade::SendDeactivateItem(bool Force)
 {
 	CActor* pActor = m_pInventory->GetOwner() ? m_pInventory->GetOwner()->cast_actor() : nullptr;
 	if (pActor && (GetState() == eReady || GetState() == eThrow))
+	{
 		return false;
+	}
 
 	return inherited::SendDeactivateItem(Force);
 }
@@ -238,7 +240,30 @@ void CGrenade::Throw()
 	m_thrown = true;
 }
 
+void CGrenade::FastThrow()
+{
+	m_constpower = true;
+	m_throw = false;
+	m_thrown = false;
 
+	setup_throw_params(true);
+	Throw();
+
+	if (m_thrown)
+	{
+		if (m_pPhysicsShell)
+		{
+			m_pPhysicsShell->Deactivate();
+		}
+		xr_delete(m_pPhysicsShell);
+		m_dwDestroyTime = 0xffffffff;
+
+		if (Local())
+		{
+			DestroyObject();
+		}
+	};
+}
 
 void CGrenade::Destroy() 
 {
@@ -251,6 +276,9 @@ void CGrenade::Destroy()
 		m_destroy_callback	=	destroy_callback(nullptr);
 	}
 
+	if (H_Parent() == nullptr)
+		SetInitiator(ID());
+	
 	FindNormal					(normal);
 	CExplosive::GenExplodeEvent	(Position(), normal);
 }
@@ -327,11 +355,21 @@ void CGrenade::PutNextToSlot()
 	}
 }
 
-void CGrenade::OnAnimationEnd(u32 state) 
+void CGrenade::OnAnimationEnd(u8 state) 
 {
 	switch(state)
 	{
-	case eThrowEnd: SwitchState(eHidden);	break;
+	case eThrowEnd:
+	{
+		SwitchState(eHidden);
+		break;
+	}
+	case eShowing:
+	{
+		setVisible(true);
+		SwitchState(eIdle);
+		break;
+	}
 	default : inherited::OnAnimationEnd(state);
 	}
 }
@@ -397,7 +435,7 @@ ALife::_TIME_ID	 CGrenade::TimePassedAfterIndependant()	const
 		return 0;
 }
 
-BOOL CGrenade::UsedAI_Locations		()
+bool CGrenade::UsedAI_Locations		()
 {
 #pragma todo("Dima to Yura : It crashes, because on net_Spawn object doesn't use AI locations, but on net_Destroy it does use them")
 	return inherited::UsedAI_Locations( );//m_dwDestroyTime == 0xffffffff;

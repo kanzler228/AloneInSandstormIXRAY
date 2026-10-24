@@ -29,7 +29,7 @@
 #include "ai/monsters/basemonster/base_monster.h"
 
 #ifndef MASTER_GOLD
-#	include "actor.h"
+#	include "Actor.h"
 #	include "ai_debug.h"
 #endif // MASTER_GOLD
 
@@ -83,7 +83,7 @@ struct CNotYetVisibleObjectPredicate{
 	}
 };
 
-CVisualMemoryManager::CVisualMemoryManager		(CCustomMonster *object)
+CVisualMemoryManager::CVisualMemoryManager		(CCreature *object)
 {
 	m_object			= object;
 	m_stalker			= 0;
@@ -149,7 +149,7 @@ void CVisualMemoryManager::reinit					()
 	m_last_update_time					= u32(-1);
 }
 
-void CVisualMemoryManager::reload				(LPCSTR section)
+void CVisualMemoryManager::reload				(const char* section)
 {
 //	m_max_object_count			= READ_IF_EXISTS(pSettings,r_s32,section,"DynamicObjectsCount",1);
 
@@ -309,8 +309,11 @@ float CVisualMemoryManager::object_luminocity	(const CGameObject *game_object) c
 float CVisualMemoryManager::get_object_velocity	(const CGameObject *game_object, const CNotYetVisibleObject &not_yet_visible_object) const
 {
 	//Alundaio: no need to check velocity on anything but stalkers, mutants and actor
-	if (!smart_cast<CEntityAlive const*>(game_object))
-		return (0.f);
+	CGameObject* object = const_cast<CGameObject*>(game_object);
+	if (object == nullptr || object->cast_entity_alive() == nullptr)
+	{
+		return (0.0f);
+	}
 	//-Alundaio
 
 	if ((game_object->ps_Size() < 2) || (not_yet_visible_object.m_prev_time == game_object->ps_Element(game_object->ps_Size() - 2).dwTime))
@@ -563,8 +566,8 @@ float CVisualMemoryManager::feel_vision_mtl_transp(CObject* O, u32 element)
 			vis				= GMLib.GetMaterialByIdx(B.game_mtl_idx)->fVisTransparencyFactor;
 		}
 	}else{
-		CDB::TRI* T			= Level().ObjectSpace.GetStaticTris()+element;
-		vis					= GMLib.GetMaterialByIdx(T->material)->fVisTransparencyFactor;
+		CDB::TRI& T			= Level().ObjectSpace.GetStaticTris()[element];
+		vis					= GMLib.GetMaterialByIdx(T.material)->fVisTransparencyFactor;
 	}
 	return vis;
 }
@@ -741,7 +744,7 @@ void CVisualMemoryManager::update				(float time_delta)
 	}
 }
 
-static inline bool is_object_valuable_to_save ( CCustomMonster const* const self, MemorySpace::CVisibleObject const& object )
+static inline bool is_object_valuable_to_save ( CCreature const* const self, MemorySpace::CVisibleObject const& object )
 {
 	CGameObject* GO = const_cast<CGameObject*>(object.m_object);
 	CEntityAlive* entity_alive = GO ? GO->cast_entity_alive() : NULL;
@@ -846,8 +849,10 @@ void CVisualMemoryManager::load	(IReader &packet)
 
 		const CClientSpawnManager::CSpawnCallback	*spawn_callback = Level().client_spawn_manager().callback(delayed_object.m_object_id,m_object->ID());
 		if (!spawn_callback || !spawn_callback->m_object_callback)
-			if(!g_dedicated_server)
-				Level().client_spawn_manager().add	(delayed_object.m_object_id,m_object->ID(),callback);
+		{
+			if (!g_dedicated_server)
+				Level().client_spawn_manager().add(delayed_object.m_object_id, m_object->ID(), callback);
+		}
 #ifdef DEBUG
 		else {
 			if (spawn_callback && spawn_callback->m_object_callback) {

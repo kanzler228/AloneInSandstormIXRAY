@@ -45,7 +45,7 @@ void CLevelChanger::net_Destroy	()
 }
 #define DEF_INVITATION "level_changer_invitation"
 
-BOOL CLevelChanger::net_Spawn	(CSE_Abstract* DC) 
+bool CLevelChanger::net_Spawn	(CSE_Abstract* DC) 
 {
 	condWork					= true;
 	m_entrance_time				= 0;
@@ -86,14 +86,17 @@ BOOL CLevelChanger::net_Spawn	(CSE_Abstract* DC)
 		}
 	}
 
-	BOOL						bOk = inherited::net_Spawn(DC);
+	bool						bOk = inherited::net_Spawn(DC);
 	if (bOk) {
 		l_pShape->ComputeBounds	();
 		Fvector					P;
 		XFORM().transform_tiny	(P,CFORM()->getSphere().P);
-		setEnabled				(TRUE);
+		setEnabled				(false);
 	}
 	g_lchangers.push_back		(this);
+
+	SpatialComponent->type |= ESPATIAL_TYPE::LEVEL_CHANGER;
+
 	return						(bOk);
 }
 
@@ -122,7 +125,7 @@ void CLevelChanger::feel_touch_new	(CObject *tpObject)
 
 	if (m_ini_file && m_ini_file->section_exist("cond"))
 	{
-		LPCSTR p_name = m_ini_file->r_string("cond", "infop");
+		const char* p_name = m_ini_file->r_string("cond", "infop");
 		
 		if (!Actor()->cast_inventory_owner()->HasInfo(p_name))
 		{
@@ -152,7 +155,7 @@ void CLevelChanger::feel_touch_new	(CObject *tpObject)
 		p.w			(&m_level_vertex_id,sizeof(m_level_vertex_id));
 		p.w_vec3	(m_position);
 		p.w_vec3	(m_angles);
-		Level().Send(p,net_flags(TRUE));
+		Level().Send(p,net_flags(true));
 		return;
 	}
 	Fvector			p,r;
@@ -176,8 +179,8 @@ bool CLevelChanger::get_reject_pos(Fvector& p, Fvector& r)
 
 		if(m_ini_file && m_ini_file->section_exist("pt_move_if_reject"))
 		{
-			LPCSTR p_name = m_ini_file->r_string("pt_move_if_reject", "path");
-			const CPatrolPath*		patrol_path = ai().patrol_paths().path(p_name);
+			const char* p_name = m_ini_file->r_string("pt_move_if_reject", "path");
+			const CPatrolPath* patrol_path = ai().patrol_paths().path(p_name);
 			VERIFY					(patrol_path);
 			
 			const CPatrolPoint*		pt;
@@ -193,9 +196,9 @@ bool CLevelChanger::get_reject_pos(Fvector& p, Fvector& r)
 		return false;
 }
 
-BOOL CLevelChanger::feel_touch_contact(CObject* object)
+bool CLevelChanger::feel_touch_contact(CObject* object)
 {
-	BOOL bRes = (((CCF_Shape*)CFORM())->Contact(object));
+	bool bRes = (((CCF_Shape*)CFORM())->Contact(object));
 	CActor* pActor = object != nullptr ? object->cast_actor() : nullptr;
 	bRes = bRes && pActor != nullptr && pActor->g_Alive();
 	return bRes;
@@ -247,10 +250,10 @@ void CLevelChanger::load(IReader &input_packet)
 	m_b_enabled				= !!input_packet.r_u8();
 }
 
-BOOL CLevelChanger::net_SaveRelevant()
+bool CLevelChanger::net_SaveRelevant()
 {
 	if(!m_b_enabled || m_invite_str!=DEF_INVITATION )
-		return TRUE;
+		return true;
 	else
 		return inherited::net_SaveRelevant();
 }
@@ -264,7 +267,7 @@ void CLevelChanger::OnRender() {
 		return;
 
 	DRender->OnFrameEnd();
-	Fvector l_half = l_half.set(0.5f, 0.5f, 0.5f);
+	Fvector l_half = { 0.5f, 0.5f, 0.5f };
 	Fmatrix l_ball = {}, l_box = {};
 	auto& l_shapes = ((CCF_Shape*)CFORM())->Shapes();
 

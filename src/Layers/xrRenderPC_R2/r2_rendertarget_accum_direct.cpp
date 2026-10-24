@@ -54,7 +54,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 	L_dir.normalize				();
 
 	// Perform masking (only once - on the first/near phase)
-	RCache.set_CullMode			(CULL_NONE	);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
 	if (SE_SUN_NEAR==sub_phase)	//.
 	{
 		// Fill vertex buffer
@@ -74,9 +74,9 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 		RCache.set_c				("Ldynamic_dir",		dir.x,dir.y,dir.z,0		);
 
 		// if (stencil>=1 && aref_pass)	stencil = light_id
-		RCache.set_ColorWriteEnable	(FALSE		);
-		RCache.set_Stencil			(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0x01,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE,D3DSTENCILOP_KEEP);
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.set_ColorWriteEnable	(false		);
+		RCache.set_Stencil			(true,D3DCMP_LESSEQUAL,dwLightMarkerID,0x01,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE,D3DSTENCILOP_KEEP);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 
 	// recalculate d_Z, to perform depth-clipping
@@ -91,7 +91,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 	//if( sub_phase == SE_SUN_FAR ) //******************************************************************
 	{
 		phase_accumulator					()	;
-		RCache.set_CullMode					(CULL_CCW); //******************************************************************
+		GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
 		RCache.set_ColorWriteEnable			()	;
 
 		// texture adjustment matrix
@@ -115,7 +115,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 			m_shadow.mul	(xf_project,	xf_invview);
 
 			// tsm-bias
-			if ( (SE_SUN_FAR == sub_phase) && (RImplementation.o.HW_smap) )
+			if (SE_SUN_FAR == sub_phase)
 			{
 				Fvector		bias;	bias.mul		(L_dir,ps_r2_sun_bias);
 				Fmatrix		bias_t;	bias_t.translate(bias);
@@ -231,7 +231,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 		if (u_DBT_enable(zMin,zMax))	{
 			// z-test always
 			RDevice->SetRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
-			RDevice->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+			RDevice->SetRenderState(D3DRS_ZWRITEENABLE, false);
 		}
 
 		// Enable Z function only for near and middle cascades, the far one is restricted by only stencil.
@@ -244,27 +244,13 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 				RDevice->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESS);
 
 
-		// Fetch4 : enable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET4  MAKEFOURCC('G','E','T','4') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET4 );
-		}
-
 		// setup stencil
 		if( SE_SUN_NEAR==sub_phase || sub_phase==SE_SUN_MIDDLE /*|| SE_SUN_FAR==sub_phase*/ ) 
-			RCache.set_Stencil			(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0xFE, D3DSTENCILOP_KEEP, D3DSTENCILOP_ZERO, D3DSTENCILOP_KEEP);
+			RCache.set_Stencil			(true,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0xFE, D3DSTENCILOP_KEEP, D3DSTENCILOP_ZERO, D3DSTENCILOP_KEEP);
 		else
-			RCache.set_Stencil			(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0x00);
+			RCache.set_Stencil			(true,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0x00);
 
-		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 8, i_offset, 16);
-
-		// Fetch4 : disable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET1  MAKEFOURCC('G','E','T','1') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET1 );
-		}
+		RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 8, i_offset, 16);
 
 		// disable depth bounds
 		u_DBT_disable	();
@@ -300,7 +286,7 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 	//	Assume everything was recalculated before this call by accum_direct
 
 	u32 Offset;
-	u32		C = color_rgba(255, 255, 255, 255);
+	constexpr u32 C = color_rgba(255, 255, 255, 255);
 	float	_w = float(dwWidth);
 	float	_h = float(dwHeight);
 	Fvector2 p0, p1;
@@ -320,16 +306,6 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 	//	Set correct depth surface
 	//	It's slow. Make this when shader is created
 	{
-		const char* pszSMapName;
-		BOOL		b_HW_smap	= RImplementation.o.HW_smap;
-		BOOL		b_HW_PCF	= RImplementation.o.HW_smap_PCF;
-		if (b_HW_smap) {
-			pszSMapName = r2_RT_smap_depth;
-		} else {
-			pszSMapName = r2_RT_smap_surf;
-		}
-		//s_smap
-
 		STextureList* _T = &*s_accum_direct_volumetric_cascade->E[0]->passes[0]->T;
 
 		STextureList::iterator	_it		= _T->begin	();
@@ -342,7 +318,7 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 			if (load_id==0)		
 			{
 				//	Assign correct texture
-				loader.second.create(pszSMapName);
+				loader.second.create(r2_RT_smap_depth);
 			}
 		}
 	}
@@ -367,7 +343,7 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 		// setup
 
 		RCache.set_Element			(s_accum_direct_volumetric_cascade->E[0]);
-		RCache.set_CullMode			(CULL_CCW); 
+		GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
 
 		RCache.set_c("Ldynamic_dir", L_dir.x, L_dir.y, L_dir.z, 0.0f);
 		RCache.set_c("Ldynamic_color", L_clr.x, L_clr.y, L_clr.z, 0.0f);
@@ -404,10 +380,11 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 		zMax = center_pt.z	;
 
 
-		if (u_DBT_enable(zMin,zMax))	{
+		if (u_DBT_enable(zMin,zMax))
+		{
 			// z-test always
 			RDevice->SetRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
-			RDevice->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+			RDevice->SetRenderState(D3DRS_ZWRITEENABLE, false);
 		}
 		else
 		{
@@ -417,24 +394,7 @@ void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const Fma
 				RDevice->SetRenderState( D3DRS_ZFUNC, D3DCMP_ALWAYS);
 		}
 
-		// Fetch4 : enable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET4  MAKEFOURCC('G','E','T','4') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET4 );
-		}
-
-		// setup stencil: we have to draw to both lit and unlit pixels
-		//RCache.set_Stencil			(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0x00);
-
-		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
-
-		// Fetch4 : disable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET1  MAKEFOURCC('G','E','T','1') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET1 );
-		}
+		RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 
 		// disable depth bounds
 		u_DBT_disable	();

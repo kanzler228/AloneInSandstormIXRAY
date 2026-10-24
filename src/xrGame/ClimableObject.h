@@ -25,13 +25,19 @@ public IClimableObject
 public:
 					CClimableObject		();
 					~CClimableObject	();
-	virtual void	Load				( LPCSTR section);
-	virtual BOOL	net_Spawn			( CSE_Abstract* DC);
+	virtual void	Load				( const char* section);
+	virtual bool	net_Spawn			( CSE_Abstract* DC);
 	virtual	void	net_Destroy			();
 	virtual void	shedule_Update		( u32 dt);							// Called by sheduler
 	virtual void	UpdateCL			( );								// Called each frame, so no need for dt
 	virtual void	Center				(Fvector &C) const;
 	virtual float	Radius				() const;
+
+	const Fobb&		BBox				() { return m_box; }
+	const Fvector&	Axis				() { return m_axis; }
+	const Fvector&	Side				() { return m_side; }
+	const Fvector&	Norm				() { return m_norm; }
+
 ////////////////////////////////////////////////////////////////////
 	virtual IPhysicsShellHolder			*cast_IPhysicsShellHolder	(){ return this; }
 	virtual CPhysicsShellHolder*		cast_physics_shell_holder() { return this; }
@@ -41,7 +47,7 @@ public:
 	virtual void	OnRender			();
 #endif
 protected:
-	virtual BOOL	UsedAI_Locations	();
+	virtual bool	UsedAI_Locations	();
 public:
 			const Fvector&	Axis				()const		{return m_axis;}
 	virtual float			DDAxis				(Fvector& dir)const;

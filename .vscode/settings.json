@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.script": "lua",
         "*.ltx": "ini",
         "**/gamedata/configs/**/*.ltx": "ini",
         "**/gamedata/scripts/*.script": "lua",
@@ -93,9 +94,16 @@
         "streambuf": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "xiosbase": "cpp"
     },
 
+    "clang-tidy.checks": [
+        "readability-identifier-naming"
+    ],
+    "clang-tidy.buildPath": "build/",
+    "clang-tidy.executable": "clang-tidy",
+    
     "dotnet.defaultSolution": "disable",
 
     "cmake.configureOnOpen": false,

@@ -72,10 +72,16 @@ private:
 	Fvector					last_position;
 	s32						ticks_to_update;
 	s32						sky_rays_uptodate;
+
+	Fvector avg_color;
+	Fvector avg_dir;
 #endif	// RENDER!=R_R1
+
+	Fvector smooth_avg_color;
+	Fvector smooth_avg_dir;
 public:
 	virtual	void			force_mode			(u32 mode)		{ MODE = mode;															};
-	virtual float			get_luminocity		()				{ float result_ = _max(approximate.x, _max(approximate.y, approximate.z)); clamp(result_, 0.f, 1.f); return (result_); };
+	virtual float			get_luminocity		()				{ float result_ = std::max(approximate.x, std::max(approximate.y, approximate.z)); clamp(result_, 0.f, 1.f); return (result_); };
 	virtual float			get_luminocity_hemi	()				{ return get_hemi();}
 	virtual float*			get_luminocity_hemi_cube		()				{ return hemi_cube_smooth;}
 
@@ -99,6 +105,16 @@ public:
 	const float*			get_hemi_cube		(){
 		if (dwFrameSmooth!=Device.dwFrame)		update_smooth();
 		return									hemi_cube_smooth;
+	}
+
+	ICF Fvector3& get_avg_color() {
+		if (dwFrameSmooth != Device.dwFrame) update_smooth();
+		return smooth_avg_color;
+	}
+
+	ICF Fvector3& get_avg_dir() {
+		if (dwFrameSmooth != Device.dwFrame) update_smooth();
+		return smooth_avg_dir;
 	}
 
 	CROS_impl				();

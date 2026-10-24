@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "VoiceChat.h"
 #include "Level.h"
+
 #include "../xrSound/Recorder/SoundVoiceChat.h"
 #include "game_cl_mp.h"
 #include "Actor.h"
@@ -106,7 +107,7 @@ void CVoiceChat::OnRender()
 
 			auto& voiceIconInfo = voiceTimeIt->second;
 
-			if (voiceIconInfo.time + 200 < GetTickCount())
+			if (voiceIconInfo.time + 200 < SDL_GetTicks())
 				continue;
 
 			CObject* pObject = Level().Objects.net_Find(id);
@@ -157,7 +158,7 @@ void CVoiceChat::ReceiveMessage(NET_Packet* P)
 
 	if (isValidDistance)
 	{
-		m_voiceTimeMap[clientId] = SVoiceIconInfo(GetTickCount());
+		m_voiceTimeMap[clientId] = SVoiceIconInfo(SDL_GetTicks());
 	}
 }
 

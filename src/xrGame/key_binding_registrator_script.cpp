@@ -2,11 +2,73 @@
 #include "pch_script.h"
 #include "key_binding_registrator.h"
 #include "../xrEngine/xr_level_controller.h"
+#include "../xrEngine/xr_input.h"
+#include "../xrEngine/GamepadService.h"
 
 using namespace luabind;
 
-int dik_to_bind(int dik){
-	return get_binded_action(dik);
+int dik_to_bind(int dik, int ag)
+{
+	return get_binded_action(dik, (_action_group)ag);
+}
+
+void gamepad_feedback(float left, float right, float time)
+{
+	pInput->feedback(65535 * left, 65535 * right, time);
+}
+
+void gamepad_led(u8 r, u8 g, u8 b)
+{
+    if (!GGamepadService)
+    {
+		return;
+    }
+	GGamepadService->SetLED(r, g, b);
+}
+
+bool gyroscope_supported()
+{
+    if (!GGamepadService)
+    {
+		return false;
+    }
+    if (GGamepadService->GamePadDevice == nullptr)
+    {
+		return false;
+    }
+	return SDL_GamepadHasSensor(GGamepadService->GamePadDevice, SDL_SENSOR_GYRO);
+}
+
+void trigger_machine(bool RightTrigger, u8 StartZone, bool Behavior, u8 Force, u8 Amplitude, u8 Period, u8 Frequency, float Time)
+{
+    if (!GGamepadService)
+    {
+		return;
+    }
+	GGamepadService->MachineTriggerEffect(RightTrigger, StartZone, Behavior, Force, Amplitude, Period, Frequency, Time);
+}
+
+void trigger_shot(bool RightTrigger, float Time)
+{
+	if (!GGamepadService)
+	{
+		return;
+	}
+	GGamepadService->ShotTriggerEffect(RightTrigger, Time);
+}
+
+void trigger_resistance(bool RightTrigger, u8 StartPosition, u8 Force, float Time)
+{
+	if (!GGamepadService)
+	{
+		return;
+	}
+	GGamepadService->SetTriggerResistance(RightTrigger, StartPosition, Force, Time);
+}
+
+bool key_state(int key)
+{
+	return pInput->iGetAsyncKeyState(key);
 }
 
 #pragma optimize("s",on)
@@ -14,7 +76,21 @@ void key_binding_registrator::script_register(lua_State *L)
 {
 	module(L)
 	[
+        def("dik_to_keyname",   &dik_to_keyname),
+		def("bind_to_dik",      &get_action_dik),
+		def("key_state",        &key_state),
 		def("dik_to_bind",		&dik_to_bind),
+        def("dik_to_bind",      +[](int dik)
+            {
+                return dik_to_bind(dik, agAny);
+            }),
+        def("any_binded_key_for_action_pressed_c", &any_binded_key_for_action_pressed_c),
+        def("gamepad_feedback", &gamepad_feedback),
+        def("gamepad_led", &gamepad_led),
+        def("gyroscope_supported", &gyroscope_supported),
+		def("gamepad_trigger_machine", &trigger_machine),
+    	def("gamepad_trigger_shot", &trigger_shot),
+		def("gamepad_trigger_resistance", &trigger_resistance),
 
 		class_<enum_exporter<EGameActions> >("key_bindings")
 			.enum_("commands")
@@ -63,15 +139,24 @@ void key_binding_registrator::script_register(lua_State *L)
 				value("kWPN_4",						int(kWPN_4)),
 				value("kWPN_5",						int(kWPN_5)),
 				value("kWPN_6",						int(kWPN_6)),
+				value("kWPN_7",						int(kWPN_7)),
 				value("kWPN_NEXT",					int(kWPN_NEXT)),
+				value("kARTEFACT",					int(kARTEFACT)),
 				value("kWPN_FIRE",					int(kWPN_FIRE)),
 				value("kWPN_RELOAD",				int(kWPN_RELOAD)),
 				value("kWPN_ZOOM",					int(kWPN_ZOOM)),
+				value("kWPN_ZOOM_INC",				int(kWPN_ZOOM_INC)),
+				value("kWPN_ZOOM_DEC",				int(kWPN_ZOOM_DEC)),
+				value("kWPN_FIREMODE_PREV",			int(kWPN_FIREMODE_PREV)),
+				value("kWPN_FIREMODE_NEXT",			int(kWPN_FIREMODE_NEXT)),
 				value("kWPN_FUNC",					int(kWPN_FUNC)),
 				value("kUSE",						int(kUSE)),
 				value("kDROP",						int(kDROP)),
 				value("kSCORES",					int(kSCORES)),
 				value("kCHAT",						int(kCHAT)),
+				value("kCHAT_TEAM",					int(kCHAT_TEAM)),
+				value("kVOICE_CHAT",				int(kVOICE_CHAT)),
+				value("kVOICE_DISTANCE",			int(kVOICE_DISTANCE)),
 				value("kSCREENSHOT",				int(kSCREENSHOT)),
 				value("kQUIT",						int(kQUIT)),
 				value("kCONSOLE",					int(kCONSOLE)),
@@ -79,8 +164,76 @@ void key_binding_registrator::script_register(lua_State *L)
 				value("kBUY",						int(kBUY)),
 				value("kSKIN",						int(kSKIN)),
 				value("kTEAM",						int(kTEAM)),
+				value("kACTIVE_JOBS",				int(kACTIVE_JOBS)),
 				value("kQUICK_SAVE",				int(kQUICK_SAVE)),
-				value("kQUICK_LOAD",				int(kQUICK_LOAD))
+				value("kQUICK_LOAD",				int(kQUICK_LOAD)),
+				value("kPAUSE",				        int(kPAUSE)),
+				value("kVOTE_BEGIN",				int(kVOTE_BEGIN)),
+				value("kSHOW_ADMIN_MENU",			int(kSHOW_ADMIN_MENU)),
+				value("kVOTE",				        int(kVOTE)),
+				value("kVOTEYES",				    int(kVOTEYES)),
+				value("kVOTENO",				    int(kVOTENO)),
+				value("kNEXT_SLOT",				    int(kNEXT_SLOT)),
+				value("kPREV_SLOT",				    int(kPREV_SLOT)),
+				value("kSPEECH_MENU_0",			    int(kSPEECH_MENU_0)),
+				value("kSPEECH_MENU_1",			    int(kSPEECH_MENU_1)),
+				value("kQUICK_USE_1",			    int(kQUICK_USE_1)),
+				value("kQUICK_USE_2",			    int(kQUICK_USE_2)),
+				value("kQUICK_USE_3",			    int(kQUICK_USE_3)),
+				value("kQUICK_USE_4",			    int(kQUICK_USE_4)),
+				value("kALIFE_CMD",			        int(kALIFE_CMD)),
+				value("kUSE_BANDAGE",	            int(kUSE_BANDAGE)),
+				value("kUSE_MEDKIT",	            int(kUSE_MEDKIT)),
+				value("kCLEARGASMASK",	            int(kCLEARGASMASK)),
+				value("kTACTICALTORCH",	            int(kTACTICALTORCH)),
+				value("kLASER",	                    int(kLASER)),
+				value("kWPN_ZOOM_ALTER",	        int(kWPN_ZOOM_ALTER)),
+				value("kBRIGHTNESS_PLUS",	        int(kBRIGHTNESS_PLUS)),
+				value("kBRIGHTNESS_MINUS",	        int(kBRIGHTNESS_MINUS)),
+				value("kQUICK_GRENADE",	            int(kQUICK_GRENADE)),
+				value("kQUICK_KICK",	            int(kQUICK_KICK)),
+				value("kMAG_CHECK",	                int(kMAG_CHECK)),
+				value("kFIREMODE_CHECK",	        int(kFIREMODE_CHECK)),
+				value("kSHOW_QUICK_SLOTS",	        int(kSHOW_QUICK_SLOTS)),
+				value("kWPN_CHAMBER_LOAD",	        int(kWPN_CHAMBER_LOAD)),
+				value("kWPN_CHAMBER_UNLOAD",        int(kWPN_CHAMBER_UNLOAD)),
+				value("kWPN_CHAMBER_CHECK",	        int(kWPN_CHAMBER_CHECK)),
+                
+				value("kUI_TAB_LEFT",	            int(kUI_TAB_LEFT)),
+				value("kUI_TAB_RIGHT",	            int(kUI_TAB_RIGHT)),
+				value("kUI_TAB_SECONDARY_LEFT",	    int(kUI_TAB_SECONDARY_LEFT)),
+				value("kUI_TAB_SECONDARY_RIGHT",	int(kUI_TAB_SECONDARY_RIGHT)),
+				value("kUI_LEFT",	                int(kUI_LEFT)),
+				value("kUI_RIGHT",	                int(kUI_RIGHT)),
+				value("kUI_UP",	                    int(kUI_UP)),
+				value("kUI_DOWN",	                int(kUI_DOWN)),
+				value("kUI_SECONDARY_LEFT",	        int(kUI_SECONDARY_LEFT)),
+				value("kUI_SECONDARY_RIGHT",        int(kUI_SECONDARY_RIGHT)),
+				value("kUI_SECONDARY_UP",	        int(kUI_SECONDARY_UP)),
+				value("kUI_SECONDARY_DOWN",	        int(kUI_SECONDARY_DOWN)),
+				value("kUI_ACCEPT",	                int(kUI_ACCEPT)),
+				value("kUI_BACK",	                int(kUI_BACK)),
+				value("kUI_HINT",	                int(kUI_HINT)),
+				value("kUI_ACTION_1",	            int(kUI_ACTION_1)),
+				value("kUI_ACTION_2",	            int(kUI_ACTION_2)),
+				value("kINV_SORT_PREV",	            int(kINV_SORT_PREV)),
+				value("kINV_SORT_NEXT",	            int(kINV_SORT_NEXT)),
+				value("kINV_SORT_CYCLE",	        int(kINV_SORT_CYCLE)),
+				value("kINV_UNLOAD_RUCK",	        int(kINV_UNLOAD_RUCK)),
+
+				value("kDETECTOR",				    int(kDETECTOR))
+			],
+		class_<enum_exporter<_action_group> >("action_groups")
+			.enum_("actions")
+			[
+				value("agDefault",					int(agDefault)),
+				value("agTransport",				int(agTransport)),
+				value("agUIGeneral",				int(agUIGeneral)),
+				value("agUIRadialWeapon",			int(agUIRadialWeapon)),
+				value("agUILogMenu",			    int(agUILogMenu)),
+				value("agUITaskMenu",			    int(agUITaskMenu)),
+				value("agAiming",			        int(agAiming)),
+				value("agAny",			            int(agAny))
 			],
 		class_<key_binding_registrator >("DIK_keys")
 			.enum_("dik_keys")
@@ -364,6 +517,38 @@ void key_binding_registrator::script_register(lua_State *L)
                 value("DIK_MOUSE_3", int(MOUSE_3)),
                 value("DIK_MOUSE_4", int(MOUSE_4)),
                 value("DIK_MOUSE_5", int(MOUSE_5))
-			]
+            ],
+        class_<key_binding_registrator_gamepad >("gamepad_keys")
+            .enum_("gamepad_keys")
+			[
+                value("BUTTON_A", int(SDL_GAMEPAD_BUTTON_SOUTH)),
+                value("BUTTON_B", int(SDL_GAMEPAD_BUTTON_EAST)),
+                value("BUTTON_X", int(SDL_GAMEPAD_BUTTON_WEST)),
+                value("BUTTON_Y", int(SDL_GAMEPAD_BUTTON_NORTH)),
+                value("BUTTON_BACK", int(SDL_GAMEPAD_BUTTON_BACK)),
+                value("BUTTON_START", int(SDL_GAMEPAD_BUTTON_START)),
+                value("BUTTON_LSTICK", int(SDL_GAMEPAD_BUTTON_LEFT_STICK)),
+                value("BUTTON_RSTICK", int(SDL_GAMEPAD_BUTTON_RIGHT_STICK)),
+                value("BUTTON_LSHOULDER", int(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)),
+                value("BUTTON_RSHOULDER", int(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)),
+                value("BUTTON_DPAD_UP", int(SDL_GAMEPAD_BUTTON_DPAD_UP)),
+                value("BUTTON_DPAD_DOWN", int(SDL_GAMEPAD_BUTTON_DPAD_DOWN)),
+                value("BUTTON_DPAD_LEFT", int(SDL_GAMEPAD_BUTTON_DPAD_LEFT)),
+                value("BUTTON_DPAD_RIGHT", int(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)),
+
+                value("BUTTON_LTRIGGER", int(DIK_LTRIGGER)),
+                value("BUTTON_RTRIGGER", int(DIK_RTRIGGER)),
+
+                value("BUTTON_LSTICK_UP", int(DIK_LSTICK_UP)),
+                value("BUTTON_LSTICK_DOWN", int(DIK_LSTICK_DOWN)),
+                value("BUTTON_LSTICK_LEFT", int(DIK_LSTICK_LEFT)),
+                value("BUTTON_LSTICK_RIGHT", int(DIK_LSTICK_RIGHT)),
+
+                value("BUTTON_RSTICK_UP", int(DIK_RSTICK_UP)),
+                value("BUTTON_RSTICK_DOWN", int(DIK_RSTICK_DOWN)),
+                value("BUTTON_RSTICK_LEFT", int(DIK_RSTICK_LEFT)),
+                value("BUTTON_RSTICK_RIGHT", int(DIK_RSTICK_RIGHT))
+            ]
+
 	];
 }

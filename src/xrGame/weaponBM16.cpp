@@ -1,18 +1,14 @@
 #include "StdAfx.h"
 #include "weaponBM16.h"
 
-CWeaponBM16::~CWeaponBM16()
-{
-}
-
-void CWeaponBM16::Load(LPCSTR section)
+void CWeaponBM16::Load(const char* section)
 {
 	m_bUseAltReloadSystem = READ_IF_EXISTS(pSettings, r_bool, section, "use_alt_reload_system", false);
 
 	inherited::Load(section);
 }
 
-void CWeaponBM16::LoadSounds(LPCSTR section)
+void CWeaponBM16::LoadSounds(const char* section)
 {
 	inherited::LoadSounds(section);
 
@@ -27,6 +23,16 @@ void CWeaponBM16::LoadSounds(LPCSTR section)
 	else
 	{
 		m_sounds.LoadSound(section, "snd_reload_1", "sndReload1", true, m_eSoundShot);
+
+		if (SoundExist(section, "snd_changeammo_1"))
+		{
+			m_sounds.LoadSound(section, "snd_changeammo_1", "sndChangeAmmo1", true, m_eSoundReload);
+		}
+
+		if (SoundExist(section, "snd_changeammo_2"))
+		{
+			m_sounds.LoadSound(section, "snd_changeammo_2", "sndChangeAmmo2", true, m_eSoundReload);
+		}
 	}
 }
 
@@ -34,7 +40,7 @@ void CWeaponBM16::PlayReloadSound()
 {
 	if (m_bUseAltReloadSystem)
 	{
-		LPCSTR sound = "sndReload";
+		const char* sound = "sndReload";
 
 		if (GetAmmoElapsed() == 0)
 		{
@@ -96,13 +102,27 @@ void CWeaponBM16::PlayReloadSound()
 		}
 		else
 		{
-			if ((GetAmmoElapsed() == 1 || !HaveCartridgeInInventory(2)) && (m_set_next_ammoType_on_reload == undefined_ammo_type || m_ammoType == m_set_next_ammoType_on_reload))
+			if (GetAmmoElapsed() == 1)
 			{
-				PlaySound("sndReload1", get_LastFP());
+				if (IsChangeAmmoType() && m_sounds.FindSoundItem("sndChangeAmmo1", false))
+				{
+					PlaySound("sndChangeAmmo1", get_LastFP());
+				}
+				else
+				{
+					PlaySound("sndReload1", get_LastFP());
+				}
 			}
 			else
 			{
-				PlaySound("sndReload", get_LastFP());
+				if (GetAmmoElapsed() == 2 && IsChangeAmmoType() && m_sounds.FindSoundItem("sndChangeAmmo2", false))
+				{
+					PlaySound("sndChangeAmmo2", get_LastFP());
+				}
+				else
+				{
+					PlaySound("sndReload", get_LastFP());
+				}
 			}
 		}
 	}
@@ -116,7 +136,7 @@ shared_str CWeaponBM16::SetCurrentReloadAnimation()
 
 	if (ParentIsActor())
 	{
-		xr_sprintf(new_suffix, "_%d", iAmmoElapsed);
+		xr_sprintf(new_suffix, "_%d", AmmoElapsed.MagazineElapsed);
 
 		m_iAmmoCountToReload = iMagazineSize;
 
@@ -156,15 +176,18 @@ shared_str CWeaponBM16::SetCurrentReloadAnimation()
 		}
 		else
 		{
-			if (IsMisfire() && !AddSuffixName(anim, "_jammed") || !IsMisfire())
+			if (IsMisfire() && !AddSuffixName(anim, "_jammed") && !AddSuffixName(anim, "_misfire") || !IsMisfire())
 			{
-				if ((GetAmmoElapsed() == 1 || !HaveCartridgeInInventory(2)) && (m_set_next_ammoType_on_reload == undefined_ammo_type || m_ammoType == m_set_next_ammoType_on_reload))
+				if (GetAmmoElapsed() == 1)
 				{
-					anim = "anm_reload_1";
+					if (!IsChangeAmmoType() || !AddSuffixName(anim, "_ammochange"))
+					{
+						anim = "anm_reload_1";
+					}
 				}
-				else
+				else if (!IsChangeAmmoType() || !AddSuffixName(anim, "_ammochange"))
 				{
-					anim = "anm_reload_2";
+					anim = HudAnimationExist("anm_reload_2") ? "anm_reload_2" : "anm_reload";
 				}
 			}
 		}
@@ -173,13 +196,13 @@ shared_str CWeaponBM16::SetCurrentReloadAnimation()
 	}
 	else
 	{
-		if ((GetAmmoElapsed() == 1 || !HaveCartridgeInInventory(2)) && (m_set_next_ammoType_on_reload == undefined_ammo_type || m_ammoType == m_set_next_ammoType_on_reload))
+		if ((GetAmmoElapsed() == 1 || !HaveCartridgeInInventory(2)) && (m_set_next_ammoType_on_reload == undefined_ammo_type || AmmoType.MagazineType == m_set_next_ammoType_on_reload))
 		{
 			anim = "anm_reload_1";
 		}
 		else
 		{
-			anim = "anm_reload_2";
+			anim = HudAnimationExist("anm_reload_2", false) ? "anm_reload_2" : "anm_reload";
 		}
 	}
 
@@ -200,7 +223,7 @@ shared_str CWeaponBM16::SetCurrentShootAnimation()
 
 	if (ParentIsActor())
 	{
-		xr_sprintf(new_suffix, "_%d", iAmmoElapsed);
+		xr_sprintf(new_suffix, "_%d", AmmoElapsed.MagazineElapsed);
 
 		if (IsMisfire() && IsZoomed())
 		{
@@ -223,7 +246,7 @@ shared_str CWeaponBM16::SetCurrentShootAnimation()
 	}
 	else
 	{
-		xr_sprintf(new_suffix, "%s_%d", *anim, iAmmoElapsed);
+		xr_sprintf(new_suffix, "%s_%d", *anim, AmmoElapsed.MagazineElapsed);
 		anim = new_suffix;
 	}
 
@@ -238,7 +261,7 @@ shared_str CWeaponBM16::SetCurrentStateAnimation(const shared_str& first_name)
 
 	if (ParentIsActor())
 	{
-		xr_sprintf(new_suffix, "_%d", iAmmoElapsed);
+		xr_sprintf(new_suffix, "_%d", AmmoElapsed.MagazineElapsed);
 
 		if (IsMisfire() && IsZoomed())
 		{
@@ -257,28 +280,55 @@ shared_str CWeaponBM16::SetCurrentStateAnimation(const shared_str& first_name)
 			AddSuffixName(anim, "_jammed", new_suffix);
 		}
 
+		if (const CActor* pActor = Level().CurrentControlEntity()->cast_actor())
+		{
+			if (pActor->IsSafemode())
+			{
+				AddSuffixName(anim, "_safemode", new_suffix);
+			}
+		}
+
 		AddSuffixName(anim, new_suffix);
 	}
 	else
 	{
-		xr_sprintf(new_suffix, "%s_%d", *anim, iAmmoElapsed);
-		anim = new_suffix;
+		xr_sprintf(new_suffix, "%s_%d", *anim, AmmoElapsed.MagazineElapsed);
+		if (HudAnimationExist(new_suffix, false))
+			anim = new_suffix;
 	}
 
 	return anim;
 }
 
-bool CWeaponBM16::HudAnimationExist(const shared_str& anim_name)
+bool CWeaponBM16::HudAnimationExist(const shared_str& anim_name, bool only_for_actor)
 {
 	string128 new_name;
-	xr_sprintf(new_name, "%s_%d", *anim_name, iAmmoElapsed);	
+	xr_sprintf(new_name, "%s_%d", *anim_name, AmmoElapsed.MagazineElapsed);	
 
-	bool has_anim = inherited::HudAnimationExist(new_name);
+	bool has_anim = inherited::HudAnimationExist(new_name, only_for_actor);
 
 	if (has_anim)
 	{
 		return has_anim;
 	}
 
-	return inherited::HudAnimationExist(anim_name);
+	return inherited::HudAnimationExist(anim_name, only_for_actor);
+}
+
+shared_str CWeaponBM16::SetCurrentAimAnimation()
+{
+	switch (m_magazine.size())
+	{
+	case 1: 
+	{
+		return HudAnimationExist("anm_zoomed_idle_1") ? "anm_zoomed_idle_1" : inherited::SetCurrentAimAnimation();
+	}
+	break;
+	case 2: 
+	{
+		return HudAnimationExist("anm_zoomedidle_2") ? "anm_zoomedidle_2" : inherited::SetCurrentAimAnimation();
+	}
+	break;
+	};
+	return inherited::SetCurrentAimAnimation();
 }

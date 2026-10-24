@@ -9,9 +9,9 @@
 #include "StdAfx.h"
 #include "level_graph.h"
 
-LPCSTR LEVEL_GRAPH_NAME = "level.ai";
+const char* LEVEL_GRAPH_NAME = "level.ai";
 
-CLevelGraph::CLevelGraph(LPCSTR filename)
+CLevelGraph::CLevelGraph(const char* filename)
 {
 	string256					file_name;
 	xr_strconcat(file_name, filename, LEVEL_GRAPH_NAME);
@@ -37,7 +37,7 @@ CLevelGraph::CLevelGraph(LPCSTR filename)
 					m_nodes[i].UncompressedNode.link(j, link_value);
 				}
 
-				// Остальные поля
+				// РћСЃС‚Р°Р»СЊРЅС‹Рµ РїРѕР»СЏ
 				m_nodes[i].UncompressedNode.high = Src[i].high;
 				m_nodes[i].UncompressedNode.low = Src[i].low;
 				m_nodes[i].UncompressedNode.plane = Src[i].plane;

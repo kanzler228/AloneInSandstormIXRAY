@@ -42,9 +42,9 @@ private:
 protected:
 	//имена xml файлов (разделенных запятой) из которых 
 	//производить загрузку элементов
-	static LPCSTR					file_str;
+	static const char*					file_str;
 	//имена тегов
-	static LPCSTR					tag_name;
+	static const char*					tag_name;
 public:
 									CXML_IdToIndex							();
 	virtual							~CXML_IdToIndex					();
@@ -59,7 +59,7 @@ public:
 		const ITEM_DATA* item = GetById(str_id, no_assert);
 		return item?item->index:default_index;
 	}
-	static const shared_str		IndexToId	(int index, shared_str default_id = NULL, bool no_assert = false)
+	static const shared_str		IndexToId	(int index, shared_str default_id = nullptr, bool no_assert = false)
 	{
 		const ITEM_DATA* item = GetByIndex(index, no_assert);
 		return item?item->id:default_id;
@@ -73,18 +73,16 @@ public:
 
 
 TEMPLATE_SPECIALIZATION
-typename T_VECTOR* CSXML_IdToIndex::m_pItemDataVector = NULL;
+T_VECTOR* CSXML_IdToIndex::m_pItemDataVector = nullptr;
 
 TEMPLATE_SPECIALIZATION
-LPCSTR CSXML_IdToIndex::file_str = NULL;
+const char* CSXML_IdToIndex::file_str = nullptr;
 TEMPLATE_SPECIALIZATION
-LPCSTR CSXML_IdToIndex::tag_name = NULL;
+const char* CSXML_IdToIndex::tag_name = nullptr;
 
 
 TEMPLATE_SPECIALIZATION
-CSXML_IdToIndex::CXML_IdToIndex()
-{
-}
+CSXML_IdToIndex::CXML_IdToIndex() = default;
 
 
 TEMPLATE_SPECIALIZATION
@@ -94,7 +92,7 @@ CSXML_IdToIndex::~CXML_IdToIndex()
 
 
 TEMPLATE_SPECIALIZATION
-const typename ITEM_DATA* CSXML_IdToIndex::GetById (const shared_str& str_id, bool no_assert)
+const ITEM_DATA* CSXML_IdToIndex::GetById (const shared_str& str_id, bool no_assert)
 {
 	T_INIT::InitXmlIdToIndex();
 	T_VECTOR::iterator it = m_pItemDataVector->begin();
@@ -107,9 +105,11 @@ const typename ITEM_DATA* CSXML_IdToIndex::GetById (const shared_str& str_id, bo
 
 	if(m_pItemDataVector->end() == it)
 	{
+#ifdef DEBUG
 		int i=0;
 		for(T_VECTOR::iterator it_ = m_pItemDataVector->begin();	m_pItemDataVector->end() != it_; it_++,i++)
 			Msg("[%d]=[%s]",i,*(*it_).id );
+#endif
 
 		R_ASSERT3(no_assert, "item not found, id", *str_id);
 		return NULL;
@@ -119,7 +119,7 @@ const typename ITEM_DATA* CSXML_IdToIndex::GetById (const shared_str& str_id, bo
 }
 
 TEMPLATE_SPECIALIZATION
-const typename ITEM_DATA* CSXML_IdToIndex::GetByIndex(int index, bool no_assert)
+const ITEM_DATA* CSXML_IdToIndex::GetByIndex(int index, bool no_assert)
 {
 	if((size_t)index>=m_pItemDataVector->size())
 	{
@@ -139,7 +139,7 @@ void CSXML_IdToIndex::DeleteIdToIndexData	()
 }
 
 TEMPLATE_SPECIALIZATION
-typename void	CSXML_IdToIndex::InitInternal ()
+void CSXML_IdToIndex::InitInternal ()
 {
 	VERIFY(!m_pItemDataVector);
 	T_INIT::InitXmlIdToIndex();
@@ -160,14 +160,17 @@ typename void	CSXML_IdToIndex::InitInternal ()
 		xr_string				xml_file_full;
 		xml_file_full			= xml_file;
 		xml_file_full			+= ".xml";
-		uiXml->Load				(CONFIG_PATH, "gameplay", xml_file_full.c_str());
 
+		if (!uiXml->Load(CONFIG_PATH, "gameplay", xml_file_full.c_str())) {
+			delete_data(uiXml);
+			continue;
+		}
 		//общий список
 		int items_num			= uiXml->GetNodesNum(uiXml->GetRoot(), tag_name);
 
 		for(int i=0; i<items_num; ++i)
 		{
-			LPCSTR item_name	= uiXml->ReadAttrib(uiXml->GetRoot(), tag_name, i, "id", NULL);
+			const char* item_name	= uiXml->ReadAttrib(uiXml->GetRoot(), tag_name, i, "id", NULL);
 
 			string256			buf;
 			xr_sprintf				(buf, "id for item don't set, number %d in %s", i, xml_file);
@@ -200,4 +203,3 @@ typename void	CSXML_IdToIndex::InitInternal ()
 }
 
 #undef TEMPLATE_SPECIALIZATION
-

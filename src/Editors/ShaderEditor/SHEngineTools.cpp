@@ -9,7 +9,7 @@
 //------------------------------------------------------------------------------
 class CCollapseBlender: public CParseBlender{
 public:
-	virtual void Parse(CSHEngineTools* owner, DWORD type, LPCSTR key, LPVOID data){
+	virtual void Parse(CSHEngineTools* owner, DWORD type, const char* key, LPVOID data){
 		switch(type){
 		case xrPID_MATRIX: 		owner->CollapseMatrix	((LPSTR)data); break;
 		case xrPID_CONSTANT: 	owner->CollapseConstant	((LPSTR)data); break;
@@ -19,7 +19,7 @@ public:
 
 class CRefsBlender: public CParseBlender{
 public:
-	virtual void Parse(CSHEngineTools* owner, DWORD type, LPCSTR key, LPVOID data){
+	virtual void Parse(CSHEngineTools* owner, DWORD type, const char* key, LPVOID data){
 		switch(type){
 		case xrPID_MATRIX: 		owner->UpdateMatrixRefs		((LPSTR)data); break;
 		case xrPID_CONSTANT: 	owner->UpdateConstantRefs	((LPSTR)data); break;
@@ -29,7 +29,7 @@ public:
 
 class CRemoveBlender: public CParseBlender{
 public:
-	virtual void Parse(CSHEngineTools* owner, DWORD type, LPCSTR key, LPVOID data){
+	virtual void Parse(CSHEngineTools* owner, DWORD type, const char* key, LPVOID data){
 		switch(type){
 		case xrPID_MATRIX: 		owner->RemoveMatrix((LPSTR)data); break;
 		case xrPID_CONSTANT: 	owner->RemoveConstant((LPSTR)data); break;
@@ -46,14 +46,14 @@ CSHEngineTools::CSHEngineTools(const ISHInit& init):ISHTools(init)
 {
 	m_PreviewObjectType	= pvoNone;
 	m_PreviewObject		= NULL;
-	m_bCustomEditObject	= FALSE;
-	m_bFreezeUpdate		= FALSE;
+	m_bCustomEditObject	= false;
+	m_bFreezeUpdate		= false;
 	m_CurrentBlender 	= 0;
 	m_BlenderStream.clear();
-	m_bNeedResetShaders	= TRUE;
-	m_RemoteRenBlender	= FALSE;
-	m_CreatingBlender = FALSE;
-	m_SetCustomObject = FALSE;
+	m_bNeedResetShaders	= true;
+	m_RemoteRenBlender	= false;
+	m_CreatingBlender = false;
+	m_SetCustomObject = false;
 	MCString.push_back	("Custom...");
 	MCString.push_back	("$null");
 	MCString.push_back	("$base0");
@@ -89,7 +89,7 @@ void CSHEngineTools::OnDestroy()
 
 	ClearData();
 
-	m_bModified = FALSE;
+	m_bModified = false;
 }
 
 xr_token preview_obj_token[]={
@@ -104,14 +104,14 @@ xr_token preview_obj_token[]={
 
 bool CSHEngineTools::OnPreviewObjectRefChange(PropValue* sender, u32& new_val)
 {           
-   LPCSTR fn="";
+   const char* fn="";
 	m_bCustomEditObject = false; 
 	switch (new_val){
 	case pvoPlane: 	fn	= "editor\\ShaderTest_Plane"; 	break;
 	case pvoBox: 	fn	= "editor\\ShaderTest_Box"; 	break;
 	case pvoSphere:	fn	= "editor\\ShaderTest_Sphere";	break;
 	case pvoTeapot:	fn	= "editor\\ShaderTest_Teapot";	break;
-	case pvoCustom: {m_SetCustomObject = TRUE; UIChooseForm::SelectItem(smObject, 1, 0, 0, 0, 0, 0, 0); return true; }break;
+	case pvoCustom: {m_SetCustomObject = true; UIChooseForm::SelectItem(smObject, 1, 0, 0, 0, 0, 0, 0); return true; }break;
 	}
 	
 	OnPreviewObjectRefChange(fn);
@@ -146,10 +146,10 @@ void CSHEngineTools::OnActivate()
 	// fill items*/
 	FillItemList						();
    /* Ext.m_Items->SetOnModifiedEvent		(TOnModifiedEvent(this,&CSHEngineTools::Modified));*/
-	Ext.m_Items->SetOnItemRenameEvent	(TOnItemRename(this,&CSHEngineTools::OnRenameItem));
-	Ext.m_Items->SetOnItemRemoveEvent	(TOnItemRemove(this,&CSHEngineTools::OnRemoveItem));
-	Ext.m_Items->SetOnItemCloneEvent    (TOnItemClone(this, &CSHEngineTools::OnCloneItem));
-	Ext.m_Items->SetOnItemCreaetEvent(TOnItemCreate(this, &CSHEngineTools::OnCreateItem));
+	Ext.m_Items->SetOnItemRenameEvent	({this,&CSHEngineTools::OnRenameItem});
+	Ext.m_Items->SetOnItemRemoveEvent	({this,&CSHEngineTools::OnRemoveItem});
+	Ext.m_Items->SetOnItemCloneEvent    ({this, &CSHEngineTools::OnCloneItem});
+	Ext.m_Items->SetOnItemCreaetEvent({this, &CSHEngineTools::OnCreateItem});
 
 	inherited::OnActivate				();
 }
@@ -194,7 +194,7 @@ void CSHEngineTools::OnFrame()
 	}
 	if (m_RemoteRenBlender){
 		RealRenameItem		(m_RenBlenderOldName.c_str(),m_RenBlenderNewName.c_str());
-		m_RemoteRenBlender	= FALSE;
+		m_RemoteRenBlender	= false;
 	}
    
 	if (m_PreviewObject) m_PreviewObject->OnFrame();
@@ -215,7 +215,7 @@ void CSHEngineTools::OnFrame()
 				m_PreviewObjectType = 0;
 				OnPreviewObjectRefChange("");
 			}
-			m_SetCustomObject = FALSE;
+			m_SetCustomObject = false;
 		}
 	}
 	if (m_CreatingBlender)
@@ -240,7 +240,7 @@ void CSHEngineTools::OnFrame()
 
 			}
 
-			m_CreatingBlender = FALSE;
+			m_CreatingBlender = false;
 		}
 
 	}
@@ -265,7 +265,7 @@ void CSHEngineTools::ZoomObject(bool bOnlySel)
 void CSHEngineTools::RealResetShaders() 
 {
 	// disable props vis update
-	m_bFreezeUpdate 	= TRUE;
+	m_bFreezeUpdate 	= true;
 	UpdateStreamFromObject();
  
 	UpdateObjectShader	();
@@ -273,10 +273,10 @@ void CSHEngineTools::RealResetShaders()
 	PrepareRender		();
 	// reset device shaders from temp file
 	IReader data		(m_RenderShaders.pointer(), m_RenderShaders.size());
-	EDevice->Reset		(&data,TRUE);
+	EDevice->Reset		(&data,true);
 	// enable props vis update
-	m_bFreezeUpdate 	= FALSE;
-	m_bNeedResetShaders	= FALSE;
+	m_bFreezeUpdate 	= false;
+	m_bNeedResetShaders	= false;
 }
 
 void CSHEngineTools::FillItemList()
@@ -310,8 +310,8 @@ void CSHEngineTools::Load()
 	string_path 				fn;
 	FS.update_path				(fn,_game_data_,"shaders.xr");
 
-	m_bFreezeUpdate				= TRUE;
-	m_bLockUpdate 				= TRUE;
+	m_bFreezeUpdate				= true;
+	m_bLockUpdate 				= true;
 
 	if (FS.exist(fn))
 	{
@@ -376,8 +376,8 @@ void CSHEngineTools::Load()
 	}else{
 		ELog.DlgMsg(mtInformation,"Can't find file '%s'",fn);
 	}
-	m_bLockUpdate				= FALSE;
-	m_bFreezeUpdate				= FALSE;
+	m_bLockUpdate				= false;
+	m_bFreezeUpdate				= false;
 }
 
 void CSHEngineTools::Save(CMemoryWriter& F)
@@ -442,7 +442,7 @@ bool CSHEngineTools::Save()
 	bool bRes					= F.save_to(fn);
 
 	if (bRes){	
-		m_bModified	= FALSE;
+		m_bModified	= false;
 		//Ext.m_ItemProps->ResetModified();
 		// restore shader
 		ResetShaders ();
@@ -457,7 +457,7 @@ void CSHEngineTools::PrepareRender()
 	Save(m_RenderShaders);
 }
 
-IBlender* CSHEngineTools::FindItem(LPCSTR name){
+IBlender* CSHEngineTools::FindItem(const char* name){
 	if (name && name[0]){
 		LPSTR N = LPSTR(name);
 		BlenderPairIt I = m_Blenders.find	(N);
@@ -466,7 +466,7 @@ IBlender* CSHEngineTools::FindItem(LPCSTR name){
 	}else return 0;
 }
 
-CMatrix* CSHEngineTools::FindMatrix(LPCSTR name)
+CMatrix* CSHEngineTools::FindMatrix(const char* name)
 {
 	R_ASSERT(name && name[0]);
 	MatrixPairIt I = m_Matrices.find	((LPSTR)name);
@@ -489,7 +489,7 @@ CMatrix* CSHEngineTools::AppendMatrix(LPSTR name)
 	return M;
 }
 
-CConstant* CSHEngineTools::FindConstant(LPCSTR name)
+CConstant* CSHEngineTools::FindConstant(const char* name)
 {
 	R_ASSERT(name && name[0]);
 	ConstantPairIt I = m_Constants.find	((LPSTR)name);
@@ -507,7 +507,7 @@ CConstant* CSHEngineTools::AppendConstant(LPSTR name)
 	return C;
 }
 
-LPCSTR CSHEngineTools::GenerateMatrixName(LPSTR name)
+const char* CSHEngineTools::GenerateMatrixName(LPSTR name)
 {
 	int cnt = 0;
 	do sprintf(name,"%04x",cnt++);
@@ -515,7 +515,7 @@ LPCSTR CSHEngineTools::GenerateMatrixName(LPSTR name)
 	return name;
 }
 
-LPCSTR CSHEngineTools::GenerateConstantName(LPSTR name)
+const char* CSHEngineTools::GenerateConstantName(LPSTR name)
 {
 	int cnt = 0;
 	do sprintf(name,"%04x",cnt++);
@@ -529,13 +529,13 @@ void CSHEngineTools::FillChooseTemplate(ChooseItemVec& items, void* param)
 		items.push_back(SChooseItem((*it)->getComment(),""));
 }
 		
-void CSHEngineTools::AppendItem(LPCSTR path, LPCSTR parent_name)
+void CSHEngineTools::AppendItem(const char* path, const char* parent_name)
 {
 	IBlender* parent 	= FindItem(parent_name);
 	CLASS_ID cls_id;
 	if (!parent){
 		UIChooseForm::SelectItem(smCustom, 1, 0, TOnChooseFillItems(this, &CSHEngineTools::FillChooseTemplate),0,0,0,0);
-		m_CreatingBlender = TRUE;
+		m_CreatingBlender = true;
 		m_CreatingBlenderPath = path;
 		return;
 	}else{
@@ -544,7 +544,7 @@ void CSHEngineTools::AppendItem(LPCSTR path, LPCSTR parent_name)
 	AppendItem(path, cls_id, parent);
 }
 
-void CSHEngineTools::RealRenameItem(LPCSTR old_full_name, LPCSTR new_full_name)
+void CSHEngineTools::RealRenameItem(const char* old_full_name, const char* new_full_name)
 {
 	ApplyChanges	();
 	LPSTR N 		= LPSTR(old_full_name);
@@ -568,7 +568,15 @@ void CSHEngineTools::RealRenameItem(LPCSTR old_full_name, LPCSTR new_full_name)
 
 void CSHEngineTools::AddMatrixRef(LPSTR name)
 {
-	CMatrix* M = FindMatrix(name); R_ASSERT(M);
+	CMatrix* M = FindMatrix(name); 
+
+	if (M == nullptr)
+	{
+		Msg("! Not found matrix: %s", name);
+		return;
+	}
+
+
 	M->dwReference++;
 }
 
@@ -578,7 +586,7 @@ void CSHEngineTools::AddConstantRef(LPSTR name)
 	C->dwReference++;
 }
 
-LPCSTR CSHEngineTools::AppendConstant(CConstant* src, CConstant** dest)
+const char* CSHEngineTools::AppendConstant(CConstant* src, CConstant** dest)
 {
 	CConstant* C = new CConstant();
 	if (src)
@@ -593,7 +601,7 @@ LPCSTR CSHEngineTools::AppendConstant(CConstant* src, CConstant** dest)
 	return I.first->first;
 }
 
-LPCSTR CSHEngineTools::AppendMatrix(CMatrix* src, CMatrix** dest)
+const char* CSHEngineTools::AppendMatrix(CMatrix* src, CMatrix** dest)
 {
 	CMatrix* M = new CMatrix();
 	if (src)
@@ -609,19 +617,28 @@ LPCSTR CSHEngineTools::AppendMatrix(CMatrix* src, CMatrix** dest)
 	return I.first->first;
 }
 
-void CSHEngineTools::OnRenameItem(LPCSTR old_full_name, LPCSTR new_full_name, EItemType type)
+void CSHEngineTools::OnRenameItem(UIItemListForm::Node& node, const char* old_full_name, const char* new_full_name, EItemType type)
 {
 	
 	if (type==TYPE_OBJECT)
 		RealRenameItem(old_full_name, new_full_name);
-	m_bFreezeUpdate = TRUE;
+	m_bFreezeUpdate = true;
 }
 
 
 
-void CSHEngineTools::OnRemoveItem(LPCSTR name, EItemType type)
+void CSHEngineTools::OnRemoveItem(UIItemListForm::Node& node)
 {
-	if (type==TYPE_OBJECT){
+	string_path path;
+	if (node.Path.size())
+	{
+		xr_strconcat(path, node.Path.c_str(), "\\", node.Name.c_str());
+	} else
+	{
+		xr_strcpy(path, node.Name.c_str());
+	}
+	const char* name = path;
+	if (node.IsObject()){
 		R_ASSERT(name && name[0]);
 		IBlender* B = FindItem(name);
 		R_ASSERT(B);
@@ -644,7 +661,7 @@ void CSHEngineTools::OnRemoveItem(LPCSTR name, EItemType type)
 	}
 }
 
-void CSHEngineTools::RemoveMatrix(LPCSTR name)
+void CSHEngineTools::RemoveMatrix(const char* name)
 {
 	if (*name=='$') return;
 	R_ASSERT(name && name[0]);
@@ -659,7 +676,7 @@ void CSHEngineTools::RemoveMatrix(LPCSTR name)
 	}
 }
 
-void CSHEngineTools::RemoveConstant(LPCSTR name)
+void CSHEngineTools::RemoveConstant(const char* name)
 {
 	if (*name=='$') return;
 	R_ASSERT(name && name[0]);
@@ -690,7 +707,7 @@ void CSHEngineTools::UpdateObjectFromStream()
 	}
 }
 
-void CSHEngineTools::SetCurrentItem(LPCSTR name, bool bView)
+void CSHEngineTools::SetCurrentItem(const char* name, bool bView)
 {
 	if (m_bLockUpdate) return;
 
@@ -714,7 +731,13 @@ void CSHEngineTools::CollapseMatrix(LPSTR name)
 {
 	if (*name=='$') return;
 	R_ASSERT(name&&name[0]);
-	CMatrix* M = FindMatrix(name); VERIFY(M);
+	CMatrix* M = FindMatrix(name);
+
+	if (M == nullptr)
+	{
+		return;
+	}
+
 	M->dwReference--;
 	for (MatrixPairIt m=m_OptMatrices.begin(); m!=m_OptMatrices.end(); m++){
 		if (m->second->Similar(*M)){
@@ -753,9 +776,16 @@ void CSHEngineTools::CollapseConstant(LPSTR name)
 
 void CSHEngineTools::UpdateMatrixRefs(LPSTR name)
 {
-	if (*name=='$') return;
-	R_ASSERT(name&&name[0]);
-	CMatrix* M = FindMatrix(name); R_ASSERT(M);
+	if (*name == '$') return;
+	R_ASSERT(name && name[0]);
+	CMatrix* M = FindMatrix(name);
+
+	if (M == nullptr)
+	{
+		Msg("! Not found matrix: %s", name);
+		return;
+	}
+
 	M->dwReference++;
 }
 
@@ -886,7 +916,7 @@ void CSHEngineTools::OnDrawUI()
 	}
 }
 
-void CSHEngineTools::AppendItem(LPCSTR path, CLASS_ID cls_id, IBlender* parent )
+void CSHEngineTools::AppendItem(const char* path, CLASS_ID cls_id, IBlender* parent )
 {
 	R_ASSERT2(cls_id, "Invalid CLASS_ID.");
 	// append blender
@@ -956,7 +986,7 @@ xr_token							mode_token[] = {
 	{ 0,							0							}
 };
 //---------------------------------------------------------------------------
-void  CSHEngineTools::FillMatrixProps(PropItemVec& items, LPCSTR pref, LPSTR name)
+void  CSHEngineTools::FillMatrixProps(PropItemVec& items, const char* pref, LPSTR name)
 {
 	CMatrix* M = AppendMatrix(name);
 	VERIFY(M);
@@ -989,7 +1019,7 @@ bool CSHEngineTools::MatrixOnAfterEdit(PropValue* sender, xr_string& nm)
 {
 	CListValue* V = dynamic_cast<CListValue*>(sender);  R_ASSERT(V);
 	VERIFY(nm.size());
-	LPCSTR src_val = V->GetValue();
+	const char* src_val = V->GetValue();
 
 	if (nm[0] != '$') {
 		if (src_val[0] == '$') {
@@ -1009,7 +1039,7 @@ bool CSHEngineTools::MatrixOnAfterEdit(PropValue* sender, xr_string& nm)
 }
 //------------------------------------------------------------------------------
 
-void  CSHEngineTools::FillConstProps(PropItemVec& items, LPCSTR pref, LPSTR name)
+void  CSHEngineTools::FillConstProps(PropItemVec& items, const char* pref, LPSTR name)
 {
 	CConstant* C = AppendConstant(name);
 	R_ASSERT(C);
@@ -1024,7 +1054,7 @@ bool CSHEngineTools::ConstOnAfterEdit(PropValue* sender, xr_string& nm)
 {
 	CListValue* V = dynamic_cast<CListValue*>(sender);  R_ASSERT(V);
 	VERIFY(nm.size());
-	LPCSTR src_val = V->GetValue();
+	const char* src_val = V->GetValue();
 
 	if (nm[0] != '$') {
 		if (src_val[0] == '$') {

@@ -34,15 +34,17 @@
 #include "Artefact.h"
 #include "sight_manager_space.h"
 #include "../xrScripts/exports/script_ini_file.h"
+#include "ActorHelmet.h"
+#include "Weapon.h"
 
 using namespace luabind;
 
 class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject> &&instance)
 {
 	return std::move(instance)
-		.def("add_sound",					(u32 (CScriptGameObject::*)(LPCSTR,u32,ESoundTypes,u32,u32,u32))(&CScriptGameObject::add_sound))
-		.def("add_sound",					(u32 (CScriptGameObject::*)(LPCSTR,u32,ESoundTypes,u32,u32,u32,LPCSTR))(&CScriptGameObject::add_sound))
-		.def("add_combat_sound",			(u32 (CScriptGameObject::*)(LPCSTR,u32,ESoundTypes,u32,u32,u32,LPCSTR))(&CScriptGameObject::add_combat_sound))
+		.def("add_sound",					(u32 (CScriptGameObject::*)(const char*,u32,ESoundTypes,u32,u32,u32))(&CScriptGameObject::add_sound))
+		.def("add_sound",					(u32 (CScriptGameObject::*)(const char*,u32,ESoundTypes,u32,u32,u32,const char*))(&CScriptGameObject::add_sound))
+		.def("add_combat_sound",			(u32 (CScriptGameObject::*)(const char*,u32,ESoundTypes,u32,u32,u32,const char*))(&CScriptGameObject::add_combat_sound))
 		.def("remove_sound",				&CScriptGameObject::remove_sound)
 		.def("set_sound_mask",				&CScriptGameObject::set_sound_mask)
 		.def("play_sound",					(void (CScriptGameObject::*)(u32))(&CScriptGameObject::play_sound))
@@ -60,6 +62,8 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("enable_memory_object",		&CScriptGameObject::enable_memory_object)
 		.def("active_sound_count",			(int (CScriptGameObject::*)())(&CScriptGameObject::active_sound_count))
 		.def("active_sound_count",			(int (CScriptGameObject::*)(bool))(&CScriptGameObject::active_sound_count))
+		.def("active_sound_count_script",	(int (CScriptGameObject::*)())(&CScriptGameObject::active_sound_count_script))
+		.def("active_sound_count_script",	(int (CScriptGameObject::*)(bool))(&CScriptGameObject::active_sound_count_script))
 		.def("best_cover",					&CScriptGameObject::best_cover)
 		.def("safe_cover",					&CScriptGameObject::safe_cover)
 		.def("spawn_ini",					&CScriptGameObject::spawn_ini)
@@ -90,7 +94,17 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("set_item",					(void (CScriptGameObject::*)(MonsterSpace::EObjectAction, CScriptGameObject *, u32))(&CScriptGameObject::set_item))
 		.def("set_item",					(void (CScriptGameObject::*)(MonsterSpace::EObjectAction, CScriptGameObject *, u32, u32))(&CScriptGameObject::set_item))
 
-		.def("bone_position",				&CScriptGameObject::bone_position)
+		.def("bone_position",				(Fvector (CScriptGameObject::*)(u16))(&CScriptGameObject::bone_position))
+		.def("bone_position",				(Fvector (CScriptGameObject::*)(const char*))(&CScriptGameObject::bone_position))
+
+		.def("bone_direction",				(Fvector(CScriptGameObject::*)(u16))(&CScriptGameObject::bone_direction))
+		.def("bone_direction",				(Fvector(CScriptGameObject::*)(const char*))(&CScriptGameObject::bone_direction))
+		
+		.def("get_bone_name_by_id",			&CScriptGameObject::get_bone_name_by_id)
+		.def("get_bone_id_by_name",			&CScriptGameObject::get_bone_id_by_name)
+
+		.def("get_root_bone_name",			&CScriptGameObject::get_root_bone_name)
+		.def("get_root_bone_id",			&CScriptGameObject::get_root_bone_id)
 
 		.def("is_body_turning",				&CScriptGameObject::is_body_turning)
 
@@ -133,18 +147,33 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 
 		.def("give_info_portion",			&CScriptGameObject::GiveInfoPortion)
 		.def("disable_info_portion",		&CScriptGameObject::DisableInfoPortion)
-		.def("give_game_news",				(void (CScriptGameObject::*)(LPCSTR,LPCSTR,LPCSTR,int,int))(&CScriptGameObject::GiveGameNews))
-		.def("give_game_news",				(void (CScriptGameObject::*)(LPCSTR,LPCSTR,LPCSTR,int,int,int))(&CScriptGameObject::GiveGameNews))
+		.def("give_game_news",				(void (CScriptGameObject::*)(const char*,const char*,const char*,int,int))(&CScriptGameObject::GiveGameNews))
+		.def("give_game_news",				(void (CScriptGameObject::*)(const char*,const char*,const char*,int,int,int))(&CScriptGameObject::GiveGameNews))
+		.def("give_game_news",				(bool (CScriptGameObject::*)(const char*,const char*,Frect,int,int))(&CScriptGameObject::GiveGameNews))
 
-		.def("give_talk_message",			(void (CScriptGameObject::*)(LPCSTR,LPCSTR,LPCSTR))(&CScriptGameObject::AddIconedTalkMessage_old))//old version, must remove!
-		.def("give_talk_message2",			(void (CScriptGameObject::*)(LPCSTR,LPCSTR,LPCSTR,LPCSTR))(&CScriptGameObject::AddIconedTalkMessage))
+        .def("give_talk_message",			(void (CScriptGameObject::*)(const char*,const char*,Frect,const char*))(&CScriptGameObject::AddIconedTalkMessage))
+		.def("give_talk_message",			(void (CScriptGameObject::*)(const char*,const char*,const char*))(&CScriptGameObject::AddIconedTalkMessage_old))//old version, must remove!
+		.def("give_talk_message2",			(void (CScriptGameObject::*)(const char*,const char*,const char*,const char*))(&CScriptGameObject::AddIconedTalkMessage))
 
 		.def("has_info",					&CScriptGameObject::HasInfo)
 		.def("dont_has_info",				&CScriptGameObject::DontHasInfo)
+		.def("get_info_time",				&CScriptGameObject::GetInfoTime)
 
 		.def("get_task_state",				&CScriptGameObject::GetGameTaskState)
+        .def("get_task_state", +[](CScriptGameObject* self, const char* task_id)
+        {
+            return self->GetGameTaskState(task_id, ROOT_TASK_OBJECTIVE);
+        })
 		.def("set_task_state",				&CScriptGameObject::SetGameTaskState)
+        .def("set_task_state", +[](CScriptGameObject* self, ETaskState state, const char* task_id)
+        {
+            self->SetGameTaskState(state, task_id, ROOT_TASK_OBJECTIVE);
+        })
 		.def("give_task",					&CScriptGameObject::GiveTaskToActor,		adopt<2>())
+        .def("give_task", +[](CScriptGameObject* self, CGameTask* t, u32 dt, bool bCheckExisting)
+        {
+            self->GiveTaskToActor(t, dt, bCheckExisting, 0);
+        }, adopt<2>())
 		.def("set_active_task",				&CScriptGameObject::SetActiveTask)
 		.def("is_active_task",				&CScriptGameObject::IsActiveTask)
 		.def("get_task",					&CScriptGameObject::GetTask)
@@ -170,19 +199,31 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("transfer_money",				&CScriptGameObject::TransferMoney)
 		.def("give_money",					&CScriptGameObject::GiveMoney)
 		.def("money",						&CScriptGameObject::Money)
+		.def("actor_money_earned",			&CScriptGameObject::GetActorMoneyEarned)
+		.def("actor_money_spent",			&CScriptGameObject::GetActorMoneySpent)
+		.def("actor_distance_km",			&CScriptGameObject::GetActorDistanceKm)
+		.def("actor_headshots",				&CScriptGameObject::GetActorHeadshots)
+		.def("actor_deaths",				&CScriptGameObject::GetActorDeaths)
+		.def("actor_help_wounded",			&CScriptGameObject::GetActorHelpWounded)
 		.def("make_item_active",			&CScriptGameObject::MakeItemActive)
 
 		.def("switch_to_trade",				&CScriptGameObject::SwitchToTrade)
 		.def("switch_to_upgrade",			&CScriptGameObject::SwitchToUpgrade)
 		.def("switch_to_talk",				&CScriptGameObject::SwitchToTalk)
 		.def("run_talk_dialog",				&CScriptGameObject::RunTalkDialog)
+		.def("run_talk_dialog", +[](CScriptGameObject* self, CScriptGameObject* pToWho)
+			{
+				self->RunTalkDialog(pToWho, true);
+				pToWho->DisableTrade();
+			})
 		.def("allow_break_talk_dialog",		&CScriptGameObject::AllowBreakTalkDialog)
 
 		.def("set_pda_disabled",			&CScriptGameObject::SetPdaDisabled)
 		.def("is_pda_disabled",				&CScriptGameObject::IsPdaDisabled)
 		.def("set_inventory_disabled",		&CScriptGameObject::SetInventoryDisabled)
 		.def("is_inventory_disabled",		&CScriptGameObject::IsInventoryDisabled)
-		
+		.def("set_use_disabled",			&CScriptGameObject::SetUseDisabled)
+
 		.def("hide_weapon",					&CScriptGameObject::HideWeapon)
 		.def("hide_detector",				&CScriptGameObject::HideDetector)
 		.def("switch_detector",				&CScriptGameObject::SwitchDetector)
@@ -255,6 +296,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		//Actor states
 		.def("get_movement_state", &CScriptGameObject::GetActorMovementState)
 		.def("set_movement_state", &CScriptGameObject::SetActorMovementState)
+		.def("fire", &CScriptGameObject::ActorFire)
 
 		//CustomZone
 		.def("set_restrictor_type",			&CScriptGameObject::SetRestrictionType) 
@@ -268,6 +310,9 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("get_artefact_radiation",			&CScriptGameObject::GetArtefactRadiationRestoreSpeed)
         .def("get_artefact_satiety",			&CScriptGameObject::GetArtefactSatietyRestoreSpeed)
         .def("get_artefact_thirst",			&CScriptGameObject::GetArtefactThirstRestoreSpeed)
+        .def("get_artefact_sleepiness",			&CScriptGameObject::GetArtefactSleepinessRestoreSpeed)
+        .def("get_artefact_equipment_durability",	&CScriptGameObject::GetArtefactEquipmentDurabilityModifier)
+        .def("get_artefact_inventory_weight",		&CScriptGameObject::GetArtefactInventoryWeightModifier)
         .def("get_artefact_power",			&CScriptGameObject::GetArtefactPowerRestoreSpeed)
         .def("get_artefact_bleeding",			&CScriptGameObject::GetArtefactBleedingRestoreSpeed)        
 
@@ -275,6 +320,9 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("set_artefact_radiation",			&CScriptGameObject::SetArtefactRadiationRestoreSpeed)
         .def("set_artefact_satiety",			&CScriptGameObject::SetArtefactSatietyRestoreSpeed)
         .def("set_artefact_thirst",			&CScriptGameObject::SetArtefactThirstRestoreSpeed)
+        .def("set_artefact_sleepiness",			&CScriptGameObject::SetArtefactSleepinessRestoreSpeed)
+        .def("set_artefact_equipment_durability",	&CScriptGameObject::SetArtefactEquipmentDurabilityModifier)
+        .def("set_artefact_inventory_weight",		&CScriptGameObject::SetArtefactInventoryWeightModifier)
         .def("set_artefact_power",			&CScriptGameObject::SetArtefactPowerRestoreSpeed)
         .def("set_artefact_bleeding",			&CScriptGameObject::SetArtefactBleedingRestoreSpeed)
 		//HELICOPTER
@@ -311,16 +359,16 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 
 		.def("make_object_visible_somewhen",&CScriptGameObject::make_object_visible_somewhen)
 
-		.def("buy_condition",				(void (CScriptGameObject::*)(CScriptIniFile*,LPCSTR))(&CScriptGameObject::buy_condition))
+		.def("buy_condition",				(void (CScriptGameObject::*)(CScriptIniFile*,const char*))(&CScriptGameObject::buy_condition))
 		.def("buy_condition",				(void (CScriptGameObject::*)(float,float))(&CScriptGameObject::buy_condition))
 		.def("show_condition",				&CScriptGameObject::show_condition)
-		.def("sell_condition",				(void (CScriptGameObject::*)(CScriptIniFile*,LPCSTR))(&CScriptGameObject::sell_condition))
+		.def("sell_condition",				(void (CScriptGameObject::*)(CScriptIniFile*,const char*))(&CScriptGameObject::sell_condition))
 		.def("sell_condition",				(void (CScriptGameObject::*)(float,float))(&CScriptGameObject::sell_condition))
 		.def("buy_supplies",				&CScriptGameObject::buy_supplies)
 		.def("buy_item_condition_factor",	&CScriptGameObject::buy_item_condition_factor)
 
-		.def("sound_prefix",				(LPCSTR (CScriptGameObject::*)() const)(&CScriptGameObject::sound_prefix))
-		.def("sound_prefix",				(void (CScriptGameObject::*)(LPCSTR))(&CScriptGameObject::sound_prefix))
+		.def("sound_prefix",				(const char* (CScriptGameObject::*)() const)(&CScriptGameObject::sound_prefix))
+		.def("sound_prefix",				(void (CScriptGameObject::*)(const char*))(&CScriptGameObject::sound_prefix))
 
 		.def("location_on_path",			&CScriptGameObject::location_on_path)
 		.def("is_there_items_to_pickup",	&CScriptGameObject::is_there_items_to_pickup)
@@ -331,6 +379,9 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 
 		.def("iterate_inventory",			&CScriptGameObject::IterateInventory)
 		.def("iterate_inventory_box",		&CScriptGameObject::IterateInventoryBox)
+		.def("iterate_ruck", &CScriptGameObject::IterateRuck)
+		.def("iterate_belt", &CScriptGameObject::IterateBelt)
+
 		.def("mark_item_dropped",			&CScriptGameObject::MarkItemDropped)
 		.def("marked_dropped",				&CScriptGameObject::MarkedDropped)
 		.def("unload_magazine",				&CScriptGameObject::UnloadMagazine)
@@ -356,8 +407,8 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("sniper_fire_mode",			(void (CScriptGameObject::*) (bool))&CScriptGameObject::sniper_fire_mode)
 		.def("sniper_fire_mode",			(bool (CScriptGameObject::*) () const)&CScriptGameObject::sniper_fire_mode)
 
-		.def("aim_bone_id",					(void (CScriptGameObject::*) (LPCSTR))&CScriptGameObject::aim_bone_id)
-		.def("aim_bone_id",					(LPCSTR (CScriptGameObject::*) () const)&CScriptGameObject::aim_bone_id)
+		.def("aim_bone_id",					(void (CScriptGameObject::*) (const char*))&CScriptGameObject::aim_bone_id)
+		.def("aim_bone_id",					(const char* (CScriptGameObject::*) () const)&CScriptGameObject::aim_bone_id)
 
 		.def("actor_look_at_point",			&CScriptGameObject::ActorLookAtPoint)
 		.def("enable_level_changer",		&CScriptGameObject::enable_level_changer)
@@ -377,9 +428,6 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 
 		//
 		.def("iterate_feel_touch",			&CScriptGameObject::IterateFeelTouch)
-		.def("get_weapon_substate",			&CScriptGameObject::GetWeaponSubstate)
-		.def("get_ammo_count_for_type",     &CScriptGameObject::GetAmmoCount)
-		.def("get_main_weapon_type",		&CScriptGameObject::GetMainWeaponType)
 		.def("get_luminocity", 				&CScriptGameObject::GetLuminocity)
 		.def("bone_visible", 				&CScriptGameObject::IsBoneVisible)
 		.def("set_bone_visible", 			&CScriptGameObject::SetBoneVisible)
@@ -390,7 +438,6 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("remove_memory_sound_object", 	&CScriptGameObject::RemoveMemorySoundObject)
 		.def("remove_memory_visible_object", &CScriptGameObject::RemoveMemoryVisibleObject)
 		.def("remove_memory_hit_object", 	&CScriptGameObject::RemoveMemoryHitObject)
-		.def("get_weapon_type",				&CScriptGameObject::GetWeaponType)
 			
 		///////////////////////////////////////////////////////////////////////////////
 		// CoC
@@ -425,13 +472,26 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("cast_FoodItem", &CScriptGameObject::cast_FoodItem)
 		.def("cast_Artefact", &CScriptGameObject::cast_Artefact)
 		.def("cast_Ammo", &CScriptGameObject::cast_Ammo)
+		.def("cast_Weapon", &CScriptGameObject::cast_Weapon)
 		//.def("cast_Missile", &CScriptGameObject::cast_Missile)
 		.def("cast_PhysicsShellHolder", &CScriptGameObject::cast_PhysicsShellHolder)
 		//.def("cast_Grenade", &CScriptGameObject::cast_Grenade)
 		.def("cast_BottleItem", &CScriptGameObject::cast_BottleItem)
 		.def("cast_Torch", &CScriptGameObject::cast_Torch)
 		.def("cast_InventoryBox", &CScriptGameObject::cast_InventoryBox)
-		.def("bones_protection_sect", &CScriptGameObject::bones_protection_sect)															  
+
+		.def("cast_Helmet", &CScriptGameObject::cast_CHelmet)
+		.def("cast_AntigasFilter", &CScriptGameObject::cast_AntigasFilter)
+
+		.def("bones_protection_sect", &CScriptGameObject::bones_protection_sect)	
+
+		// FFx0001 ++
+		.def("is_ruck_to_default", &CScriptGameObject::IsDefaultToRuck)
+		.def("set_ruck_to_default", &CScriptGameObject::SetDefaultToRuck)
+		.def("get_entity_ignored_by_monsters_state", &CScriptGameObject::GetEntityIgnoredByMonstersState)
+		.def("set_entity_ignored_by_monsters_state", &CScriptGameObject::SetEntityIgnoredByMonstersState)
+		// FFx0001 --
+
 		.def("is_on_belt",					&CScriptGameObject::IsOnBelt)
 		.def("item_on_belt",				&CScriptGameObject::ItemOnBelt) 
 		.def("belt_count",					&CScriptGameObject::BeltSize)  													   
@@ -444,7 +504,11 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("get_additional_max_walk_weight",	&CScriptGameObject::GetAdditionalMaxWalkWeight)
 		.def("set_additional_max_walk_weight",	&CScriptGameObject::SetAdditionalMaxWalkWeight)
 		.def("get_total_weight",			&CScriptGameObject::GetTotalWeight)
-		.def("weight",						&CScriptGameObject::Weight)        
+		.def("weight",						&CScriptGameObject::Weight)
+		.def("get_inventory_volume",		&CScriptGameObject::GetInventoryVolume)
+		.def("get_inventory_volume_capacity", &CScriptGameObject::GetInventoryVolumeCapacity)
+		.def("get_inventory_volume_overload", &CScriptGameObject::GetInventoryVolumeOverload)
+		.def("get_item_volume",				&CScriptGameObject::GetItemVolume)
 
 		.def("get_actor_jump_speed",		&CScriptGameObject::GetActorJumpSpeed)
 		.def("set_actor_jump_speed",		&CScriptGameObject::SetActorJumpSpeed)
@@ -456,14 +520,31 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("set_actor_runback_coef",		&CScriptGameObject::SetActorRunBackCoef)   
 		.def("get_actor_power_boost_time", &CScriptGameObject::GetActorPowerBoostTime)
 
+		// FFx0001 (manipulate bones)
+		.def("is_world_object_bone_visible", &CScriptGameObject::IsWorldObjectBoneVisible)
+		.def("set_world_object_bone_visibility", &CScriptGameObject::SetWorldObjectBoneVisibility)
+		.def("is_hud_object_bone_visible", &CScriptGameObject::IsHudObjectBoneVisible)
+		.def("set_hud_object_bone_visibility", &CScriptGameObject::SetHudObjectBoneVisibility)
+
+		// FFx0001 (actor params forvard controll)
+		.def("set_actor_sleepiness", &CScriptGameObject::SetActorSleepiness)
+		.def("set_actor_satiety", &CScriptGameObject::SetActorSatiety)
+		.def("set_actor_thirst", &CScriptGameObject::SetActorThirst)
+		.def("set_actor_health", &CScriptGameObject::SetActorHealth)
+		.def("set_actor_power", &CScriptGameObject::SetActorPower)
+		.def("set_actor_radiation", &CScriptGameObject::SetActorRadiation)
+		.def("set_actor_psy_health", &CScriptGameObject::SetActorPsyHealth)
+		.def("set_actor_morale", &CScriptGameObject::SetActorMorale)
+
+		//For Antigas
+		.def("install_antigas_filter", &CScriptGameObject::InstallAntigasFilter)
+		.def("uninstall_antigas_filter", &CScriptGameObject::UnInstallAntigasFilter)
+
 		//For Weapons
 		.def("weapon_get_ammo_section",		&CScriptGameObject::Weapon_GetAmmoSection)
 		.def("weapon_addon_attach",			&CScriptGameObject::Weapon_AddonAttach)
 		.def("weapon_addon_detach",			&CScriptGameObject::Weapon_AddonDetach)
-		.def("get_ammo_count_for_type",     &CScriptGameObject::GetAmmoCount)
-		.def("get_main_weapon_type",		&CScriptGameObject::GetMainWeaponType)
-		.def("get_weapon_type",				&CScriptGameObject::GetWeaponType)
-		.def("get_weapon_substate",			&CScriptGameObject::GetWeaponSubstate)
+		.def("addons_attach",				&CScriptGameObject::AddonsAttacher)
 
 		// For CHudItem
 		.def("play_hud_motion",				&CScriptGameObject::PlayHudMotion)
@@ -482,6 +563,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("is_ammo",						&CScriptGameObject::IsAmmo)
 		// Actor
 		.def("set_character_icon", &CScriptGameObject::SetCharacterIcon)
+		.def("get_total_telepatic_protection", &CScriptGameObject::GetTotalTelepaticProtection)
 
 		//For Weapon & Outfit
 		.def("install_upgrade",				&CScriptGameObject::InstallUpgrade)
@@ -498,6 +580,14 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("get_gasmask_condition",		&CScriptGameObject::GetGasmaskCondition)
 		.def("set_head_rotate",				&CScriptGameObject::SetHeadRotate)
 		.def("set_default_visual",			&CScriptGameObject::SetActorDefaultVisual)
-		.def("IsInCar", &CScriptGameObject::IsInCar)
+		.def("IsInCar", 					&CScriptGameObject::IsInCar)
+		// Custom Lighting Control (CHangingLamp)
+		// Allows scripts and logic restrictors to dynamically control light parameters
+		.def("is_light_active",				&CScriptGameObject::IsLightActive)
+		.def("set_light_color",				&CScriptGameObject::SetLightColor)
+		.def("set_light_range",				&CScriptGameObject::SetLightRange)
+		.def("set_light_shadows",			&CScriptGameObject::SetLightShadows)
+		.def("set_light_volumetric",		&CScriptGameObject::SetLightVolumetric)
+		.def("set_light_anim",				&CScriptGameObject::SetLightAnim)
 	;
 }

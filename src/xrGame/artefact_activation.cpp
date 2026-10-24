@@ -43,7 +43,7 @@ void SArtefactActivation::Load()
 	for(int i=0; i<(int)eMax; ++i)
 		m_activation_states.push_back(SStateDef());
 
-	LPCSTR activation_seq = pSettings->r_string(*m_af->cNameSect(),"artefact_activation_seq");
+	const char* activation_seq = pSettings->r_string(*m_af->cNameSect(),"artefact_activation_seq");
 
 
 	m_activation_states[(int)eStarting].Load(activation_seq,	"starting");
@@ -131,7 +131,7 @@ void SArtefactActivation::ChangeEffects()
 	VERIFY(!physics_world()->Processing());
 	SStateDef& state_def = m_activation_states[(int)m_cur_activation_state];
 	
-	if(m_snd._feedback())
+	if(m_snd.is_playing())
 		m_snd.stop();
 	
 	if(state_def.m_snd.size()){
@@ -144,26 +144,26 @@ void SArtefactActivation::ChangeEffects()
 								state_def.m_light_color.g,
 								state_def.m_light_color.b);
 	
-	if(state_def.m_particle.size()){
+	if(state_def.m_particle.size())
+	{
 		Fvector dir;
 		dir.set(0,1,0);
 
-		m_af->CParticlesPlayer::StartParticles(	state_def.m_particle,
-												dir,
-												m_af->ID(),
-												iFloor(state_def.m_time*1000) );
+		TParticlesPlayer* PPlayer = m_af->GetOrCreateComponent<TParticlesPlayer>();
+		PPlayer->StartParticles(state_def.m_particle, dir, m_af->ID(), iFloor(state_def.m_time*1000) );
 	};
-	if(state_def.m_animation.size()){
-		IKinematicsAnimated	*K=smart_cast<IKinematicsAnimated*>(m_af->Visual());
-		if(K)K->PlayCycle(*state_def.m_animation);
-	}
 
+	if (state_def.m_animation.size())
+	{
+		IKinematicsAnimated* K = m_af->Visual()->dcast_PKinematicsAnimated();
+		if (K)K->PlayCycle(*state_def.m_animation);
+	}
 }
 
 void SArtefactActivation::UpdateEffects()
 {
 	VERIFY(!physics_world()->Processing());
-	if(m_snd._feedback())
+	if(m_snd.is_playing())
 		m_snd.set_position( m_af->Position() );
 	
 	m_light->set_position(m_af->Position());
@@ -173,10 +173,10 @@ void SArtefactActivation::SpawnAnomaly()
 {
 	VERIFY(!physics_world()->Processing());
 	string128 tmp;
-	LPCSTR str			= pSettings->r_string("artefact_spawn_zones",*m_af->cNameSect());
+	const char* str			= pSettings->r_string("artefact_spawn_zones",*m_af->cNameSect());
 	VERIFY3(3==_GetItemCount(str),"Bad record format in artefact_spawn_zones",str);
 	float zone_radius	= (float)atof(_GetItem(str,1,tmp));
-	LPCSTR zone_sect	= _GetItem(str,0,tmp); //must be last call of _GetItem... (LPCSTR !!!)
+	const char* zone_sect	= _GetItem(str,0,tmp); //must be last call of _GetItem... (const char* !!!)
 
 		Fvector pos;
 		m_af->Center(pos);
@@ -198,14 +198,14 @@ void SArtefactActivation::SpawnAnomaly()
 		AlifeZone->m_space_restrictor_type	= RestrictionSpace::eRestrictorTypeNone;
 
 		NET_Packet					P;
-		object->Spawn_Write			(P,TRUE);
-		Level().Send				(P,net_flags(TRUE));
+		object->Spawn_Write			(P,true);
+		Level().Send				(P,net_flags(true));
 		F_entity_Destroy			(object);
 //. #ifdef DEBUG
 		Msg("artefact [%s] spawned a zone [%s] at [%f]", *m_af->cName(), zone_sect, Device.fTimeGlobal);
 //. #endif
 }
-shared_str clear_brackets(LPCSTR src)
+shared_str clear_brackets(const char* src)
 {
 	if	(0==src)					return	shared_str(0);
 	
@@ -221,9 +221,9 @@ shared_str clear_brackets(LPCSTR src)
 
 }
 
-void SArtefactActivation::SStateDef::Load(LPCSTR section, LPCSTR name)
+void SArtefactActivation::SStateDef::Load(const char* section, const char* name)
 {
-	LPCSTR str = pSettings->r_string(section,name);
+	const char* str = pSettings->r_string(section,name);
 	VERIFY(_GetItemCount(str)==8);
 
 

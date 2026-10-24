@@ -49,7 +49,7 @@ void CPlanner::setup					(_object_type *object)
 {
 	inherited::setup		();
 	m_object				= object;
-	m_current_action_id		= _action_id_type(-1);
+	m_current_action_id		= u32(-1);
 	m_storage.clear			();
 	m_initialized			= false;
 	m_loaded				= false;
@@ -106,7 +106,7 @@ void CPlanner::update				()
 			Msg("! [CPlanner::update]: %s has solution().empty()", m_object->cName().c_str());
 #endif
 			current_action().finalize();	
-			m_current_action_id = _action_id_type(-1);
+			m_current_action_id = u32(-1);
 			m_initialized = false;
 		}
 	}
@@ -137,19 +137,19 @@ IC	void CPlanner::finalize							()
 }
 
 TEMPLATE_SPECIALIZATION
-IC	typename CPlanner::COperator &CPlanner::action	(const _action_id_type &action_id)
+IC	typename CPlanner::COperator &CPlanner::action	(const u32& action_id)
 {
 	return					(*this->get_operator(action_id));
 }
 
 TEMPLATE_SPECIALIZATION
-IC	typename CPlanner::CConditionEvaluator &CPlanner::evaluator		(const _condition_type &evaluator_id)
+IC	typename CPlanner::CConditionEvaluator &CPlanner::evaluator		(const u32&evaluator_id)
 {
 	return					(*inherited::evaluator(evaluator_id));
 }
 
 TEMPLATE_SPECIALIZATION
-IC	typename CPlanner::_action_id_type CPlanner::current_action_id	() const
+IC u32 CPlanner::current_action_id	() const
 {
     VERIFY2(initialized(), make_string<const char*>("! ERROR: action by id [%d] not initialized!", m_current_action_id));
 	return					(m_current_action_id);
@@ -168,7 +168,7 @@ IC	bool CPlanner::initialized	() const
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_condition	(_world_operator *action, _condition_type condition_id, _value_type condition_value)
+IC	void CPlanner::add_condition	(_world_operator *action, u32 condition_id, bool condition_value)
 {
 	VERIFY2					(
 		!m_solving,
@@ -182,7 +182,7 @@ IC	void CPlanner::add_condition	(_world_operator *action, _condition_type condit
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_effect		(_world_operator *action, _condition_type condition_id, _value_type condition_value)
+IC	void CPlanner::add_effect		(_world_operator *action, u32 condition_id, bool condition_value)
 {
 	VERIFY2					(
 		!m_solving,
@@ -197,26 +197,26 @@ IC	void CPlanner::add_effect		(_world_operator *action, _condition_type conditio
 
 #ifdef LOG_ACTION
 TEMPLATE_SPECIALIZATION
-LPCSTR CPlanner::action2string		(const _action_id_type &action_id)
+const char* CPlanner::action2string		(const u32& action_id)
 {
 	return			(action(action_id).m_action_name);
 }
 
 TEMPLATE_SPECIALIZATION
-LPCSTR CPlanner::property2string	(const _condition_type &property_id)
+const char* CPlanner::property2string	(const u32&property_id)
 {
 	return			(evaluator(property_id).m_evaluator_name);//_itoa(property_id,m_temp_string,10));
 }
 
 TEMPLATE_SPECIALIZATION
-LPCSTR CPlanner::object_name		() const
+const char* CPlanner::object_name() const
 {
-	return			(*m_object->cName());
+	return (*m_object->cName());
 }
 #endif
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_operator		(const _edge_type &operator_id,	_operator_ptr _operator)
+IC void CPlanner::add_operator(const u32& operator_id, _operator_ptr _operator)
 {
 	VERIFY2					(
 		!m_solving,
@@ -234,7 +234,7 @@ IC	void CPlanner::add_operator		(const _edge_type &operator_id,	_operator_ptr _o
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::remove_operator	(const _edge_type	&operator_id)
+IC	void CPlanner::remove_operator	(const u32& operator_id)
 {
 	VERIFY2					(
 		!m_solving,
@@ -248,7 +248,7 @@ IC	void CPlanner::remove_operator	(const _edge_type	&operator_id)
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_evaluator	(const _condition_type &condition_id, _condition_evaluator_ptr evaluator)
+IC	void CPlanner::add_evaluator	(const u32& condition_id, _condition_evaluator_ptr evaluator)
 {
 	VERIFY2						(
 		!m_solving,
@@ -263,7 +263,7 @@ IC	void CPlanner::add_evaluator	(const _condition_type &condition_id, _condition
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::remove_evaluator	(const _condition_type &condition_id)
+IC	void CPlanner::remove_evaluator	(const u32& condition_id)
 {
 	VERIFY2						(
 		!m_solving,
@@ -320,7 +320,7 @@ IC	void CPlanner::show_target_world_state	()
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::show				(LPCSTR offset)
+IC	void CPlanner::show				(const char* offset)
 {
 	string256		temp;
 	xr_strconcat(temp,offset,"    ");
@@ -342,13 +342,13 @@ IC	void CPlanner::show				(LPCSTR offset)
 				auto i = (*I).m_operator->conditions().conditions().begin();
 				auto e = (*I).m_operator->conditions().conditions().end();
 				for ( ; i != e; ++i)
-					Msg	("%s	condition [%d][%s] = %s",offset,(*i).condition(),property2string((*i).condition()),(*i).value() ? "TRUE" : "FALSE");
+					Msg	("%s	condition [%d][%s] = %s",offset,(*i).condition(),property2string((*i).condition()),(*i).value() ? "true" : "false");
 			}
 			{
 				auto i = (*I).m_operator->effects().conditions().begin();
 				auto e = (*I).m_operator->effects().conditions().end();
 				for ( ; i != e; ++i)
-					Msg	("%s	effect    [%d][%s] = %s",offset,(*i).condition(),property2string((*i).condition()),(*i).value() ? "TRUE" : "FALSE");
+					Msg	("%s	effect    [%d][%s] = %s",offset,(*i).condition(),property2string((*i).condition()),(*i).value() ? "true" : "false");
 			}
 
 			(*I).m_operator->show(temp);
@@ -405,13 +405,15 @@ IC	void CPlanner::load	(IReader &packet)
 	}
 
 	{
-		u32							count = packet.r_u32();
-		GraphEngineSpace::_solver_condition_type	condition;
-		GraphEngineSpace::_solver_value_type		value;
-		for (u32 i=0; i<count; ++i) {
-			packet.r				(&condition,sizeof(condition));
-			packet.r				(&value,sizeof(value));
-			m_storage.set_property	(condition,value);
+		u32 count = packet.r_u32();
+		u32 condition;
+		bool value;
+
+		for (u32 i = 0; i < count; ++i)
+		{
+			packet.r(&condition, sizeof(condition));
+			packet.r(&value, sizeof(value));
+			m_storage.set_property(condition, value);
 		}
 	}
 	m_loaded						= true;

@@ -47,7 +47,7 @@ public:
 		u32& v	= muvertex(ix,iz); v++;
 		if (v>max_muvert) max_muvert=v;
 	}
-	bool flush(LPCSTR fn)
+	bool flush(const char* fn)
 	{
 		// flush image
 		u32 sx=bb_sx, sz=bb_sz;
@@ -486,12 +486,12 @@ float CalcArea(const Fvector& v0, const Fvector& v1, const Fvector& v2)
 	return	_sqrt( p*(p-e1)*(p-e2)*(p-e3) );
 }
 
-BOOL GetStaticCformData(const Fmatrix& parent, CEditableMesh* mesh, CEditableObject* object, Fvector* verts, int& vert_cnt, int& vert_it, CDB::TRI* faces, int& face_cnt, int& face_it, CSceneObject* obj)
+bool GetStaticCformData(const Fmatrix& parent, CEditableMesh* mesh, CEditableObject* object, Fvector* verts, int& vert_cnt, int& vert_it, CDB::TRI* faces, int& face_cnt, int& face_it, CSceneObject* obj)
 {
 	if (object->IsDynamic())
-		return FALSE;
+		return false;
 
-	BOOL bResult = TRUE;
+	bool bResult = true;
 	int point_offs = vert_it;
 
 	// fill vertices
@@ -566,7 +566,7 @@ BOOL GetStaticCformData(const Fmatrix& parent, CEditableMesh* mesh, CEditableObj
 	return bResult;
 }
 
-BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
+bool SceneBuilder::BuildMesh(	const Fmatrix& parent,
 								CEditableObject* object,
 								CEditableMesh* mesh,
 								int sect_num,
@@ -580,7 +580,7 @@ BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
 								const Fmatrix& real_transform,
 								CSceneObject* obj)
 {
-	BOOL bResult = TRUE;
+	bool bResult = true;
 	int point_offs;
 	point_offs = vert_it;  // save offset
 
@@ -612,17 +612,22 @@ BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
 		mesh->UnloadFNormals();
 	}
 	// fill faces
-	for (SurfFacesPairIt sp_it=mesh->m_SurfFaces.begin(); sp_it!=mesh->m_SurfFaces.end(); sp_it++)
+	for (auto &[MeshSurf, face_lst] : mesh->m_SurfFaces)
 	{
-		IntVec& face_lst = sp_it->second;
 		CSurface* surf = nullptr;
-		for (size_t i = 0; i < mesh->Parent()->SurfaceCount(); i++)
+
+		for (CSurface* SceneSurf : obj->m_Surfaces)
 		{
-			if (mesh->Parent()->Surfaces()[i] == sp_it->first)
+			if (SceneSurf->m_Name == MeshSurf->m_Name && SceneSurf->m_id == MeshSurf->m_id)
 			{
-				surf = obj ? obj->m_Surfaces[i] : sp_it->first;
+				surf = SceneSurf;
 				break;
 			}
+		}
+
+		if (surf == nullptr)
+		{
+			surf = MeshSurf;
 		}
 		VERIFY(surf);
 
@@ -632,20 +637,20 @@ BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
 		int m_id			= BuildMaterial(surf,sect_num,!object->IsMUStatic());
 		int gm_id			= surf->_GameMtl();
 		if (m_id<0)			{
-			bResult = FALSE;
+			bResult = false;
 			break;
 		}
 		if (gm_id<0)
 		{
 			ELog.DlgMsg		(mtError,"Surface: '%s' contains bad game material.",surf->_Name());
-			bResult 		= FALSE;
+			bResult 		= false;
 			break;
 		}
 		SGameMtl* M = GameMaterialLibraryEditors->GetMaterialByID(gm_id);
 		if (0==M)
 		{
 			ELog.DlgMsg		(mtError,"Surface: '%s' contains undefined game material.",surf->_Name());
-			bResult 		= FALSE;
+			bResult 		= false;
 			break;
 		}
 		if (M->Flags.is(SGameMtl::flBreakable))
@@ -661,14 +666,14 @@ BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
 		if (M->Flags.is(SGameMtl::flDynamic))
 		{
 			ELog.DlgMsg		(mtError,"Surface: '%s' contains non-static game material.",surf->_Name());
-			bResult 		= FALSE;
+			bResult 		= false;
 			break;
 		}
 		u32 dwTexCnt 		= ((surf->_FVF()&D3DFVF_TEXCOUNT_MASK)>>D3DFVF_TEXCOUNT_SHIFT);
 		if (dwTexCnt!=1)
 		{
 			ELog.DlgMsg		(mtError,"Surface: '%s' contains more than 1 texture refs.",surf->_Name());
-			bResult 		= FALSE; 
+			bResult 		= false; 
 			break; 
 		}
 		u32 dwInvalidFaces 	= 0;
@@ -761,7 +766,7 @@ BOOL SceneBuilder::BuildMesh(	const Fmatrix& parent,
 	return bResult;
 }
 
-BOOL SceneBuilder::BuildObject(CSceneObject* obj)
+bool SceneBuilder::BuildObject(CSceneObject* obj)
 {
 	CEditableObject *O = obj->GetReference();
 	return BuildEditableObject(O, obj->_Transform(), obj);
@@ -814,7 +819,7 @@ bool SceneBuilder::BuildEditableObject(CEditableObject* obj, Fmatrix Transform, 
 	return true;
 }
 
-int	GetModelIdx( LPCSTR model_name )
+int	GetModelIdx( const char* model_name )
 {
 	int model_idx		= -1;
 
@@ -828,7 +833,7 @@ int	GetModelIdx( LPCSTR model_name )
 	return   model_idx;
 }
 
-//BOOL GetMuStaticCformData( CSceneObject* obj,mesh_build_data &data, bool b_selected_only )
+//bool GetMuStaticCformData( CSceneObject* obj,mesh_build_data &data, bool b_selected_only )
 //{
 //   CEditableObject *O = obj->GetReference();
 //   int model_idx		= GetModelIdx(O->GetName());
@@ -839,7 +844,7 @@ int	GetModelIdx( LPCSTR model_name )
 
 
 
-BOOL SceneBuilder::BuildMUObject(CSceneObject* obj)
+bool SceneBuilder::BuildMUObject(CSceneObject* obj)
 {
 	CEditableObject *O = obj->GetReference();
 	xr_string temp = "Building object: ";
@@ -858,7 +863,7 @@ BOOL SceneBuilder::BuildMUObject(CSceneObject* obj)
 	{
 		// build LOD
 		int	lod_id 		= BuildObjectLOD(Fidentity,O,sect_num);
-		if (lod_id==-2) return FALSE;
+		if (lod_id==-2) return false;
 		// build model
 		model_idx		= l_mu_models.size();
 		l_mu_models.push_back(b_mu_model());
@@ -894,7 +899,7 @@ BOOL SceneBuilder::BuildMUObject(CSceneObject* obj)
 
 		for(EditMeshIt MESH=O->FirstMesh();MESH!=O->LastMesh();++MESH)
 			if (!BuildMesh(T, O, *MESH, sect_num, M.m_pVertices, M.m_iVertexCount, vert_it, M.m_pFaces, M.m_iFaceCount, face_it, M.m_smgroups, obj->_Transform(), obj))
-				return FALSE;
+				return false;
 
 		M.m_iFaceCount			= face_it;
 		M.m_iVertexCount		= vert_it;
@@ -913,13 +918,13 @@ BOOL SceneBuilder::BuildMUObject(CSceneObject* obj)
 	for (u32 mu_vi=0; mu_vi<(u32)M.m_iVertexCount; ++mu_vi)
 		l_scene_stat->add_muvert(obj->_Transform(),M.m_pVertices[mu_vi]);
 	
-	return TRUE;
+	return true;
 }
 
 
 // light build functions
 
-int	SceneBuilder::BuildLightControl(LPCSTR name)
+int	SceneBuilder::BuildLightControl(const char* name)
 {
 	for (u32 k=0; k<l_light_control.size(); k++){
 		sb_light_control& b = l_light_control[k];
@@ -943,7 +948,7 @@ void  	hemi_callback(float x, float y, float z, float E, LPVOID P)
 	H->T.light.direction.set(x,y,z);
 	H->dest->push_back  (H->T);
 }
-void SceneBuilder::BuildHemiLights(u8 quality, LPCSTR lcontrol)
+void SceneBuilder::BuildHemiLights(u8 quality, const char* lcontrol)
 {
 	BLVec 				dest;
 	Flight				RL;
@@ -973,7 +978,7 @@ void SceneBuilder::BuildHemiLights(u8 quality, LPCSTR lcontrol)
 		sl.data.direction.set	(0.f,-1.f,0.f);
 	}
 }
-BOOL SceneBuilder::BuildSun(u8 quality, Fvector2 dir)
+bool SceneBuilder::BuildSun(u8 quality, Fvector2 dir)
 {
 	int controller_ID		= BuildLightControl(LCONTROL_SUN);
 	// static
@@ -1020,10 +1025,10 @@ BOOL SceneBuilder::BuildSun(u8 quality, Fvector2 dir)
 		dl.data.direction.setHP(dir.y,dir.x);
 	}
 
-	return TRUE;
+	return true;
 }
 
-BOOL SceneBuilder::BuildPointLight(b_light* b, const Flags32& usage, svector<WORD,16>* sectors, FvectorVec* soft_points, const Fmatrix* soft_transform)
+bool SceneBuilder::BuildPointLight(b_light* b, const Flags32& usage, FixedVector<WORD,16>* sectors, FvectorVec* soft_points, const Fmatrix* soft_transform)
 {
 	if (usage.is(ELight::flAffectStatic)){
 		if (soft_points&&!soft_points->empty()){
@@ -1059,17 +1064,17 @@ BOOL SceneBuilder::BuildPointLight(b_light* b, const Flags32& usage, svector<WOR
 		dl.sectors			= *sectors;
 	}
 
-	return TRUE;
+	return true;
 }
 
-BOOL SceneBuilder::BuildLight(CLight* e)
+bool SceneBuilder::BuildLight(CLight* e)
 {
 	if (!e->m_Flags.is_any(ELight::flAffectStatic|ELight::flAffectDynamic))
-		return FALSE;
+		return false;
 
 	if (!e->GetLControlName()){
 		ELog.Msg(mtError,"Invalid light control name: light '%s'.",e->GetName());
-		return FALSE;
+		return false;
 	}
 		
 	b_light	L;
@@ -1086,9 +1091,9 @@ BOOL SceneBuilder::BuildLight(CLight* e)
 	
 	L.controller_ID	= BuildLightControl(e->GetLControlName()); //BuildLightControl(LCONTROL_STATIC); 
 
-	svector<u16, 16>* lpSectors = nullptr;
+	FixedVector<u16, 16>* lpSectors = nullptr;
 	if (e->m_Flags.is(ELight::flAffectDynamic)){
-		svector<u16,16> sectors;
+		FixedVector<u16,16> sectors;
 		lpSectors		= &sectors;
 		Fvector pos 	= e->GetPosition();
 		float& range 	= e->m_Range;
@@ -1112,7 +1117,7 @@ BOOL SceneBuilder::BuildLight(CLight* e)
 				if (vis==fvPartialOutside)
 					sectors.push_back((u16)_S->m_sector_num);
 			}
-			if (sectors.empty()) return FALSE;
+			if (sectors.empty()) return false;
 		}else{
 			sectors.push_back((u16)m_iDefaultSectorNum);
 		}
@@ -1123,7 +1128,7 @@ BOOL SceneBuilder::BuildLight(CLight* e)
 	case ELight::ltPoint:		return BuildPointLight	(&L,e->m_Flags,lpSectors,e->m_FuzzyData?&e->m_FuzzyData->m_Positions:0,&e->_Transform());
 	default:
 		THROW2("Invalid light type.");
-		return FALSE;
+		return false;
 	}
 }
 
@@ -1131,7 +1136,7 @@ BOOL SceneBuilder::BuildLight(CLight* e)
 
 // Glow build functions
 
-BOOL SceneBuilder::BuildGlow(CGlow* e)
+bool SceneBuilder::BuildGlow(CGlow* e)
 {
 	l_glows.push_back(b_glow());
 	b_glow& b 		= l_glows.back();
@@ -1143,7 +1148,7 @@ BOOL SceneBuilder::BuildGlow(CGlow* e)
 	mtl.shader      = (u16)BuildShader		(*e->m_ShaderName);
 	mtl.sector		= (u16)CalculateSector	(e->GetPosition(),e->m_fRadius);
 	mtl.shader_xrlc	= -1;
-	if ((u16(-1)==mtl.surfidx)||(u16(-1)==mtl.shader)) return FALSE;
+	if ((u16(-1)==mtl.surfidx)||(u16(-1)==mtl.shader)) return false;
 
 	mtl_idx 		= FindInMaterials(&mtl);
 	if (mtl_idx<0){
@@ -1156,7 +1161,7 @@ BOOL SceneBuilder::BuildGlow(CGlow* e)
 	b.size        	= e->m_fRadius;
 	b.dwMaterial   	= mtl_idx;
 	b.flags			= e->m_Flags.is(CGlow::gfFixedSize)?0x01:0x00;	// 0x01 - non scalable
-	return TRUE;
+	return true;
 }
 
 
@@ -1270,7 +1275,7 @@ int SceneBuilder::BuildMaterial(CSurface* surf, int sector_num, bool allow_draft
 {
 	return BuildMaterial(surf->_ShaderName(),surf->_ShaderXRLCName(),surf->_Texture(),((surf->_FVF()&D3DFVF_TEXCOUNT_MASK)>>D3DFVF_TEXCOUNT_SHIFT),sector_num,allow_draft);
 }
-int SceneBuilder::BuildMaterial(LPCSTR esh_name, LPCSTR csh_name, LPCSTR tx_name, u32 tx_cnt, int sector_num, bool allow_draft)
+int SceneBuilder::BuildMaterial(const char* esh_name, const char* csh_name, const char* tx_name, u32 tx_cnt, int sector_num, bool allow_draft)
 {
 	b_material mtl; ZeroMemory(&mtl,sizeof(mtl));
 	VERIFY(sector_num>=0);
@@ -1303,9 +1308,9 @@ int SceneBuilder::BuildMaterial(LPCSTR esh_name, LPCSTR csh_name, LPCSTR tx_name
 }
 
 
-BOOL SceneBuilder::ParseStaticObjects(ObjectList& lst, LPCSTR prefix, bool b_selected_only)
+bool SceneBuilder::ParseStaticObjects(ObjectList& lst, const char* prefix, bool b_selected_only)
 {
-	BOOL bResult = TRUE;
+	bool bResult = true;
 	SPBItem* pb	= UI->ProgressStart(lst.size(),"Parse static objects...");
 	for (ObjectIt _F = lst.begin(); _F != lst.end(); _F++)
 	{
@@ -1362,34 +1367,21 @@ BOOL SceneBuilder::ParseStaticObjects(ObjectList& lst, LPCSTR prefix, bool b_sel
 	return bResult;
 }
 
-BOOL SceneBuilder::CompileStatic(bool b_selected_only)
+bool SceneBuilder::CompileStatic(bool b_selected_only)
 {
 	ObjClassID cls = LTools->CurrentClassID();
-	if(cls==OBJCLASS_DUMMY)	return FALSE;
+	if(cls==OBJCLASS_DUMMY)	return false;
 	ESceneToolBase* pCurrentTool 	= Scene->GetOTool(cls);
 
-	BOOL bResult	= TRUE;
+	bool bResult	= true;
 
 	Clear			();
 
 	SceneToolsMapPairIt t_it 	= Scene->FirstTool();
 	SceneToolsMapPairIt t_end 	= Scene->LastTool();
 
-	if(b_selected_only)
-	{
-		if(pCurrentTool)
-			pCurrentTool->CompileStaticStart();
-	}else
-	{
-		for (; t_it!=t_end; ++t_it)
-		{
-			ESceneToolBase* mt 		= t_it->second;
-			if (mt)
-				mt->CompileStaticStart();
-		}
-	}
 	int objcount = Scene->ObjCount();
-	if( objcount <= 0 )	return FALSE;
+	if( objcount <= 0 )	return false;
 
 // compute vertex/face count
 	l_vert_cnt	= 0;
@@ -1421,7 +1413,7 @@ BOOL SceneBuilder::CompileStatic(bool b_selected_only)
 
 // make hemisphere
 	ESceneLightTool* lt = smart_cast<ESceneLightTool*>(Scene->GetOTool(OBJCLASS_LIGHT));
-	LPCSTR h_control	= *lt->FindLightControl(lt->m_HemiControl)->name;
+	const char* h_control	= *lt->FindLightControl(lt->m_HemiControl)->name;
 	BuildHemiLights		(Scene->m_LevelOp.m_LightHemiQuality,h_control);
 	if (0!=strcmp(LCONTROL_HEMI,h_control))
 		BuildHemiLights	(Scene->m_LevelOp.m_LightHemiQuality,LCONTROL_HEMI);
@@ -1434,7 +1426,7 @@ BOOL SceneBuilder::CompileStatic(bool b_selected_only)
 	{
 		if(pCurrentTool)
 			if (!pCurrentTool->ExportStatic(this,b_selected_only))
-				{bResult = FALSE;}
+				{bResult = false;}
 	}else
 	{
 		t_it 				= Scene->FirstTool();
@@ -1444,7 +1436,7 @@ BOOL SceneBuilder::CompileStatic(bool b_selected_only)
 			ESceneToolBase* mt = t_it->second;
 			if (mt)
 				if (!mt->ExportStatic(this,b_selected_only))
-					{bResult = FALSE; break;}
+					{bResult = false; break;}
 		}
 	}
 	UI->ProgressEnd(pb);
@@ -1509,25 +1501,10 @@ BOOL SceneBuilder::CompileStatic(bool b_selected_only)
 			SaveBuild			();
 	}
 
-	if(b_selected_only)
-	{
-		if(pCurrentTool)
-			pCurrentTool->CompileStaticEnd();
-	}else
-	{
-		t_it 				= Scene->FirstTool();
-		t_end 				= Scene->LastTool();
-		for (; t_it!=t_end; ++t_it)
-		{
-			ESceneToolBase* mt 		= t_it->second;
-			if (mt)
-				mt->CompileStaticEnd();
-		}
-	}
 	return bResult;
 }
 
-BOOL SceneBuilder::BuildSceneStat()
+bool SceneBuilder::BuildSceneStat()
 {
 	xr_string dest_name = MakeLevelPath(LEVEL_DI_TEX_NAME);
 	return l_scene_stat->flush(dest_name.c_str());

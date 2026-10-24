@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class CInventoryOwner;
 class CGameObject;
@@ -24,7 +24,7 @@ private:
 			void			process			(const CGameObject &owner, const shared_str &name, const u32 &count, const float &probability);
 
 public:
-			void			process			(CInifile &ini_file, LPCSTR section, CInventoryOwner &owner);
+			void			process			(CInifile &ini_file, const char* section, CInventoryOwner &owner);
 
 public:
 	IC		void			deficit			(const shared_str &section, const float &deficit);

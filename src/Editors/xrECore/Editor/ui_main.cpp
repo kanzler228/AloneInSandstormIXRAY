@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../xrEngine/xr_input.h"
+#include "../xrEngine/IGame_Actor.h"
 #include "UI_ToolsCustom.h"
 
 #include "ui_main.h"
@@ -14,10 +15,11 @@
 #include "UISoundEditorForm.h"
 #include "UIMinimapEditorForm.h"
 #include "UIWeatherPropForm.h"
-#include "../utils/ETools/ETools.h"
 #include "UILogForm.h"
 #include "../xrEngine/gamefont.h"
 #include "../XrEngine/XR_IOConsole.h"
+
+#include "imgui_EditorEx_Icons.h"
 
 #define TRelease(x) if (x) x->pSurface->Release()
 
@@ -34,7 +36,7 @@ TUI* UI = nullptr;
 
 TUI::TUI()
 {
-	m_HConsole = 0;
+	m_HConsole = nullptr;
 	UI				= this;
 	m_AppClosed = false;
 	m_bAppActive 	= false;
@@ -59,7 +61,7 @@ TUI::TUI()
 	int DisplayX = GetSystemMetrics(SM_CXFULLSCREEN);
 	int DisplayY = GetSystemMetrics(SM_CYFULLSCREEN);
 
-	Viewport& MainView = Views.emplace_back();
+	Viewport& MainView = Views[0];
 	ViewID = 0;
 
 	m_Size.set(DisplayX, DisplayY);
@@ -88,7 +90,7 @@ ImTextureID TUI::LoadTexture(const char* Texture) const
 
 	if (TextureStack.contains(Texture))
 	{
-		return TextureStack[Texture]->pSurface;
+		return TextureStack[Texture]->get_SRView()->GetRawSRV();
 	}
 
 	TextureStack[Texture] = EDevice->Resources->_CreateTexture(Texture);
@@ -99,7 +101,7 @@ ImTextureID TUI::LoadTexture(const char* Texture) const
 		Tex->apply_load(0);
 	}
 
-	return (void*)Tex->pSurface;
+	return (void*)Tex->get_SRView()->GetRawSRV();
 }
 
 void TUI::OnDeviceCreate()
@@ -201,7 +203,7 @@ void TUI::MousePress(TShiftState Shift, int X, int Y)
 		   
 			if(Tools->MouseStart(m_ShiftState))
 			{
-				if(Tools->HiddenMode()) ShowCursor( FALSE );
+				if(Tools->HiddenMode()) ShowCursor( false );
 				m_MouseCaptured = true;
 			}
 		}
@@ -228,7 +230,7 @@ void TUI::MouseRelease(TShiftState Shift, int X, int Y)
 			if( Tools->MouseEnd(m_ShiftState) ){
 				if(bIsHiddenMode){
 					SetCursorPos(m_StartCpH.x,m_StartCpH.y);
-					ShowCursor( TRUE );
+					ShowCursor( true );
 				}
 				m_MouseCaptured = false;
 			}
@@ -291,7 +293,7 @@ void TUI::OnAppActivate()
 	if (pInput){
 		m_ShiftState = ssNone;
 		pInput->OnAppActivate();
-		EDevice->seqAppActivate.Process	(rp_AppActivate);
+		EDevice->seqAppActivate.Process<&pureAppActivate::OnAppActivate>();
 	}
 }
 //---------------------------------------------------------------------------
@@ -303,7 +305,7 @@ void TUI::OnAppDeactivate()
 	if (pInput){
 		pInput->OnAppDeactivate();
 		m_ShiftState = ssNone;
-		EDevice->seqAppDeactivate.Process(rp_AppDeactivate);
+		EDevice->seqAppDeactivate.Process<&pureAppDeactivate::OnAppDeactivate>();
 	}
 	HideHint();
 }
@@ -360,7 +362,7 @@ void TUI::PrepareRedraw()
 	Tools->GetCurrentFog	(fog_color, fog_start, fog_end);
 
 	EDevice->SetRS( D3DRS_FOGCOLOR,		fog_color			);
-	EDevice->SetRS( D3DRS_RANGEFOGENABLE,	FALSE				);
+	EDevice->SetRS( D3DRS_RANGEFOGENABLE,	false				);
 	if (Caps.bTableFog)	{
 		EDevice->SetRS( D3DRS_FOGTABLEMODE,	D3DFOG_LINEAR 	);
 		EDevice->SetRS( D3DRS_FOGVERTEXMODE,	D3DFOG_NONE	 	);
@@ -394,7 +396,7 @@ void TUI::PrepareRedraw()
 void TUI::Invalidate()
 {
 	UI->RT.destroy();
-	UI->RT.create("$user$rt_color", UI->GetRenderWidth(), UI->GetRenderHeight(), D3DFMT_X8R8G8B8);
+	UI->RT.create("$user$rt_color", UI->GetRenderWidth(), UI->GetRenderHeight(), ERHI_FORMAT::B8G8R8X8_UNORM);
 }
 
 extern ENGINE_API xr_atomic_bool g_bRendering;
@@ -404,13 +406,8 @@ void TUI::Redraw()
 
 	Viewport& View = CurrentView();
 
-	if
-		(
-			u32(View.RTSize.x * EDevice->m_ScreenQuality) != EDevice->TargetWidth ||
-			u32(View.RTSize.y * EDevice->m_ScreenQuality) != EDevice->TargetHeight ||
-			!RT->pSurface
-			)
-
+	if (u32(View.RTSize.x * EDevice->m_ScreenQuality) != EDevice->TargetWidth || u32(View.RTSize.y * EDevice->m_ScreenQuality) != EDevice->TargetHeight || !RT->pSurface)
+	{
 		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
 		{
 			EDevice->TargetWidth = View.RTSize.x * EDevice->m_ScreenQuality;
@@ -425,60 +422,61 @@ void TUI::Redraw()
 			RTNormal.destroy();
 			RTDiffuse.destroy();
 
-			RTPostion.create("$user$position", GetRenderWidth(), GetRenderHeight(), D3DFMT_A16B16G16R16F);
-			RTNormal.create("$user$normal", GetRenderWidth(), GetRenderHeight(), D3DFMT_A16B16G16R16F);
-			RTDiffuse.create("$user$diffuse", GetRenderWidth(), GetRenderHeight(), D3DFMT_A8R8G8B8);
+			RTPostion.create("$user$position", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::R16G16B16A16_FLOAT);
+			RTNormal.create("$user$normal", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::R16G16B16A16_FLOAT);
+			RTDiffuse.create("$user$diffuse", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::B8G8R8A8_UNORM);
 
-			RT.create("$user$rt_color", GetRenderWidth(), GetRenderHeight(), D3DFMT_X8R8G8B8);
-			View.RTFreez.create(("$user$rt_freez" + xr_string::ToString((u32)UI->ViewID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_X8R8G8B8);
-			RTCopy.create("$user$rt_color_copy", GetRenderWidth(), GetRenderHeight(), D3DFMT_X8R8G8B8);
+			RT.create("$user$rt_color", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::B8G8R8X8_UNORM);
+			View.RTFreez.create(("$user$rt_freez" + xr_string::ToString((u32)UI->ViewID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8X8_UNORM);
+			RTCopy.create("$user$rt_color_copy", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::B8G8R8X8_UNORM);
 
-			ZB.create("$user$rt_depth", GetRenderWidth(), GetRenderHeight(), D3DFMT_D24S8);
+			ZB.create("$user$rt_depth", GetRenderWidth(), GetRenderHeight(), ERHI_FORMAT::D24_UNORM_S8_UINT);
 
-			m_Flags.set(flRedraw, TRUE);
+			m_Flags.set(flRedraw, true);
 
 			EDevice->m_fNearer = EDevice->mProject._43;
-			EDevice->HalfTargetWidth = float(View.RTSize.x) * 0.5f;
-			EDevice->HalfTargetHeight = float(View.RTSize.y) * 0.5f;
-			EDevice->fASPECT = EDevice->HalfTargetHeight / EDevice->HalfTargetWidth;
+			HalfTarget.x = float(View.RTSize.x) * 0.5f;
+			HalfTarget.y = float(View.RTSize.y) * 0.5f;
+			EDevice->fASPECT = float(HalfTarget.y) / float(HalfTarget.x);
 
-			EDevice->seqDeviceReset.Process(rp_DeviceReset);
-			EDevice->seqResolutionChanged.Process(rp_ScreenResolutionChanged);
+			EDevice->seqDeviceReset.Process<&pureDeviceReset::OnDeviceReset>();
+			EDevice->seqResolutionChanged.Process<&pureScreenResolutionChanged::OnScreenResolutionChanged>();
 			RCache.set_xform_project(EDevice->mProject);
 			RCache.set_xform_world(Fidentity);
 		}
 		else
 		{
 			// Soft render update when resizing window
-			EDevice->HalfTargetWidth = float(View.RTSize.x) * 0.5f;
-			EDevice->HalfTargetHeight = float(View.RTSize.y) * 0.5f;
-			EDevice->fASPECT = EDevice->HalfTargetHeight / EDevice->HalfTargetWidth;
-			m_Flags.set(flRedraw, TRUE);
+			HalfTarget.x = float(View.RTSize.x) * 0.5f;
+			HalfTarget.y = float(View.RTSize.y) * 0.5f;
+			EDevice->fASPECT = float(HalfTarget.y) / float(HalfTarget.x);
+			m_Flags.set(flRedraw, true);
 		}
+	}
 
 	if (!UI->IsPlayInEditor())
 	{
-		EDevice->mProject.build_projection(deg2rad(EDevice->fFOV), EDevice->fASPECT, UI->CurrentView().m_Camera.m_Znear, UI->CurrentView().m_Camera.m_Zfar);
+		EDevice->mProject.build_projection(deg2rad(EDevice->fFOV), EDevice->fASPECT, View.m_Camera.m_Znear, View.m_Camera.m_Zfar);
 	}
 
 	if (EDevice->Begin())
 	{
 		if (psDeviceFlags.is(rsRenderRealTime))
-			m_Flags.set(flRedraw, TRUE);
+			m_Flags.set(flRedraw, true);
 		if (m_Flags.is(flRedraw) || UI->IsPlayInEditor())
 		{
-			m_Flags.set(flRedraw, FALSE);
+			m_Flags.set(flRedraw, false);
 
 			RCache.set_RT(RTNormal->pRT, 0);
 			RCache.set_RT(RTDiffuse->pRT, 1);
 			RCache.set_RT(RTPostion->pRT, 2);
 
-			RCache.set_ZB(0);
+			GRHI->SetDepthStencilView(nullptr);
 
-			CHK_DX(REDevice->Clear(0, 0, D3DCLEAR_TARGET, 0x0, 1, 0));
+			CHK_DX(REDevice->Clear(0, nullptr, D3DCLEAR_TARGET, 0x0, 1, 0));
 
 			RCache.set_RT(RT->pRT);
-			RCache.set_ZB(ZB->pRT);
+			GRHI->SetDepthStencilView(ZB->pZRT);
 
 			EDevice->Clear();
 
@@ -486,7 +484,7 @@ void TUI::Redraw()
 			RCache.set_RT(RTNormal->pRT, 2);
 			RCache.set_RT(RTPostion->pRT, 3);
 
-			RCache.set_Stencil(TRUE, D3DCMP_ALWAYS, 0x01, 0xff, 0xff, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+			RCache.set_Stencil(true, D3DCMP_ALWAYS, 0x01, 0xff, 0xff, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			EDevice->UpdateView();
 			EDevice->ResetMaterial();
 
@@ -533,19 +531,21 @@ void TUI::Redraw()
 			g_FontManager->Render();
 
 			EDevice->SetRS(D3DRS_FILLMODE, EDevice->dwFillMode);
-			EDevice->seqRender.Process(rp_Render);
+			EDevice->seqRender.Process<&pureRender::OnRender>();
 
 			if (g_pGamePersistent->OnRenderPPUI_query())
 			{
 				g_pGamePersistent->OnRenderPPUI_main();
 			}
 
-			RCache.set_RT(0, 1);
-			RCache.set_RT(0, 2);
-			RCache.set_RT(0, 3);
+			RCache.set_RT(nullptr, 1);
+			RCache.set_RT(nullptr, 2);
+			RCache.set_RT(nullptr, 3);
 
 			RCache.set_RT(RSwapchainTarget);
-			RCache.set_ZB(RDepth);
+			GRHI->SetDepthStencilView(RDepth);
+			
+			CHK_DX(REDevice->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_RGBA(0, 0, 0, 0), 1, 0));
 
 			RDevice->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, 0);
 			RDevice->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
@@ -554,7 +554,7 @@ void TUI::Redraw()
 		}
 
 		EDevice->SetRS(D3DRS_FILLMODE, D3DFILL_SOLID);
-		g_bRendering = FALSE;
+		g_bRendering = false;
 
 		// end draw
 		UI->BeginFrame();
@@ -577,7 +577,7 @@ void TUI::Redraw()
 
 void TUI::RealResize()
 {
-	m_Flags.set			(flResize,FALSE);
+	m_Flags.set			(flResize,false);
 	if(m_Size.x&& m_Size.y)
 	EDevice->Resize(m_Size.x, m_Size.y,m_Size_Maximize);
 	ExecCommand			(COMMAND_UPDATE_PROPERTIES);
@@ -585,7 +585,7 @@ void TUI::RealResize()
 void TUI::RealUpdateScene()
 {
 	Tools->UpdateProperties	(false);
-	m_Flags.set			(flUpdateScene,FALSE);
+	m_Flags.set			(flUpdateScene,false);
 }
 void TUI::RealRedrawScene()
 {
@@ -615,7 +615,7 @@ bool TUI::Idle()
 	do
 	{
 		ZeroMemory(&msg, sizeof(msg));
-		if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
+		if (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
 		{
 			::TranslateMessage(&msg);
 			::DispatchMessage(&msg);
@@ -633,7 +633,17 @@ bool TUI::Idle()
 
 	Sleep(1);
 
+	if (g_pGamePersistent)
+	{
+		g_pGamePersistent->UpdatePlayDestroyParticles();
+	}
+
 	OnFrame();
+
+	if (GActorInterface != nullptr)
+	{
+		GActorInterface->UpdatePlayerHud();
+	}
 
 	Device.secondary_tasks.run([]()
 	{
@@ -652,7 +662,7 @@ bool TUI::Idle()
 
 		{
 			PROF_EVENT("seqFrameMT")
-			EDevice->seqFrameMT.Process(rp_Frame);
+			EDevice->seqFrameMT.Process<&pureFrame::OnFrame>();
 		}
 	});
 
@@ -680,9 +690,10 @@ bool TUI::OnCreate()
 
 	EDevice->Initialize();
 	// Creation
-	ETOOLS::ray_options	(CDB::OPT_ONLYNEAREST | CDB::OPT_CULL);
+	extern CDB::COLLIDER XRC;
+	XRC.ray_options(CDB::OPT_ONLYNEAREST | CDB::OPT_CULL);
 
-	pInput			= new CInput(FALSE, all_device_key);
+	pInput			= new CInput(false, all_device_key);
 
 	Console = new CConsole();
 	Console->Initialize();
@@ -706,12 +717,12 @@ bool TUI::OnCreate()
 	GetRenderWidth() = 128;
 	GetRenderHeight() = 128;
 
-	int Iter = 0;
-	for (Viewport& View : Views)
+	for (auto& [ID, View] : Views)
 	{
 		View.RTSize = { (int)GetRenderWidth(), (int)GetRenderHeight() };
-		View.RTFreez.create(("$user$rt_freez" + xr_string::ToString((u32)UI->ViewID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_X8R8G8B8);
+		View.RTFreez.create(("$user$rt_freez" + xr_string::ToString((u32)UI->ViewID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8X8_UNORM);
 	}
+
 	EDevice->fASPECT = (float)GetRenderWidth() / (float)GetRenderHeight();
 
 	EDevice->mProject.build_projection(deg2rad(EDevice->fFOV), EDevice->fASPECT, UI->CurrentView().m_Camera.m_Znear, UI->CurrentView().m_Camera.m_Zfar);
@@ -720,14 +731,14 @@ bool TUI::OnCreate()
 	RCache.set_xform_project(EDevice->mProject);
 	RCache.set_xform_world(Fidentity);
 
-	RTPostion.create("$user$position", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_A16B16G16R16F);
-	RTNormal.create("$user$normal", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_A16B16G16R16F);
-	RTDiffuse.create("$user$diffuse", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_A8R8G8B8);
+	RTPostion.create("$user$position", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::R16G16B16A16_FLOAT);
+	RTNormal.create("$user$normal", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::R16G16B16A16_FLOAT);
+	RTDiffuse.create("$user$diffuse", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8A8_UNORM);
 
-	RT.create("$user$rt_color", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_X8R8G8B8);
-	RTCopy.create("$user$rt_color_copy", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_X8R8G8B8);
+	RT.create("$user$rt_color", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8X8_UNORM);
+	RTCopy.create("$user$rt_color_copy", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8X8_UNORM);
 
-	ZB.create("$user$rt_depth", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_D24S8);
+	ZB.create("$user$rt_depth", GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::D24_UNORM_S8_UINT);
 
 	return true;
 }
@@ -737,7 +748,7 @@ void TUI::OnDestroy()
 	Console->Destroy();
 	xr_delete(Console);
 
-	for (Viewport& View : Views)
+	for (auto& [ID, View] : Views)
 	{
 		View.RTFreez.destroy();
 	}
@@ -761,7 +772,7 @@ void TUI::OnDestroy()
 	EDevice->ShutDown();    
 }
 
-SPBItem* TUI::ProgressStart(float max_val, LPCSTR text)
+SPBItem* TUI::ProgressStart(float max_val, const char* text)
 {
 	VERIFY(m_bReady);
 	SPBItem* item = new SPBItem(text, "", max_val);
@@ -803,12 +814,17 @@ void TUI::ProgressDraw()
 
 TUI::Viewport& TUI::CurrentView()
 {
+	if (!Views.contains(ViewID))
+	{
+		ViewID = 0;
+	}
+
 	return Views[ViewID];
 }
 
 void TUI::CreateViewport(int ID, UIRenderForm* Form)
 {
-	Viewport& MainView = Views.emplace_back();
+	Viewport& MainView = Views[ID];
 	MainView.m_Camera.SetViewport(EPrefs->view_np, EPrefs->view_fp, EPrefs->view_fov, true);
 	MainView.m_Camera.SetSensitivity(EPrefs->cam_sens_move, EPrefs->cam_sens_rot);
 	MainView.m_Camera.SetFlyParams(EPrefs->cam_fly_speed, EPrefs->cam_fly_alt);
@@ -818,12 +834,12 @@ void TUI::CreateViewport(int ID, UIRenderForm* Form)
 	MainView.ViewGlobalIDX = ID;
 
 	MainView.RTSize = { (int)GetRenderWidth(), (int)GetRenderHeight() };
-	MainView.RTFreez.create(("$user$rt_freez" + xr_string::ToString(ID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, D3DFMT_X8R8G8B8);
+	MainView.RTFreez.create(("$user$rt_freez" + xr_string::ToString(ID)).c_str(), GetRenderWidth() * EDevice->m_ScreenQuality, GetRenderHeight() * EDevice->m_ScreenQuality, ERHI_FORMAT::B8G8R8X8_UNORM);
 }
 
 void TUI::DestroyViewport(int ID)
 {
-	auto Iter = std::find(Views.begin(), Views.end(), Viewport{ .ViewGlobalIDX = ID });
+	auto Iter = Views.find(ID);
 	if (Iter != Views.end())
 	{
 		Views.erase(Iter);
@@ -835,11 +851,11 @@ void TUI::DestroyViewport(int ID)
 
 void TUI::InitWindowIcons()
 {
-	m_HeaderLogo	= EDevice->Resources->_CreateTexture("ed\\bar\\win_header_logo");
-	m_WinMin		= EDevice->Resources->_CreateTexture("ed\\bar\\win_header_min");
-	m_WinMax		= EDevice->Resources->_CreateTexture("ed\\bar\\win_header_max");
-	m_WinRes		= EDevice->Resources->_CreateTexture("ed\\bar\\win_header_restore");
-	m_WinClose		= EDevice->Resources->_CreateTexture("ed\\bar\\win_header_close");
+	m_HeaderLogo	= chezze_svg_temporary::RasterizeSvg(IX_RAY_LOGO, 64, 64); //EDevice->Resources->_CreateTexture("ed\\bar\\win_header_logo");
+	m_WinMin		= chezze_svg_temporary::RasterizeSvg(IX_MIN_ICON, 10, 10);
+	m_WinMax		= chezze_svg_temporary::RasterizeSvg(IX_MAX_ICON, 10, 10);
+	m_WinRes		= chezze_svg_temporary::RasterizeSvg(IX_RESTORE_ICON, 10, 10);
+	m_WinClose		= chezze_svg_temporary::RasterizeSvg(IX_CLOSE_ICON, 10, 10);
 }
 
 void TUI::OnDrawUI()
@@ -852,12 +868,12 @@ void TUI::OnDrawUI()
 	UIWeatherPropForm::Update();
 	UIIconPicker::Update();
 	UILogForm::Update();
-	EDevice->seqDrawUI.Process(rp_DrawUI);
+	EDevice->seqDrawUI.Process<&pureDrawUI::OnDrawUI>();
 }
 
 void TUI::RealResetUI()
 {
-	m_Flags.set(flResetUI, FALSE);
+	m_Flags.set(flResetUI, false);
 	string_path 		ini_path;
 	if (FS.exist(ini_path, "$server_data_root$", UI->EditorName(), "_imgui_default.ini"))
 	{
@@ -879,7 +895,7 @@ void SPBItem::GetInfo(xr_string& txt, float& p, float& m)
 	m = max;
 }
 
-void SPBItem::Inc(LPCSTR info, bool bWarn)
+void SPBItem::Inc(const char* info, bool bWarn)
 {
 	Info(info, bWarn);
 	Update(progress + 1.f);
@@ -891,7 +907,7 @@ void SPBItem::Update(float val)
 	UI->ProgressDraw();
 }
 
-void SPBItem::Info(LPCSTR text, bool bWarn)
+void SPBItem::Info(const char* text, bool bWarn)
 {
 	if (text && text[0])
 	{

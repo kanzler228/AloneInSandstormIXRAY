@@ -1,14 +1,13 @@
 #pragma once
 #include "../../xrUI/Widgets/UIFrameWindow.h"
-#include "../../xrCore/associative_vector.h"
+#include "../../xrCore/Containers/associative_vector.h"
 
 class CUIStatic;
-class CUITextWnd;
 class CUIXml;
 class CGameTask;
 class CMapSpot;
 
-class CUIMapLocationHint :public CUIFrameWindow
+class CUIMapLocationHint final : public CUIFrameWindow
 {
 	typedef CUIFrameWindow inherited;
 
@@ -19,9 +18,9 @@ public:
 					CUIMapLocationHint	():m_owner(NULL){};
 	virtual 		~CUIMapLocationHint	(){};
 
-	void			Init		(CUIXml& uiXml, LPCSTR path);
+	void			Init		(CUIXml& uiXml, const char* path);
 
-	void			SetInfoStr	(LPCSTR text);
+	void			SetInfoStr	(const char* text);
 	void			SetInfoMSpot(CMapSpot* spot);
 	void			SetInfoTask	(CGameTask* task);
 

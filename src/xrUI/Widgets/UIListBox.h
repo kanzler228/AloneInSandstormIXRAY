@@ -10,20 +10,20 @@ class UI_API CUIListBox :
 public:
 					CUIListBox						();
 	CUIListBoxItem* AddItem							();
-	CUIListBoxItem* AddTextItem						(LPCSTR text);
+	CUIListBoxItem* AddTextItem						(const char* text);
 	void			AddExistingItem					(CUIListBoxItem*);
 
 	CUIListBoxItem* GetItemByTAG					(u32 tag_value);
 	int				GetIdxByTAG						(u32 tag_value);
 	CUIListBoxItem* GetItemByIDX					(int idx);
-	CUIListBoxItem* GetItemByText					(LPCSTR text);
+	CUIListBoxItem* GetItemByText					(const char* text);
 	CUIListBoxItem* GetSelectedItem					();
 
-	LPCSTR			GetSelectedText					();
-	LPCSTR			GetText							(int idx);
+	const char*			GetSelectedText					();
+	const char*			GetText							(int idx);
 	void			MoveSelectedUp					();
 	void			MoveSelectedDown				();
-	void			SetSelectionTexture				(LPCSTR texture);
+	void			SetSelectionTexture				(const char* texture);
 	void			SetItemHeight					(float h);
 	float			GetItemHeight					();
 	float			GetLongestLength				();
@@ -32,8 +32,11 @@ public:
 		u32			GetSelectedIDX					();
 		void		SetSelectedIDX					(u32 idx);
 		void		SetSelectedTAG					(u32 tag_val);
-		void		SetSelectedText					(LPCSTR txt);
+		void		SetSelectedText					(const char* txt);
 		void		SetImmediateSelection			(bool f);
+
+		void		NextItem						(bool selectOnly = false);
+		void		PrevItem						(bool selectOnly = false);
 
 virtual bool		OnMouseAction							(float x, float y, EUIMessages mouse_action);
 virtual void		SendMessage						(CUIWindow* pWnd, s16 msg, void* pData = 0);
@@ -45,7 +48,6 @@ virtual void		SendMessage						(CUIWindow* pWnd, s16 msg, void* pData = 0);
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIScrollView* ui_cast_scroll_view() { return this; }
-
 protected:
 	CGameFont*		m_pFont;
 	float			m_def_item_height;

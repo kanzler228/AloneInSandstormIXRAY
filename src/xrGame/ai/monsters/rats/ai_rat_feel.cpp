@@ -6,19 +6,19 @@
 //	Description : Visibility and look for monster "Rat"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "ai_rat.h"
 #include "../../../memory_manager.h"
 #include "../../../enemy_manager.h"
 #include "../../../../xrSound/ai_sounds.h"
 
-BOOL CAI_Rat::feel_vision_isRelevant(CObject* O)
+bool CAI_Rat::feel_vision_isRelevant(CObject* O)
 {
-	CEntityAlive* E = smart_cast<CEntityAlive*> (O);
-	if (!E) return FALSE;
-	if ((E->g_Team() == g_Team()) && (E->g_Alive())) return FALSE;
-	return TRUE;
+	CEntityAlive* E = O != nullptr ? O->cast_entity_alive() : nullptr;
+	if (!E) return false;
+	if ((E->g_Team() == g_Team()) && (E->g_Alive())) return false;
+	return true;
 }
 
 void CAI_Rat::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr user_data, const Fvector &Position, float power)
@@ -35,7 +35,7 @@ void CAI_Rat::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr user_da
 			m_tLastSound.dwTime			= Device.dwTimeGlobal;
 			m_tLastSound.fPower			= power;
 			m_tLastSound.tSavedPosition = Position;
-			m_tLastSound.tpEntity		= smart_cast<CEntityAlive*>(who);
+			m_tLastSound.tpEntity		= who->cast_entity_alive();
 			if ((eType & SOUND_TYPE_MONSTER_DYING) == SOUND_TYPE_MONSTER_DYING)
 				m_fMorale += m_fMoraleDeathQuant;
 			else
@@ -50,7 +50,7 @@ void CAI_Rat::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr user_da
 	inherited::feel_sound_new	(who,eType,user_data,Position,power);
 }
 
-BOOL CAI_Rat::feel_touch_on_contact	(CObject *O)
+bool CAI_Rat::feel_touch_on_contact	(CObject *O)
 {
 	return		(inherited::feel_touch_on_contact(O));
 }

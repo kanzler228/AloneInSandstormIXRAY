@@ -27,7 +27,7 @@ UI_API void dump_list_wnd(){}
 #endif
 
 xr_vector<Frect> g_wnds_rects;
-UI_API BOOL g_show_wnd_rect2 = FALSE;
+UI_API bool g_show_wnd_rect2 = false;
 
 UI_API void clean_wnd_rects()
 {
@@ -159,6 +159,13 @@ void CUIWindow::Draw()
 {
 	xrCriticalSectionGuard guard(csUi);
 
+#ifdef DEBUG_DRAW
+	if (IsShown())
+	{
+		UI().LastFrameWidgets.emplace(this);
+	}
+#endif
+
 	for (CUIWindow* W : m_ChildWndList)
 	{
 		if (!W)		continue;
@@ -166,8 +173,10 @@ void CUIWindow::Draw()
 		if (W->GetCustomDraw())	continue;
 		W->Draw();
 	}
+
 #ifdef DEBUG
-	if (g_show_wnd_rect2) {
+	if (g_show_wnd_rect2)
+	{
 		Frect r;
 		GetAbsoluteRect(r);
 		add_rect_to_draw(r);
@@ -217,8 +226,10 @@ void CUIWindow::Update()
 		}
 	}
 	xrCriticalSectionGuard guard(csUi);
-	for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it) {
-		if (!(*it)->IsShown()) continue;
+	for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
+	{
+		if (!(*it)->IsShown())
+			continue;
 		(*it)->Update();
 	}
 }
@@ -228,10 +239,10 @@ void CUIWindow::AttachChild(CUIWindow* pChild)
 	R_ASSERT(pChild);
 	if (!pChild) return;
 
-	R_ASSERT(!IsChild(pChild));
 	pChild->SetParent(this);
 
 	xrCriticalSectionGuard guard(csUi);
+	R_ASSERT(std::find(m_ChildWndList.begin(), m_ChildWndList.end(), pChild) == m_ChildWndList.end());
 	m_ChildWndList.push_back(pChild);
 }
 
@@ -258,6 +269,42 @@ void CUIWindow::DetachChild(CUIWindow* pChild)
 
 	if (pChild->IsAutoDelete())
 		xr_delete(pChild);
+}
+
+bool CUIWindow::TryDetachChild(CUIWindow* pChild)
+{
+	R_ASSERT(pChild);
+	if (nullptr == pChild)
+	{
+		return false;
+	}
+
+	if (m_pMouseCapturer == pChild)
+	{
+		SetCapture(pChild, false);
+	}
+
+	if (!csUi.TryEnter())
+	{
+		return false;
+	}
+
+	WINDOW_LIST_it it = std::find(m_ChildWndList.begin(), m_ChildWndList.end(), pChild);
+	if (it != m_ChildWndList.end())
+	{
+		m_ChildWndList.erase(it);
+	}
+
+	csUi.Leave();
+
+	pChild->SetParent(nullptr);
+
+	if (pChild->IsAutoDelete())
+	{
+		xr_delete(pChild);
+	}
+
+	return true;
 }
 
 void CUIWindow::DetachAll()
@@ -325,11 +372,12 @@ bool CUIWindow::OnMouseAction(float x, float y, EUIMessages mouse_action)
 
 	//если есть дочернее окно,захватившее мышь, то
 	//сообщение направляем ему сразу
-	if(m_pMouseCapturer)
+	if (CUIWindow* mouseCapturer = m_pMouseCapturer)
 	{
-		m_pMouseCapturer->OnMouseAction(cursor_pos.x - m_pMouseCapturer->GetWndRect().left, 
-								  cursor_pos.y - m_pMouseCapturer->GetWndRect().top, 
-								  mouse_action);
+		mouseCapturer->OnMouseAction(
+			cursor_pos.x - mouseCapturer->GetWndRect().left,
+			cursor_pos.y - mouseCapturer->GetWndRect().top,
+			mouse_action);
 		return true;
 	}
 
@@ -356,16 +404,21 @@ bool CUIWindow::OnMouseAction(float x, float y, EUIMessages mouse_action)
 	//Проверка на попадание мыши в окно,
 	//происходит в обратном порядке, чем рисование окон
 	//(последние в списке имеют высший приоритет)
-	xrCriticalSectionGuard guard(csUi);
-	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
-	WINDOW_LIST::reverse_iterator first = m_ChildWndList.rend();
-
-	for(u32 i = 0; it!=first; ++it, i++)
+	if (!csUi.TryEnter())
 	{
-		CUIWindow* w	= (*it);
+		return false;
+	}
+
+	xr_vector<CUIWindow*> childrenSnapshot(m_ChildWndList.begin(), m_ChildWndList.end());
+
+	csUi.Leave();
+
+	for (int idx = (int)childrenSnapshot.size() - 1; idx >= 0; --idx)
+	{
+		CUIWindow* w = childrenSnapshot[idx];
 		if (!w)
 		{
-			Msg("! Founded incorrect child window in [%s] childlist(%d)", *m_windowName, i);
+			Msg("! Founded incorrect child window in [%s] childlist(%d)", *m_windowName, idx);
 		}
 		else
 		{
@@ -375,17 +428,22 @@ bool CUIWindow::OnMouseAction(float x, float y, EUIMessages mouse_action)
 				if (w->IsEnabled())
 				{
 					if (w->OnMouseAction(cursor_pos.x - w->GetWndRect().left,
-						cursor_pos.y - w->GetWndRect().top, mouse_action))return true;
+						cursor_pos.y - w->GetWndRect().top, mouse_action))
+					{
+						return true;
+					}
 				}
 			}
 			else if (w->IsEnabled() && w->CursorOverWindow())
 			{
 				if (w->OnMouseAction(cursor_pos.x - w->GetWndRect().left,
-					cursor_pos.y - w->GetWndRect().top, mouse_action))return true;
+					cursor_pos.y - w->GetWndRect().top, mouse_action))
+				{
+					return true;
+				}
 			}
 		}
 	}
-
 
 	return false;
 }
@@ -468,7 +526,9 @@ bool CUIWindow::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 		
 		if(result) return true;
 	}
-	xrCriticalSectionGuard guard(csUi);
+	if (!csUi.TryEnter())
+		return false;
+
 	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
 
 	for(; it!=m_ChildWndList.rend(); ++it)
@@ -477,9 +537,200 @@ bool CUIWindow::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 		{
 			result = (*it)->OnKeyboardAction(dik, keyboard_action);
 			
-			if(result)	return true;
+			if(result)
+			{
+				csUi.Leave();
+				return true;
+			}
 		}
 	}
+
+	csUi.Leave();
+	return false;
+}
+
+//реакция на геймпад (кнопки)
+bool CUIWindow::OnGamepadKeyAction(int key, EUIMessages gamepad_action)
+{
+	bool result;
+
+	//если есть дочернее окно,захватившее клавиатуру, то
+	//сообщение направляем ему сразу
+	if(nullptr!=m_pKeyboardCapturer)
+	{
+		result = m_pKeyboardCapturer->OnGamepadKeyAction(key, gamepad_action);
+		
+		if(result) return true;
+	}
+	if (!csUi.TryEnter())
+		return false;
+
+	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
+
+	for(; it!=m_ChildWndList.rend(); ++it)
+	{
+		if((*it)->IsEnabled())
+		{
+			result = (*it)->OnGamepadKeyAction(key, gamepad_action);
+			
+			if(result)
+			{
+				csUi.Leave();
+				return true;
+			}
+		}
+	}
+
+	csUi.Leave();
+	return false;
+}
+
+//реакция на геймпад (стики)
+bool CUIWindow::OnGamepadStickAction(int key, Fvector2 value, EUIMessages gamepad_action)
+{
+	bool result;
+
+	//если есть дочернее окно,захватившее клавиатуру, то
+	//сообщение направляем ему сразу
+	if (nullptr != m_pKeyboardCapturer)
+	{
+		result = m_pKeyboardCapturer->OnGamepadStickAction(key, value, gamepad_action);
+
+		if (result) return true;
+	}
+	if (!csUi.TryEnter())
+		return false;
+
+	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
+
+	for (; it != m_ChildWndList.rend(); ++it)
+	{
+		if ((*it)->IsEnabled())
+		{
+			result = (*it)->OnGamepadStickAction(key, value, gamepad_action);
+
+			if (result)
+			{
+				csUi.Leave();
+				return true;
+			}
+		}
+	}
+
+	csUi.Leave();
+	return false;
+}
+
+bool CUIWindow::OnGamepadKeyHold(int dik)
+{
+	bool result;
+
+	if (nullptr != m_pKeyboardCapturer)
+	{
+		result = m_pKeyboardCapturer->OnGamepadKeyHold(dik);
+
+		if (result) return true;
+	}
+	if (!csUi.TryEnter())
+		return false;
+
+	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
+
+	for (; it != m_ChildWndList.rend(); ++it)
+	{
+		if ((*it)->IsEnabled())
+		{
+			result = (*it)->OnGamepadKeyHold(dik);
+
+			if (result)
+			{
+				csUi.Leave();
+				return true;
+			}
+		}
+	}
+
+	csUi.Leave();
+	return false;
+}
+
+bool CUIWindow::OnGyroscopeAction(Fvector3 value)
+{
+	bool result;
+
+	// если есть дочернее окно,захватившее клавиатуру, то
+	// сообщение направляем ему сразу
+	if (nullptr != m_pKeyboardCapturer)
+	{
+		result = m_pKeyboardCapturer->OnGyroscopeAction(value);
+
+		if (result)
+		{
+			return true;
+		}
+	}
+	if (!csUi.TryEnter())
+	{
+		return false;
+	}
+
+	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
+
+	for (; it != m_ChildWndList.rend(); ++it)
+	{
+		if ((*it)->IsEnabled())
+		{
+			result = (*it)->OnGyroscopeAction(value);
+
+			if (result)
+			{
+				csUi.Leave();
+				return true;
+			}
+		}
+	}
+
+	csUi.Leave();
+	return false;
+}
+
+bool CUIWindow::OnTouchpadAction(Fvector2 value)
+{
+	bool result;
+
+	// если есть дочернее окно,захватившее клавиатуру, то
+	// сообщение направляем ему сразу
+	if (nullptr != m_pKeyboardCapturer)
+	{
+		result = m_pKeyboardCapturer->OnTouchpadAction(value);
+
+		if (result)
+		{
+			return true;
+		}
+	}
+	if (!csUi.TryEnter())
+	{
+		return false;
+	}
+
+	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
+
+	for (; it != m_ChildWndList.rend(); ++it)
+	{
+		if ((*it)->IsEnabled())
+		{
+			result = (*it)->OnTouchpadAction(value);
+
+			if (result)
+			{
+				csUi.Leave();
+				return true;
+			}
+		}
+	}
+
+	csUi.Leave();
 	return false;
 }
 
@@ -493,7 +744,9 @@ bool CUIWindow::OnKeyboardHold(int dik)
 		
 		if(result) return true;
 	}
-	xrCriticalSectionGuard guard(csUi);
+	if (!csUi.TryEnter())
+		return false;
+
 	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
 
 	for(; it!=m_ChildWndList.rend(); ++it)
@@ -502,10 +755,15 @@ bool CUIWindow::OnKeyboardHold(int dik)
 		{
 			result = (*it)->OnKeyboardHold(dik);
 			
-			if(result)	return true;
+			if(result)
+			{
+				csUi.Leave();
+				return true;
+			}
 		}
 	}
 
+	csUi.Leave();
 	return false;
 }
 
@@ -530,13 +788,21 @@ void CUIWindow::SetKeyboardCapture(CUIWindow* pChildWindow, bool capture_status)
 //обработка сообщений 
 void CUIWindow::SendMessage(CUIWindow *pWnd, s16 msg, void *pData)
 {
-	xrCriticalSectionGuard guard(csUi);
-	//оповестить дочерние окна
-    for(int i = 0; i < m_ChildWndList.size(); ++i)
-    {
-        if(m_ChildWndList[i]->IsEnabled())
-            m_ChildWndList[i]->SendMessage(pWnd,msg,pData);
-    }
+	// Same rationale as Update/Draw: never block the game thread while render/input holds this window's csUi.
+	if (!csUi.TryEnter())
+	{
+		return;
+	}
+
+	for (int i = 0; i < (int)m_ChildWndList.size(); ++i)
+	{
+		if (m_ChildWndList[i]->IsEnabled())
+		{
+			m_ChildWndList[i]->SendMessage(pWnd, msg, pData);
+		}
+	}
+
+	csUi.Leave();
 }
 
 CUIWindow* CUIWindow::GetCurrentMouseHandler(){
@@ -544,7 +810,10 @@ CUIWindow* CUIWindow::GetCurrentMouseHandler(){
 }
 
 CUIWindow* CUIWindow::GetChildMouseHandler(){
-	xrCriticalSectionGuard guard(csUi);
+	if (!csUi.TryEnter())
+	{
+		return this;
+	}
 
 	CUIWindow* pWndResult;
 	WINDOW_LIST::reverse_iterator it = m_ChildWndList.rbegin();
@@ -558,16 +827,21 @@ CUIWindow* CUIWindow::GetChildMouseHandler(){
 		{
 			if((*it)->IsEnabled())
 			{
-				return pWndResult = (*it)->GetChildMouseHandler();				
+				pWndResult = (*it)->GetChildMouseHandler();
+				csUi.Leave();
+				return pWndResult;
 			}
 		}
 		else if ((*it)->IsEnabled() && (*it)->CursorOverWindow())
 		{
-			return pWndResult = (*it)->GetChildMouseHandler();
+			pWndResult = (*it)->GetChildMouseHandler();
+			csUi.Leave();
+			return pWndResult;
 		}
 	}
 
-    return this;
+	csUi.Leave();
+	return this;
 }
 
 //для перевода окна и потомков в исходное состояние
@@ -594,11 +868,23 @@ CUIWindow* CUIWindow::GetMessageTarget()
 	return m_pMessageTarget?m_pMessageTarget:GetParent();
 }
 
-bool CUIWindow::IsChild(CUIWindow *pPossibleChild) const
+bool CUIWindow::IsChild(CUIWindow* pPossibleChild) const
 {
-	xrCriticalSectionGuard guard(const_cast<xrCriticalSection&>(csUi));
-	WINDOW_LIST::const_iterator it = std::find(m_ChildWndList.begin(), m_ChildWndList.end(), pPossibleChild);
-	return it != m_ChildWndList.end();
+	if (!pPossibleChild)
+	{
+		return false;
+	}
+
+	// Non-blocking: Draw/Update may hold csUi on this window while iterating children.
+	xrCriticalSection& sync = const_cast<xrCriticalSection&>(csUi);
+	if (!sync.TryEnter())
+	{
+		return false;
+	}
+
+	const bool isChild = std::find(m_ChildWndList.begin(), m_ChildWndList.end(), pPossibleChild) != m_ChildWndList.end();
+	sync.Leave();
+	return isChild;
 }
 
 
@@ -607,14 +893,23 @@ CUIWindow*	CUIWindow::FindChild(const shared_str name)
 	if(WindowName()==name)
 		return this;
 
-	xrCriticalSectionGuard guard(csUi);
+	if (!csUi.TryEnter())
+	{
+		return nullptr;
+	}
+
 	WINDOW_LIST::const_iterator it = m_ChildWndList.begin();
 	WINDOW_LIST::const_iterator it_e = m_ChildWndList.end();
 	for(;it!=it_e;++it){
 		CUIWindow* pRes = (*it)->FindChild(name);
 		if(pRes != nullptr)
+		{
+			csUi.Leave();
 			return pRes;
+		}
 	}
+
+	csUi.Leave();
 	return nullptr;
 }
 
@@ -666,5 +961,42 @@ UI_API bool fit_in_rect(CUIWindow* w, Frect const& vis_rect, float border, float
 	if ( !is_in( vis_rect, rect ) ) {	rect.sub( rect.width() - border, 0.0f                   );	}
 
 	w->SetWndPos( rect.lt );
+	return true;
+}
+
+// we need this func for controller UI
+// to display info window next to the item icon
+UI_API bool fit_infownd_in_rect(CUIWindow* wInfo, Frect & stick_to_rect, Frect fit_in_rect, float border, float dx16pos)
+{
+	//float const cursor_height = 0;// 43.0f;
+	if (UI().is_widescreen())
+	{
+		stick_to_rect.x1 -= dx16pos;
+	}
+
+	fit_in_rect.shrink(border, border);
+
+	if (!fit_in_rect.intersected(stick_to_rect))
+	{
+		return false;
+	}
+
+	Frect	rect;
+	rect.set(0, 0, wInfo->GetWidth(), wInfo->GetHeight());
+	rect.add(fit_in_rect.x1, fit_in_rect.y1);
+
+	// Check horizontally
+	if (stick_to_rect.x2 + wInfo->GetWidth() > fit_in_rect.x2)
+		rect.set(stick_to_rect.x1 - wInfo->GetWidth(), rect.y1, stick_to_rect.x1, rect.y2 ); // on the left
+	else
+		rect.set(stick_to_rect.x2, rect.y1, stick_to_rect.x2 + wInfo->GetWidth(), rect.y2); // on the right
+
+	// Check vertically
+	if (stick_to_rect.y1 + wInfo->GetHeight() > fit_in_rect.y2)
+		rect.set(rect.x1, fit_in_rect.y2 - wInfo->GetHeight(), rect.x2, fit_in_rect.y2);
+	else
+		rect.set(rect.x1, stick_to_rect.y1, rect.x2, stick_to_rect.y1 + wInfo->GetHeight());
+
+	wInfo->SetWndPos(rect.lt);
 	return true;
 }

@@ -6,7 +6,7 @@
 //	Description : Feelings for monster "Stalker"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_stalker.h"
 #include "../../inventory_item.h"
 #include "../../memory_manager.h"
@@ -17,17 +17,17 @@
 
 #ifdef DEBUG
 #	include "../../ai_debug.h"
-	extern Flags32 psAI_Flags;
+	extern Flags64 psAI_Flags;
 #endif // DEBUG
 
-BOOL CAI_Stalker::feel_vision_isRelevant(CObject* O)
+bool CAI_Stalker::feel_vision_isRelevant(CObject* O)
 {
 	if (!g_Alive())
-		return FALSE;
+		return false;
 
-	if (!O->cast_entity_alive() && !O->cast_inventory_item()) return (FALSE);
-//	if (E && (E->g_Team() == g_Team()))			return FALSE;
-	return(TRUE);
+	if (!O->cast_entity_alive() && !O->cast_inventory_item()) return (false);
+//	if (E && (E->g_Team() == g_Team()))			return false;
+	return(true);
 }
 
 void CAI_Stalker::renderable_Render	()
@@ -55,30 +55,30 @@ bool CAI_Stalker::bfCheckForNodeVisibility(u32 dwNodeID, bool bIfRayPick)
 	return							(memory().visual().visible(dwNodeID,movement().m_head.current.yaw,ffGetFov()));
 }
 
-BOOL CAI_Stalker::feel_touch_contact	(CObject *O)
+bool CAI_Stalker::feel_touch_contact	(CObject *O)
 {
 	if ( !m_take_items_enabled && O->cast_inventory_item())
-		return						(FALSE);
+		return						(false);
 
 	if (O == this)
-		return						(FALSE);
+		return						(false);
 
 	if (!inherited::feel_touch_contact(O))
-		return						(FALSE);
+		return						(false);
 
 	CGameObject						*game_object = O->cast_game_object();
 	if (!game_object)
-		return						(FALSE);
+		return						(false);
 
 	return							(game_object->feel_touch_on_contact(this));
 }
 
-BOOL CAI_Stalker::feel_touch_on_contact	(CObject *O)
+bool CAI_Stalker::feel_touch_on_contact	(CObject *O)
 {
 	VERIFY							(O != this);
 
-	if ((O->SpatialComponent->spatial.type | STYPE_VISIBLEFORAI) != O->SpatialComponent->spatial.type)
-		return	(FALSE);
+	if ((O->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) == ESPATIAL_TYPE::NONE)
+		return	(false);
 
 	return		(inherited::feel_touch_on_contact(O));
 }

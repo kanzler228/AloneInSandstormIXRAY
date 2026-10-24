@@ -2,10 +2,7 @@ project(xrNetServer)
 set(NETSERV_SRC_FILES)
 
 # Files import
-file(GLOB_RECURSE NETSERV_SOURCE_ALL_FILES CONFIGURE_DEPENDS
-	"*.cpp"
-	"*.h"
-)
+file(GLOB_RECURSE NETSERV_SOURCE_ALL_FILES CONFIGURE_DEPENDS "*.cpp" "*.h")
 
 # Source groups
 source_group("kernel" FILES ${NETSERV_SOURCE_ALL_FILES})
@@ -26,10 +23,11 @@ if (WIN32)
 else()
     list(FILTER NETSERV_SRC_FILES EXCLUDE REGEX "WinsocksHelper.cpp")
 endif()
+
 # xrNetServer project
 add_library(xrNetServer SHARED ${NETSERV_SRC_FILES})
 target_include_directories(xrNetServer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_include_directories(xrNetServer PUBLIC "${STEAM_SOCKETS_PATH}/native/include/")
+target_include_directories(xrNetServer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../xrCore/")
 
 # Project defines
 target_compile_definitions(xrNetServer PRIVATE XR_NETSERVER_EXPORTS)
@@ -46,8 +44,8 @@ endif()
 target_link_libraries(xrNetServer PUBLIC xrCore)
 
 if (WIN32)
-    target_link_libraries(xrNetServer PRIVATE "Ws2_32.lib")
-    target_link_libraries(xrNetServer PRIVATE "dxguid.lib")
+    target_link_libraries(xrNetServer PRIVATE WindowsSDK::WS2_32)
+    target_link_libraries(xrNetServer PRIVATE WindowsSDK::DXGUID)
 endif()
 
 # Move precompiled header
@@ -55,28 +53,17 @@ target_validate_pch(xrNetServer ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Steam Sockets
 if(IXRAY_MP)
-    target_link_libraries(xrNetServer PUBLIC "${STEAM_SOCKETS_LINK_LIBRARY}")
-
-    if (WIN32)
-        target_copy_dependency(xrNetServer ${STEAM_SOCKETS_LEGACY})
-    endif()
-
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_LIBRARY})
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_CRYPTO})
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_PROTOBUF_LITE})
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_PROTOBUF})
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_PROTOC})
-    target_copy_dependency(${PROJECT_NAME} ${STEAM_SOCKETS_SSL})
+    target_link_libraries(xrNetServer PUBLIC Steam::Sockets)
 endif()
 
 # MySQL Connector
-if (IXRAY_MP_SQL)
+if (IXRAY_MP AND IXRAY_MP_SQL)
     target_include_directories(xrNetServer PUBLIC "${MYSQLCONNECTOR}include/")
     target_link_libraries(xrNetServer PUBLIC "${MYSQLCONNECTOR}lib/mysqlcppconn.lib")
     add_custom_command(TARGET ${PROJECT_NAME} 
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/mysqlcppconn-9-vs14.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libcrypto-1_1-x64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libssl-1_1-x64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/mysqlcppconn-9-vs14.dll ${IXRAY_OUTPUT}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libcrypto-1_1-x64.dll ${IXRAY_OUTPUT}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libssl-1_1-x64.dll ${IXRAY_OUTPUT}
     )
 endif()

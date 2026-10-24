@@ -38,12 +38,12 @@ int EScene::SpherePick( const Fvector& center, float radius, ObjClassID classfil
 
 	return count;
 }
-
+extern ECORE_API CDB::COLLIDER XRC;
 int EScene::RayQuery(SPickQuery& PQ, const Fvector& start, const Fvector& dir, float dist, u32 flags, ObjectList* snap_list)
 {
 	VERIFY			(snap_list);
 	PQ.prepare_rq	(start,dir,dist,flags);
-	ETOOLS::ray_options	(flags);
+	XRC.ray_options	(flags);
 	for(ObjectIt _F=snap_list->begin();_F!=snap_list->end();_F++)
 		((CSceneObject*)(*_F))->RayQuery(PQ);
 	return PQ.r_count();
@@ -53,7 +53,7 @@ int EScene::BoxQuery(SPickQuery& PQ, const Fbox& bb, u32 flags, ObjectList* snap
 {
 	VERIFY(snap_list);
 	PQ.prepare_bq(bb, flags);
-	ETOOLS::box_options(flags);
+	XRC.box_options(flags);
 	for (ObjectIt _F = snap_list->begin(); _F != snap_list->end(); _F++)
 	{
 		((*_F))->BoxQuery(PQ);
@@ -65,23 +65,23 @@ int EScene::BoxQuery(SPickQuery& PQ, const Fbox& bb, u32 flags, ObjectList* snap
 int EScene::RayQuery(SPickQuery& PQ, const Fvector& start, const Fvector& dir, float dist, u32 flags, CDB::MODEL* model)
 {
 	PQ.prepare_rq	(start,dir,dist,flags);
-	ETOOLS::ray_options	(flags);
-	ETOOLS::ray_query	(model,start,dir,dist);
-	for (int r=0; r<ETOOLS::r_count(); r++)
-		PQ.append	(ETOOLS::r_begin()+r,0,0);
+	XRC.ray_options	(flags);
+	XRC.ray_query	(model,start,dir,dist);
+	for (int r=0; r< XRC.r_count(); r++)
+		PQ.append	(XRC.r_begin()+r,0,0);
 	return PQ.r_count();
 }
 
 int EScene::BoxQuery(SPickQuery& PQ, const Fbox& bb, u32 flags, CDB::MODEL* model)
 {
 	PQ.prepare_bq	(bb,flags);
-	ETOOLS::box_options	(flags);
+	XRC.box_options	(flags);
 	Fvector c,d;
 	bb.getcenter	(c);
 	bb.getradius	(d);
-	ETOOLS::box_query	(model,c,d);
-	for (int r=0; r<ETOOLS::r_count(); r++)
-		PQ.append	(ETOOLS::r_begin()+r,0,0);
+	XRC.box_query	(model,c,d);
+	for (int r=0; r< XRC.r_count(); r++)
+		PQ.append	(XRC.r_begin()+r,0,0);
 	return PQ.r_count();
 }
 
@@ -153,7 +153,7 @@ int EScene::RaySelect(int flag, ObjClassID classfilter)
 		for (; _I!=_E; _I++)
 		{
 			float range			= UI->ZFar();
-			_I->second->RaySelect(flag,range,UI->m_CurrentRStart,UI->m_CurrentRDir,TRUE);
+			_I->second->RaySelect(flag,range,UI->m_CurrentRStart,UI->m_CurrentRDir,true);
 			if (range<dist){
 				dist			= range;
 				mt				= _I->second;
@@ -165,7 +165,7 @@ int EScene::RaySelect(int flag, ObjClassID classfilter)
 	int count					= 0;
 	dist						= UI->ZFar();
 	if (mt) 
-		count=mt->RaySelect	(flag,dist,UI->m_CurrentRStart,UI->m_CurrentRDir,FALSE);
+		count=mt->RaySelect	(flag,dist,UI->m_CurrentRStart,UI->m_CurrentRDir,false);
 	return count;
 /*
 	CCustomObject *nearest_object = RayPickObject(flt_max,UI->m_CurrentRStart,UI->m_CurrentRNorm,classfilter,0,0);

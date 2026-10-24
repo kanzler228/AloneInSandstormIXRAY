@@ -82,7 +82,7 @@ static float trajectory_select_pick_time			(
 	return					(low);
 }
 
-IC BOOL trajectory_query_callback				(collide::rq_result& result, LPVOID params)
+IC bool trajectory_query_callback				(collide::rq_result& result, LPVOID params)
 {
 	*(float*)params					= result.range;
 	return							(false);
@@ -119,13 +119,13 @@ bool trajectory_check_collision (float 							low,
 
 	float					range = distance;
 
-	BOOL					previous_enabled = self_object->getEnabled();
-	self_object->setEnabled	(FALSE);
+	bool					previous_enabled = self_object->getEnabled();
+	self_object->setEnabled	(false);
 	
-	BOOL					throw_ignore_object_enabled = FALSE;
+	bool					throw_ignore_object_enabled = false;
 	if (ignored_object) {
 		throw_ignore_object_enabled			= ignored_object->getEnabled();
-		ignored_object->setEnabled	(FALSE);
+		ignored_object->setEnabled	(false);
 	}
 
 	float const epsilon	=	0.0001f;
@@ -141,7 +141,7 @@ bool trajectory_check_collision (float 							low,
 		Fvector const box_z_axis	=	start_to_target;
 		Fvector box_y_axis;
 		Fvector box_x_axis;
-		if ( _abs(box_z_axis.x) > epsilon || _abs(box_z_axis.z) > epsilon ) {
+		if (std::abs(box_z_axis.x) > epsilon || std::abs(box_z_axis.z) > epsilon ) {
 
 			Fvector const down			=	{ 0, -1, 0 };
 
@@ -166,8 +166,33 @@ bool trajectory_check_collision (float 							low,
 			pick.z_axis					=	normalize(box_z_axis);
 			out_trajectory_picks->push_back	(pick);
 		}
+		thread_local CDB::COLLIDER obb_collider;
+		Fobb obb;
+		Fvector z_axis = box_z_axis;
+		z_axis.normalize_safe();
+		Fvector y_axis = box_y_axis;
+		y_axis.normalize_safe();
+		Fvector x_axis;
+		x_axis.crossproduct(box_y_axis, box_z_axis).normalize_safe();
+		obb.m_rotate.i = x_axis;
+		obb.m_rotate.j = y_axis;
+		obb.m_rotate.k = z_axis;
+		obb.m_translate = box_center;
 
-		box_result	=	!Level().ObjectSpace.BoxQuery	(box_center, box_z_axis, box_y_axis, box_size, out_collide_tris);
+		obb.m_halfsize.set(box_size.x * 0.5f, box_size.y * 0.5f, box_size.z * 0.5f);
+		obb_collider.obb_options(CDB::OPT_FULL_TEST);
+		obb_collider.obb_query(Level().ObjectSpace.GetStaticModel(), obb);
+		box_result = obb_collider.r_vec().empty();
+
+		if (out_collide_tris)
+		{
+			for (CDB::RESULT& R : obb_collider.r_vec())
+			{
+				out_collide_tris->push_back(R.verts[0]);
+				out_collide_tris->push_back(R.verts[1]);
+				out_collide_tris->push_back(R.verts[2]);
+			}
+		}
 	}
 
 	if (ignored_object)
@@ -192,12 +217,10 @@ bool trajectory_intersects_geometry	(float							trajectory_time,
 									 CObject * const 				self_object,
 									 CObject * const 				ignored_object,
 									 collide::rq_results &			temp_rq_results,
-									 xr_vector<trajectory_pick> * const	out_trajectory_picks,
-									 xr_vector<Fvector>	* const		out_collide_tris,
+									 [[maybe_unused]] xr_vector<trajectory_pick>* const out_trajectory_picks,
+									 [[maybe_unused]] xr_vector<Fvector>* const out_collide_tris,
 									 Fvector const &				box_size)
 {
-	out_trajectory_picks; out_collide_tris;
-
 #ifdef DEBUG
 	if ( out_trajectory_picks )
 		out_trajectory_picks->resize	(0);

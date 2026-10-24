@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "monster_enemy_manager.h"
 #include "basemonster/base_monster.h"
 #include "../ai_monsters_misc.h"
@@ -22,10 +22,7 @@ CMonsterEnemyManager::CMonsterEnemyManager()
 	m_time_start_see_enemy			= 0;
 }
 
-CMonsterEnemyManager::~CMonsterEnemyManager()
-{
-
-}
+CMonsterEnemyManager::~CMonsterEnemyManager() = default;
 void CMonsterEnemyManager::init_external(CBaseMonster *M)
 {
 	monster = M;
@@ -102,12 +99,12 @@ void CMonsterEnemyManager::update()
 		dist_now	= position.distance_to(monster->Position());
 		dist_prev	= prev_enemy_position.distance_to(monster->Position());
 
-		if (_abs(dist_now - dist_prev) < 0.2f)								flags.bor(FLAG_ENEMY_STANDING);
+		if (std::abs(dist_now - dist_prev) < 0.2f)								flags.bor(FLAG_ENEMY_STANDING);
 		else {
 			if (dist_now < dist_prev)										flags.bor(FLAG_ENEMY_GO_CLOSER);
 			else															flags.bor(FLAG_ENEMY_GO_FARTHER);
 
-			if (_abs(dist_now - dist_prev) < 1.2f) {
+			if (std::abs(dist_now - dist_prev) < 1.2f) {
 				if (dist_now < dist_prev)									flags.bor(FLAG_ENEMY_GO_CLOSER_FAST);
 				else														flags.bor(FLAG_ENEMY_GO_FARTHER_FAST);
 			}
@@ -215,14 +212,15 @@ bool CMonsterEnemyManager::see_enemy_recently(const CEntityAlive* enemy_)
 
 bool CMonsterEnemyManager::enemy_see_me_now()
 {
-	const CActor* actor = smart_cast<const CActor*>(enemy);
+	CEntityAlive* cast_enemy = const_cast<CEntityAlive*>(enemy);
+	const CActor* actor = cast_enemy != nullptr ? cast_enemy->cast_actor() : nullptr;
 	if (actor) 
 	{
 		return (Level().CurrentViewEntity());
 	}
 	else 
 	{
-		CCustomMonster *cm = const_cast<CEntityAlive*>(enemy)->cast_custom_monster();
+		CCreature *cm = const_cast<CEntityAlive*>(enemy)->cast_creature();
 		if ( cm ) 
 		{
 			return cm->memory().visual().visible_right_now(monster);
@@ -239,15 +237,14 @@ bool CMonsterEnemyManager::is_faced(const CEntityAlive *object0, const CEntityAl
 		return false;
 	}
 
-	float			yaw1, pitch1, yaw2, pitch2, fYawFov, fPitchFov, fRange;
+	float			yaw1, pitch1, yaw2, pitch2, fYawFov, fPitchFov;
 	Fvector			tPosition = object0->Position();
 
 	yaw1			= object0->Orientation().yaw;
 	pitch1			= object0->Orientation().pitch;
 	fYawFov			= angle_normalize_signed(object0->ffGetFov()*PI/180.f);
-	fRange			= object0->ffGetRange();
 
-	fYawFov			= angle_normalize_signed((_abs(fYawFov) + _abs(atanf(1.f/tPosition.distance_to(object1->Position()))))/2.f);
+	fYawFov			= angle_normalize_signed((std::abs(fYawFov) + std::abs(atanf(1.f/tPosition.distance_to(object1->Position()))))/2.f);
 	fPitchFov		= angle_normalize_signed(fYawFov*1.f);
 	tPosition.sub	(object1->Position());
 	tPosition.mul	(-1);

@@ -34,16 +34,19 @@ float	CFireDispertionController::GetCurrentDispertion() const
 void	CFireDispertionController::Update()
 {
 	float tmp_inertion = default_inertion;
-	CActor* tmp_actor = smart_cast<CActor*>(Level().CurrentEntity());
+	CObject* current_entity = Level().CurrentEntity();
+	CActor* tmp_actor = current_entity != nullptr ? current_entity->cast_actor() : nullptr;
+
 	if (tmp_actor)
 	{
-		CWeapon* tmp_weapon = smart_cast<CWeapon*>(tmp_actor->inventory().ActiveItem());
+		PIItem active_item = tmp_actor->inventory().ActiveItem();
+		CWeapon* tmp_weapon = active_item != nullptr ? active_item->cast_weapon() : nullptr;
 		if (tmp_weapon)
 		{
 			tmp_inertion = tmp_weapon->GetCrosshairInertion();
 		}
 	}
-	float diff_time		= tmp_inertion * _abs(end_disp - start_disp);
+	float diff_time		= tmp_inertion * std::abs(end_disp - start_disp);
 	float end_time		= start_time + diff_time;
 	float current_time = Device.fTimeGlobal;
 	if (end_time == start_time)

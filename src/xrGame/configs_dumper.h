@@ -1,6 +1,7 @@
 #ifndef CONFIGS_DUMPER_INCLUDED
 #define CONFIGS_DUMPER_INCLUDED
 
+#ifdef XR_MP_BUILD
 #include "xr_dsa_signer.h"
 #include "mp_config_sections.h"
 
@@ -75,14 +76,15 @@ private:
 	CTimer				m_debug_timer;
 	u32					m_start_time;
 	shared_str			m_timer_comment;
-			void		timer_begin		(LPCSTR comment);
+			void		timer_begin		(const char* comment);
 			void		timer_end		();
 #else
-	inline	void		timer_begin		(LPCSTR comment) {}
+	inline	void		timer_begin		(const char* comment) {}
 	inline	void		timer_end		()	{}
 #endif
 }; //class configs_dumper
 
 } //namespace mp_anticheat
 
+#endif
 #endif

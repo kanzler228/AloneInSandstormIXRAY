@@ -19,7 +19,7 @@
 #include "doors_manager.h"
 #include "Legacy/StalkerPlanner/stalker_planner.h"
 
-void CScriptGameObject::SetTipText(LPCSTR tip_text)
+void CScriptGameObject::SetTipText(const char* tip_text)
 {
 	if (CUsableScriptObject* l_tpUseableScriptObject = object().cast_usable_script_object())
 	{
@@ -97,7 +97,7 @@ int	CScriptGameObject::clsid() const
 	return object().clsid();
 }
 
-LPCSTR CScriptGameObject::Name() const
+const char* CScriptGameObject::Name() const
 {
 	return *object().cName();
 }
@@ -107,7 +107,7 @@ shared_str CScriptGameObject::cName() const
 	return object().cName();
 }
 
-LPCSTR CScriptGameObject::Section() const
+const char* CScriptGameObject::Section() const
 {
 	if (m_game_object == nullptr)
 	{
@@ -190,37 +190,37 @@ CScriptActionPlanner* script_action_planner(CScriptGameObject *obj)
 
 void CScriptGameObject::set_enemy_callback(const luabind::functor<bool> &functor)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->memory().enemy().useful_callback().set(functor);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_enemy_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_enemy_callback!");
 	}
 }
 
 void CScriptGameObject::set_enemy_callback(const luabind::functor<bool> &functor, const luabind::object &object)
 {
-	if (CCustomMonster* monster = this->object().cast_custom_monster())
+	if (CCreature* monster = this->object().cast_creature())
 	{
 		monster->memory().enemy().useful_callback().set(functor, object);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_enemy_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_enemy_callback!");
 	}
 }
 
 void CScriptGameObject::set_enemy_callback()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->memory().enemy().useful_callback().clear();
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_enemy_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_enemy_callback!");
 	}
 }
 
@@ -250,14 +250,19 @@ void CScriptGameObject::set_fastcall(const luabind::functor<bool> &functor, cons
 
 void CScriptGameObject::set_const_force(const Fvector &dir,float value,u32 time_interval)
 {
-	CPhysicsShell* shell = object().cast_physics_shell_holder()->PPhysicsShell();
-
 	if (physics_world() == nullptr)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,"set_const_force : ph_world do not exist!");
 		return;
 	}
 
+	CPhysicsShellHolder* shellHolder = object().cast_physics_shell_holder();
+	if (shellHolder == nullptr)
+	{
+		return;
+	}
+
+	CPhysicsShell* shell = shellHolder->PPhysicsShell();
 	if (shell == nullptr)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,"set_const_force : object %s has no physics shell!",*object().cName());

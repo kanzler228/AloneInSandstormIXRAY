@@ -10,7 +10,7 @@ public:
 	typedef _vector3<T>	Tvector;
 	typedef _matrix<T>	Tmatrix;
 protected:
-    static bool		clip		(T fDenom, T fNumer, T& rfT0, T& rfT1)
+    static ICF bool		clip		(T fDenom, T fNumer, T& rfT0, T& rfT1)
     {
         // Return value is 'true' if line segment intersects the current test
         // plane.  Otherwise 'false' is returned in which case the line segment
@@ -28,7 +28,7 @@ protected:
             return fNumer <= 0.0f;
         }
     }
-	static bool 	intersect	(const Tvector& start, const Tvector& dir, const Tvector& extent, T& rfT0, T& rfT1)
+	static ICF bool 	intersect	(const Tvector& start, const Tvector& dir, const Tvector& extent, T& rfT0, T& rfT1)
 	{
 		T fSaveT0 = rfT0, fSaveT1 = rfT1;
 
@@ -47,30 +47,30 @@ public:
 	Tvector			m_translate;
 	Tvector			m_halfsize;
 
-	IC bool operator==(SelfCRef Left)
+    ICF bool operator==(SelfCRef Left)
 	{
 		return Left.m_translate == m_translate && Left.m_rotate == m_rotate && Left.m_halfsize == m_halfsize;
 	}
 
-	IC SelfRef		invalidate() {
+    ICF SelfRef		invalidate() {
 		m_rotate.identity	();
 		m_translate.set		(0,0,0);
 		m_halfsize.set		(0,0,0);
 		return *this;
 	}
-	IC SelfRef		identity() {
+    ICF SelfRef		identity() {
 		invalidate();
 		m_halfsize.set( T(0.5), T(0.5), T(0.5) );
 		return *this;
 	}
-	IC void			xform_get(Tmatrix& D) const
+    ICF void			xform_get(Tmatrix& D) const
 	{
 		D.i.set(m_rotate.i); D._14_ = 0;
 		D.j.set(m_rotate.j); D._24_ = 0;
 		D.k.set(m_rotate.k); D._34_ = 0;
 		D.c.set(m_translate);D._44_ = 1;
 	}
-	IC SelfRef		xform_set(const Tmatrix& S)
+    ICF SelfRef		xform_set(const Tmatrix& S)
 	{
 		m_rotate.i.set	(S.i);
 		m_rotate.j.set	(S.j);
@@ -78,7 +78,7 @@ public:
 		m_translate.set	(S.c);
 		return *this;
 	}
-	IC void			xform_full(Tmatrix& D) const
+    ICF void			xform_full(Tmatrix& D) const
 	{
 		Tmatrix		R,S;
 		xform_get	(R);
@@ -87,7 +87,7 @@ public:
 	}
 
 	// NOTE: Unoptimized
-	IC SelfRef		transform(SelfCRef src, const Tmatrix& M)	
+    ICF SelfRef		transform(SelfCRef src, const Tmatrix& M)
 	{
 		Tmatrix	srcR,destR;
 
@@ -98,7 +98,7 @@ public:
 		return *this;
 	}
 
-    IC bool 		intersect(const Tvector& start, const Tvector& dir, T& dist) const
+    ICF bool 		intersect(const Tvector& start, const Tvector& dir, T& dist) const
     {
         // convert ray to box coordinates
         Tvector kDiff; 
@@ -122,7 +122,7 @@ public:
         return false;
     }
 
-    IC bool contains(const Tvector& point) const
+    ICF bool contains(const Tvector& point) const
     {
         Tvector localPoint;
         localPoint.sub(point, m_translate);
@@ -136,7 +136,7 @@ public:
             (z >= -m_halfsize.z) && (z <= m_halfsize.z);
     }
 
-    IC bool intersectAABB(const _box3<T>& aabb) const
+    ICF bool intersectAABB(const _box3<T>& aabb) const
     {
         Tvector aabbCenter, aabbExtents;
         aabb.get_CD(aabbCenter, aabbExtents);
@@ -144,7 +144,7 @@ public:
     }
 
 
-    IC bool intersectAABB(const Tvector& aabbCenter, const Tvector& aabbExtents) const
+    ICF bool intersectAABB(const Tvector& aabbCenter, const Tvector& aabbExtents) const
     {
         Tvector diff;
         diff.sub(m_translate, aabbCenter);
@@ -154,9 +154,9 @@ public:
         T absR[3][3];
         for (int i = 0; i < 3; i++)
         {
-            absR[0][i] = _abs(R.i[i]);
-            absR[1][i] = _abs(R.j[i]);
-            absR[2][i] = _abs(R.k[i]);
+            absR[0][i] = std::abs(R.i[i]);
+            absR[1][i] = std::abs(R.j[i]);
+            absR[2][i] = std::abs(R.k[i]);
         }
 
         for (int i = 0; i < 3; i++)
@@ -164,7 +164,7 @@ public:
             T r = m_halfsize.x * absR[0][i] +
                 m_halfsize.y * absR[1][i] +
                 m_halfsize.z * absR[2][i];
-            if (_abs(diff[i]) > aabbExtents[i] + r)
+            if (std::abs(diff[i]) > aabbExtents[i] + r)
                 return false;
         }
 
@@ -175,9 +175,9 @@ public:
                 aabbExtents.z * absR[i][2];
 
             T projection;
-            if (i == 0) projection = _abs(diff.dotproduct(R.i));
-            else if (i == 1) projection = _abs(diff.dotproduct(R.j));
-            else projection = _abs(diff.dotproduct(R.k));
+            if (i == 0) projection = std::abs(diff.dotproduct(R.i));
+            else if (i == 1) projection = std::abs(diff.dotproduct(R.j));
+            else projection = std::abs(diff.dotproduct(R.k));
 
             if (projection > m_halfsize[i] + r)
                 return false;
@@ -186,7 +186,7 @@ public:
         return true;
     }
 
-    IC bool intersectTri(const Tvector* verts, bool bClass3 = true)
+    ICF bool intersectTri(const Tvector* verts, bool bClass3 = true)
     {
         Tvector axes[13];
         u32 total_axes = 3;
@@ -237,14 +237,14 @@ public:
             T p1 = verts[1].dotproduct(axes[i]);
             T p2 = verts[2].dotproduct(axes[i]);
 
-            T minTri = _min(p0, _min(p1, p2));
-            T maxTri = _max(p0, _max(p1, p2));
+            T minTri = std::min(p0, std::min(p1, p2));
+            T maxTri = std::max(p0, std::max(p1, p2));
 
             T obbProj = m_translate.dotproduct(axes[i]);
             T obbHalf =
-                m_halfsize.x * _abs(m_rotate.i.dotproduct(axes[i])) +
-                m_halfsize.y * _abs(m_rotate.j.dotproduct(axes[i])) +
-                m_halfsize.z * _abs(m_rotate.k.dotproduct(axes[i]));
+                m_halfsize.x * std::abs(m_rotate.i.dotproduct(axes[i])) +
+                m_halfsize.y * std::abs(m_rotate.j.dotproduct(axes[i])) +
+                m_halfsize.z * std::abs(m_rotate.k.dotproduct(axes[i]));
 
             T obbMin = obbProj - obbHalf;
             T obbMax = obbProj + obbHalf;
@@ -257,7 +257,7 @@ public:
         return true;
     }
 
-    IC void ClampPointOBB(Tvector& clamped_point)
+    ICF void ClampPointOBB(Tvector& clamped_point)
     {
         Tvector local_point;
         local_point.sub(clamped_point, m_translate);
@@ -276,19 +276,19 @@ public:
 
         if (outside_count == 1)
         {
-            x = _max(-m_halfsize.x, _min(x, m_halfsize.x));
-            y = _max(-m_halfsize.y, _min(y, m_halfsize.y));
-            z = _max(-m_halfsize.z, _min(z, m_halfsize.z));
+            x = std::max(-m_halfsize.x, std::min(x, m_halfsize.x));
+            y = std::max(-m_halfsize.y, std::min(y, m_halfsize.y));
+            z = std::max(-m_halfsize.z, std::min(z, m_halfsize.z));
         }
         else if (outside_count == 2)
         {
             T dist[6];
-            dist[0] = _abs(x + m_halfsize.x);
-            dist[1] = _abs(x - m_halfsize.x);
-            dist[2] = _abs(y + m_halfsize.y);
-            dist[3] = _abs(y - m_halfsize.y);
-            dist[4] = _abs(z + m_halfsize.z);
-            dist[5] = _abs(z - m_halfsize.z);
+            dist[0] = std::abs(x + m_halfsize.x);
+            dist[1] = std::abs(x - m_halfsize.x);
+            dist[2] = std::abs(y + m_halfsize.y);
+            dist[3] = std::abs(y - m_halfsize.y);
+            dist[4] = std::abs(z + m_halfsize.z);
+            dist[5] = std::abs(z - m_halfsize.z);
 
             int closest_face = 0;
             T min_dist = dist[0];
@@ -311,9 +311,9 @@ public:
             case 5: z = m_halfsize.z; break;
             }
 
-            x = _max(-m_halfsize.x, _min(x, m_halfsize.x));
-            y = _max(-m_halfsize.y, _min(y, m_halfsize.y));
-            z = _max(-m_halfsize.z, _min(z, m_halfsize.z));
+            x = std::max(-m_halfsize.x, std::min(x, m_halfsize.x));
+            y = std::max(-m_halfsize.y, std::min(y, m_halfsize.y));
+            z = std::max(-m_halfsize.z, std::min(z, m_halfsize.z));
         }
         else
         {
@@ -332,7 +332,7 @@ public:
         clamped_point.mad(m_rotate.k, z);
     }
 
-    IC void FindContactsClipping(Tvector* tri, void (*callback)(const Tvector& contact, void* user_data), void* user_data = nullptr)
+    ICF void FindContactsClipping(Tvector* tri, void (*callback)(const Tvector& contact, void* user_data), void* user_data = nullptr)
     {
         Tvector polygon[12];
         u8 poly_count = 3;
@@ -378,16 +378,16 @@ public:
                     Tvector ab; ab.sub(b, a);
                     T denom = planes[i].n.dotproduct(ab);
 
-                    if (_abs(denom) > EPS && temp_count < 12)
+                    if (std::abs(denom) > EPS && temp_count < 12)
                     {
-                        T t = _max(0.0f, _min(1.0f, -da / denom));
+                        T t = std::max(0.0f, std::min(1.0f, -da / denom));
                         temp[temp_count++].mad(a, ab, t);
                     }
                 }
             }
 
             poly_count = temp_count;
-            CopyMemory(polygon, temp, poly_count * sizeof(Tvector));
+			memcpy(polygon, temp, poly_count * sizeof(Tvector));
         }
 
         if (poly_count >= 3)
@@ -408,7 +408,7 @@ typedef		_obb<float>		Fobb;
 typedef		_obb<double>	Dobb;
 
 template <class T>
-BOOL	_valid			(const _obb<T>& m)		
+ICF bool	_valid			(const _obb<T>& m)
 { 
 	return _valid(m.m_rotate) && _valid(m.m_translate) && _valid(m.m_halfsize);
 }

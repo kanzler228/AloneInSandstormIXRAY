@@ -1,11 +1,6 @@
 #pragma once
-
-//.#include "communicate.h"
-
-#include "progmesh.h"
 #include "xrSpherical.h"
 
-#include "PropSlimTools.h"
 #include "vbm.h"
 
 #include "../xrLC_Light/xrUVpoint.h"
@@ -17,7 +12,7 @@ struct OGF_Texture
 	shared_str			name;
 	b_texture*			pBuildSurface;
 };
-typedef svector<OGF_Texture,3>		vecOGF_T;
+typedef FixedVector<OGF_Texture,3>		vecOGF_T;
 typedef vecOGF_T::iterator			itOGF_T;
 
 struct OGF;
@@ -28,9 +23,9 @@ struct OGF_Vertex
 	base_basis			T;			// tangent
 	base_basis			B;			// binormal
 	base_color			Color;
-	svector<Fvector2,2>	UV;
+	FixedVector<Fvector2,2>	UV;
 
-	BOOL				similar		(OGF* p, OGF_Vertex&	other);
+	bool				similar		(OGF* p, OGF_Vertex&	other);
 	void				dump		(u32 id);
 };
 typedef xr_vector<OGF_Vertex>		vecOGF_V;
@@ -39,10 +34,10 @@ typedef vecOGF_V::const_iterator	citOGF_V;
 struct x_vertex						// "fast" geometry, 16b/vertex
 {
 	Fvector				P;
-	x_vertex() { }
+	x_vertex() = default;
 
 	x_vertex			(const OGF_Vertex& c)	{ P	= c.P; }
-	BOOL				similar		(OGF* p, x_vertex&	other);
+	bool				similar		(OGF* p, x_vertex&	other);
 };
 typedef xr_vector<x_vertex>			vec_XV;
 typedef vec_XV::iterator			itXV;
@@ -85,7 +80,7 @@ struct OGF_Base
 
 	int					iLevel;
 	u16					Sector;
-	BOOL				bConnected;
+	bool				bConnected;
 
 	Fbox				bbox;
 	Fvector				C;
@@ -94,11 +89,13 @@ struct OGF_Base
 	OGF_Base(int _Level) {
 		bbox.invalidate	();
 		iLevel			= _Level;
-		bConnected		= FALSE;
+		bConnected		= false;
 		Sector			= 0xffff;
 	}
 
-	IC BOOL				IsNode()	{ return iLevel; }
+	IC bool				IsNode()	{ return iLevel; }
+
+	virtual ~OGF_Base() = default;
 
 	virtual void		PreSave		(u32 tree_id)				{};
 	virtual void		Save		(IWriter &fs);
@@ -107,6 +104,8 @@ struct OGF_Base
 
 	void				SaveForCompile(IWriter* W);
 	void				LoadForCompile(IReader* R);
+
+	virtual size_t				SizeOF() { return sizeof(OGF_Base); };
 };
 extern xr_vector<OGF_Base *>		g_tree;
 
@@ -148,12 +147,12 @@ struct OGF : public OGF_Base
 		dwRelevantUV		= 0;
 		dwRelevantUVMASK	= 0;
 	};
-	~OGF()
+	virtual ~OGF()
 	{
 		xr_free			(data.m_SWI.sw);
 	}
 
-	BOOL				dbg_SphereContainsVertex	(Fvector& c, float R);
+	bool				dbg_SphereContainsVertex	(Fvector& c, float R);
 
 	u16					x_BuildVertex		(x_vertex&&	V);
 	void				x_BuildFace			(OGF_Vertex& V1, OGF_Vertex& V2, OGF_Vertex& V3, bool _tc_);
@@ -168,7 +167,7 @@ struct OGF : public OGF_Base
 	void				Stripify			();
 	void				DumpFaces			();
 
-	BOOL				progressive_test	()	{ return data.m_SWI.count;	}
+	bool				progressive_test	()	{ return data.m_SWI.count;	}
 	void				progressive_clear	()	{ 
 		data.m_SWI.count		= 0;
 		xr_free			(data.m_SWI.sw);
@@ -177,7 +176,7 @@ struct OGF : public OGF_Base
 	virtual void		PreSave			(u32 tree_id);
 	virtual void		Save			(IWriter &fs);
 
-	void				Save_Normal_PM	(IWriter &fs, ogf_header& H, BOOL bColors);
+	void				Save_Normal_PM	(IWriter &fs, ogf_header& H, bool bColors);
 	 
 	virtual void		GetGeometry		(xr_vector<Fvector> &R)
 	{
@@ -188,12 +187,12 @@ struct OGF : public OGF_Base
 	void				SaveForCompile(IWriter* W);
 	void				LoadForCompile(IReader* R);
 
-	size_t Sizeof()
+	virtual size_t SizeOF() override
 	{
-		u32 SizeV = data.vertices.size() * sizeof(OGF_Vertex);
-		u32 SizeF = data.faces.size() * sizeof(OGF_Face);
-		u32 SizexV = fast_path_data.vertices.size() * sizeof(x_vertex);
-		u32 SizexF = fast_path_data.faces.size() * sizeof(OGF_Face);
+		u32 SizeV  = data.vertices.size()				* sizeof(OGF_Vertex);
+		u32 SizeF  = data.faces.size()					* sizeof(OGF_Face);
+		u32 SizexV = fast_path_data.vertices.size()		* sizeof(x_vertex);
+		u32 SizexF = fast_path_data.faces.size()		* sizeof(OGF_Face);
 		u32 tex = 0;
 		for (auto& T : textures)
 		{
@@ -239,7 +238,7 @@ struct OGF_Reference : public OGF_Base
 		}
 	}
 
-	size_t Sizeof() 
+	virtual size_t SizeOF() override
 	{
 		u32 tex = 0;
 		for (auto& T : textures)
@@ -247,13 +246,13 @@ struct OGF_Reference : public OGF_Base
 			tex += T.name.size();
 			tex += sizeof(T.pBuildSurface);
 		}
-		return sizeof(*this) + tex + model->Sizeof();
+		return sizeof(*this) + tex + model->SizeOF();
 	};
 	void SaveForCompile(IWriter* W);
 	void LoadForCompile(IReader* R);
 };
 
-struct OGF_Node : public OGF_Base
+struct OGF_Node :  public OGF_Base
 {
 	xr_vector<u32>		chields;
 
@@ -265,7 +264,7 @@ struct OGF_Node : public OGF_Base
 		OGF_Base*			P = g_tree[ID];
 		R_ASSERT			(P->Sector == Sector);
 		bbox.merge			(P->bbox);
-		P->bConnected		= TRUE;
+		P->bConnected		= true;
 	}
 	virtual void		Save		(IWriter &fs);
 	virtual void		GetGeometry	(xr_vector<Fvector> &R)
@@ -286,6 +285,7 @@ struct	OGF_LOD		: public OGF_Node
 		u32				c_rgb_hemi;	// rgb,hemi
 		u8				c_sun;
 	};
+
 	struct _face
 	{
 		_vertex			v			[4];

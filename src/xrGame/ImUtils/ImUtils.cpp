@@ -1,10 +1,73 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "ImUtils.h"
+#include "../xrEngine/xr_input.h"
 
 clsid_manager* g_pClsidManager;
 CImGuiGameSearchManager imgui_search_manager;
 CHudAdjustManager imgui_hud_adjust_manager;
+CActorAnimationManager imgui_actor_animation_manager;
+
+int ShowMessageBox(_eMessageBoxStatus status, std::string_view title, std::string_view message)
+{
+	const SDL_MessageBoxButtonData buttons[] =
+		{
+			{0, 0, "Ok"}
+		};
+
+	const SDL_MessageBoxButtonData buttons_yesorno[] =
+		{
+			{SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Yes"},
+			{0, 0, "No"},
+		};
+
+	u32 type = SDL_MESSAGEBOX_INFORMATION;
+
+	switch (status)
+	{
+		case _eMessageBoxStatus::kWarning:
+		{
+			type = SDL_MESSAGEBOX_WARNING;
+			break;
+		}
+		case _eMessageBoxStatus::kError:
+		{
+			type = SDL_MESSAGEBOX_ERROR;
+			break;
+		}
+	}
+
+	const SDL_MessageBoxButtonData* pButtons = buttons;
+	int size_buttons = std::size(buttons);
+
+	if (status == _eMessageBoxStatus::kYesOrNo)
+	{
+		pButtons = buttons_yesorno;
+		size_buttons = std::size(buttons_yesorno);
+	}
+
+	const SDL_MessageBoxData messageboxdata =
+		{
+			type | SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT, /* .flags */
+			nullptr,									 /* .window */
+			title.data(),								 /* .title */
+			message.data(),								 /* .message */
+			size_buttons,								 /* .numbuttons */
+			pButtons,									 /* .buttons */
+			nullptr										 /* .colorScheme */
+		};
+
+	int button_id = -1;
+
+	int ret = SDL_ShowMessageBox(&messageboxdata, &button_id);
+
+	if (ret < 0)
+	{
+		button_id = -1;
+	}
+
+	return button_id;
+}
 
 void RegisterImGuiInGame()
 {
@@ -15,24 +78,25 @@ void RegisterImGuiInGame()
 		CImGuiManager::Instance().Subscribe("Weapon Manager", CImGuiManager::ERenderPriority::eMedium, RenderWeaponManagerWindow);
 		CImGuiManager::Instance().Subscribe("Search Manager", CImGuiManager::ERenderPriority::eMedium, RenderSearchManagerWindow);
 		CImGuiManager::Instance().Subscribe("OMF Editor", CImGuiManager::ERenderPriority::eMedium, RenderToolsOMFEditorWindow);
-		CImGuiManager::Instance().Subscribe("Hud Adjust", CImGuiManager::ERenderPriority::eMedium,
-			RenderHUDAdjustManager);
+		CImGuiManager::Instance().Subscribe("Car Editor", CImGuiManager::ERenderPriority::eMedium, RenderCarConfigEditor);
+		CImGuiManager::Instance().Subscribe("Texture Editor", CImGuiManager::ERenderPriority::eMedium, RenderTextureEditor);
+		CImGuiManager::Instance().Subscribe("Quest Editor", CImGuiManager::ERenderPriority::eMedium, RenderQuestEditor);
+		CImGuiManager::Instance().Subscribe("PPE Editor", CImGuiManager::ERenderPriority::eMedium, RenderPPEEditor);
+		CImGuiManager::Instance().Subscribe("Input Manager", CImGuiManager::ERenderPriority::eMedium, RenderToolsInputManagerWindow);
+		CImGuiManager::Instance().Subscribe("SVGStorageViewer", CImGuiManager::ERenderPriority::eMedium, RenderToolsRenderDebugSVGStorageViewerWindow);
+		CImGuiManager::Instance().Subscribe("Hud Adjust", CImGuiManager::ERenderPriority::eMedium, RenderHUDAdjustManager);
+		CImGuiManager::Instance().Subscribe("3rd Person Adjust", CImGuiManager::ERenderPriority::eMedium, Render3rdAdjust);
+		CImGuiManager::Instance().Subscribe("3D Icons Adjust", CImGuiManager::ERenderPriority::eMedium, Render3DIconAdjust);
+		CImGuiManager::Instance().Subscribe("Actor Animations", CImGuiManager::ERenderPriority::eMedium, RenderActorAnimationManager);
+		CImGuiManager::Instance().Subscribe("Demo Record", CImGuiManager::ERenderPriority::eMedium, RenderDemoRecordEditorWindow);
 
 		InitImGuiCLSIDInGame();
 		InitImGuiSearchInGame();
 		InitImGuiHudAdjustInGame();
 		InitSections();
+		CollectCars();
+		InitImGuiInGameInputReceiver();
 	}
-}
-
-void DestroyImGuiInGame()
-{
-	if (Device.IsEditorMode())
-	{
-		return;
-	}
-
-	DestroySpawnManagerWindow();
 }
 
 eSelectedType CImGuiGameSearchManager::convertCLSIDToType(CLASS_ID id) {
@@ -211,17 +275,17 @@ void CImGuiGameSearchManager::init()
 
 			if (g_pClsidManager && g_pClsidManager->is_monster(id))
 			{
-				memcpy_s(result, sizeof(result), "Monster - ", sizeof("Monster - "));
-				memcpy_s(&result[0] + sizeof("Monster -"), sizeof(result) - sizeof("Monster -"), pTranslatedName, strlen(pTranslatedName));
+			    memcpy(result, "Monster - ", sizeof("Monster - "));
+			    memcpy(&result[0] + sizeof("Monster - ") - 1, pTranslatedName, strlen(pTranslatedName) + 1);
 			}
 			else if (g_pClsidManager && g_pClsidManager->is_weapon(id))
 			{
-				memcpy_s(result, sizeof(result), "Weapon - ", sizeof("Weapon - "));
-				memcpy_s(&result[0] + sizeof("Weapon -"), sizeof(result) - sizeof("Weapon -"), pTranslatedName, strlen(pTranslatedName));
+			    memcpy(result, "Weapon - ", sizeof("Weapon - "));
+			    memcpy(&result[0] + sizeof("Weapon - ") - 1, pTranslatedName, strlen(pTranslatedName) + 1);
 			}
 			else
 			{
-				memcpy_s(result, sizeof(result), pTranslatedName, strlen(pTranslatedName));
+			    memcpy(result, pTranslatedName, strlen(pTranslatedName) + 1);
 			}
 
 			pStr = result;
@@ -233,7 +297,7 @@ void CImGuiGameSearchManager::init()
 				pStr = "FAILED_TO_TRANSLATE";
 		}
 
-		memcpy_s(pPtr, sizeof(category_names[i]), pStr, strlen(pStr));
+		memcpy(pPtr, pStr, strlen(pStr) + 1);
 
 		combo_items[i] = pPtr;
 	}
@@ -435,4 +499,280 @@ const char* clsid_manager::translateCLSID(CLASS_ID id) {
 		}
 	}
 	return g_pStringTable ? g_pStringTable->translate(name).c_str() : name;
+}
+
+void InitImGuiInGameInputReceiver()
+{
+	R_ASSERT(pInput);
+	R_ASSERT(pInput->xrgame_sdk_input_pressed == nullptr);
+	R_ASSERT(pInput->xrgame_sdk_input_released == nullptr);
+
+	if (pInput)
+	{
+		if (pInput->xrgame_sdk_input_pressed == nullptr)
+		{
+			pInput->xrgame_sdk_input_pressed = AllEditors_OnPressed;
+		}
+
+		if (pInput->xrgame_sdk_input_released == nullptr)
+		{
+			pInput->xrgame_sdk_input_released = AllEditors_OnReleased;
+		}
+	}
+
+}
+
+void AllEditors_SendRequest(const SRequestData& req)
+{
+	g_imgui_editor_request_manager.requests.run([req]()
+		{
+			AllEditors_ExecuteRequest(req);
+		});
+}
+
+void AllEditors_ExecuteRequest(const SRequestData& req)
+{
+	PROF_START_THREAD("AllEditors_SendRequest");
+	eImGuiEditorType et = static_cast<eImGuiEditorType>(req.editor_type);
+
+	switch (et)
+	{
+	case eImGuiEditorType::kTextureEditor:
+	{
+		RequestHandler_TextureEditor(req);
+		break;
+	}
+	case eImGuiEditorType::kOMFEditor:
+	{
+		RequestHandler_OMFEditor(req);
+		break;
+	}
+	case eImGuiEditorType::kQuestEditor:
+	{
+		RequestHandler_QuestEditor(req);
+		break;
+	}
+	case eImGuiEditorType::kPPEEditor:
+	{
+		RequestHandler_PPEEditor(req);
+		break;
+	}
+	case eImGuiEditorType::kNoEditor:break;
+	default:
+	{
+		R_ASSERT2(false, "you forgot to register new workload!");
+		break;
+	}
+	}
+	PROF_STOP_THREAD();
+}
+
+void AllEditors_OnPressed(int key)
+{
+	if (!CImGuiManager::Instance().IsCapturingInputs() || pInput->xrgame_sdk_input_pressed == nullptr)
+		return;
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_TextureEditor)])
+	{
+		TextureEditor_OnPressed(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Game_SpawnManager)])
+	{
+		SpawnManager_OnPressed(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_QuestEditor)])
+	{
+		QuestEditor_OnPressed(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_OMFEditor)])
+	{
+		OMFEditor_OnPressed(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_PostProcessEffectorEditor)])
+	{
+		PPEEditor_OnPressed(key);
+	}
+}
+
+void AllEditors_OnReleased(int key)
+{
+	if (!CImGuiManager::Instance().IsCapturingInputs() || pInput->xrgame_sdk_input_released == nullptr)
+		return;
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_TextureEditor)])
+	{
+		TextureEditor_OnReleased(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Game_SpawnManager)])
+	{
+		SpawnManager_OnReleased(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_QuestEditor)])
+	{
+		QuestEditor_OnReleased(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_OMFEditor)])
+	{
+		OMFEditor_OnReleased(key);
+	}
+
+	if (Engine.External.EditorStates[u8(EditorUI::Tools_PostProcessEffectorEditor)])
+	{
+		PPEEditor_OnReleased(key);
+	}
+}
+
+#include "imgui_internal.h"
+void CImGuiTextureEditor::SImGuiWindowState::Capture(const char* windowName)
+{
+	ImGuiWindow* w = ImGui::FindWindowByName(windowName);
+	if (!w) return;
+
+	if (canApply)
+		return;
+
+	canApply = true;
+
+	pos = w->Pos;
+	size = w->Size;
+
+	ImGuiDockNode* node = w->DockNode;
+	wasDocked = (node != nullptr);
+	isCentralNode = false;
+	dockDir = ImGuiDir_None;
+
+	if (!node) return;
+
+	/* If the node has no parent it is the root (central) node */
+	ImGuiDockNode* parent = node->ParentNode;
+	if (!parent)
+	{
+		isCentralNode = true;
+		return;
+	}
+
+	/* Otherwise we are one of the two children of a split node.
+	   SplitAxis tells us which axis the parent was split on. */
+	ImGuiAxis axis = parent->SplitAxis;   // ImGuiAxis_X  -> horizontal split
+	// ImGuiAxis_Y  -> vertical split
+
+/* ChildNodes[0] is always the “leading”  child (left / top)
+   ChildNodes[1] is always the “trailing” child (right / bottom) */
+	if (parent->ChildNodes[0] == node)
+		dockDir = (axis == ImGuiAxis_X) ? ImGuiDir_Left : ImGuiDir_Up;
+	else
+		dockDir = (axis == ImGuiAxis_X) ? ImGuiDir_Right : ImGuiDir_Down;
+}
+
+void CImGuiTextureEditor::SImGuiWindowState::Apply(const char* windowName)
+{
+	if (canApply == false)
+		return;
+
+	canApply = false;
+
+	if (pos.x != FLT_MAX)  // we have a saved floating position
+	{
+		ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
+	}
+
+	if (wasDocked)
+	{
+		// Build a persistent dock-space if you do not have one yet:
+		ImGuiID dockspaceId = ImGui::GetID("MyDockSpace");
+		if (!ImGui::DockBuilderGetNode(dockspaceId))
+		{
+			ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+			ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
+			ImGui::DockBuilderFinish(dockspaceId);
+		}
+
+		// Re-dock the window into the same node (left/right/top/bottom/central)
+		ImGuiID targetId = dockspaceId;
+
+		if (!isCentralNode && dockDir != ImGuiDir_None)
+		{
+			// split the root once in the remembered direction
+			ImGuiID central = 0;
+			ImGuiID side = 0;
+			ImGui::DockBuilderSplitNode(dockspaceId, dockDir, 0.35f, &side, &central);
+			targetId = side;
+		}
+
+		ImGui::SetNextWindowDockID(targetId, ImGuiCond_FirstUseEver);
+	}
+
+	ImGuiWindow* w = ImGui::FindWindowByName(windowName);
+
+	if (w)
+	{
+		ImGui::FocusWindow(w);
+	}
+}
+
+void AllEditors_Shutdown()
+{
+	// texture editor
+	{
+		AllEditors_SendRequests_Sequential(xr_array<SRequestData, 2>{
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kTextureEditor),
+				.request_type = u32(eRequestType_TextureEditor::kWriteSettings)
+			},
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kTextureEditor),
+				.request_type = u32(eRequestType_TextureEditor::kShutdown)
+			}
+		});
+	}
+
+	// quest editor
+	{
+		AllEditors_SendRequests_Sequential(xr_array<SRequestData, 2>{
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kQuestEditor),
+				.request_type = u32(eRequestType_QuestEditor::kWriteSettings)
+			},
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kQuestEditor),
+				.request_type = u32(eRequestType_QuestEditor::kShutdown)
+			}
+			});
+	}
+
+	// omf editor
+	{
+		AllEditors_SendRequests_Sequential(xr_array<SRequestData, 2>{
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kOMFEditor),
+				.request_type = u32(eRequestType_OMFEditor::kWriteSettings)
+			},
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kOMFEditor),
+				.request_type = u32(eRequestType_OMFEditor::kShutdown)
+			}
+		});
+	}
+
+	// ppe editor
+	{
+		AllEditors_SendRequests_Sequential(xr_array<SRequestData, 2>{
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kPPEEditor),
+				.request_type = u32(eRequestType_PPEditor::kWriteSettings)
+			},
+			SRequestData{
+				.editor_type = u32(eImGuiEditorType::kPPEEditor),
+				.request_type = u32(eRequestType_PPEditor::kShutdown)
+			}
+		});
+	}
 }

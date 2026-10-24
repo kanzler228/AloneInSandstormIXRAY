@@ -1,9 +1,6 @@
 // Rain.h: interface for the CRain class.
 //
 //////////////////////////////////////////////////////////////////////
-
-#ifndef RainH
-#define RainH
 #pragma once
 
 #include "../xrCore/Collision/xr_collide_defs.h"
@@ -11,15 +8,17 @@
 //refs
 class ENGINE_API IRender_DetailModel;
 class ENGINE_API IRender_ObjectSpecific;
+class ENGINE_API CEnvironment;
 #include "../Include/xrRender/FactoryPtr.h"
 #include "../Include/xrRender/RainRender.h"
 //
 class ENGINE_API CEffect_Rain
 {
 	friend class dxRainRender;
-private:
+public:
 	struct	Item
 	{
+		Item();
 		Fvector			P;
 		Fvector			Phit;
 		Fvector			D;
@@ -27,10 +26,10 @@ private:
 		u32				dwTime_Life;
 		u32				dwTime_Hit;
 		u32				uv_set;
-		void			invalidate	()
-		{
-			dwTime_Life	= 0;
-		}
+	};
+	struct rain_sprite
+	{
+		struct { Fvector p; u32 color; Fvector2 uv; } buff[4];
 	};
 	struct	Particle
 	{
@@ -44,21 +43,15 @@ private:
 		stIdle		= 0,
 		stWorking
 	};
-private:
-	// Visualization	(rain) and (drops)
 	FactoryPtr<IRainRender>	m_pRender;
-	/*
-	// Visualization	(rain)
-	ref_shader						SH_Rain;
-	ref_geom						hGeom_Rain;
 
-	// Visualization	(drops)
-	IRender_DetailModel*			DM_Drop;
-	ref_geom						hGeom_Drops;
-	*/
-	
-	// Data and logic
+	xr_vector<CObject*> rainCollideObjects;
+
+private:
+
 	xr_vector<Item>					items;
+
+	xr_vector<rain_sprite>			m_sprites;
 	States							state;
 
 	// Particles
@@ -72,8 +65,10 @@ private:
 	ref_sound						snd_RoofDropletsHard;
 	xrCriticalSection				rainCS;
 	float m_rainVolume = 0.0f;
-
+public:
 	// Utilities
+	void AddRainCollidableObject(CObject* obj);
+	void RemoveRainCollidableObject(CObject* obj);
 	void							p_create		();
 	void							p_destroy		();
 
@@ -84,11 +79,7 @@ private:
 	void							p_free			(Particle* P);
 
 	// Some methods
-	void							Born			(Item& dest, float radius, shared_str& rainType);
-	void							Hit				(Fvector& pos);
-	void							RenewItem		(Item& dest, float height, BOOL bHit);
-public:
-	BOOL							RayPick			(const Fvector& s, const Fvector& d, float& range, collide::rq_target tgt);
+
 									CEffect_Rain	();
 									~CEffect_Rain	();
 
@@ -102,4 +93,3 @@ public:
 	bool IsEnabled = true;
 	void Enable(bool Value);
 };
-#endif //RainH

@@ -20,11 +20,40 @@
 #include "../game_cl_single.h"
 //////////////////////////////////////////////////////////////////////////
 
+namespace
+{
+constexpr u32 kDefaultMinimapTextureColor = 0x7fffffff;
+constexpr LPCSTR kLevelFramePath = "minimap:level_frame";
+
+bool HasLevelFrameColorAttribs(CUIXml& uiXml)
+{
+	if (!uiXml.NavigateToNode(kLevelFramePath, 0))
+		return false;
+
+	if (uiXml.ReadAttrib(kLevelFramePath, 0, "color", nullptr))
+		return true;
+
+	if (uiXml.ReadAttribInt(kLevelFramePath, 0, "a", -1) != -1)
+		return true;
+
+	if (uiXml.ReadAttribInt(kLevelFramePath, 0, "r", -1) != -1)
+		return true;
+
+	if (uiXml.ReadAttribInt(kLevelFramePath, 0, "g", -1) != -1)
+		return true;
+
+	return uiXml.ReadAttribInt(kLevelFramePath, 0, "b", -1) != -1;
+}
+} // namespace
+
 CUIZoneMap::CUIZoneMap()
 :m_current_map_idx(u8(-1)),
+m_mapTextureColor(kDefaultMinimapTextureColor),
 visible(true)
 {	
 	m_clock_wnd = nullptr;
+	m_Counter_text = nullptr;
+	m_Counter = nullptr;
 	m_pointerDistanceText = nullptr;
 	disabled = false;
 }
@@ -41,14 +70,24 @@ void CUIZoneMap::Init()
 	CUIXmlInit						xml_init;
 	xml_init.InitStatic				(uiXml, "minimap:background",	0, &m_background);
 	xml_init.InitWindow				(uiXml, "minimap:level_frame",	0, &m_clipFrame);
+
+	if (HasLevelFrameColorAttribs(uiXml))
+		m_mapTextureColor = xml_init.GetColor(uiXml, kLevelFramePath, 0, 0xff);
+	else
+		m_mapTextureColor = kDefaultMinimapTextureColor;
+
 	xml_init.InitStatic				(uiXml, "minimap:center",		0, &m_center);
+	if (m_background.WndSizeIsProbablyRelative())
+	{
+		m_center.SetWidth(m_center.GetWidth() * UI().get_current_kx());
+	}
 	
 	if (uiXml.NavigateToNode("minimap:clock_wnd", 0))
 		m_clock_wnd						= UIHelper::CreateStatic(uiXml, "minimap:clock_wnd", &m_background);
 
 	if (IsGameTypeSingle() && uiXml.NavigateToNode("minimap:background:dist_text", 0))
 	{
-		m_pointerDistanceText = UIHelper::CreateTextWnd(uiXml, "minimap:background:dist_text", &m_background);
+		m_pointerDistanceText = UIHelper::CreateStatic(uiXml, "minimap:background:dist_text", &m_background);
 	}
 
 	m_activeMap						= new CUIMiniMap();
@@ -59,12 +98,15 @@ void CUIZoneMap::Init()
 
 	m_activeMap->SetRounded(m_background.WndSizeIsProbablyRelative());
 
+	legacyMapMode = !uiXml.NavigateToNode("minimap:static_counter"); // St4lker0k765: может есть варианты и получше, 
+																				   // но пока это единственное что приходит на ум, увы
 	xml_init.InitStatic				(uiXml, "minimap:compass", 0, &m_compass);
-	m_background.AttachChild		(&m_compass);
+
+	if (!legacyMapMode)
+		m_background.AttachChild		(&m_compass);
 
 	m_clipFrame.AttachChild			(&m_center);
 
-	m_Counter_text.SetText( "" );
 	visible = true;
 
 	Fvector2 temp;
@@ -110,16 +152,23 @@ void CUIZoneMap::Init()
 
 	if ( IsGameTypeSingleCompatible() )
 	{
-		xml_init.InitStatic			(uiXml, "minimap:static_counter", 0, &m_Counter);
-		m_background.AttachChild	(&m_Counter);
-		xml_init.InitTextWnd		(uiXml, "minimap:static_counter:text_static", 0, &m_Counter_text);
-		m_Counter.AttachChild		(&m_Counter_text);
+		if (legacyMapMode)
+			return;
 
-        if (m_Counter.WndPosIsProbablyRelative())
+		m_Counter = new CUIStatic();
+		xml_init.InitStatic			(uiXml, "minimap:static_counter", 0, m_Counter);
+		m_background.AttachChild	(m_Counter);
+
+		m_Counter_text = new CUIStatic();
+		xml_init.InitStatic		(uiXml, "minimap:static_counter:text_static", 0, m_Counter_text);
+		m_Counter_text->SetText( "" );
+		m_Counter->AttachChild		(m_Counter_text);
+
+        if (m_Counter->WndPosIsProbablyRelative())
         {
-            temp = m_Counter.GetWndPos();
+            temp = m_Counter->GetWndPos();
             temp.mul(m_background.GetWndSize());
-            m_Counter.SetWndPos(temp);
+            m_Counter->SetWndPos(temp);
         }
 	}
 
@@ -134,6 +183,10 @@ void CUIZoneMap::Render			()
 
 	m_clipFrame.Draw	();
 	m_background.Draw	();
+	if (!m_compass.GetParent())
+	{
+		m_compass.Draw();
+	}
 }
 
 void CUIZoneMap::Update()
@@ -166,10 +219,11 @@ void CUIZoneMap::Update()
 				xr_sprintf(text_str, sizeof(text_str), "%d", cn);
 			}
 		}
-		m_Counter_text.SetText(text_str);
+		if (m_Counter_text)
+			m_Counter_text->SetText(text_str);
 	}
-	if (!renderHUD)
-		m_Counter_text.SetText("");
+	if (!renderHUD && m_Counter_text)
+		m_Counter_text->SetText("");
 
 	UpdateRadar(Device.vCameraPosition);
 	float h, p;
@@ -197,7 +251,10 @@ void CUIZoneMap::UpdateRadar		(Fvector pos)
 		if (m_activeMap->GetPointerDistance() > 0.5f)
 		{
 			string64 str;
-			xr_sprintf(str, "%.0f m", m_activeMap->GetPointerDistance());
+			if (legacyMapMode)
+				xr_sprintf(str, "%.1f m.", m_activeMap->GetPointerDistance());
+			else
+				xr_sprintf(str, "%.0f m", m_activeMap->GetPointerDistance());
 			m_pointerDistanceText->SetText(str);
 		}
 		else
@@ -228,7 +285,7 @@ void CUIZoneMap::SetupCurrentMap()
 	Fvector2						wnd_size;
 	float zoom_factor				= float(m_clipFrame.GetWidth())/100.0f;
 
-	LPCSTR ln						= Level().name().c_str();
+	const char* ln						= Level().name().c_str();
 	if(	pGameIni->section_exist(ln) )
 	{
 		if(pGameIni->line_exist(ln, "minimap_zoom"))
@@ -241,6 +298,7 @@ void CUIZoneMap::SetupCurrentMap()
 	wnd_size.x						= m_activeMap->BoundRect().width()*zoom_factor;
 	wnd_size.y						= m_activeMap->BoundRect().height()*zoom_factor;
 	m_activeMap->SetWndSize			(wnd_size);
+	m_activeMap->SetTextureColor	(m_mapTextureColor);
 }
 
 void CUIZoneMap::OnSectorChanged(int sector)
@@ -271,5 +329,6 @@ void CUIZoneMap::OnSectorChanged(int sector)
 
 void CUIZoneMap::Counter_ResetClrAnimation()
 {
-	m_Counter_text.ResetColorAnimation();
+	if (m_Counter_text)
+		m_Counter_text->ResetColorAnimation();
 }

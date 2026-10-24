@@ -1,18 +1,20 @@
 #pragma once
 
-#include "WeaponShotgun.h"
+#include "WeaponAutomaticShotgun.h"
 #include "../xrScripts/script_export_space.h"
 
-class CWeaponBM16 :public CWeaponShotgun
+class CWeaponBM16 final : public CWeaponAutomaticShotgun
 {
-	typedef CWeaponShotgun inherited;
+	using inherited = CWeaponAutomaticShotgun;
 
 public:
-	virtual			~CWeaponBM16					();
-	virtual void	Load							(LPCSTR section);
-	virtual void	LoadSounds						(LPCSTR section);
+	CWeaponBM16() = default;
+	virtual	~CWeaponBM16() = default;
 
-	virtual bool	HudAnimationExist				(const shared_str& anim_name);
+	virtual void	Load							(const char* section);
+	virtual void	LoadSounds						(const char* section);
+
+	virtual bool	HudAnimationExist				(const shared_str& anim_name, bool only_for_actor = true);
 
 protected:
 	virtual void	PlayAnimReload					();
@@ -20,8 +22,10 @@ protected:
 	virtual shared_str SetCurrentStateAnimation(const shared_str& first_name);
 	virtual shared_str SetCurrentShootAnimation();
 	virtual shared_str SetCurrentReloadAnimation();
+	virtual shared_str SetCurrentAimAnimation();
 
-	virtual CWeaponBM16* cast_weapon_bm16() { return this; }
+	virtual CWeaponBM16* cast_weapon_bm16() override { return this; }
+	virtual CWeaponAutomaticShotgun* cast_weapon_auto_shotgun() override { return this; }
 
 	virtual int GetMagCapacity() override { int size = m_iAmmoCountToReload; m_iAmmoCountToReload = iMagazineSize; return size; }
 

@@ -17,7 +17,7 @@ class CGamePersistent:
 
 	// ambient particles
 	xr_shared_ptr<CParticlesObject>	ambient_particles; 
-	u32					ambient_sound_next_time		[20]; //max snd channels
+    xr_vector<u32>		ambient_sound_next_time; // max snd channels
 	u32					ambient_effect_next_time;
 	u32					ambient_effect_stop_time;
 
@@ -53,6 +53,10 @@ class CGamePersistent:
 	void				UpdateDof				();
 
 public:
+	xr_vector<xr_shared_ptr<CParticlesObject>> ps_active;
+	xr_vector<xr_shared_ptr<CParticlesObject>> ps_active_deffer;
+	xr_vector<xr_shared_ptr<CParticlesObject>> ps_needtoplay;
+
 	IReader*			pDemoFile;
 	u32					uTime2Change;
 	EVENT				eDemoStart;
@@ -60,8 +64,8 @@ public:
 						CGamePersistent			();
 	virtual				~CGamePersistent		();
 
-	void PreStart(LPCSTR op) override;
-	virtual void		Start					(LPCSTR op);
+	void PreStart(const char* op) override;
+	virtual void		Start					(const char* op);
 	virtual void		Disconnect				();
 
 	virtual	void		OnAppActivate			();
@@ -77,6 +81,10 @@ public:
 
 	virtual void		UpdateGameType			();
 
+	virtual	void		destroy_particles		(bool all_particles);
+	virtual	void		UpdatePlayDestroyParticles();
+	virtual	void		UpdateParticles			();
+
 	virtual void		RegisterModel			(IRenderVisual* V);
 	virtual	float		MtlTransparent			(u32 mtl_idx);
 	virtual	void		Statistics				(CGameFont* F);
@@ -85,7 +93,7 @@ public:
 	virtual void		OnRenderPPUI_main		();
 	virtual void		OnRenderPPUI_PP			();
 	virtual	void		LoadTitle				(bool change_tip = false, shared_str map_name = "");
-    void				SetLoadStageTitle		(pcstr ls_title = nullptr) override;
+    void				SetLoadStageTitle		(const char* ls_title = nullptr) override;
 
 	virtual bool		CanBePaused				();
 
@@ -98,6 +106,8 @@ public:
 	virtual void		OnSectorChanged			(int sector);
 	virtual void		OnAssetsChanged			();
 	void				SetDiscordStatus() const;
+	virtual void		GetTextureParams		(shared_str tex, Frect& out_rect, shared_str& file_name);
+	virtual void		ChangeCursorPosition	(Fvector2 value);
 };
 
 IC CGamePersistent&		GamePersistent()		{ return *((CGamePersistent*) g_pGamePersistent);			}

@@ -1,123 +1,25 @@
 #include "stdafx.h"
-
+#include "string_table.h"
 
 #include "xr_input.h"
 #include "IInputReceiver.h"
+#include "GamepadService.h"
 
 CInput *	pInput	= nullptr;
 IInputReceiver		dummyController;
 
-ENGINE_API float	psMouseSens			= 1.f;
+ENGINE_API float	psMouseSens			= 0.12f;
 ENGINE_API float	psMouseUISens		= 1.f;
 ENGINE_API float	psMouseSensScale	= 1.f;
-ENGINE_API Flags32	psMouseInvert		= {FALSE};
+ENGINE_API bool		psMouseInvert		= false;
 
-float stop_vibration_time				= flt_max;
+ENGINE_API float	psGamepadSens		= 0.3f;
+ENGINE_API bool		psGamepadInvert		= false;
 
-#define MOUSEBUFFERSIZE			64
-#define KEYBOARDBUFFERSIZE		64
-#define _KEYDOWN(name,key)		( name[key] & 0x80 )
+ENGINE_API bool		psGyroscopeInvertX	= false;
+ENGINE_API bool		psGyroscopeInvertY	= false;
 
-
-#define DECLARE_KEY_ENTRY(keyName) { (u8)keyName, xstring(#keyName)},
-
-const xr_hash_map<u8, xr_string> KeyNamesTable =
-{
-	{(u8)SDL_SCANCODE_TAB,		"Tab"},
-	{(u8)SDL_SCANCODE_RETURN,	"Enter"},
-	{(u8)SDL_SCANCODE_LSHIFT,    "Shift"},
-	{(u8)SDL_SCANCODE_LCTRL,  "Ctrl"},
-	{(u8)SDL_SCANCODE_CAPSLOCK,	"Caps Lock"},
-	{(u8)SDL_SCANCODE_PAUSE,		"Pause"},
-	{(u8)SDL_SCANCODE_BACKSPACE,		"Backspace"},
-	{(u8)SDL_SCANCODE_PAGEUP,		"Pg Up"},
-	{(u8)SDL_SCANCODE_PAGEDOWN,		"Pg Down"},
-	{(u8)SDL_SCANCODE_HOME,		"Home"},
-	{(u8)SDL_SCANCODE_LEFT,		"Left"},
-	{(u8)SDL_SCANCODE_UP,		"Up"},
-	{(u8)SDL_SCANCODE_RIGHT,		"Right"},
-	{(u8)SDL_SCANCODE_DOWN,		"Down"},
-	{(u8)SDL_SCANCODE_SPACE,		"Space"},
-	{(u8)SDL_SCANCODE_ESCAPE,	"Esc"},
-	{(u8)SDL_SCANCODE_INSERT,	"Insert"},
-	{(u8)SDL_SCANCODE_DELETE,	"Del"},
-	{(u8)SDL_SCANCODE_0,			"0"},
-	{(u8)SDL_SCANCODE_1,			"1"},
-	{(u8)SDL_SCANCODE_2,			"2"},
-	{(u8)SDL_SCANCODE_3,			"3"},
-	{(u8)SDL_SCANCODE_4,			"4"},
-	{(u8)SDL_SCANCODE_5,			"5"},
-	{(u8)SDL_SCANCODE_6,			"6"},
-	{(u8)SDL_SCANCODE_7,			"7"},
-	{(u8)SDL_SCANCODE_8,			"8"},
-	{(u8)SDL_SCANCODE_9,			"9"},
-	{(u8)SDL_SCANCODE_A,			"A"},
-	{(u8)SDL_SCANCODE_B,			"B"},
-	{(u8)SDL_SCANCODE_C,			"C"},
-	{(u8)SDL_SCANCODE_D,			"D"},
-	{(u8)SDL_SCANCODE_E,			"E"},
-	{(u8)SDL_SCANCODE_F,			"F"},
-	{(u8)SDL_SCANCODE_G,			"G"},
-	{(u8)SDL_SCANCODE_H,			"H"},
-	{(u8)SDL_SCANCODE_I,			"I"},
-	{(u8)SDL_SCANCODE_J,			"J"},
-	{(u8)SDL_SCANCODE_K,			"K"},
-	{(u8)SDL_SCANCODE_L,			"L"},
-	{(u8)SDL_SCANCODE_M,			"M"},
-	{(u8)SDL_SCANCODE_N,			"N"},
-	{(u8)SDL_SCANCODE_O,			"O"},
-	{(u8)SDL_SCANCODE_P,			"P"},
-	{(u8)SDL_SCANCODE_Q,			"Q"},
-	{(u8)SDL_SCANCODE_R,			"R"},
-	{(u8)SDL_SCANCODE_S,			"S"},
-	{(u8)SDL_SCANCODE_T,			"T"},
-	{(u8)SDL_SCANCODE_U,			"U"},
-	{(u8)SDL_SCANCODE_V,			"V"},
-	{(u8)SDL_SCANCODE_W,			"W"},
-	{(u8)SDL_SCANCODE_X,			"X"},
-	{(u8)SDL_SCANCODE_Y,			"Y"},
-	{(u8)SDL_SCANCODE_Z,			"Z"},
-	{(u8)SDL_SCANCODE_LGUI,       "lWin"},
-	{(u8)SDL_SCANCODE_RGUI,       "lWin"},
-	{(u8)SDL_SCANCODE_SLEEP,      "Sleep"},
-	{(u8)SDL_SCANCODE_APPLICATION,"Apps"},
-	{(u8)SDL_SCANCODE_KP_0,       "NumPad0"},
-	{(u8)SDL_SCANCODE_KP_1,       "NumPad1"},
-	{(u8)SDL_SCANCODE_KP_2,       "NumPad2"},
-	{(u8)SDL_SCANCODE_KP_3,       "NumPad3"},
-	{(u8)SDL_SCANCODE_KP_4,       "NumPad4"},
-	{(u8)SDL_SCANCODE_KP_5,       "NumPad5"},
-	{(u8)SDL_SCANCODE_KP_6,       "NumPad6"},
-	{(u8)SDL_SCANCODE_KP_7,       "NumPad7"},
-	{(u8)SDL_SCANCODE_KP_8,       "NumPad8"},
-	{(u8)SDL_SCANCODE_KP_9,       "NumPad9"},
-	{(u8)SDL_SCANCODE_KP_MULTIPLY,"*"},
-	{(u8)SDL_SCANCODE_KP_PLUS,    "+"},
-	{(u8)SDL_SCANCODE_KP_MINUS,   "-"},
-	{(u8)SDL_SCANCODE_KP_DIVIDE,  "/"},
-	{(u8)SDL_SCANCODE_KP_DECIMAL, "."},
-	{(u8)SDL_SCANCODE_F1,		"F1"},
-	{(u8)SDL_SCANCODE_F2,		"F2"},
-	{(u8)SDL_SCANCODE_F3,		"F3"},
-	{(u8)SDL_SCANCODE_F4,		"F4"},
-	{(u8)SDL_SCANCODE_F5,		"F5"},
-	{(u8)SDL_SCANCODE_F6,		"F6"},
-	{(u8)SDL_SCANCODE_F7,		"F7"},
-	{(u8)SDL_SCANCODE_F8,		"F8"},
-	{(u8)SDL_SCANCODE_F9,		"F9"},
-	{(u8)SDL_SCANCODE_F10,		"F10"},
-	{(u8)SDL_SCANCODE_F11,		"F11"},
-	{(u8)SDL_SCANCODE_F12,		"F12"},
-	{(u8)SDL_SCANCODE_F13,		"F13"},
-	{(u8)SDL_SCANCODE_F14,		"F14"},
-	{(u8)SDL_SCANCODE_F15,		"F15"},
-	{(u8)SDL_SCANCODE_NUMLOCKCLEAR,	"NumLock"},
-	{(u8)SDL_SCANCODE_SCROLLLOCK,	"ScrollLock"},
-	{(u8)SDL_SCANCODE_LSHIFT,	"Left Shift"},
-	{(u8)SDL_SCANCODE_RSHIFT,	"Right Shift"},
-	{(u8)SDL_SCANCODE_LCTRL,	"Left Ctrl"},
-	{(u8)SDL_SCANCODE_RCTRL,	"Right Ctrl"},
-};
+ENGINE_API float	psTouchpadSens		= 20.0f;
 
 static bool g_exclusive	= true;
 static void on_error_dialog			(bool before)
@@ -133,36 +35,32 @@ static void on_error_dialog			(bool before)
 	pInput->acquire();
 }
 
-CInput::CInput						( BOOL bExclusive, int deviceForInit)
+CInput::CInput(bool bExclusive, int deviceForInit)
 {
-	g_exclusive							= !!bExclusive;
+	g_exclusive = !!bExclusive;
 
 	Log("Starting INPUT device...");
 
-	ZeroMemory							( mouseState,	sizeof(mouseState) );
-	ZeroMemory							( KBState,		sizeof(KBState) );
+	ZeroMemory(mouseState, sizeof(mouseState));
+	ZeroMemory(KBState, sizeof(KBState));
 
-	iCapture	(&dummyController);
-	Debug.set_on_dialog				(&on_error_dialog);
+	GGamepadService = new CGamepadService;
 
-#ifdef ENGINE_BUILD
-	Device.seqAppActivate.Add		(this);
-	Device.seqAppDeactivate.Add		(this, REG_PRIORITY_HIGH);
-	Device.seqFrame.Add				(this, REG_PRIORITY_HIGH);
-#endif
+	iCapture(&dummyController);
+	Debug.set_on_dialog(&on_error_dialog);
+
+	Device.seqAppActivate.Add(this);
+	Device.seqAppDeactivate.Add(this, REG_PRIORITY_HIGH);
+	Device.seqFrame.Add(this, REG_PRIORITY_HIGH);
 }
 
 CInput::~CInput()
 {
-	if (pGamePad != nullptr)
-		SDL_CloseGamepad(pGamePad);
+	xr_delete(GGamepadService);
 
-#ifdef ENGINE_BUILD
-	Device.seqFrame.Remove			(this);
-	Device.seqAppDeactivate.Remove	(this);
-	Device.seqAppActivate.Remove	(this);
-#endif
-
+	Device.seqFrame.Remove(this);
+	Device.seqAppDeactivate.Remove(this);
+	Device.seqAppActivate.Remove(this);
 }
 
 //-----------------------------------------------------------------------
@@ -200,6 +98,7 @@ void CInput::GamepadButtonUpdate(int SDLCode, bool IsPressed)
 	GPState[SDLCode] = IsPressed;
 }
 
+#define DEADZONE_RADIUS_UI 0.375f
 void CInput::LeftAxisUpdate(bool IsX, float value)
 {
 	if (IsX)
@@ -209,6 +108,38 @@ void CInput::LeftAxisUpdate(bool IsX, float value)
 	else
 	{
 		LeftAxis.y = value * -1;
+	}
+
+	if (LeftAxis.x < -DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_LSTICK_LEFT, true);
+	}
+	else if (LeftAxis.x > DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_LSTICK_RIGHT, true);
+	}
+	else
+	{
+		if (GPState[DIK_LSTICK_LEFT])
+			pInput->GamepadButtonUpdate(DIK_LSTICK_LEFT, false);
+		if (GPState[DIK_LSTICK_RIGHT])
+			pInput->GamepadButtonUpdate(DIK_LSTICK_RIGHT, false);
+	}
+
+	if (LeftAxis.y < -DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_LSTICK_DOWN, true);
+	}
+	else if (LeftAxis.y > DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_LSTICK_UP, true);
+	}
+	else
+	{
+		if (GPState[DIK_LSTICK_DOWN])
+			pInput->GamepadButtonUpdate(DIK_LSTICK_DOWN, false);
+		if (GPState[DIK_LSTICK_UP])
+			pInput->GamepadButtonUpdate(DIK_LSTICK_UP, false);
 	}
 }
 
@@ -222,6 +153,38 @@ void CInput::RightAxisUpdate(bool IsX, float value)
 	{
 		RightAxis.y = value;
 	}
+
+	if (RightAxis.x < -DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_RSTICK_LEFT, true);
+	}
+	else if (RightAxis.x > DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_RSTICK_RIGHT, true);
+	}
+	else
+	{
+		if (GPState[DIK_RSTICK_LEFT])
+			pInput->GamepadButtonUpdate(DIK_RSTICK_LEFT, false);
+		if (GPState[DIK_RSTICK_RIGHT])
+			pInput->GamepadButtonUpdate(DIK_RSTICK_RIGHT, false);
+	}
+
+	if (RightAxis.y < -DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_RSTICK_UP, true);
+	}
+	else if (RightAxis.y > DEADZONE_RADIUS_UI)
+	{
+		pInput->GamepadButtonUpdate(DIK_RSTICK_DOWN, true);
+	}
+	else
+	{
+		if (GPState[DIK_RSTICK_DOWN])
+			pInput->GamepadButtonUpdate(DIK_RSTICK_DOWN, false);
+		if (GPState[DIK_RSTICK_UP])
+			pInput->GamepadButtonUpdate(DIK_RSTICK_UP, false);
+	}
 }
 
 void CInput::AdaptiveTriggerUpdate(bool IsX, float value)
@@ -234,6 +197,18 @@ void CInput::AdaptiveTriggerUpdate(bool IsX, float value)
 	{
 		AdaptiveTrigger.y = value;
 	}
+}
+
+void CInput::GamepadGyroscopeUpdate(Fvector3 value)
+{
+	Gyroscope += value;
+	gyroscopeMoved = true;
+}
+
+void CInput::TouchpadUpdate(Fvector2 value)
+{
+	Touchpad.add(value);
+	touchpadMoved = true;
 }
 
 void CInput::KeyboardUpdate()
@@ -264,14 +239,18 @@ void CInput::KeyboardUpdate()
 	}
 }
 
-bool dsEnableGamepad = false;
 void CInput::GamepadUpdate()
 {
-	if (pGamePad == nullptr || !dsEnableGamepad)
+	if (GGamepadService->GamePadDevice == nullptr)
+	{
 		return;
+	}
 
+	GGamepadService->Update();
 	if (cbStack.empty())
+	{
 		return;
+	}
 
 	auto KeyHolder = cbStack.back();
 
@@ -289,12 +268,20 @@ void CInput::GamepadUpdate()
 
 			if (Pressed)
 			{
-				cbStack.back()->IR_GamepadKeyPress((int)i);
+				KeyHolder->IR_GamepadKeyPress((int)i);
 			}
 			else
 			{
-				cbStack.back()->IR_GamepadKeyRelease((int)i);
+				KeyHolder->IR_GamepadKeyRelease((int)i);
 			}
+		}
+	}
+
+	for (int i = 0; i < COUNT_GP_BUTTONS; i++)
+	{
+		if (GPState[i])
+		{
+			KeyHolder->IR_GamepadKeyHold((int)i);
 		}
 	}
 }
@@ -337,10 +324,16 @@ const xr_map<int, char> russian_lookup_key_table = {
 
 bool CInput::get_dik_name(int dik, LPSTR dest_str, int dest_sz)
 {
+#ifdef IXR_WINDOWS
 	LANGID lang_locale = PRIMARYLANGID(LOWORD(HandleToLong(GetKeyboardLayout(0))));
 	if (lang_locale != LANG_RUSSIAN) {
 		return false;
 	}
+
+	if (g_AppInfo.IsLaunchedViaWineOrProton) {
+		return false;
+	}
+#endif
 
 	if (!russian_lookup_key_table.contains(dik)) {
 		return false;
@@ -356,7 +349,15 @@ bool CInput::get_dik_name(int dik, LPSTR dest_str, int dest_sz)
 #define MOUSE_1		(SDL_SCANCODE_COUNT + 100)
 #define MOUSE_8		(SDL_SCANCODE_COUNT + 107)
 
-BOOL CInput::iGetAsyncKeyState( int dik )
+bool CInput::iGetAsyncGamepadKeyState( int dik )
+{
+	if(dik<COUNT_GP_BUTTONS)
+		return !!GPState[dik];
+
+	return false;
+}
+
+bool CInput::iGetAsyncKeyState( int dik )
 {
 	if(dik<COUNT_KB_BUTTONS)
 		return !!KBState[dik];
@@ -366,10 +367,10 @@ BOOL CInput::iGetAsyncKeyState( int dik )
 		int mk = dik-MOUSE_1;
 		return iGetAsyncBtnState(mk);
 	}else
-		return FALSE; //unknown key ???
+		return false; //unknown key ???
 }
 
-BOOL CInput::iGetAsyncBtnState( int btn )
+bool CInput::iGetAsyncBtnState( int btn )
 {
 	return !!mouseState[btn];
 }
@@ -445,6 +446,38 @@ void CInput::MouseUpdate( )
 	offs[0] = offs[1] = offs[2] = 0;
 }
 
+void CInput::GyroscopeUpdate()
+{
+	if (Device.dwPrecacheFrame)
+	{
+		return;
+	}
+
+	if (gyroscopeMoved) 
+	{
+		cbStack.back()->IR_OnGyroscopeMove(Gyroscope);
+		gyroscopeMoved = false;
+	}
+
+	Gyroscope.set(0.0f, 0.0f, 0.0f);
+}
+
+void CInput::TouchpadUpdate()
+{
+	if (Device.dwPrecacheFrame)
+	{
+		return;
+	}
+
+	if (touchpadMoved) 
+	{
+		cbStack.back()->IR_OnTouchpadMove(Touchpad);
+		touchpadMoved = false;
+	}
+
+	Touchpad.set(0.0f, 0.0f);
+}
+
 #pragma warning(pop)
 
 //-------------------------------------------------------
@@ -452,7 +485,7 @@ void CInput::iCapture(IInputReceiver *p)
 {
 	VERIFY(p);
 
-	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_F11] || CImGuiManager::Instance().IsCapturingInputs()))
+	if (!Device.IsEditorMode() && CImGuiManager::Instance().IsCapturingInputs())
 	{
 		NoInputUpdate();
 	} 
@@ -460,6 +493,8 @@ void CInput::iCapture(IInputReceiver *p)
 	{
 		MouseUpdate();
 		GamepadUpdate();
+		GyroscopeUpdate();
+		TouchpadUpdate();
 		KeyboardUpdate();
 	}
 
@@ -525,7 +560,7 @@ void CInput::OnFrame()
 
 	dwCurTime = RDEVICE.TimerAsync_MMT();
 #if !defined(MASTER_GOLD)
-	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_F11] || CImGuiManager::Instance().IsCapturingInputs()))
+	if (!Device.IsEditorMode() && CImGuiManager::Instance().IsCapturingInputs())
 	{
 		NoInputUpdate();
 	} 
@@ -534,6 +569,8 @@ void CInput::OnFrame()
 	{
 		MouseUpdate();
 		GamepadUpdate();
+		GyroscopeUpdate();
+		TouchpadUpdate();
 		KeyboardUpdate();
 	}
 }
@@ -544,6 +581,47 @@ IInputReceiver* CInput::CurrentIR()
 		return cbStack.back();
 	else
 		return nullptr;
+}
+
+
+unsigned char CInput::GetConnectedInputDeviceCount(void) const noexcept
+{
+	R_ASSERT2(false, "todo: implement");
+	return 0;
+}
+
+void CInput::GetConnectedInputDevices(CInputDevice(&devices)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT]) noexcept
+{
+	GetConnectedInputKeyboards(devices);
+	GetConnectedInputGamepads(devices);
+	GetConnectedInputMouses(devices);
+}
+
+void CInput::GetInfoAboutConnectedInputDevices(const CInputDevice(&devices)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT], CInputDeviceVendorInfo(&infos)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT]) noexcept
+{
+	for (unsigned char i = 0; i < DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT; ++i)
+	{
+		CInputDeviceVendorInfo& info = infos[i];
+
+		FillVendorInfo(devices[i],	info);
+	}
+}
+
+unsigned char CInput::GetConnectedInputDeviceCount(eInputDeviceType type) const noexcept
+{
+	R_ASSERT2(false, "todo: implement");
+	return 0;
+}
+
+bool CInput::GetVendorInfoAboutInputDevice(const CInputDevice* pDevice, CInputDeviceVendorInfo* pInfo) const noexcept
+{
+	R_ASSERT2(false, "todo: implement");
+	return false;
+}
+
+bool CInput::GetVendorInfoAboutInputDevice(const CInputDevice& device, CInputDeviceVendorInfo* pInfo) const noexcept
+{
+	return GetVendorInfoAboutInputDevice(&device, pInfo);
 }
 
 void CInput::unacquire()
@@ -560,5 +638,216 @@ void CInput::acquire()
 
 void  CInput::feedback(u16 s1, u16 s2, float time)
 {
-	stop_vibration_time = RDEVICE.fTimeGlobal + time;
+	if (GetControllerMode())
+	{
+		GGamepadService->Rumble(s1, s2, time * 1000);
+	}
+}
+
+bool CInput::FillVendorInfo(const CInputDevice& device, CInputDeviceVendorInfo& info) noexcept
+{
+	switch (device.type)
+	{
+	case eInputDeviceType::keyboard:
+	{
+		if (device.handle != u32(-1))
+		{
+			const char* pName = SDL_GetKeyboardNameForID((device.handle));
+
+			if (pName)
+			{
+				std::memcpy(info.name, pName, sizeof(info.name));
+				info.name[(sizeof(info.name)/sizeof(info.name[0])) - 1] = 0;
+			}
+		}
+
+		break;
+	}
+	case eInputDeviceType::gamepad:
+	{
+		SDL_Joystick* joystick = SDL_OpenJoystick((device.handle));
+
+		if (joystick) {
+			const char* name = SDL_GetJoystickName(joystick);
+			u16 vendor = SDL_GetJoystickVendor(joystick);
+			u16 product = SDL_GetJoystickProduct(joystick);
+			u16 version = SDL_GetJoystickFirmwareVersion(joystick);
+			const char* serial = SDL_GetJoystickSerial(joystick);
+
+			
+			if (name)
+			{
+				std::memcpy(info.name, name, sizeof(info.name));
+				info.name[(sizeof(info.name) / sizeof(info.name[0])) - 1] = 0;
+			}
+
+			if (serial)
+			{
+				std::memcpy(info.data2, serial, sizeof(info.data2));
+				info.name[(sizeof(info.data2) / sizeof(info.data2[0])) - 1] = 0;
+			}
+
+			u16* pWrite = (u16*)&info.data[0];
+
+			*pWrite = vendor;
+
+			pWrite = (u16*)&info.data[2];
+
+			*pWrite = product;
+
+			pWrite = (u16*)&info.data[4];
+
+			*pWrite = version;
+
+			SDL_CloseJoystick(joystick);
+		}
+
+		break;
+	}
+	case eInputDeviceType::mouse:
+	{
+		if (device.handle)
+		{
+			const char* pName = SDL_GetMouseNameForID((device.handle));
+
+			if (pName)
+			{
+				std::memcpy(info.name, pName, sizeof(info.name));
+				info.name[(sizeof(info.name) / sizeof(info.name[0])) - 1] = 0;
+			}
+		}
+
+		break;
+	}
+	default:
+	{
+		R_ASSERT(false && "unsupported device");
+		break;
+	}
+	}
+
+
+	return true;
+}
+
+bool CInput::GetConnectedInputKeyboards(CInputDevice(&pool)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT], unsigned char max_keyboards /*= DEF_XR_INPUT_MAX_INPUT_CONNECTED_KEYBOARD_COUNT*/) noexcept
+{
+	bool result = false;
+
+	int count = -1;
+	SDL_KeyboardID* pKeyboards = SDL_GetKeyboards(&count);
+
+	result = !!(pKeyboards);
+
+	if (!pKeyboards)
+		return result;
+
+	if (static_cast<unsigned char>(count) > max_keyboards)
+	{
+		count = max_keyboards;
+	}
+
+	unsigned char index = static_cast<unsigned char>(eInputDeviceType::keyboard);
+	for (unsigned char i = 0; i < count; ++i)
+	{
+		pool[index].handle = u32(pKeyboards[i]);
+		pool[index].type = eInputDeviceType::keyboard;
+
+		index += i;
+	}
+
+	return result;
+}
+
+bool CInput::GetConnectedInputMouses(CInputDevice(&pool)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT], unsigned char max_mouses /*= DEF_XR_INPUT_MAX_INPUT_CONNECTED_MOUSE_COUNT*/) noexcept
+{
+	bool result = false;
+
+	int count = -1;
+	SDL_MouseID* pMouses = SDL_GetMice(&count);
+
+	result = !!(pMouses);
+
+	if (!pMouses)
+		return result;
+
+	if (static_cast<unsigned char>(count) > max_mouses)
+	{
+		count = max_mouses;
+	}
+
+	unsigned char index = static_cast<unsigned char>(eInputDeviceType::mouse);
+	for (unsigned char i = 0; i < count; ++i)
+	{
+		pool[index].handle = u32(pMouses[i]);
+		pool[index].type = eInputDeviceType::mouse;
+
+		index += i;
+	}
+
+	return result;
+}
+
+bool CInput::GetConnectedInputGamepads(CInputDevice(&pool)[DEF_XR_INPUT_MAX_INPUT_CONNECTED_DEVICES_COUNT], unsigned char max_gamepads /*= DEF_XR_INPUT_MAX_INPUT_CONNECTED_GAMEPAD_COUNT*/) noexcept
+{
+	bool result = false;
+
+	int count = -1;
+	SDL_JoystickID* pGamepads = SDL_GetGamepads(&count);
+
+	result = !!(pGamepads);
+
+	bool check = SDL_HasGamepad();
+
+	if (!pGamepads)
+		return result;
+
+	if (static_cast<unsigned char>(count) > max_gamepads)
+	{
+		count = max_gamepads;
+	}
+
+	unsigned char index = static_cast<unsigned char>(eInputDeviceType::gamepad);
+	for (unsigned char i = 0; i < count; ++i)
+	{
+		pool[index].handle = u32(pGamepads[i]);
+		pool[index].type = eInputDeviceType::gamepad;
+
+		index += i;
+	}
+
+	return result;
+}
+
+void CInput::SetControllerMode(bool val)
+{
+	if (val == controllerMode)
+		return;
+
+	controllerMode = val;
+	CStringTable::ReparseKeyBindings();
+}
+
+extern u32 ps_gamepad_prefix_override;
+extern xr_token gamepad_prefix_override_token[];
+
+void CInput::SelectGamepadPrefix()
+{
+	if (GGamepadService->GamePadDevice == nullptr)
+	{
+		return;
+	}
+
+	if (ps_gamepad_prefix_override != 0)
+	{
+		GamepadTypeName = gamepad_prefix_override_token[ps_gamepad_prefix_override].name;
+		return;
+	}
+	
+	GamepadTypeName = GGamepadService->GetGamepadPrefix();
+}
+
+bool CInput::LeftMouseButtonPressed()
+{
+	return iGetAsyncKeyState(MOUSE_1);
 }

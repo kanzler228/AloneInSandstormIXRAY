@@ -12,7 +12,7 @@ namespace CDB
 	//         sR - radius of sphere
 	// Notes : Normalized directional vectors expected
 	// -----------------------------------------------------------------------
-	IC bool IntersectRaySphere(const Fvector& rO, const Fvector& rV, const Fvector& sO, float sR)
+	ICF bool IntersectRaySphere(const Fvector& rO, const Fvector& rV, const Fvector& sO, float sR)
 	{
 		Fvector Q;
 		Q.sub(sO,rO);
@@ -26,7 +26,7 @@ namespace CDB
 	}
 
 	//-- Ray-Triangle : 2nd level of indirection --------------------------------
-	IC bool TestRayTri(const Fvector& C, const Fvector& D, Fvector** p, float& u, float& v, float& range, bool bCull)
+	ICF bool TestRayTri(const Fvector& C, const Fvector& D, Fvector** p, float& u, float& v, float& range, bool bCull)
 	{
 		Fvector edge1, edge2, tvec, pvec, qvec;
 		float det,inv_det;
@@ -64,7 +64,7 @@ namespace CDB
 		return true;
 	}
 	//-- Ray-Triangle : 1st level of indirection --------------------------------
-	IC bool TestRayTri(const Fvector& C, const Fvector& D, Fvector* p, float& u, float& v, float& range, bool bCull)
+	ICF bool TestRayTri(const Fvector& C, const Fvector& D, Fvector* p, float& u, float& v, float& range, bool bCull)
 	{
 		Fvector edge1, edge2, tvec, pvec, qvec;
 		float det,inv_det;
@@ -103,7 +103,7 @@ namespace CDB
 	}
 
 	//-- Ray-Triangle(always return range) : 1st level of indirection --------------------------------
-	IC bool TestRayTri2(const Fvector& C, const Fvector& D, Fvector* p, float& range)
+	ICF bool TestRayTri2(const Fvector& C, const Fvector& D, Fvector* p, float& range)
 	{
 		Fvector edge1, edge2, tvec, pvec, qvec;
 		float det,inv_det,u,v;
@@ -116,7 +116,7 @@ namespace CDB
 		// if determinant is near zero, ray lies in plane of triangle
 		det = edge1.dotproduct(pvec);
 
-		if (_abs(det) < EPS_S)		{ range=-1; return false; }
+		if (std::abs(det) < EPS_S)		{ range=-1; return false; }
 		inv_det = 1.0f / det;
 		tvec.sub(C, p[0]);					// calculate distance from vert0 to ray origin
 		u = tvec.dotproduct(pvec)*inv_det;	// calculate U parameter and test bounds
@@ -127,7 +127,7 @@ namespace CDB
 		if (v < 0.0f || u + v > 1.0f) return false;
 		return true;
 	}
-	IC bool TestRayTri2(const Fvector& C, const Fvector& D, Fvector** p, float& range)
+	ICF bool TestRayTri2(const Fvector& C, const Fvector& D, Fvector** p, float& range)
 	{
 		Fvector edge1, edge2, tvec, pvec, qvec;
 		float det,inv_det,u,v;
@@ -140,7 +140,7 @@ namespace CDB
 		// if determinant is near zero, ray lies in plane of triangle
 		det = edge1.dotproduct(pvec);
 
-		if (_abs(det) < EPS_S)		{ range=-1; return false; }
+		if (std::abs(det) < EPS_S)		{ range=-1; return false; }
 		inv_det = 1.0f / det;
 		tvec.sub(C, *p[0]);					// calculate distance from vert0 to ray origin
 		u = tvec.dotproduct(pvec)*inv_det;	// calculate U parameter and test bounds
@@ -207,7 +207,7 @@ namespace CDB
 	}
 	//---------------------------------------------------------------------------
 
-	IC bool TestBBoxTri(const Fmatrix33& A, const Fvector& T, const Fvector& extA, Fvector** p, BOOL bCulling){
+	ICF bool TestBBoxTri(const Fmatrix33& A, const Fvector& T, const Fvector& extA, Fvector** p, bool bCulling){
 		// construct triangle normal, difference of center and vertex (18 ops)
 		Fvector D, E[2], N;
 		E[0].sub(*p[1],*p[0]);
@@ -222,7 +222,7 @@ namespace CDB
 		float A0dN = A.i.dotproduct(N);
 		float A1dN = A.j.dotproduct(N);
 		float A2dN = A.k.dotproduct(N);
-		float R = _abs(extA.x*A0dN)+_abs(extA.y*A1dN)+_abs(extA.z*A2dN);
+		float R = std::abs(extA.x*A0dN)+std::abs(extA.y*A1dN)+std::abs(extA.z*A2dN);
 		float NdD = N.dotproduct(D);
 		TESTV0(NdD,R); //AXIS_N
 
@@ -248,66 +248,66 @@ namespace CDB
 		Fvector A0xE0;
 		A0xE0.crossproduct(A.i,E[0]);
 		float A0xE0dD = A0xE0.dotproduct(D);
-		R = _abs(extA.y*A2dE0)+_abs(extA.z*A1dE0);
+		R = std::abs(extA.y*A2dE0)+std::abs(extA.z*A1dE0);
 		TESTV2(A0xE0dD,A0dN,R); //AXIS_A0xE0
 
 		// axis C+t*A0xE1
 		Fvector A0xE1;
 		A0xE1.crossproduct(A.i,E[1]);
 		float A0xE1dD = A0xE1.dotproduct(D);
-		R = _abs(extA.y*A2dE1)+_abs(extA.z*A1dE1);
+		R = std::abs(extA.y*A2dE1)+std::abs(extA.z*A1dE1);
 		TESTV2(A0xE1dD,-A0dN,R); //AXIS_A0xE1
 
 		// axis C+t*A0xE2
 		float A1dE2 = A1dE1-A1dE0;
 		float A2dE2 = A2dE1-A2dE0;
 		float A0xE2dD = A0xE1dD-A0xE0dD;
-		R = _abs(extA.y*A2dE2)+_abs(extA.z*A1dE2);
+		R = std::abs(extA.y*A2dE2)+std::abs(extA.z*A1dE2);
 		TESTV2(A0xE2dD,-A0dN,R); //AXIS_A0xE2
 
 		// axis C+t*A1xE0
 		Fvector A1xE0;
 		A1xE0.crossproduct(A.j,E[0]);
 		float A1xE0dD = A1xE0.dotproduct(D);
-		R = _abs(extA.x*A2dE0)+_abs(extA.z*A0dE0);
+		R = std::abs(extA.x*A2dE0)+std::abs(extA.z*A0dE0);
 		TESTV2(A1xE0dD,A1dN,R); //AXIS_A1xE0
 
 		// axis C+t*A1xE1
 		Fvector A1xE1;
 		A1xE1.crossproduct(A.j,E[1]);
 		float A1xE1dD = A1xE1.dotproduct(D);
-		R = _abs(extA.x*A2dE1)+_abs(extA.z*A0dE1);
+		R = std::abs(extA.x*A2dE1)+std::abs(extA.z*A0dE1);
 		TESTV2(A1xE1dD,-A1dN,R); //AXIS_A1xE1
 
 		// axis C+t*A1xE2
 		float A0dE2 = A0dE1-A0dE0;
 		float A1xE2dD = A1xE1dD-A1xE0dD;
-		R = _abs(extA.x*A2dE2)+_abs(extA.z*A0dE2);
+		R = std::abs(extA.x*A2dE2)+std::abs(extA.z*A0dE2);
 		TESTV2(A1xE2dD,-A1dN,R); //AXIS_A1xE2
 
 		// axis C+t*A2xE0
 		Fvector A2xE0;
 		A2xE0.crossproduct(A.k,E[0]);
 		float A2xE0dD = A2xE0.dotproduct(D);
-		R = _abs(extA.x*A1dE0)+_abs(extA.y*A0dE0);
+		R = std::abs(extA.x*A1dE0)+std::abs(extA.y*A0dE0);
 		TESTV2(A2xE0dD,A2dN,R); //AXIS_A2xE0
 
 		// axis C+t*A2xE1
 		Fvector A2xE1;
 		A2xE1.crossproduct(A.k,E[1]);
 		float A2xE1dD = A2xE1.dotproduct(D);
-		R = _abs(extA.x*A1dE1)+_abs(extA.y*A0dE1);
+		R = std::abs(extA.x*A1dE1)+std::abs(extA.y*A0dE1);
 		TESTV2(A2xE1dD,-A2dN,R); //AXIS_A2xE1
 
 		// axis C+t*A2xE2
 		float A2xE2dD = A2xE1dD-A2xE0dD;
-		R = _abs(extA.x*A1dE2)+_abs(extA.y*A0dE2);
+		R = std::abs(extA.x*A1dE2)+std::abs(extA.y*A0dE2);
 		TESTV2(A2xE2dD,-A2dN,R); //AXIS_A2xE2
 
 		// intersection occurs
 		return true;
 	}
-	IC bool TestBBoxTri(const Fmatrix33& A, const Fvector& T, const Fvector& extA, Fvector* p, BOOL bCulling){
+	ICF bool TestBBoxTri(const Fmatrix33& A, const Fvector& T, const Fvector& extA, Fvector* p, bool bCulling){
 		// construct triangle normal, difference of center and vertex (18 ops)
 		Fvector D, E[2], N;
 		E[0].sub(p[1],p[0]);
@@ -322,7 +322,7 @@ namespace CDB
 		float A0dN = A.i.dotproduct(N);
 		float A1dN = A.j.dotproduct(N);
 		float A2dN = A.k.dotproduct(N);
-		float R = _abs(extA.x*A0dN)+_abs(extA.y*A1dN)+_abs(extA.z*A2dN);
+		float R = std::abs(extA.x*A0dN)+std::abs(extA.y*A1dN)+std::abs(extA.z*A2dN);
 		float NdD = N.dotproduct(D);
 		TESTV0(NdD,R); //AXIS_N
 
@@ -348,60 +348,60 @@ namespace CDB
 		Fvector A0xE0;
 		A0xE0.crossproduct(A.i,E[0]);
 		float A0xE0dD = A0xE0.dotproduct(D);
-		R = _abs(extA.y*A2dE0)+_abs(extA.z*A1dE0);
+		R = std::abs(extA.y*A2dE0)+std::abs(extA.z*A1dE0);
 		TESTV2(A0xE0dD,A0dN,R); //AXIS_A0xE0
 
 		// axis C+t*A0xE1
 		Fvector A0xE1;
 		A0xE1.crossproduct(A.i,E[1]);
 		float A0xE1dD = A0xE1.dotproduct(D);
-		R = _abs(extA.y*A2dE1)+_abs(extA.z*A1dE1);
+		R = std::abs(extA.y*A2dE1)+std::abs(extA.z*A1dE1);
 		TESTV2(A0xE1dD,-A0dN,R); //AXIS_A0xE1
 
 		// axis C+t*A0xE2
 		float A1dE2 = A1dE1-A1dE0;
 		float A2dE2 = A2dE1-A2dE0;
 		float A0xE2dD = A0xE1dD-A0xE0dD;
-		R = _abs(extA.y*A2dE2)+_abs(extA.z*A1dE2);
+		R = std::abs(extA.y*A2dE2)+std::abs(extA.z*A1dE2);
 		TESTV2(A0xE2dD,-A0dN,R); //AXIS_A0xE2
 
 		// axis C+t*A1xE0
 		Fvector A1xE0;
 		A1xE0.crossproduct(A.j,E[0]);
 		float A1xE0dD = A1xE0.dotproduct(D);
-		R = _abs(extA.x*A2dE0)+_abs(extA.z*A0dE0);
+		R = std::abs(extA.x*A2dE0)+std::abs(extA.z*A0dE0);
 		TESTV2(A1xE0dD,A1dN,R); //AXIS_A1xE0
 
 		// axis C+t*A1xE1
 		Fvector A1xE1;
 		A1xE1.crossproduct(A.j,E[1]);
 		float A1xE1dD = A1xE1.dotproduct(D);
-		R = _abs(extA.x*A2dE1)+_abs(extA.z*A0dE1);
+		R = std::abs(extA.x*A2dE1)+std::abs(extA.z*A0dE1);
 		TESTV2(A1xE1dD,-A1dN,R); //AXIS_A1xE1
 
 		// axis C+t*A1xE2
 		float A0dE2 = A0dE1-A0dE0;
 		float A1xE2dD = A1xE1dD-A1xE0dD;
-		R = _abs(extA.x*A2dE2)+_abs(extA.z*A0dE2);
+		R = std::abs(extA.x*A2dE2)+std::abs(extA.z*A0dE2);
 		TESTV2(A1xE2dD,-A1dN,R); //AXIS_A1xE2
 
 		// axis C+t*A2xE0
 		Fvector A2xE0;
 		A2xE0.crossproduct(A.k,E[0]);
 		float A2xE0dD = A2xE0.dotproduct(D);
-		R = _abs(extA.x*A1dE0)+_abs(extA.y*A0dE0);
+		R = std::abs(extA.x*A1dE0)+std::abs(extA.y*A0dE0);
 		TESTV2(A2xE0dD,A2dN,R); //AXIS_A2xE0
 
 		// axis C+t*A2xE1
 		Fvector A2xE1;
 		A2xE1.crossproduct(A.k,E[1]);
 		float A2xE1dD = A2xE1.dotproduct(D);
-		R = _abs(extA.x*A1dE1)+_abs(extA.y*A0dE1);
+		R = std::abs(extA.x*A1dE1)+std::abs(extA.y*A0dE1);
 		TESTV2(A2xE1dD,-A2dN,R); //AXIS_A2xE1
 
 		// axis C+t*A2xE2
 		float A2xE2dD = A2xE1dD-A2xE0dD;
-		R = _abs(extA.x*A1dE2)+_abs(extA.y*A0dE2);
+		R = std::abs(extA.x*A1dE2)+std::abs(extA.y*A0dE2);
 		TESTV2(A2xE2dD,-A2dN,R); //AXIS_A2xE2
 
 		// intersection occurs
@@ -410,7 +410,7 @@ namespace CDB
 	//---------------------------------------------------------------------------}
 
 	//----------------------------------------------------------------------------
-	IC float MgcSqrDistance (const Fvector& rkPoint, const Fvector& orig, const Fvector& e0,const Fvector& e1){
+	ICF float MgcSqrDistance (const Fvector& rkPoint, const Fvector& orig, const Fvector& e0,const Fvector& e1){
 
 		Fvector kDiff;
 		kDiff.sub(orig,rkPoint);
@@ -421,7 +421,7 @@ namespace CDB
 		float fB0 = kDiff.dotproduct(e0);
 		float fB1 = kDiff.dotproduct(e1);
 		float fC = kDiff.square_magnitude();
-		float fDet = _abs(fA00*fA11-fA01*fA01);
+		float fDet = std::abs(fA00*fA11-fA01*fA01);
 		float fS = fA01*fB1-fA11*fB0;
 		float fT = fA01*fB0-fA00*fB1;
 		float fSqrDist;
@@ -567,7 +567,7 @@ namespace CDB
 			}
 		}
 
-		return _abs(fSqrDist);
+		return std::abs(fSqrDist);
 	}
 
 	enum EST_Result{
@@ -576,7 +576,7 @@ namespace CDB
 		stInside	= 2,
 	};
 
-	IC EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius,
+	ICF EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius,
 						const Fvector& orig, const Fvector& e0,const Fvector& e1)
 	{
 
@@ -615,7 +615,7 @@ namespace CDB
 		return (fSqrDist < fRSqr)?stIntersect:stNone;
 	}
 	//---------------------------------------------------------------------------
-	IC EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius, Fvector* p)
+	ICF EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius, Fvector* p)
 	{
 		Fvector e0, e1;
 		// find vectors for two edges sharing vert0
@@ -623,7 +623,7 @@ namespace CDB
 		e1.sub(p[2], p[0]);
 		return TestSphereTri(sphereOrigin,sphereRadius,p[0],e0,e1);
 	}
-	IC EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius, Fvector** p)
+	ICF EST_Result TestSphereTri(const Fvector& sphereOrigin, float sphereRadius, Fvector** p)
 	{
 		Fvector e0, e1;
 		// find vectors for two edges sharing vert0
@@ -631,16 +631,16 @@ namespace CDB
 		e1.sub(*p[2], *p[0]);
 		return TestSphereTri(sphereOrigin,sphereRadius,*p[0],e0,e1);
 	}
-	IC bool TestSphereOBB(const Fsphere& rkSphere, const Fobb& rkBox)
+	ICF bool TestSphereOBB(const Fsphere& rkSphere, const Fobb& rkBox)
 	{
 		// Test for intersection in the coordinate system of the box by
 		// transforming the sphere into that coordinate system.
 		Fvector3 kCDiff;
 		kCDiff.sub(rkSphere.P,rkBox.m_translate);
 
-		float fAx = _abs(kCDiff.dotproduct(rkBox.m_rotate.i));
-		float fAy = _abs(kCDiff.dotproduct(rkBox.m_rotate.j));
-		float fAz = _abs(kCDiff.dotproduct(rkBox.m_rotate.k));
+		float fAx = std::abs(kCDiff.dotproduct(rkBox.m_rotate.i));
+		float fAy = std::abs(kCDiff.dotproduct(rkBox.m_rotate.j));
+		float fAz = std::abs(kCDiff.dotproduct(rkBox.m_rotate.k));
 		float fDx = fAx - rkBox.m_halfsize[0];
 		float fDy = fAy - rkBox.m_halfsize[1];
 		float fDz = fAz - rkBox.m_halfsize[2];
@@ -692,7 +692,7 @@ namespace CDB
 		}
 	}
 	//----------------------------------------------------------------------------
-	IC bool TestRayOBB (const Fvector3& origin, const Fvector3& direction, const Fobb& rkBox)
+	ICF bool TestRayOBB (const Fvector3& origin, const Fvector3& direction, const Fobb& rkBox)
 	{
 		float			fWdU[3], fAWdU[3], fDdU[3], fADdU[3], fAWxDdU[3], fRhs;
 
@@ -700,40 +700,40 @@ namespace CDB
 		kDiff.sub		(origin,rkBox.m_translate);
 
 		fWdU[0]			= direction.dotproduct(rkBox.m_rotate.i);
-		fAWdU[0]		= _abs(fWdU[0]);
+		fAWdU[0]		= std::abs(fWdU[0]);
 		fDdU[0]			= kDiff.dotproduct(rkBox.m_rotate.i);
-		fADdU[0]		= _abs(fDdU[0]);
+		fADdU[0]		= std::abs(fDdU[0]);
 		if ( fADdU[0] > rkBox.m_halfsize[0] && fDdU[0]*fWdU[0] >= (float)0.0 )
 			return false;
 
 		fWdU[1]			= direction.dotproduct(rkBox.m_rotate.j);
-		fAWdU[1]		= _abs(fWdU[1]);
+		fAWdU[1]		= std::abs(fWdU[1]);
 		fDdU[1]			= kDiff.dotproduct(rkBox.m_rotate.j);
-		fADdU[1]		= _abs(fDdU[1]);
+		fADdU[1]		= std::abs(fDdU[1]);
 		if ( fADdU[1] > rkBox.m_halfsize[1] && fDdU[1]*fWdU[1] >= (float)0.0 )
 			return false;
 
 		fWdU[2]			= direction.dotproduct(rkBox.m_rotate.k);
-		fAWdU[2]		= _abs(fWdU[2]);
+		fAWdU[2]		= std::abs(fWdU[2]);
 		fDdU[2]			= kDiff.dotproduct(rkBox.m_rotate.k);
-		fADdU[2]		= _abs(fDdU[2]);
+		fADdU[2]		= std::abs(fDdU[2]);
 		if ( fADdU[2] > rkBox.m_halfsize[2] && fDdU[2]*fWdU[2] >= (float)0.0 )
 			return false;
 
 		Fvector3		kWxD;
 		kWxD.crossproduct(direction,kDiff);
 
-		fAWxDdU[0]		= _abs(kWxD.dotproduct(rkBox.m_rotate.i));
+		fAWxDdU[0]		= std::abs(kWxD.dotproduct(rkBox.m_rotate.i));
 		fRhs = rkBox.m_halfsize[1]*fAWdU[2] + rkBox.m_halfsize[2]*fAWdU[1];
 		if ( fAWxDdU[0] > fRhs )
 			return false;
 
-		fAWxDdU[1]		= _abs(kWxD.dotproduct(rkBox.m_rotate.j));
+		fAWxDdU[1]		= std::abs(kWxD.dotproduct(rkBox.m_rotate.j));
 		fRhs = rkBox.m_halfsize[0]*fAWdU[2] + rkBox.m_halfsize[2]*fAWdU[0];
 		if ( fAWxDdU[1] > fRhs )
 			return false;
 
-		fAWxDdU[2]		= _abs(kWxD.dotproduct(rkBox.m_rotate.k));
+		fAWxDdU[2]		= std::abs(kWxD.dotproduct(rkBox.m_rotate.k));
 		fRhs = rkBox.m_halfsize[0]*fAWdU[1] + rkBox.m_halfsize[1]*fAWdU[0];
 		if ( fAWxDdU[2] > fRhs )
 			return false;

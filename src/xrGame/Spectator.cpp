@@ -179,11 +179,11 @@ void CSpectator::shedule_Update		(u32 DT)
 #define START_ACCEL		16.0f
 static float Accel_mul = START_ACCEL;
 
-void CSpectator::IR_OnKeyboardPress(int cmd)
+void CSpectator::IR_OnKeyboardPress(int dik)
 {
 	if (Remote())												return;
 	
-	switch(cmd) 
+	switch(get_binded_action(dik)) 
 	{
 	case kACCEL:
 		{
@@ -205,7 +205,7 @@ void CSpectator::IR_OnKeyboardPress(int cmd)
 		}break;
 	case kWPN_ZOOM:
 		{
-			game_cl_mp* pMPGame = smart_cast<game_cl_mp*> (&Game());
+			game_cl_mp* pMPGame = Game().cast_game_cl_mp();
 			if (!pMPGame) break;
 			game_PlayerState* PS = Game().local_player;
 			if (!Level().IsDemoPlay() && (!PS || PS->GameID != ID())) break;
@@ -249,9 +249,9 @@ void CSpectator::IR_OnKeyboardPress(int cmd)
 	}
 }
 
-void CSpectator::IR_OnKeyboardRelease(int cmd)
+void CSpectator::IR_OnKeyboardRelease(int dik)
 {
-	switch (cmd)
+	switch (get_binded_action(dik))
 	{
 	case kACCEL:
 		{
@@ -261,29 +261,30 @@ void CSpectator::IR_OnKeyboardRelease(int cmd)
 }
 
 
-void CSpectator::IR_OnKeyboardHold(int cmd)
+void CSpectator::IR_OnKeyboardHold(int dik)
 {
+	auto bind = get_binded_action(dik);
 	if (Remote())
 		return;
 
 	if (g_pGamePersistent->GameType() & eGameIDFreeMP)
 		return;
 
-	game_cl_mp* pMPGame = smart_cast<game_cl_mp*> (&Game());
+	game_cl_mp* pMPGame = Game().cast_game_cl_mp();
 	game_PlayerState* PS = Game().local_player;
 
 	if ((cam_active==eacFreeFly)||(cam_active==eacFreeLook)){
 		CCameraBase* C	= cameras	[cam_active];
 		Fvector vmove={0,0,0};
-		switch(cmd){
+		switch(bind){
 		case kUP:
 		case kDOWN: 
 		case kCAM_ZOOM_IN: 
 		case kCAM_ZOOM_OUT: 
-			cameras[cam_active]->Move(cmd); break;
+			cameras[cam_active]->Move(bind); break;
 		case kLEFT:
 		case kRIGHT:
-			if (eacFreeLook!=cam_active) cameras[cam_active]->Move(cmd); break;
+			if (eacFreeLook!=cam_active) cameras[cam_active]->Move(bind); break;
 		case kFWD:			
 			vmove.mad( C->vDirection, m_fTimeDelta*Accel_mul );
 			break;
@@ -314,17 +315,23 @@ void CSpectator::IR_OnMouseMove(int dx, int dy)
 	}
 
 	if (g_pGamePersistent->GameType() & eGameIDFreeMP)
+	{
 		return;
-
-	CCameraBase* C	= cameras	[cam_active];
-	float scale		= (C->f_fov/g_base_fov)*psMouseSens * psMouseSensScale/50.f;
-	if (dx){
-		float d = float(dx)*scale;
-		cameras[cam_active]->Move((d<0)?kLEFT:kRIGHT, _abs(d));
 	}
-	if (dy){
-		float d = ((psMouseInvert.test(1))?-1:1)*float(dy)*scale*3.f/4.f;
-		cameras[cam_active]->Move((d>0)?kUP:kDOWN, _abs(d));
+
+	CCameraBase* C = cameras[cam_active];
+	float scale = (C->f_fov / g_base_fov) * psMouseSens * psMouseSensScale / 50.f;
+
+	if (dx) 
+	{
+		float d = float(dx) * scale;
+		cameras[cam_active]->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
+	}
+
+	if (dy)
+	{
+		float d = (psMouseInvert ? -1 : 1) * float(dy) * scale * 3.f / 4.f;
+		cameras[cam_active]->Move((d > 0) ? kUP : kDOWN, std::abs(d));
 	}
 }
 
@@ -334,15 +341,15 @@ void CSpectator::FirstEye_ToPlayer(CObject* pObject)
 	CActor*		pOldActor = nullptr;
 	if (pCurViewEntity)
 	{
-		pOldActor = smart_cast<CActor*>(pCurViewEntity);
+		pOldActor = pCurViewEntity->cast_actor();
 		if (pOldActor)
 		{
 			pOldActor->inventory().Items_SetCurrentEntityHud(false);
 		};
-		if (smart_cast<CSpectator*>(pCurViewEntity))
+		if (pCurViewEntity->cast_spectator() != nullptr)
 		{
 			Engine.Sheduler.Unregister	(pCurViewEntity);
-			Engine.Sheduler.Register	(pCurViewEntity, TRUE);
+			Engine.Sheduler.Register	(pCurViewEntity, true);
 		};
 	};
 	if (pObject)
@@ -350,9 +357,9 @@ void CSpectator::FirstEye_ToPlayer(CObject* pObject)
 		Level().SetEntity(pObject);
 
 		Engine.Sheduler.Unregister	(pObject);
-		Engine.Sheduler.Register	(pObject, TRUE);
+		Engine.Sheduler.Register	(pObject, true);
 
-		CActor* pActor = smart_cast<CActor*> (pObject);
+		CActor* pActor = pObject->cast_actor();
 		if (pActor)
 		{
 			pActor->inventory().Items_SetCurrentEntityHud(true);
@@ -478,15 +485,15 @@ void CSpectator::cam_Update	(CActor* A)
 	};
 }
 
-BOOL			CSpectator::net_Spawn				( CSE_Abstract*	DC )
+bool			CSpectator::net_Spawn				( CSE_Abstract*	DC )
 {
-	BOOL res = inherited::net_Spawn(DC);
-	if (!res) return FALSE;
+	bool res = inherited::net_Spawn(DC);
+	if (!res) return false;
 
 	CSE_Abstract			*E	= (CSE_Abstract*)(DC);
-	if (!E) return FALSE;
+	if (!E) return false;
 
-	game_cl_mp* pMPGame = smart_cast<game_cl_mp*> (&Game());
+	game_cl_mp* pMPGame = Game().cast_game_cl_mp();
 	float tmp_roll = 0.f;
 	if (!pMPGame || pMPGame->Is_Spectator_Camera_Allowed(eacFreeFly))
 	{
@@ -511,9 +518,9 @@ BOOL			CSpectator::net_Spawn				( CSE_Abstract*	DC )
 
 	if (OnServer())
 	{
-		E->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);
+		E->s_flags.set(M_SPAWN_OBJECT_LOCAL, true);
 	};
-	return TRUE;
+	return true;
 };
 
 #include "../xrEngine/IGame_Persistent.h"
@@ -532,7 +539,7 @@ bool			CSpectator::SelectNextPlayerToLook	(bool const search_next)
 	if (!PS) return false;
 	m_pActorToLookAt = nullptr;
 
-	game_cl_mp* pMPGame = smart_cast<game_cl_mp*> (&Game());
+	game_cl_mp* pMPGame = Game().cast_game_cl_mp();
 
 	game_cl_GameState::PLAYERS_MAP_IT it = Game().players.begin(),
 		ite = Game().players.end();

@@ -10,9 +10,9 @@
 #include "script_particles.h"
 #include "../xrEngine/ObjectAnimator.h"
 #include "../xrEngine/IGame_Persistent.h"
-
-CScriptParticlesCustom::CScriptParticlesCustom(CScriptParticles* owner, LPCSTR caParticlesName):
-	CParticlesObject(caParticlesName,FALSE,true)
+#include "GamePersistent.h"
+CScriptParticlesCustom::CScriptParticlesCustom(CScriptParticles* owner, const char* caParticlesName):
+	CParticlesObject(caParticlesName,false,true)
 {
 //	CScriptParticlesCustom* self = this;
 //	Msg							("CScriptParticlesCustom: 0x%08x",*(int*)&self);
@@ -35,26 +35,11 @@ CScriptParticlesCustom::~CScriptParticlesCustom()
 //		g_verify_stalkers		();
 }
 
-void CScriptParticlesCustom::PSI_internal_delete()
+void CScriptParticlesCustom::Update(u32 _dt, CFrustum& viewbase)
 {
-	if (m_owner)
-		m_owner->m_particles = nullptr;
-
-	CParticlesObject::PSI_destroy();
-}
-
-void CScriptParticlesCustom::PSI_destroy()
-{
-	if (m_owner)
-		m_owner->m_particles = nullptr;
-
-	CParticlesObject::PSI_destroy();
-}
-
-void CScriptParticlesCustom::shedule_Update(u32 _dt)
-{
-	CParticlesObject::shedule_Update(_dt);
-	if (m_animator){
+	CParticlesObject::Update(_dt, &viewbase);
+	if (m_animator)
+	{
 		float dt				= float(_dt)/1000.f; 
 		Fvector prev_pos		= m_animator->XFORM().c;
 		m_animator->Update		(dt);
@@ -63,7 +48,7 @@ void CScriptParticlesCustom::shedule_Update(u32 _dt)
 		UpdateParent			(m_animator->XFORM(),vel);
 	}
 }
-void CScriptParticlesCustom::LoadPath(LPCSTR caPathName)
+void CScriptParticlesCustom::LoadPath(const char* caPathName)
 {
 	if (!m_animator) m_animator	= new CObjectAnimator();
 	if ((0==m_animator->Name())||(0!=xr_strcmp(m_animator->Name(),caPathName))){
@@ -94,10 +79,10 @@ void CScriptParticlesCustom::remove_owner	()
 	m_owner						= 0;
 }
 
-CScriptParticles::CScriptParticles(LPCSTR caParticlesName)
+CScriptParticles::CScriptParticles(const char* caParticlesName)
 {
 	m_particles = xr_make_shared<CScriptParticlesCustom>(this, caParticlesName);
-	g_pGamePersistent->ps_active_deffer.push_back(m_particles);
+	GamePersistent().ps_active_deffer.push_back(m_particles);
 }
 
 CScriptParticles::~CScriptParticles()
@@ -107,12 +92,9 @@ CScriptParticles::~CScriptParticles()
 		// destroy particles
 		m_particles->remove_owner	();
 
-		if (!m_particles->IsLooped() && m_particles->IsPlaying())
-			m_particles->SetAutoRemove(true);
-		else
-			m_particles->PSI_destroy();
+		m_particles->Destroy();
 
-		m_particles					= 0;
+		m_particles					= nullptr;
 	}
 }
 
@@ -131,13 +113,13 @@ void CScriptParticles::PlayAtPos(const Fvector &position)
 void CScriptParticles::Stop		()
 {
 	VERIFY						(m_particles);
-	m_particles->Stop			(FALSE);
+	m_particles->Stop			(false);
 }
 
 void CScriptParticles::StopDeffered()
 {
 	VERIFY						(m_particles);
-	m_particles->Stop			(TRUE);
+	m_particles->Stop			(true);
 }
 
 void CScriptParticles::MoveTo	(const Fvector &pos, const Fvector& vel)
@@ -146,6 +128,36 @@ void CScriptParticles::MoveTo	(const Fvector &pos, const Fvector& vel)
 	Fmatrix						XF;
 	XF.translate				(pos);
 	m_particles->UpdateParent	(XF,vel);
+}
+
+void CScriptParticles::SetXFORM_DIR_X(const Fvector& pos, const Fvector& dir, const Fvector& vel)
+{
+	VERIFY(m_particles);
+	Fmatrix XF;
+	XF.k.set(dir);
+	Fvector::generate_orthonormal_basis(XF.k, XF.j, XF.i);
+	XF.c.set(pos);
+	m_particles->UpdateParent(XF, vel);
+}
+
+void CScriptParticles::SetXFORM_DIR_Y(const Fvector& pos, const Fvector& dir, const Fvector& vel)
+{
+	VERIFY(m_particles);
+	Fmatrix XF;
+	XF.j.set(dir);
+	Fvector::generate_orthonormal_basis(XF.j, XF.k, XF.i);
+	XF.c.set(pos);
+	m_particles->UpdateParent(XF, vel);
+}
+
+void CScriptParticles::SetXFORM_DIR_Z(const Fvector& pos, const Fvector& dir, const Fvector& vel)
+{
+	VERIFY(m_particles);
+	Fmatrix XF;
+	XF.i.set(dir);
+	Fvector::generate_orthonormal_basis(XF.i, XF.j, XF.k);
+	XF.c.set(pos);
+	m_particles->UpdateParent(XF, vel);
 }
 
 bool CScriptParticles::IsPlaying() const
@@ -160,7 +172,7 @@ bool CScriptParticles::IsLooped	() const
 	return m_particles->IsLooped();
 }
 
-void CScriptParticles::LoadPath(LPCSTR caPathName)
+void CScriptParticles::LoadPath(const char* caPathName)
 {
 	VERIFY						(m_particles);
 	m_particles->LoadPath		(caPathName);

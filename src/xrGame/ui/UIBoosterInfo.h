@@ -4,10 +4,9 @@
 
 class CUIXml;
 class CUIStatic;
-class CUITextWnd;
 class UIBoosterInfoItem;
 
-class CUIBoosterInfo : public CUIWindow
+class CUIBoosterInfo final : public CUIWindow
 {
 public:
 					CUIBoosterInfo		();
@@ -22,6 +21,7 @@ protected:
 	UIBoosterInfoItem*	m_booster_satiety;
 	UIBoosterInfoItem*	m_booster_thirst;
 	UIBoosterInfoItem*	m_booster_sleepiness;
+	UIBoosterInfoItem*	m_booster_intoxication;
 	UIBoosterInfoItem*	m_booster_anabiotic;
 	UIBoosterInfoItem*	m_booster_time;
 
@@ -31,23 +31,26 @@ protected:
 
 // -----------------------------------
 
-class UIBoosterInfoItem : public CUIWindow
+class UIBoosterInfoItem final : public CUIWindow
 {
 public:
 				UIBoosterInfoItem	();
 	virtual		~UIBoosterInfoItem();
 		
-		void	Init				( CUIXml& xml, LPCSTR section );
-		void	SetCaption			( LPCSTR name );
+		void	Init				( CUIXml& xml, const char* section );
+		void	SetCaption			( const char* name );
 		void	SetValue			( float value );
+		void	SetValueText		( const char* text );
+		void	ShowValue			( bool show );
 	
 	virtual CUIWindow* ui_cast_window() { return this; }
 
+	float		m_magnitude;
 private:
 	CUIStatic*	m_caption;
-	CUITextWnd*	m_value;
-	float		m_magnitude;
+	CUIStatic*	m_value;
 	bool		m_show_sign;
+	bool		m_sign_inverse = false;
 	shared_str	m_unit_str;
 	shared_str	m_texture_minus;
 	shared_str	m_texture_plus;

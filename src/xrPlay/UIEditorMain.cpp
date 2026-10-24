@@ -17,15 +17,8 @@ void RenderActorInfos()
 	if (!Engine.External.EditorStates[static_cast<u8>(EditorUI::ActorInfos)])
 		return;
 
-	if (g_pIGameActor == nullptr) {
-		return;
-	}
-
-	if (g_pGameLevel == nullptr) {
-		return;
-	}
-
-	if (!g_pGameLevel->bReady) {
+	if (!GActorInterface || !(g_pGameLevel && g_pGameLevel->bReady))
+	{
 		return;
 	}
 
@@ -34,7 +27,7 @@ void RenderActorInfos()
 		return;
 	}
 
-	const auto& Data = g_pIGameActor->GetKnowedPortions();
+	const auto& Data = GActorInterface->GetKnownPortions();
 
 	static char buffer[128]{};
 	ImGui::Text("Filter:");
@@ -49,9 +42,9 @@ void RenderActorInfos()
 
 	if (ImGui::Button("add"))
 	{
-		if (g_pIGameActor)
+		if (GActorInterface)
 		{
-			g_pIGameActor->GiveInfoPortion(add_info);
+			GActorInterface->GiveInfoPortion(add_info);
 		}
 	}
 
@@ -69,8 +62,69 @@ void RenderActorInfos()
 
 		if (is_need_to_show)
 		{
-			if (ImGui::Button(Str.c_str())) {
-				g_pIGameActor->DisableInfoPortion(Str.c_str());
+			if (ImGui::Button(Str.c_str())) 
+			{
+				GActorInterface->DisableInfoPortion(Str.c_str());
+			}
+			if (ImGui::IsItemHovered())
+			{
+				xr_string hint = "";
+
+				auto dialogsVec = GActorInterface->GetKnownPortionDialogs(Str.c_str());
+				if (dialogsVec.size())
+					hint += "Dialogs:";
+
+				for (const auto& dialogStr : dialogsVec)
+				{
+					hint += "\n";
+					hint += dialogStr;
+				}
+
+				auto disablePortionsVec = GActorInterface->GetKnownPortionDisable(Str.c_str());
+				if (disablePortionsVec.size())
+					hint += "Disables portions:";
+
+				for (const auto& disablePortion : disablePortionsVec)
+				{
+					hint += "\n";
+					hint += disablePortion;
+				}
+
+				auto articlesVec = GActorInterface->GetKnownPortionArticles(Str.c_str());
+				if (articlesVec.size())
+					hint += "Articles:";
+
+				for (const auto& articleStr : articlesVec)
+				{
+					hint += "\n";
+					hint += articleStr;
+				}
+				
+				auto articlesDisableVec = GActorInterface->GetKnownPortionArticlesDisable(Str.c_str());
+				if (articlesDisableVec.size())
+					hint += "Disables articles:";
+
+				for (const auto& articleDisableStr : articlesDisableVec)
+				{
+					hint += "\n";
+					hint += articleDisableStr;
+				}
+
+				auto tasksVec = GActorInterface->GetKnownPortionTasks(Str.c_str());
+				if (tasksVec.size())
+					hint += "Tasks:";
+
+				for (const auto& taskStr : tasksVec)
+				{
+					hint += "\n";
+					hint += taskStr;
+				}
+
+				if (hint.empty())
+					hint = "No properties for this info portion";
+
+				ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+				ImGui::SetTooltip(hint.c_str());
 			}
 		}
 	}
@@ -89,7 +143,7 @@ static bool checkSpawnItems = true;
 void OnOpenSceneClicked(xr_map<xr_string, xr_vector<xr_string>> scenesTable, const char* key, const char* value) {
 	if (!scenesTable[key][0].empty()) {
 		if (scenesTable[key][0] != "nil") {
-			g_pIGameActor->GiveInfoPortion(scenesTable[key][0].c_str());
+			GActorInterface->GiveInfoPortion(scenesTable[key][0].c_str());
 		}
 	}
 
@@ -100,7 +154,7 @@ void OnOpenSceneClicked(xr_map<xr_string, xr_vector<xr_string>> scenesTable, con
 		if (scenesTable[key].size() > 1 && !scenesTable[key][1].empty()) {
 			patrol = g_pGameLevel->CreatePatrol(scenesTable[key][1].c_str());
 			point = patrol->point(0u);
-			g_pIGameActor->SetActorPosition(point);
+			GActorInterface->SetActorPosition(point);
 		}
 
 		if (patrol == nullptr) {
@@ -111,7 +165,7 @@ void OnOpenSceneClicked(xr_map<xr_string, xr_vector<xr_string>> scenesTable, con
 			auto look = g_pGameLevel->CreatePatrol(scenesTable[key][2].c_str());
 			point = look->point(0u);
 			float dir = point.sub(patrol->point(0u)).getH();
-			g_pIGameActor->SetActorDirection(-dir);
+			GActorInterface->SetActorDirection(-dir);
 
 			xr_delete(look);
 		}
@@ -137,7 +191,7 @@ void RenderScenesViewer() {
 		return;
 	}
 
-	if (g_pIGameActor == nullptr) {
+	if (GActorInterface == nullptr) {
 		return;
 	}
 
@@ -153,12 +207,12 @@ void RenderScenesViewer() {
 	static auto scenesIni = CInifile(
 			FS.update_path(
 				file_name,
-				"$game_config$",
+				_game_config_,
 				"scripts\\scenes.ltx"
 			),
-			TRUE,
-			TRUE,
-			FALSE
+			true,
+			true,
+			false
 		);
 
 	auto levelName = g_pGameLevel->name();

@@ -149,20 +149,6 @@ void CUIButton::DrawHighlightedText() {
 
 void CUIButton::DrawText()
 {
-	float right_offset;
-	float down_offset;
-
-	if(GetButtonState() == BUTTON_UP || GetButtonState() == BUTTON_NORMAL)
-	{
-		right_offset	= 0;
-		down_offset		= 0;
-	}
-	else
-	{
-		right_offset	= PUSH_OFFSET_RIGHT;
-		down_offset		= PUSH_OFFSET_DOWN;
-	}
-
 	CUIStatic::DrawText();
 	if(g_btnHint->Owner()==this)
 		g_btnHint->Draw_();
@@ -177,7 +163,7 @@ void  CUIButton::Update()
 {
 	inherited::Update();
 
-	if(CursorOverWindow() && m_hint_text.size() && !g_btnHint->Owner() && Device.dwTimeContinual>m_dwFocusReceiveTime+700)
+	if (CursorOverWindow() && m_hint_text.size() && !g_btnHint->Owner() && Device.dwTimeContinual > m_dwFocusReceiveTime + m_hint_delay)
 	{
 		g_btnHint->SetHintText	(this, m_hint_text.c_str());
 
@@ -207,11 +193,15 @@ void CUIButton::OnFocusLost()
 {
 	inherited::OnFocusLost();
 	
-	if(m_eButtonState==BUTTON_PUSHED && pInput->iGetAsyncBtnState(0) && !m_bIsSwitch)
-		SetButtonState(BUTTON_NORMAL); //??? 
+	if (m_eButtonState == BUTTON_PUSHED && pInput->LeftMouseButtonPressed() && !m_bIsSwitch)
+	{
+		SetButtonState(BUTTON_NORMAL); //???
+	}
 
-	if(g_btnHint->Owner()==this)
-		g_btnHint->Discard	();
+	if (g_btnHint->Owner() == this)
+	{
+		g_btnHint->Discard();
+	}
 }
 
 bool CUIButton::OnKeyboardAction(int dik, EUIMessages keyboard_action)

@@ -106,7 +106,7 @@ CExportObjectOGF::SSplit::SSplit(CSurface* surf, const Fbox& bb)
 {
     apx_box				= bb;
 	m_Surf 				= surf;
-    m_CurrentPart		= NULL;
+    m_CurrentPart		= nullptr;
 }
 
 CExportObjectOGF::SSplit::~SSplit()
@@ -287,14 +287,14 @@ CExportObjectOGF::SSplit* CExportObjectOGF::FindSplit(CSurface* surf)
     	if ((*it)->m_Surf==surf) 
 			return *it;
 
-    return 0;
+    return nullptr;
 }
 
 bool CExportObjectOGF::PrepareMESH(CEditableMesh* MESH)
 {
 //        // generate normals
 	bool bResult = true;
-    MESH->GenerateVNormals(0);
+    MESH->GenerateVNormals(nullptr);
     // fill faces
     for (SurfFacesPairIt sp_it=MESH->m_SurfFaces.begin(); sp_it!=MESH->m_SurfFaces.end(); ++sp_it)
 	{
@@ -303,11 +303,11 @@ bool CExportObjectOGF::PrepareMESH(CEditableMesh* MESH)
         u32 dwTexCnt 	= ((surf->_FVF()&D3DFVF_TEXCOUNT_MASK)>>D3DFVF_TEXCOUNT_SHIFT);	
 		R_ASSERT		(dwTexCnt==1);
         SSplit* split	= FindSplit(surf);
-        if (0==split)
+        if (nullptr==split)
 		{
 #if 1
             SGameMtl* M = PGMLib->GetMaterialByID(surf->_GameMtl());
-            if (0==M)
+            if (nullptr==M)
 			{
                 ELog.DlgMsg		(mtError,"Surface: '%s' contains undefined game material.",surf->_Name());
                 bResult 		= false; 
@@ -320,12 +320,9 @@ bool CExportObjectOGF::PrepareMESH(CEditableMesh* MESH)
         int 	elapsed_faces 	= surf->m_Flags.is(CSurface::sf2Sided) ?face_lst.size()*2 : face_lst.size();
         const 	bool b2sided	= !!surf->m_Flags.is(CSurface::sf2Sided);
             
-        if (0==split->m_CurrentPart) 
+        if (nullptr==split->m_CurrentPart) 
 			split->AppendPart(	(elapsed_faces>0xffff) ? 0xffff : elapsed_faces,
 								(elapsed_faces>0xffff) ? 0xffff : elapsed_faces);
-
-        if (MESH->m_Normals)
-            Log("Export custom normals");
 
         do{
             for (IntIt f_it=face_lst.begin(); f_it!=face_lst.end(); ++f_it)
@@ -338,7 +335,7 @@ bool CExportObjectOGF::PrepareMESH(CEditableMesh* MESH)
 					{
                         st_FaceVert& 	fv = face.pv[k];
                         int offs 		= 0;
-                        const Fvector2* uv = 0;
+                        const Fvector2* uv = nullptr;
                         for (u32 t=0; t<dwTexCnt; ++t)
                         {
                             st_VMapPt& vm_pt 	= MESH->m_VMRefs[fv.vmref].pts[t+offs];
@@ -355,7 +352,7 @@ bool CExportObjectOGF::PrepareMESH(CEditableMesh* MESH)
                         u32 norm_id 	= (*f_it)*3+k;
                         R_ASSERT2		(norm_id<MESH->GetFCount()*3,"Normal index out of range.");
 
-                        if (MESH->m_Normals)
+                        if (MESH->m_Normals && EPrefs->SmoothGroup == ESmoothGroup::Normals)
                             v[k].set(MESH->m_Vertices[fv.pindex], MESH->m_Normals[norm_id], *uv);
                         else
                             v[k].set(MESH->m_Vertices[fv.pindex], MESH->m_VertexNormals[norm_id], *uv);
@@ -511,7 +508,7 @@ bool CExportObjectOGF::Export(IWriter& F, bool gen_tb, CEditableMesh* mesh)
 
 bool CExportObjectOGF::ExportAsSimple(IWriter& F)
 {
-    if( Prepare(true,NULL) )
+    if( Prepare(true, nullptr) )
     {
         // Saving geometry...
         if ((m_Splits.size()==1)&&(m_Splits[0]->m_Parts.size()==1))
@@ -524,14 +521,14 @@ bool CExportObjectOGF::ExportAsSimple(IWriter& F)
     return false;
 }
 
-bool CExportObjectOGF::ExportAsWavefrontOBJ(IWriter& F, LPCSTR fn)
+bool CExportObjectOGF::ExportAsWavefrontOBJ(IWriter& F, const char* fn)
 {
-	if (!Prepare(false,NULL)) 
+	if (!Prepare(false, nullptr)) 
 		return false;
 
     string_path 			tmp, tex_path, tex_name;
     string_path 			name, ext;
-    _splitpath				(fn, 0, 0, name, ext );
+    _splitpath				(fn, nullptr, nullptr, name, ext );
     strcat					(name,ext);
 
     xr_string fn_material 	= EFS.ChangeFileExt(fn,".mtl");
@@ -540,7 +537,7 @@ bool CExportObjectOGF::ExportAsWavefrontOBJ(IWriter& F, LPCSTR fn)
     // write material file
     for (SplitIt split_it=m_Splits.begin(); split_it!=m_Splits.end(); ++split_it)
     {
-	    _splitpath			((*split_it)->m_Surf->_Texture(), 0, tex_path, tex_name, 0 );
+	    _splitpath			((*split_it)->m_Surf->_Texture(), nullptr, tex_path, tex_name, nullptr );
 
         sprintf				(tmp,"newmtl %s", tex_name);
 		Fm->w_string		(tmp);
@@ -561,14 +558,14 @@ bool CExportObjectOGF::ExportAsWavefrontOBJ(IWriter& F, LPCSTR fn)
 	// writ comment
     F.w_string				("# This file uses meters as units for non-parametric coordinates.");
 
-    _splitpath				(fn, 0, 0, tex_name, 0 );
+    _splitpath				(fn, nullptr, nullptr, tex_name, nullptr );
     sprintf					(tmp,"mtllib %s.mtl", tex_name);
     F.w_string				(tmp);
 
     u32 v_offs				= 0;
     for (auto split_it=m_Splits.begin(); split_it!=m_Splits.end(); ++split_it)
     {
-	    _splitpath			((*split_it)->m_Surf->_Texture(), 0, 0, tex_name, 0 );
+	    _splitpath			((*split_it)->m_Surf->_Texture(), nullptr, nullptr, tex_name, nullptr );
         sprintf				(tmp,"g %d", int(split_it-m_Splits.begin()));
         F.w_string			(tmp);
         sprintf				(tmp,"usemtl %s",tex_name);
@@ -590,7 +587,7 @@ bool CExportObjectOGF::ExportAsWavefrontOBJ(IWriter& F, LPCSTR fn)
             }
             for (v_it=VERTS.begin(); v_it!=VERTS.end(); ++v_it)
             {
-                sprintf				(tmp,"vt %f %f",v_it->UV.x,_abs(1.f-v_it->UV.y));
+                sprintf				(tmp,"vt %f %f",v_it->UV.x, std::abs(1.f-v_it->UV.y));
                 F.w_string			(tmp);
             }
             for (v_it=VERTS.begin(); v_it!=VERTS.end(); ++v_it)

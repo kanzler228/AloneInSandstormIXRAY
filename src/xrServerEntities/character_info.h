@@ -5,7 +5,6 @@
 
 #pragma		once
 
-#include "character_info_defs.h"
 #include "shared_data.h"
 #include "xml_str_id_loader.h"
 
@@ -37,9 +36,9 @@ struct SCharacterProfile : CSharedResource
 	shared_str		m_CharacterId;	
 
 	//требуемые параметры персонажа
-	CHARACTER_CLASS					m_Class;
-	CHARACTER_RANK_VALUE			m_Rank;
-	CHARACTER_REPUTATION_VALUE		m_Reputation;
+	shared_str					m_Class;
+	s32			m_Rank;
+	s32		m_Reputation;
 };
 
 
@@ -84,7 +83,7 @@ protected:
 
 
 	//загрузка из XML файла
-	virtual void				load_shared			(LPCSTR);
+	virtual void				load_shared			(const char*);
 
 	//индекс загруженного профиля
 	shared_str					m_ProfileId;
@@ -105,7 +104,7 @@ public:
 
 #ifdef XRGAME_EXPORTS
 	shared_str					Profile()			const;
-	LPCSTR						Name()				const;
+	const char*						Name()				const;
 	shared_str					Bio()				const;
 
 
@@ -119,14 +118,15 @@ public:
 
 	//доступут только у InventoryOwner
 protected:
-	void						SetRank				(CHARACTER_RANK_VALUE			rank);
-	void						SetReputation		(CHARACTER_REPUTATION_VALUE		reputation);
-	void						SetCommunity		(CHARACTER_COMMUNITY_INDEX		community);
+	void						SetRank				(s32			rank);
+	void						SetReputation		(s32		reputation);
+	void						SetCommunity		(s32		community);
 
 public:
 	const shared_str&			IconName			()	const;
 
 	shared_str					StartDialog			()	const;
+	shared_str					SpecificCharacterStartDialog() const;
 	const DIALOG_ID_VECTOR&		ActorDialogs		()	const;
 #endif
 

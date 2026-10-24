@@ -9,7 +9,7 @@ class CScriptCallbackEx;
 class CActor;
 class CActorDeathEffector;
 
-class CActorCondition : 
+class CActorCondition final : 
 	public CEntityCondition
 {
 private:
@@ -33,12 +33,14 @@ private:
 			void 		UpdateSatiety				();
 			void 		UpdateThirst				();
 			void 		UpdateSleepiness			();
+			void 		UpdateIntoxication			();
 	virtual void		UpdateRadiation				();
+			float		GetMedicineEfficiencyFactor	(const shared_str& sect) const;
 public:
 						CActorCondition				(CActor *object);
 	virtual				~CActorCondition			();
 
-	virtual void		LoadCondition				(LPCSTR section);
+	virtual void		LoadCondition				(const char* section);
 	virtual void		reinit						();
 
 	virtual CWound*		ConditionHit				(SHit* pHDS);
@@ -93,6 +95,14 @@ public:
 	float	GetMaxPowerRestoreSpeed					() {return m_max_power_restore_speed;};
 	float	GetMaxWoundProtection					() {return m_max_wound_protection;};
 	float	GetMaxFireWoundProtection				() {return m_max_fire_wound_protection;};
+	float	GetHealthBoost();
+
+	virtual void SetActorSleepiness(const float value);
+	virtual void SetActorSatiety(const float value);
+	virtual void SetActorThirst(const float value);
+	virtual void SetActorRadiation(const float value);
+	virtual void SetActorPsyHealth(const float value);
+	virtual void SetActorMorale(const float value);
 
 public:
 	PlayerAddiction Satiety;
@@ -106,6 +116,9 @@ public:
 
 	PlayerAddiction Sleepiness;
 	PLAYER_ADDICTION_IMPL(Sleepiness);
+
+	PlayerAddiction Intoxication;
+	PLAYER_ADDICTION_IMPL(Intoxication);
 
 public:
 	SMedicineInfluenceValues m_curr_medicine_influence;
@@ -147,6 +160,7 @@ public:
 	float m_fLimpingHealthEnd;
 
 	float m_fRadiationZonePower;
+	float m_fIntoxicationThirstK;
 
 	//typedef xr_vector<SMedicineInfluenceValues> BOOSTS_VECTOR;
 	//typedef xr_vector<SMedicineInfluenceValues>::iterator BOOSTS_VECTOR_ITER;
@@ -163,7 +177,7 @@ class CActorDeathEffector
 	float					m_start_health;
 	void 			OnPPEffectorReleased		();
 public:
-			CActorDeathEffector	(CActorCondition* parent, LPCSTR sect);	// -((
+			CActorDeathEffector	(CActorCondition* parent, const char* sect);	// -((
 			~CActorDeathEffector();
 	void	UpdateCL			();
 	IC bool	IsActual			() {return m_b_actual;}

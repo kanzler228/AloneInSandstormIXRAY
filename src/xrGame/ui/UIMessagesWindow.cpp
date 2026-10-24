@@ -7,7 +7,8 @@
 // Copyright 2005 GSC Game World
 
 #include "StdAfx.h"
-bool		IsGameTypeSingle();
+#include "../../xrEngine/string_table.h"
+#include "../Level.h"
 #include "UIMessagesWindow.h"
 #include "UIGameLog.h"
 #include "UIChatWnd.h"
@@ -117,20 +118,40 @@ void CUIMessagesWindow::AddIconedPdaMessage(GAME_NEWS_DATA* news)
 {
 	CUIPdaMsgListItem *pItem			= m_pGameLog->AddPdaMessage();
 	
-	LPCSTR time_str = InventoryUtilities::GetTimeAsString( news->receive_time, InventoryUtilities::etpTimeToMinutes ).c_str();
+	const char* time_str = InventoryUtilities::GetTimeAsString( news->receive_time, InventoryUtilities::etpTimeToMinutes ).c_str();
 	pItem->UITimeText.SetText			(time_str);
-	pItem->UITimeText.AdjustWidthToText	();
-	Fvector2 p							= pItem->UICaptionText.GetWndPos();
-	p.x									= pItem->UITimeText.GetWndPos().x + pItem->UITimeText.GetWidth() + 3.0f;
-	pItem->UICaptionText.SetWndPos		(p);
-	pItem->UICaptionText.SetTextST		(news->news_caption.c_str());
-	pItem->UIMsgText.SetTextST			(news->news_text.c_str());
+	if (pItem->UICaptionText)
+	{
+		pItem->UITimeText.AdjustWidthToText	();
+
+		Fvector2 p = pItem->UICaptionText->GetWndPos();
+		p.x = pItem->UITimeText.GetWndPos().x + pItem->UITimeText.GetWidth() + 3.0f;
+		pItem->UICaptionText->SetWndPos(p);
+		pItem->UICaptionText->SetText(g_pStringTable->ParseStringFromScript(news->news_caption).c_str());
+	}
+	else
+	{
+		pItem->UIMsgText.SetWndPos(Fvector2().set(pItem->UIIcon.GetWidth(), pItem->UIMsgText.GetWndPos().y));
+	}
+
+	pItem->UIMsgText.SetTextST			(g_pStringTable->ParseStringFromScript(news->news_text).c_str());
 	pItem->UIMsgText.AdjustHeightToText	();
 	
     pItem->SetColorAnimation			("ui_main_msgs_short", LA_ONLYALPHA|LA_TEXTCOLOR|LA_TEXTURECOLOR, float(news->show_time));
+	
 	pItem->UIIcon.InitTexture			(news->texture_name.c_str());
 	
-	float h1 = _max( pItem->UIIcon.GetHeight(), pItem->UIMsgText.GetWndPos().y + pItem->UIMsgText.GetHeight() );
+	Frect emptyRect = Frect().set(0.f, 0.f, 0.f, 0.f);
+	if (!news->tex_rect.cmp(emptyRect))
+	{
+		Frect texture_rect;
+		texture_rect.lt.set(news->tex_rect.x1, news->tex_rect.y1);
+		texture_rect.rb.set(news->tex_rect.x2, news->tex_rect.y2);
+		texture_rect.rb.add(texture_rect.lt);
+		pItem->UIIcon.GetUIStaticItem().SetTextureRect(texture_rect);
+	}
+
+	float h1 = std::max( pItem->UIIcon.GetHeight(), pItem->UIMsgText.GetWndPos().y + pItem->UIMsgText.GetHeight() );
 	pItem->SetHeight( h1 + 3.0f );
 
 	m_pGameLog->SendMessage(pItem,CHILD_CHANGED_SIZE);

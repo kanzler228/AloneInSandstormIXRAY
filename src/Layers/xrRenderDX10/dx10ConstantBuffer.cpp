@@ -26,12 +26,12 @@ dx10ConstantBuffer::dx10ConstantBuffer(ID3DShaderReflectionConstantBuffer* pTabl
 	//	Fill member list with variable descriptions
 	m_MembersList.resize(Desc.Variables);
 	m_MembersNames.resize(Desc.Variables);
-	for (u32 i=0; i<Desc.Variables; ++i)
+	for (u32 i = 0; i < Desc.Variables; ++i)
 	{
 		ID3DShaderReflectionVariable* pVar;
-		ID3DShaderReflectionType*		pType;
+		ID3DShaderReflectionType* pType;
 
-		D3D_SHADER_VARIABLE_DESC		var_desc;
+		D3D_SHADER_VARIABLE_DESC var_desc;
 
 		pVar = pTable->GetVariableByIndex(i);
 		VERIFY(pVar);
@@ -43,9 +43,9 @@ dx10ConstantBuffer::dx10ConstantBuffer(ID3DShaderReflectionConstantBuffer* pTabl
 		m_MembersNames[i] = var_desc.Name;
 	}
 
-	m_uiMembersCRC = crc32( &m_MembersList[0], Desc.Variables*sizeof(m_MembersList[0]));
+	m_uiMembersCRC = crc32(&m_MembersList[0], Desc.Variables * sizeof(m_MembersList[0]));
 
-	R_CHK(dx10BufferUtils::CreateConstantBuffer(&m_pBuffer, Desc.Size));
+	R_CHK(RHIUtils::CreateConstantBuffer(&m_pBuffer, Desc.Size));
 	VERIFY(m_pBuffer);
 	m_pBufferData = xr_malloc(Desc.Size);
 	VERIFY(m_pBufferData);
@@ -84,18 +84,37 @@ void dx10ConstantBuffer::Flush()
 {
 	if (m_bChanged)
 	{
-		void	*pData;
+		RHIMappedSubresource pSubRes = {};
+		R_ASSERT(m_pBuffer->Map(ERHI_BUFFER_MAP::WRITE_DISCARD, 0, &pSubRes));
 
-		D3D11_MAPPED_SUBRESOURCE	pSubRes;
-		CHK_DX(RContext->Map(m_pBuffer, 0, D3D_MAP_WRITE_DISCARD, 0, &pSubRes));
-		pData = pSubRes.pData;
+		void* dst = pSubRes.pData;
+		void* src = m_pBufferData;
 
-		VERIFY(pData);
-		VERIFY(m_pBufferData);
-		CopyMemory(pData, m_pBufferData, m_uiBufferSize);
+		VERIFY(dst);
+		VERIFY(src);
 
-		RContext->Unmap(m_pBuffer, 0);
+		u32 buff_size = m_uiBufferSize >> 4u; // m_uiBufferSize / sizeof(Fvector4)
+#ifndef IXR_CLANG_BUILD
+		if (CPU::ID().hasFeature(CPUFeature::AVX))
+		{
+			for (u32 i = 0u; i < (buff_size>>1u); ++i) // buff_size / 2
+				((__m256*)dst)[i] = ((__m256*)src)[i];
+			if (buff_size&1u)
+				((__m128*)dst)[buff_size-1u] = ((__m128*)src)[buff_size-1u];
+		}
+		else if (CPU::ID().hasFeature(CPUFeature::SSE))
+		{
+			for (u32 i = 0u; i < buff_size; ++i)
+				((__m128*)dst)[i] = ((__m128*)src)[i];
+		}
+		else
+#endif
+		{
+			for (u32 i = 0u; i < buff_size; ++i)
+				((Fvector4*)dst)[i] = ((Fvector4*)src)[i];
+		}
 
+		m_pBuffer->Unmap();
 		m_bChanged = false;
 	}
 }

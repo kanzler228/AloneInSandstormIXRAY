@@ -1,95 +1,260 @@
 #include "stdafx.h"
 #include "xrAddons.h"
 
-XRCORE_API CAddonManager* g_pAddonsManager = nullptr;
+#include "EngineExternal.h"
+#include <FormatParsers/YAML/xr_yaml_reader.h>
+#include <filesystem>
 
-void CAddonManager::CanApply(xr_string& TempPath, CLocatorAPI::file& Desc)
+XRCORE_API CAddonManager* GAddonsManager = nullptr;
+
+void CAddonManager::Initialize()
 {
-	if (TempPath.ends_with("\\addon.init"))
-	{
-		ReadMetaInfo(TempPath);
-		return;
-	}
+    FS.IsAddonPhase = true;
 
-	static xr_string addons_path = FS.get_path("$arch_dir_addons$")->m_Path;
-	static xr_string CurrentAddonName = "";
-	static bool IsProcessingAddon = false;
+    CEngineExternal engineExternal; // Hack
+    currentPlatform = engineExternal.GetCurrentPlatformName();
 
+    CollectAddons();
+    ResolveDependencies();
+    MountAddons();
 
-	bool PathIsDir = std::filesystem::is_directory(TempPath.data());
-	if (TempPath.Contains(addons_path) && !PathIsDir && IsProcessingAddon)
-	{
-		static xr_string data_path = FS.get_path("$game_data$")->m_Path;
-		Desc.wrap = xr_strdup(TempPath.data());
-		TempPath = data_path + TempPath.substr(CurrentAddonName.length() + addons_path.length());
-	}
-	else if (PathIsDir)
-	{
-		if (IsProcessingAddon && !TempPath.Contains(CurrentAddonName))
-		{
-			IsProcessingAddon = false;
-			Msg("Processing %s addon completed!", CurrentAddonName.c_str());
-
-			CurrentAddonName = "";
-		}
-
-		if (!IsProcessingAddon)
-		{
-			if (CurrentAddonName.empty())
-			{
-				CurrentAddonName += TempPath.substr(addons_path.length());
-				IsProcessingAddon = std::filesystem::exists((TempPath + "addon.init"));
-			}
-			else if (TempPath.Contains(CurrentAddonName))
-			{
-				CurrentAddonName += TempPath.substr(CurrentAddonName.length() + addons_path.length());
-				IsProcessingAddon = std::filesystem::exists((TempPath + "addon.init"));
-			}
-			else if (!TempPath.Contains(CurrentAddonName))
-			{
-				CurrentAddonName = "";
-				IsProcessingAddon = std::filesystem::exists((TempPath + "addon.init"));
-
-				if (IsProcessingAddon)
-				{
-					CurrentAddonName += TempPath.substr(addons_path.length());
-				}
-			}
-		}
-	}
+    FS.IsAddonPhase = false;
 }
 
-#include <fstream>
-#include <sstream>
+void CAddonManager::CollectAddons()
+{
+    Addons.clear();
+
+    const xr_string AddonsRoot = FS.get_path("$arch_dir_addons$")->m_Path;
+    if (!std::filesystem::exists(AddonsRoot.c_str()))
+    {
+        Msg("! Addons directory not found: %s", AddonsRoot.c_str());
+        return;
+    }
+
+    auto options = std::filesystem::directory_options::follow_directory_symlink;
+    for (auto& Entry : std::filesystem::recursive_directory_iterator(AddonsRoot.c_str(), options))
+    {
+        if (!Entry.is_regular_file())
+        {
+            continue;
+        }
+
+        if (Entry.path().filename() == "addon.init")
+        {
+            ReadMetaInfo(Entry.path().string().c_str());
+        }
+    }
+}
 
 void CAddonManager::ReadMetaInfo(const xr_string& InitFile)
 {
-	std::fstream FileStream(InitFile.c_str());
-	std::ostringstream filebuffer;
-	filebuffer << FileStream.rdbuf();
+    AddonInfo Addon;
 
-	xr_string StringBuffer = filebuffer.str().data();
-	
-	if (StringBuffer.empty())
-		return;
+    std::filesystem::path InitPath(InitFile.c_str());
+    std::filesystem::path RootDir = InitPath.parent_path();
+    Addon.EntryDir = RootDir.string().c_str();
+    Addon.AddonName = RootDir.filename().string().c_str();
+    Addon.Platforms.insert(currentPlatform.c_str());
 
-	AddonInfo& NewAddon = Addons.emplace_back();
-	NewAddon.EntryDir = InitFile.data();
+    CYaml Yaml(RootDir.string().c_str(), "addon.init");
 
-	size_t NameEntryIndex = StringBuffer.find("name:");
-	if (NameEntryIndex == xr_string::npos)
+    if (Yaml.IsValid())
+    {
+        const YAML::Node& Root = Yaml.GetRoot();
+
+        xr_string Name = Yaml.GetStringRoot(Root, "name", RootDir.filename().string().c_str());
+        Addon.AddonName = Name.c_str();
+
+        YAML::Node platforms = Root["platform"];
+        if (platforms)
+        {
+            Addon.Platforms.clear();
+
+            if (platforms.IsSequence())
+            {
+                for (const auto& platform : platforms)
+                {
+                    if (platform.IsScalar())
+                    {
+                        Addon.Platforms.insert(platform.as<std::string>().c_str());
+                    }
+                }
+            }
+            else if (platforms.IsScalar())
+            {
+                Addon.Platforms.insert(platforms.as<std::string>().c_str());
+            }
+        }
+
+        // Script
+        xr_string Script = Yaml.GetStringRoot(Root, "script", "");
+        if (!Script.empty())
+        {
+            xr_string S = Script.c_str();
+            if (S.ends_with(".script"))
+            {
+                S.erase(S.length() - 7);
+            }
+            Addon.ScriptInit = S.c_str();
+        }
+
+        YAML::Node DependsNode = Root["depends"];
+        if (DependsNode)
+        {
+            if (DependsNode.IsSequence())
+            {
+                for (const auto& Dep : DependsNode)
+                {
+                    if (Dep.IsScalar())
+                    {
+                        Addon.Dependencies.push_back(Dep.as<std::string>().c_str());
+                    }
+                }
+            }
+            else if (DependsNode.IsScalar())
+            {
+                Addon.Dependencies.push_back(DependsNode.as<std::string>().c_str());
+            }
+        }
+    }
+
+    if (Addon.Platforms.contains(currentPlatform.c_str()))
+    {
+        Addons.push_back(Addon);
+        Msg("Addon found: %s (%s)", Addon.AddonName.c_str(), Addon.EntryDir.c_str());
+    }
+    else
+    {
+        Msg("# Add-on `%s` belongs to another platform", Addon.AddonName.c_str());
+    }
+}
+
+void CAddonManager::ResolveDependencies()
+{
+    xr_vector<AddonInfo> Sorted;
+    xr_vector<AddonInfo> Work = Addons;
+
+    while (!Work.empty())
+    {
+        bool Progress = false;
+
+        for (auto It = Work.begin(); It != Work.end(); )
+        {
+            AddonInfo& Addon = *It;
+            bool CanLoad = true;
+
+            for (auto& Dep : Addon.Dependencies)
+            {
+                if (Dep.empty())
+                {
+                    continue;
+                }
+
+                bool Found = false;
+                for (auto& Loaded : Sorted)
+                {
+                    if (!Loaded.AddonName.size() == 0 &&
+                        stricmp(*Loaded.AddonName, Dep.c_str()) == 0)
+                    {
+                        Found = true;
+                        break;
+                    }
+                }
+
+                if (!Found)
+                {
+                    CanLoad = false;
+                    break;
+                }
+            }
+
+            if (CanLoad)
+            {
+                Sorted.push_back(Addon);
+                It = Work.erase(It);
+                Progress = true;
+            }
+            else
+            {
+                ++It;
+            }
+        }
+
+        if (!Progress)
+        {
+            for (auto& Addon : Work)
+            {
+                if (!Addon.AddonName.size() == 0)
+                {
+                    Msg("! Addon '%s' skipped: missing dependencies", *Addon.AddonName);
+                }
+            }
+            break;
+        }
+    }
+
+    Addons.swap(Sorted);
+    Msg("Resolved %zu addons", Addons.size());
+}
+
+void CAddonManager::MountAddons()
+{
+    for (auto& Addon : Addons)
+    {
+        Msg("Mounting addon: %s", Addon.AddonName.c_str());
+
+        std::filesystem::path AddonPath(Addon.EntryDir.c_str());
+
+        if (std::filesystem::is_directory(AddonPath))
+        {
+            xr_stack_string_path addon_path = Addon.EntryDir.c_str();
+            addon_path.append("\\");
+            FS.rescan_path(addon_path.c_str(), true, false);
+        }
+        else if (AddonPath.extension() == ".db" && std::filesystem::is_regular_file(AddonPath))
+        {
+            CLocatorAPI::archive A;
+            A.path = AddonPath.string().c_str();
+            FS.LoadArchive(A);
+        }
+        else
+        {
+            Msg("! Unknown addon format: %s", Addon.EntryDir.c_str());
+        }
+    }
+}
+
+bool CAddonManager::CanApply(xr_string& TempPath, CLocatorAPI::file& Desc)
+{
+    const xr_string DataPath = FS.get_path(_game_data_)->m_Path;
+
+    if (std::filesystem::is_directory(TempPath.c_str()) || TempPath.ends_with("addon.init"))
+    {
+        return false;
+    }
+
+	for (auto& Addon : Addons)
 	{
-		size_t NameEndIndex = StringBuffer.find("\n", NameEntryIndex);
+		xr_string AddonRoot = Addon.EntryDir.c_str();
+		xr_strlwr(AddonRoot);
 
-		size_t Offet = NameEntryIndex + 6;
-		NewAddon.AddonName = StringBuffer.substr(Offet, NameEndIndex - Offet).c_str();
+		const size_t AddonRootLength = AddonRoot.length();
+		const bool IsFileInsideAddon = TempPath.starts_with(AddonRoot) && TempPath.length() > AddonRootLength &&
+									   TempPath[AddonRootLength] == Platform::kPreferredSeparator[0];
+
+		if (IsFileInsideAddon)
+		{
+			Desc.wrap = xr_strdup(TempPath.c_str());
+
+			xr_path TempOutPath = DataPath;
+			xr_string FilePath = TempPath.substr(AddonRootLength + 1);
+
+			TempOutPath.append(FilePath.c_str());
+			TempPath = TempOutPath.xstring();
+			return true;
+		}
 	}
 
-	size_t ScriptEntryIndex = StringBuffer.find("script:");
-	if (ScriptEntryIndex == xr_string::npos)
-		return;
-
-	size_t ScriptEndIndex = StringBuffer.find(".script", ScriptEntryIndex);
-	size_t Offet = ScriptEntryIndex;
-	NewAddon.ScriptInit = StringBuffer.substr(Offet + 8, ScriptEndIndex - Offet).c_str();
+	return false;
 }

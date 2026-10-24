@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "flesh.h"
 #include "../../../ai_space.h"
 #include "flesh_state_manager.h"
@@ -21,15 +21,15 @@ CAI_Flesh::~CAI_Flesh()
 	xr_delete(StateMan);
 }
 
-BOOL CAI_Flesh::net_Spawn (CSE_Abstract* DC) 
+bool CAI_Flesh::net_Spawn (CSE_Abstract* DC) 
 {
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 
-	return TRUE;
+	return true;
 }
 
-void CAI_Flesh::Load(LPCSTR section)
+void CAI_Flesh::Load(const char* section)
 {
 	inherited::Load(section);
 
@@ -131,8 +131,8 @@ void CAI_Flesh::CheckSpecParams(u32 spec_params)
 // ConeDir - направление конуса, SphereCenter - центр сферы, SphereRadius - радиус сферы
 bool CAI_Flesh::ConeSphereIntersection(Fvector ConeVertex, float ConeAngle, Fvector ConeDir, Fvector SphereCenter, float SphereRadius)
 {
-	float fInvSin = 1.0f/_sin(ConeAngle);
-	float fCosSqr = _cos(ConeAngle)*_cos(ConeAngle);
+	float fInvSin = 1.0f/ std::sin(ConeAngle);
+	float fCosSqr = std::cos(ConeAngle)* std::cos(ConeAngle);
 
 	
 	Fvector kCmV;	kCmV.sub(SphereCenter,ConeVertex);
@@ -145,7 +145,7 @@ bool CAI_Flesh::ConeSphereIntersection(Fvector ConeVertex, float ConeAngle, Fvec
 	float fE = kD.dotproduct(ConeDir);
 	if ( fE > 0.0f && fE*fE >= fDSqrLen*fCosSqr ) {
 		
-		float fSinSqr = _sin(ConeAngle)*_sin(ConeAngle);
+		float fSinSqr = std::sin(ConeAngle)* std::sin(ConeAngle);
 
 		fDSqrLen = kCmV.square_magnitude();
 		fE = -kCmV.dotproduct(ConeDir);

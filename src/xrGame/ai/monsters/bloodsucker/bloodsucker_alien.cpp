@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "bloodsucker_alien.h"
 #include "bloodsucker.h"
 #include "../../../Level.h"
@@ -29,7 +29,7 @@ public:
 	void	Destroy			();
 
 private:
-	virtual	BOOL	Process			(SPPInfo& pp);
+	virtual	bool	Process			(SPPInfo& pp);
 };
 
 
@@ -47,7 +47,7 @@ CAlienEffectorPP::~CAlienEffectorPP()
 
 #define PERIOD_SPEED	0.3f
 
-BOOL CAlienEffectorPP::Process(SPPInfo& pp)
+bool CAlienEffectorPP::Process(SPPInfo& pp)
 {
 	inherited::Process(pp);
 
@@ -58,7 +58,7 @@ BOOL CAlienEffectorPP::Process(SPPInfo& pp)
 	def_lerp			(factor,target_factor, PERIOD_SPEED, Device.fTimeDelta);
 	pp.lerp				(pp_identity,state,factor);
 
-	return TRUE;
+	return true;
 }
 
 void CAlienEffectorPP::Destroy()
@@ -89,7 +89,7 @@ class CAlienEffector : public CEffectorCam {
 
 public:
 					CAlienEffector	(ECamEffectorType type, CAI_Bloodsucker *obj);
-	virtual BOOL	ProcessCam		(SCamEffectorInfo& info);
+	virtual bool	ProcessCam		(SCamEffectorInfo& info);
 };
 
 
@@ -119,7 +119,7 @@ CAlienEffector::CAlienEffector(ECamEffectorType type, CAI_Bloodsucker *obj) :
 	m_current_fov			= MIN_FOV;
 }
 
-BOOL CAlienEffector::ProcessCam(SCamEffectorInfo& info)
+bool CAlienEffector::ProcessCam(SCamEffectorInfo& info)
 {
 	// Инициализация
 	Fmatrix	Mdef;
@@ -182,7 +182,7 @@ BOOL CAlienEffector::ProcessCam(SCamEffectorInfo& info)
 	info.n.set		(mR.j);
 	info.p.set		(mR.c);
 
-	return TRUE;
+	return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -195,9 +195,7 @@ CBloodsuckerAlien::CBloodsuckerAlien()
 	m_object	= 0;
 }
 
-CBloodsuckerAlien::~CBloodsuckerAlien()
-{
-}
+CBloodsuckerAlien::~CBloodsuckerAlien() = default;
 
 void CBloodsuckerAlien::init_external(CAI_Bloodsucker *obj)
 {
@@ -225,7 +223,7 @@ void CBloodsuckerAlien::activate()
 
 	// hide crosshair
 	m_crosshair_show			= !!psHUD_Flags.is(HUD_CROSSHAIR_RT);
-	if (m_crosshair_show)		psHUD_Flags.set(HUD_CROSSHAIR_RT,FALSE);
+	if (m_crosshair_show)		psHUD_Flags.set(HUD_CROSSHAIR_RT,false);
 
 	// Start effector
 	m_effector_pp				= new CAlienEffectorPP	(m_object->pp_vampire_effector, EFFECTOR_ID_GEN(EEffectorPPType));
@@ -248,7 +246,7 @@ void CBloodsuckerAlien::deactivate()
 	m_object->CControlledActor::release			();
 
 	Actor()->SetWeaponHideState(INV_STATE_BLOCK_ALL, false);
-	if (m_crosshair_show)							psHUD_Flags.set(HUD_CROSSHAIR_RT,TRUE);
+	if (m_crosshair_show)							psHUD_Flags.set(HUD_CROSSHAIR_RT,true);
 
 	// Stop camera effector
 	Actor()->Cameras().RemoveCamEffector	(EFFECTOR_ID_GEN(ECamEffectorType));

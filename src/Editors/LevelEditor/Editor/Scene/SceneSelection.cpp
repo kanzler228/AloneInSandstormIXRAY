@@ -12,7 +12,7 @@ void EScene::SelectObjects( bool flag, ObjClassID classfilter )
     else
     {
         ESceneToolBase* mt = GetTool(classfilter);
-        if (mt)
+        if (mt && mt->IsLoaded)
         	mt->SelectObjects(flag);
     }
 
@@ -155,7 +155,7 @@ void EScene::SynchronizeObjects()
         if (_I->second)	_I->second->OnSynchronize();
 }
 
-void EScene::ZoomExtents( ObjClassID cls, BOOL bSel )
+void EScene::ZoomExtents( ObjClassID cls, bool bSel )
 {
 	Fbox BB;	BB.invalidate();
     if (cls==OBJCLASS_DUMMY){

@@ -1,6 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIPdaSpot.h"
-#include <dinput.h>
+#include "PdaUiSound.h"
+//#include <dinput.h>
 #include "Level.h"
 #include "map_manager.h"
 #include "map_location.h"
@@ -10,6 +11,8 @@
 #include "../../xrUI/UIHelper.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
 #include "../xrEngine/string_table.h"
+#include "../../xrUI/UICursor.h"
+#include "../HudPdaAnimator.h"
 
 CUIPdaSpot::CUIPdaSpot()
 {
@@ -30,6 +33,7 @@ CUIPdaSpot::CUIPdaSpot()
 		}
 	}
 
+	last_cursor_pos.set(UI_BASE_WIDTH / 2.f, UI_BASE_HEIGHT / 2.f);
 	InitControls();
 }
 
@@ -37,7 +41,7 @@ CUIPdaSpot::~CUIPdaSpot()
 {
 }
 
-void CUIPdaSpot::Init(u16 spot_id, LPCSTR level_name, Fvector pos, bool main_wnd)
+void CUIPdaSpot::Init(u16 spot_id, const char* level_name, Fvector pos, bool main_wnd)
 {
 	m_mainWnd = main_wnd;
 	m_levelName = level_name;
@@ -56,7 +60,8 @@ void CUIPdaSpot::Init(u16 spot_id, LPCSTR level_name, Fvector pos, bool main_wnd
 
 void CUIPdaSpot::InitControls()
 {
-	this->SetWndRect(Frect().set(0.0f, 0.0f, 1024.f, 768.f));
+	SetWndPos(Fvector2().set(0.0f, 0.0f));
+	SetWndSize(Fvector2().set(UI_BASE_WIDTH, UI_BASE_HEIGHT));
 
 	CUIXml uiXml;
 	uiXml.Load(CONFIG_PATH, UI_PATH, "pda_spot.xml");
@@ -79,11 +84,16 @@ void CUIPdaSpot::OnAdd(CUIWindow* ui, void* d)
 	ml->SetHint(m_editBox->GetText());
 	ml->SetSerializable(true);
 
-	OnExit(ui, d);
+	Exit();
 }
 
 void CUIPdaSpot::OnApply(CUIWindow* ui, void* d)
 {
+	if (m_pUiSounds)
+	{
+		m_pUiSounds->Play(EPdaUiSound::Confirm);
+	}
+
 	if (m_mainWnd)
 	{
 		OnAdd(ui, d);
@@ -97,11 +107,15 @@ void CUIPdaSpot::OnApply(CUIWindow* ui, void* d)
 	if (m_editBox->GetText() != ml->GetHint())
 		ml->SetHint(m_editBox->GetText());
 
-	OnExit(ui, d);
+	Exit();
 }
 
 void CUIPdaSpot::OnExit(CUIWindow* w, void* d)
 {
+	if (m_pUiSounds)
+	{
+		m_pUiSounds->Play(EPdaUiSound::Cancel);
+	}
 	Exit();
 }
 
@@ -128,7 +142,7 @@ bool CUIPdaSpot::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 {
 	switch (dik)
 	{
-	case DIK_ESCAPE:
+	case SDL_SCANCODE_ESCAPE:
 	{
 		if (IsShown())
 		{
@@ -144,4 +158,37 @@ bool CUIPdaSpot::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 void CUIPdaSpot::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 {
 	CUIWndCallback::OnEvent(pWnd, msg, pData);
+}
+
+static u32 pda_spot_render_frame = 0;
+
+void CUIPdaSpot::Draw()
+{
+	if (pda_spot_render_frame == Device.dwFrame)
+	{
+		return;
+	}
+
+	pda_spot_render_frame = Device.dwFrame;
+
+	base_class::Draw();
+}
+
+void CUIPdaSpot::ResetCursor()
+{
+	if (!last_cursor_pos.similar({0.f, 0.f}))
+	{
+		GetUICursor().SetUICursorPosition(last_cursor_pos);
+	}
+}
+
+bool CUIPdaSpot::OnMouseAction(float x, float y, EUIMessages mouse_action)
+{
+	CObject* current_entity = Level().CurrentControlEntity();
+	CHudPdaAnimator* pda_animator = current_entity != nullptr ? current_entity->cast_actor()->HudAnimator()->PdaAnimator() : nullptr;
+	if (pda_animator != nullptr)
+	{
+		pda_animator->OnMouseAction(x, y, mouse_action);
+	}
+	return base_class::OnMouseAction(x, y, mouse_action);
 }

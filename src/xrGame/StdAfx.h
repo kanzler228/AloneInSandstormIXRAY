@@ -14,6 +14,10 @@
 #	define	THROW3					VERIFY3
 #endif
 
+#ifdef DEBUG
+#	define LOG_ACTION
+#endif
+
 #ifndef _PP_EDITOR_
 #pragma warning(disable:4995)
 #include "../xrUI/stdafx.h"
@@ -33,14 +37,14 @@
 #include "../xrEngine/AI/game_level_cross_table.h"
 #include "../xrEngine/AI/level_graph.h"
 
+#include "../xrCore/ECS/EntityManager.h"
+
 #ifndef _EDITOR
 #	include "pch_script.h"
 extern CInifile* pGameGlobals;
 
 void LoadCallbackGlobals(bool& flag, const char*& value, const char* section);
 #endif
-
-extern void DestroyImGuiInGame();
 
 #undef min
 #undef max

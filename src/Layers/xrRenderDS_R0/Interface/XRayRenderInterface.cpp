@@ -83,16 +83,20 @@ void CDS0_RenderInterface::set_Transform(Fmatrix* M)
 {
 }
 
-void CDS0_RenderInterface::set_HUD(BOOL V)
+void CDS0_RenderInterface::set_HUD(bool V)
 {
 }
 
-BOOL CDS0_RenderInterface::get_HUD()
+void CDS0_RenderInterface::set_UI(bool V)
+{
+}
+
+bool CDS0_RenderInterface::get_HUD()
 {
 	return 0;
 }
 
-void CDS0_RenderInterface::set_Invisible(BOOL V)
+void CDS0_RenderInterface::set_Invisible(bool V)
 {
 }
 
@@ -127,6 +131,12 @@ void CDS0_RenderInterface::add_StaticWallmark(IWallMarkArray* pArray, const Fvec
 
 void CDS0_RenderInterface::add_SkeletonWallmark(const Fmatrix* xf, IKinematics* obj, IWallMarkArray* pArray, const Fvector& start, const Fvector& dir, float size)
 {
+}
+
+StaticWallmarkHandle::WallmarkHandlePtr CDS0_RenderInterface::add_DynamicWallmark(const wm_shader& S, const Fvector& P,
+	float w, float h, float r, CDB::TRI* T, Fvector* V)
+{
+	return nullptr;
 }
 
 void CDS0_RenderInterface::clear_static_wallmarks()
@@ -176,7 +186,7 @@ IRenderVisual* CDS0_RenderInterface::model_Duplicate(IRenderVisual* V)
 	return GModelPool->Instance_Duplicate((CDS0_RenderVisual*)V);
 }
 
-void CDS0_RenderInterface::model_Delete(IRenderVisual*& V, BOOL bDiscard)
+void CDS0_RenderInterface::model_Delete(IRenderVisual*& V, bool bDiscard)
 {
 	if (V == nullptr)
 		return;
@@ -192,21 +202,21 @@ void CDS0_RenderInterface::models_Prefetch()
 	GModelPool->Prefetch();
 }
 
-void CDS0_RenderInterface::models_Clear(BOOL b_complete)
+void CDS0_RenderInterface::models_Clear(bool b_complete)
 {
 }
 
-BOOL CDS0_RenderInterface::occ_visible(vis_data& V)
-{
-	return 0;
-}
-
-BOOL CDS0_RenderInterface::occ_visible(Fbox& B)
+bool CDS0_RenderInterface::occ_visible(vis_data& V)
 {
 	return 0;
 }
 
-BOOL CDS0_RenderInterface::occ_visible(sPoly& P)
+bool CDS0_RenderInterface::occ_visible(Fbox& B)
+{
+	return 0;
+}
+
+bool CDS0_RenderInterface::occ_visible(sPoly& P)
 {
 	return 0;
 }
@@ -264,6 +274,10 @@ u32 CDS0_RenderInterface::active_phase()
 void CDS0_RenderInterface::Render()
 {
 	GModelPool->Render();
+}
+
+void CDS0_RenderInterface::RenderUI(Fcolor*)
+{
 }
 
 void CDS0_RenderInterface::OnFrame()

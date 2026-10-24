@@ -42,7 +42,7 @@ void CUIStatsPlayerList::AddField(const char* name, float width)
 	m_field_info.push_back	(fi);
 }
 
-void CUIStatsPlayerList::Init(CUIXml& xml_doc, LPCSTR path)
+void CUIStatsPlayerList::Init(CUIXml& xml_doc, const char* path)
 {
 	// init window
 	CUIXmlInit::InitScrollView	(xml_doc, path, 0, this);
@@ -60,7 +60,7 @@ void CUIStatsPlayerList::Init(CUIXml& xml_doc, LPCSTR path)
 
 	for (int i = 0; i < tabsCount; ++i)
 	{
-		LPCSTR name 			= xml_doc.ReadAttrib("field",i,"name");
+		const char* name 			= xml_doc.ReadAttrib("field",i,"name");
 		float width 			= xml_doc.ReadAttribFlt("field",i,"width");
 
 		if (0 == xr_strcmp(name, "artefacts") && GameID() != eGameIDArtefactHunt)
@@ -89,14 +89,14 @@ void CUIStatsPlayerList::Init(CUIXml& xml_doc, LPCSTR path)
 	}
 }
 
-LPCSTR CUIStatsPlayerList::GetST_entry(LPCSTR itm)
+const char* CUIStatsPlayerList::GetST_entry(const char* itm)
 {
-	static LPCSTR mp_name		= "mp_name";
-	static LPCSTR mp_frags		= "mp_frags";
-	static LPCSTR mp_deaths		= "mp_deaths";
-	static LPCSTR mp_ping		= "mp_ping";
-	static LPCSTR mp_artefacts	= "mp_artefacts";
-	static LPCSTR mp_status		= "mp_status";
+	static const char* mp_name		= "mp_name";
+	static const char* mp_frags		= "mp_frags";
+	static const char* mp_deaths		= "mp_deaths";
+	static const char* mp_ping		= "mp_ping";
+	static const char* mp_artefacts	= "mp_artefacts";
+	static const char* mp_status		= "mp_status";
 
 	if (0 == xr_strcmp(itm, "name"))
 		return mp_name;
@@ -118,7 +118,7 @@ LPCSTR CUIStatsPlayerList::GetST_entry(LPCSTR itm)
 #endif // DEBUG
 }
 
-void CUIStatsPlayerList::InitHeader(CUIXml& xml_doc, LPCSTR path)
+void CUIStatsPlayerList::InitHeader(CUIXml& xml_doc, const char* path)
 {
 	string256 _path;
 	CUIXmlInit::InitStatic(xml_doc, xr_strconcat(_path, path, ":list_header"), 0, m_header);
@@ -131,7 +131,7 @@ void CUIStatsPlayerList::InitHeader(CUIXml& xml_doc, LPCSTR path)
 	{
 		for (u32 i = 0; i<m_field_info.size(); ++i)
 		{
-			CUITextWnd* st = new CUITextWnd();
+			CUIStatic* st = new CUIStatic();
 			st->SetAutoDelete(true);
 			st->SetWndPos(Fvector2().set(indent,10.0f));
 			st->SetWndSize(Fvector2().set(m_field_info[i].width, m_header->GetHeight()));
@@ -158,7 +158,7 @@ void CUIStatsPlayerList::InitHeader(CUIXml& xml_doc, LPCSTR path)
 	}
 	else
 	{
-		CUITextWnd* st			= new CUITextWnd();
+		CUIStatic* st			= new CUIStatic();
 		st->SetAutoDelete		(true);
 		st->SetWndPos			(Fvector2().set(10,0));
 		st->SetWndSize			(Fvector2().set(this->GetDesiredChildWidth(),m_h.h));
@@ -173,7 +173,7 @@ void CUIStatsPlayerList::InitHeader(CUIXml& xml_doc, LPCSTR path)
 	}
 }
 
-void CUIStatsPlayerList::InitTeamHeader(CUIXml& xml_doc, LPCSTR path){
+void CUIStatsPlayerList::InitTeamHeader(CUIXml& xml_doc, const char* path){
 	string256 _path;
 	m_header_team = new CUIWindow();
 	m_header_team->SetAutoDelete(true);
@@ -196,9 +196,9 @@ void CUIStatsPlayerList::InitTeamHeader(CUIXml& xml_doc, LPCSTR path){
 	CUIXmlInit::InitFont(xml_doc, xr_strconcat(_path, path, ":team_header:text_format"), 0, t.c, t.f);
 	t.h = m_header_team->GetHeight();
 
-	m_header_text = new CUITextWnd();
+	m_header_text = new CUIStatic();
 	m_header_text->SetAutoDelete(true);
-	CUIXmlInit::InitTextWnd(xml_doc, xr_strconcat(_path, path, ":team_header:header"), 0, m_header_text);
+	CUIXmlInit::InitStatic(xml_doc, xr_strconcat(_path, path, ":team_header:header"), 0, m_header_text);
 	m_header_text->SetWidth(GetDesiredChildWidth());
 	m_header_text->SetVTextAlignment(valCenter);
 	m_header_team->AttachChild(m_header_text);
@@ -262,6 +262,7 @@ void CUIStatsPlayerList::Update()
 	{
 		if(items.empty())
 		{
+			xrCriticalSectionGuard guard(csUi);
 			Clear();
 			ShowHeader(false);
 			return;
@@ -282,7 +283,7 @@ void CUIStatsPlayerList::Update()
 		xrCriticalSectionGuard guard(m_pad->csUi);
 		for (int i = 0; i<n; i++)
             m_pad->DetachChild(*(m_pad->GetChildWndList().begin()));
-		m_flags.set			(eNeedRecalc,TRUE);
+		m_flags.set			(eNeedRecalc,true);
 	}
 	else
 	{		
@@ -291,7 +292,7 @@ void CUIStatsPlayerList::Update()
             CUIStatsPlayerInfo* pi = new CUIStatsPlayerInfo(&m_field_info, m_i.f, m_i.c);
 			pi->InitPlayerInfo( Fvector2().set(0,0), Fvector2().set(this->GetDesiredChildWidth(),m_i.h) );
 			CUIScrollView::AddWindow(pi, true);
-			m_flags.set			(eNeedRecalc,TRUE);
+			m_flags.set			(eNeedRecalc,true);
 		}
 	}
 
@@ -349,5 +350,5 @@ void CUIStatsPlayerList::ShowHeader(bool bShow){
 		m_header->Show(bShow);
 		m_header->SetHeight(bShow? m_h.h : 0);
 	}
-	m_flags.set			(eNeedRecalc,TRUE);
+	m_flags.set			(eNeedRecalc,true);
 }

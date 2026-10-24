@@ -1,7 +1,7 @@
 
 #include "StdAfx.h"
 #include "team_capture_zone.h"
-#include "xrserver_objects_alife_monsters.h"
+#include "xrServer_Objects_ALife_Monsters.h"
 #include "Hit.h"
 #include "Actor.h"
 #include "Level.h"
@@ -39,7 +39,7 @@ float CTeamCaptureZone::Radius() const
 	return						(CFORM()->getRadius());
 }
 
-BOOL CTeamCaptureZone::net_Spawn(CSE_Abstract* DC)
+bool CTeamCaptureZone::net_Spawn(CSE_Abstract* DC)
 {
 	CCF_Shape* l_pShape = new CCF_Shape (this);
 	collidable.model = l_pShape;
@@ -66,12 +66,12 @@ BOOL CTeamCaptureZone::net_Spawn(CSE_Abstract* DC)
 
 	m_Team = l_tpALifeScriptZone->m_team;
 
-	BOOL						bOk = inherited::net_Spawn(DC);
+	bool						bOk = inherited::net_Spawn(DC);
 	if (bOk) {
 		l_pShape->ComputeBounds();
 		Fvector					P;
 		XFORM().transform_tiny(P, CFORM()->getSphere().P);
-		setEnabled(TRUE);
+		setEnabled(false);
 	}
 
 	if (GameID() != eGameIDSingle && !g_dedicated_server)
@@ -126,7 +126,7 @@ void CTeamCaptureZone::capture_Update(u32 dt) {
 	for (CObject* actor : v_actor)
 	{
 		game_PlayerState* ps = Game().GetPlayerByGameID(actor->ID());
-		if (m_CapturedTeam == -1)
+		if (m_CapturedTeam == u8(-1))
 		{
 			m_CapturedTeam = ps->team;
 		}
@@ -136,7 +136,7 @@ void CTeamCaptureZone::capture_Update(u32 dt) {
 		}
 	}
 
-	if (m_Conflict || m_CapturedTeam == -1 || m_CapturedTeam == m_Team)
+	if (m_Conflict || m_CapturedTeam == u8(-1) || m_CapturedTeam == m_Team)
 	{
 		return;
 	}
@@ -168,13 +168,13 @@ void CTeamCaptureZone::update_Capture(u8 team)
 	u_EventGen(P, GE_GAME_EVENT, ID());
 	P.w_u16(GAME_EVENT_TEAM_POINT_CAPTURED);
 	P.w_u8(m_Team);
-	u_EventSend(P, net_flags(TRUE, TRUE));
+	u_EventSend(P, net_flags(true, true));
 	*/
 }
 
 void CTeamCaptureZone::feel_touch_new(CObject* tpObject)
 {
-	if (OnServer() && smart_cast<CActor*>(tpObject))
+	if (OnServer() && tpObject->cast_actor() != nullptr)
 	{
 		v_actor.push_back(tpObject);
 	};
@@ -182,9 +182,8 @@ void CTeamCaptureZone::feel_touch_new(CObject* tpObject)
 
 void CTeamCaptureZone::feel_touch_delete(CObject* tpObject)
 {
-	if (OnServer() && smart_cast<CActor*>(tpObject))
+	if (OnServer() && tpObject->cast_actor() != nullptr)
 	{
-		
 		if (!v_actor.empty())
 		{
 			size_t i = 0;
@@ -201,10 +200,10 @@ void CTeamCaptureZone::feel_touch_delete(CObject* tpObject)
 	};
 }
 
-BOOL CTeamCaptureZone::feel_touch_contact(CObject* O)
+bool CTeamCaptureZone::feel_touch_contact(CObject* O)
 {
-	CActor* pActor = smart_cast<CActor*>(O);
-	if (!pActor) return (FALSE);
+	CActor* pActor = O->cast_actor();
+	if (!pActor) return (false);
 	return ((CCF_Shape*)CFORM())->Contact(O);
 }
 

@@ -1,7 +1,12 @@
 #include "stdafx.h"
 #include "ui_base.h"
 #include "../xrEngine/IGame_Persistent.h"
+#include "../xrEngine/Render.h"
 #include "UICursor.h"
+#include "Widgets/UIWindow.h"
+
+#include "../xrEngine/IGame_Persistent.h"
+#include "../xrEngine/XR_IOConsole.h"
 
 UI_API ui_core* m_pUI_core = nullptr;
 
@@ -204,6 +209,233 @@ void ui_core::PopScissor()
 	}
 }
 
+#ifdef DEBUG_DRAW
+
+#define ArrowMoveStep 0.5f
+
+void ui_core::RenderUIDebugger()
+{
+	static CUIWindow* Selected = nullptr;
+	static xr_vector<CUIWindow*> Roots;
+
+	if (!Engine.External.EditorStates[static_cast<u8>(EditorUI::UI_General)])
+	{
+		LastFrameWidgets.clear();
+		return;
+	}
+
+	auto BuildTree = [&]()
+	{
+		Roots.clear();
+		Roots.reserve(LastFrameWidgets.size());
+
+		for (CUIWindow* Window : LastFrameWidgets)
+		{
+			CUIWindow* Parent = Window->GetParent();
+
+			if (Parent == nullptr || LastFrameWidgets.count(Parent) == 0)
+			{
+				Roots.push_back(Window);
+			}
+		}
+	};
+
+	auto GetWndName = [](CUIWindow* WndPtr)->shared_str
+	{
+		if (WndPtr->WindowName().size() > 0)
+		{
+			return WndPtr->WindowName();
+		}
+
+		return WndPtr->WindowNodeName();
+	};
+
+	std::function<void(CUIWindow*)> DrawNode = [&](CUIWindow* Window)
+	{
+		if (!LastFrameWidgets.contains(Window))
+		{
+			return;
+		}
+
+		ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+
+		if (Window == Selected)
+		{
+			Flags |= ImGuiTreeNodeFlags_Selected;
+		}
+
+		bool IsOpen = ImGui::TreeNodeEx(Window, Flags, "%s (%p)", GetWndName(Window).c_str(), Window);
+
+		if (ImGui::IsItemClicked())
+		{
+			Selected = Window;
+		}
+
+		if (IsOpen)
+		{
+			for (CUIWindow* Child : Window->GetChildWndList())
+			{
+				DrawNode(Child);
+			}
+
+			ImGui::TreePop();
+		}
+	};
+
+	if (!ImGui::Begin("UI Debugger", &Engine.External.EditorStates[static_cast<u8>(EditorUI::UI_General)]))
+	{
+		LastFrameWidgets.clear();
+		ImGui::End();
+		return;
+	}
+
+	if (ImGui::Button("Rebuild Tree"))
+	{
+		BuildTree();
+	}
+	ImGui::SameLine();
+
+	if (ImGui::Button("Reload UI"))
+	{
+		Console->Execute("ui_reload");
+	}
+
+	ImGui::Separator();
+
+	for (CUIWindow* Root : Roots)
+	{
+		DrawNode(Root);
+	}
+
+	ImGui::Separator();
+
+	if (Selected != nullptr && LastFrameWidgets.contains(Selected))
+	{
+		ImGui::Text("Selected: %s", GetWndName(Selected).c_str());
+
+		Fvector2 Position = Selected->GetWndPos();
+		Fvector2 Size = Selected->GetWndSize();
+
+		if (ImGui::DragFloat2("Position", reinterpret_cast<float*>(&Position), 1.0f))
+		{
+			Selected->SetWndPos(Position);
+		}
+
+		if (ImGui::DragFloat2("Size", reinterpret_cast<float*>(&Size), 1.0f))
+		{
+			Selected->SetWndSize(Size);
+		}
+	}
+	else
+	{
+		ImGui::Text("No UI window selected.");
+	}
+
+	ImGui::End();
+
+	if (Selected != nullptr && LastFrameWidgets.contains(Selected))
+	{
+		Fvector2 AbsPos;
+		Selected->GetAbsolutePos(AbsPos);
+
+		Fvector2 Size = Selected->GetWndSize();
+
+		AbsPos.x	*= get_current_zx();
+		Size.x		*= get_current_zx();
+		AbsPos.y	*= get_current_zy();
+		Size.y		*= get_current_zy();
+
+		ImDrawList* Draw = ImGui::GetForegroundDrawList();
+
+		bool a = 
+			UIDebuggerMouseMove(Selected, 
+			(ImGui::GetIO().MousePos.x >= (AbsPos.x) && ImGui::GetIO().MousePos.x <= (AbsPos.x + Size.x) &&
+			ImGui::GetIO().MousePos.y >= (AbsPos.y) && ImGui::GetIO().MousePos.y <= (AbsPos.y + Size.y)));
+
+		ImU32 col = a ?
+			IM_COL32(255, 50, 50, 220) :
+			IM_COL32(50, 255, 500, 220);
+
+		auto ArrowMove = [](ImGuiKey key, auto operation, char axis)
+		{
+			if (ImGui::IsKeyPressed(key))
+			{
+				Fvector2 NPosition = Selected->GetWndPos();
+				if constexpr (std::is_same_v<decltype(operation), std::minus<>>)
+				{
+					if (axis == 'x') NPosition.x -= ArrowMoveStep;
+					else if (axis == 'y') NPosition.y -= ArrowMoveStep;
+				}
+				else if constexpr (std::is_same_v<decltype(operation), std::plus<>>)
+				{
+					if (axis == 'x') NPosition.x += ArrowMoveStep;
+					else if (axis == 'y') NPosition.y += ArrowMoveStep;
+				}
+				Selected->SetWndPos(NPosition);
+				return true;
+			}
+			return false;
+		};
+
+		if (ArrowMove(ImGuiKey_UpArrow, std::minus{}, 'y')) {}
+		else if (ArrowMove(ImGuiKey_DownArrow, std::plus{}, 'y')) {}
+		else if (ArrowMove(ImGuiKey_LeftArrow, std::minus{}, 'x')) {}
+		else if (ArrowMove(ImGuiKey_RightArrow, std::plus{}, 'x')) {}
+
+		Draw->AddRect
+		(
+			ImVec2(AbsPos.x, AbsPos.y),
+			ImVec2(AbsPos.x + Size.x, AbsPos.y + Size.y),
+			col, 0.0f, 0, 2.0f
+		);
+	}
+
+	LastFrameWidgets.clear();
+}
+
+bool ui_core::UIDebuggerMouseMove(CUIWindow* Selected, bool inside)
+{
+	static bool lockDrag = false;
+
+	ImVec2 mouse_delta = {};
+	if ((ImGui::IsMouseDragging(ImGuiMouseButton_Left) && inside) || (lockDrag && !inside))
+	{
+		lockDrag = true;
+		mouse_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+
+		mouse_delta.x /= get_current_zx();
+		mouse_delta.y /= get_current_zy();
+
+
+		if ((inside || lockDrag) && (mouse_delta.x != 0.0f || mouse_delta.y != 0.0f))
+		{
+			Fvector2 Position = Selected->GetWndPos();
+
+			Position.x += mouse_delta.x;
+			Position.y += mouse_delta.y;
+
+			Selected->SetWndPos(Position);
+
+			ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+		}
+	}
+	else
+	{
+		lockDrag = false;
+	}
+#if 0
+	ImGui::Begin("dbg_test");
+	ImGui::Text("delta %f : %f", mouse_delta.x, mouse_delta.y);
+	ImGui::Text("lockdrg %d", lockDrag);
+	ImGui::Text("inside %d", inside);
+
+	ImGui::End();
+#endif
+	return (inside || lockDrag);
+}
+
+#endif
+
 ui_core::ui_core()
 {
 	if(!g_dedicated_server)
@@ -219,6 +451,13 @@ ui_core::ui_core()
 
 	m_current_scale				= &m_scale_;
 	m_currentPointType			= IUIRender::pttTL;
+
+#ifdef DEBUG_DRAW
+	if (!Device.IsEditorMode())
+	{
+		CImGuiManager::Instance().Subscribe("UIDEBUG", CImGuiManager::ERenderPriority::eMedium, xr_make_delegate(this, &ui_core::RenderUIDebugger));
+	}
+#endif
 }
 
 ui_core::~ui_core()
@@ -268,8 +507,19 @@ float ui_core::get_current_kx()
 	float res = (h/w)/(UI_BASE_HEIGHT/UI_BASE_WIDTH);
 	return res;
 }
-
-shared_str	ui_core::get_xml_name(LPCSTR fn)
+float ui_core::get_current_zx()
+{
+	float w = float(Device.TargetWidth);
+	float res = w / UI_BASE_WIDTH;
+	return res;
+}
+float ui_core::get_current_zy()
+{
+	float h = float(Device.TargetHeight);
+	float res = h / UI_BASE_HEIGHT;
+	return res;
+}
+shared_str	ui_core::get_xml_name(const char* fn)
 {
 	string_path				str;
 	if(!is_widescreen())
@@ -290,7 +540,7 @@ shared_str	ui_core::get_xml_name(LPCSTR fn)
 		else
 			xr_sprintf(str, "%s_21", fn);
 
-		if (!FS.exist(str_, "$game_config$", "ui\\", str))
+		if (!FS.exist(str_, _game_config_, "ui\\", str))
 		{
 			if (strext(fn))
 			{
@@ -301,7 +551,7 @@ shared_str	ui_core::get_xml_name(LPCSTR fn)
 			else
 				xr_sprintf(str, "%s_16", fn);
 
-			if (!FS.exist(str_, "$game_config$", "ui\\", str))
+			if (!FS.exist(str_, _game_config_, "ui\\", str))
 			{
 				xr_sprintf(str, "%s", fn);
 				if (!strext(fn)) 
@@ -325,7 +575,7 @@ shared_str	ui_core::get_xml_name(LPCSTR fn)
 		else
 			xr_sprintf				(str, "%s_16", fn);
 
-		if(!FS.exist(str_, "$game_config$", "ui\\" , str) )
+		if(!FS.exist(str_, _game_config_, "ui\\" , str) )
 		{
 			xr_sprintf(str, "%s", fn);
 			if (!strext(fn) ) 
@@ -336,4 +586,47 @@ shared_str	ui_core::get_xml_name(LPCSTR fn)
 #endif // #ifdef DEBUG
 	}
 	return str;
+}
+
+const ui_shader& ui_core::GetVectorShader(const std::string_view& subpath, float requested_width, float requested_height)
+{
+	return GetVectorShader(subpath, requested_width, requested_height, SVGTintRGBA{});
+}
+
+const ui_shader& ui_core::GetVectorShader(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint)
+{
+	R_ASSERT(DevicePtr && "Render must be initialized otherwise early calling!");
+	R_ASSERT(DevicePtr->m_pRender && "Resource manager");
+
+	if (DevicePtr == nullptr || DevicePtr->m_pRender == nullptr)
+		return m_empty_default;
+
+	return DevicePtr->m_pRender->GetSVGShader(subpath, requested_width, requested_height, tint);
+}
+
+const ui_shader& ui_core::GetVectorShader(const char* pSubpath, float requested_width, float requested_height)
+{
+	R_ASSERT(pSubpath && "invalid string (nullptr)");
+
+	return GetVectorShader(std::string_view(pSubpath), requested_width, requested_height);
+}
+
+const ui_shader& ui_core::GetVectorShader(const char* pSubpath, float requested_width, float requested_height, SVGTintRGBA tint)
+{
+	R_ASSERT(pSubpath && "invalid string (nullptr)");
+
+	return GetVectorShader(std::string_view(pSubpath), requested_width, requested_height, tint);
+}
+
+Frect ui_core::GetVectorUV(const std::string_view& subpath, float requested_width, float requested_height)
+{
+	return GetVectorUV(subpath, requested_width, requested_height, SVGTintRGBA{});
+}
+
+Frect ui_core::GetVectorUV(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint)
+{
+	if (DevicePtr == nullptr || DevicePtr->m_pRender == nullptr)
+		return Frect{};
+
+	return DevicePtr->m_pRender->GetSVGUV(subpath, requested_width, requested_height, tint);
 }

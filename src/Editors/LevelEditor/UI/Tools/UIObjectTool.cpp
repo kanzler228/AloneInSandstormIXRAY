@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../../Editor/Utils/TerrainGarbageGenerator.h"
+#include "IconsFontAwesome6.h"
 
 static xr_atomic_bool RefreshInProgress;
 
@@ -14,7 +15,7 @@ UIObjectTool::UIObjectTool()
 	m_RealTexture = nullptr;
 	m_RemoveTexture = nullptr;
 	m_ObjectList = new UIItemListForm();
-	m_ObjectList->SetOnItemFocusedEvent(TOnILItemFocused(this, &UIObjectTool::OnItemFocused));
+	m_ObjectList->SetOnItemFocusedEvent({this, &UIObjectTool::OnItemFocused});
 	m_TextureNull.create("ed\\ed_nodata");
 	m_TextureNull->Load();
 
@@ -22,18 +23,19 @@ UIObjectTool::UIObjectTool()
 	m_Props->SetFitMode(true);
 	m_Props->DisableSearch(true);
 	RefreshList();
+
+	PropsRandomAppend.DisableSearch(true);
 }
 
 UIObjectTool::~UIObjectTool()
 {
 	while (RefreshInProgress)
+	{
 		std::this_thread::yield();
+	}
 
-	if (m_RemoveTexture)
-		IM_TEXTURE_RELEASE(m_RemoveTexture);
-
-	if (m_RealTexture)
-		IM_TEXTURE_RELEASE(m_RealTexture);
+	m_RemoveTexture.destroy();
+	m_RealTexture.destroy();
 
 	xr_delete(m_Props);
 	m_TextureNull.destroy();
@@ -80,82 +82,167 @@ void UIObjectTool::HandleDragDrop()
 
 void UIObjectTool::Draw()
 {
-	ImGui::Checkbox("Show lists", &bDrawList);
+	const float ButtonHeight		= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+	const float	ItemSpacingX		= ImGui::GetStyle().ItemSpacing.x;
+	const float TableRowHeight		= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::TableRowHeight);
 
-	if (m_RemoveTexture)
-		IM_TEXTURE_RELEASE(m_RemoveTexture);
-
-	m_RemoveTexture = nullptr;
-
-	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-	if (ImGui::TreeNode("Commands"))
+	if (XRay::ImGui::BeginDarkChild("ObjectToolsBorder", { 0, 0 }, ImGuiChildFlags_AutoResizeY))
 	{
-		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing()); DrawRandomAppend();
-
-		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
-		ImGui::TreePop();
-	}
-	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-	if (ImGui::TreeNode("Reference Select"))
-	{
-		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+		if (XRay::ImGui::Button("Multiple Append in World Center", { -0.01, 0 }))
 		{
-			ImGui::Text("Select by Current: "); ImGui::SameLine(); if (ImGui::Button(" +")) { SelByRefObject(true); } ImGui::SameLine(); if (ImGui::Button(" -")) { SelByRefObject(false); }
-			ImGui::Text("Select by Selected:"); ImGui::SameLine(); if (ImGui::Button("=%")) { MultiSelByRefObject(true); } ImGui::SameLine(); if (ImGui::Button("+%")) { MultiSelByRefObject(false); } ImGui::SameLine(); ImGui::SetNextItemWidth(-ImGui::GetTextLineHeight() - 8); ImGui::DragFloat("%", &m_selPercent, 1, 0, 100, "%.1f");
+			m_MultiAppend = true;
+			UIChooseForm::SelectItem(smObject, 512, 0);
 		}
-		ImGui::Separator();
-		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
-		ImGui::TreePop();
-	}
-	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+		XRay::ImGui::Separator();
 
-	float XSize = ImGui::GetWindowSize().x - 25;
-	XSize /= 2;
-
-	if (ImGui::TreeNode("Surface"))
-	{
-		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+		if (XRay::ImGui::ToggleButton("Random Append", m_RandomAppend, { -(ButtonHeight + ItemSpacingX) * 2, ButtonHeight }))
 		{
-			if (ImGui::Button("Clear Select", ImVec2(XSize, 0)))
+			ParentTools->ActivateAppendRandom(m_RandomAppend);
+		}
+		ImGui::SameLine(0, ItemSpacingX);
+		if (XRay::ImGui::Button(ICON_FA_FILE_IMPORT, { ButtonHeight, ButtonHeight }))
+		{
+			xr_string Outfile;
+
+			if (EFS.GetOpenName("$server_data_root$", Outfile, false, 0, -1, "*.rai"))
+			{
+				LoadFromFile(Outfile);
+			}
+		}
+		ImGui::SameLine(0, ItemSpacingX);
+		if (XRay::ImGui::Button(ICON_FA_FLOPPY_DISK, { ButtonHeight, ButtonHeight }))
+		{
+			xr_string Outfile;
+
+			if (EFS.GetSaveName("$server_data_root$", Outfile, 0, -1, "*.rai"))
+			{
+				if (!Outfile.ends_with(".rai"))
+				{
+					Outfile += ".rai";
+				}
+
+				IWriter* Stream = FS.w_open(Outfile.data());
+				Stream->w_u8(1);
+
+				Stream->w_fvector3(ParentTools->m_AppendRandomMinScale);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMaxScale);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMinRotation);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMaxRotation);
+				Stream->w_u32(ParentTools->m_Flags.get());
+
+				Stream->w_stringZ(ParentTools->m_AppendRandomObjectsStr);
+
+				Stream->w_u32((u32)ParentTools->m_AppendRandomObjects.size());
+
+				for (const shared_str& str : ParentTools->m_AppendRandomObjects)
+				{
+					Stream->w_stringZ(str);
+				}
+
+				FS.w_close(Stream);
+
+				xr_path File = Outfile;
+				RAIFile = File.xfilename();
+			}
+		}
+
+		if (m_RandomAppend)
+		{
+			ParentTools->FillAppendRandomPropertiesBegin(PropsRandomAppend);
+
+			PropsRandomAppend.Draw();
+
+			if (XRay::ImGui::Button("Random Append in Selected Object", { -0.01, 0 }))
+			{
+				GenerateGarbage();
+			}
+			XRay::ImGui::Separator();
+		}
+
+		m_RemoveTexture.destroy();
+
+		ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 0.f);
+
+		if (XRay::ImGui::BeginExpand("Reference Select"))
+		{
+			if (XRay::ImGui::BeginTable("##objecttools_refselect", 4, ImGuiTableFlags_BordersInner | ImGuiTableFlags_RowBg))
+			{
+												ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed);					ImGui::TableSetupColumn("-", ImGuiTableColumnFlags_WidthFixed);													ImGui::TableSetupColumn("--", ImGuiTableColumnFlags_WidthFixed);												ImGui::TableSetupColumn("--", ImGuiTableColumnFlags_WidthStretch);
+				XRay::ImGui::TableNextRow();	XRay::ImGui::TableNextColumn();	XRay::ImGui::TextFramed("Select by Current: ");		XRay::ImGui::TableNextColumn();		if (XRay::ImGui::Button(" +", { GUIManager->ScaleByDpi(24.f), 0})) { SelByRefObject(true); }		XRay::ImGui::TableNextColumn();		if (XRay::ImGui::Button(" -", { GUIManager->ScaleByDpi(24.f), 0})) { SelByRefObject(false); }
+				XRay::ImGui::TableNextRow();	XRay::ImGui::TableNextColumn();	XRay::ImGui::TextFramed("Select by Selected: ");	XRay::ImGui::TableNextColumn();		if (XRay::ImGui::Button("=%", { GUIManager->ScaleByDpi(24.f), 0})) { MultiSelByRefObject(true); }	XRay::ImGui::TableNextColumn();		if (XRay::ImGui::Button("+%", { GUIManager->ScaleByDpi(24.f), 0})) { MultiSelByRefObject(false); }	XRay::ImGui::TableNextColumn();		ImGui::SetNextItemWidth(-TableRowHeight); ImGui::DragFloat("%", &m_selPercent, 1, 0, 100, "%.1f");
+				XRay::ImGui::EndTable();
+			}
+
+			XRay::ImGui::EndExpand();
+		}
+
+		static bool ShowSurf = false;
+		if (XRay::ImGui::BeginExpand("Surface"))
+		{
+			float SizeX = (ImGui::GetContentRegionAvail().x - ItemSpacingX) / 2;
+
+			if (XRay::ImGui::Button("Clear Select", { SizeX, 0 }))
 			{
 				Scene->UndoSave();
 				ClearSurface(true);
 			}
-			ImGui::SameLine();
-			if (ImGui::Button("Clear Level", ImVec2(XSize, 0)))
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Clear Level", { SizeX, 0 }))
 			{
-				if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to reset surface in level?") == mrYes) 
+				if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Are you sure to reset surface in level?") == mrYes)
 				{
 					Scene->UndoSave();
 					ClearSurface(false);
 				}
-			  
 			}
-		}
-		ImGui::Separator();
-		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
-		ImGui::TreePop();
-	}
-	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-	if (ImGui::TreeNode("Current Object"))
-	{
 
-		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+			XRay::ImGui::EndExpand();
+		}
+
+		if (XRay::ImGui::BeginExpand("Current Object"))
 		{
-			if (ImGui::Button("Select", ImVec2(XSize, 0)))
+			float SizeX = (ImGui::GetContentRegionAvail().x - ItemSpacingX) / 2;
+
+			if (XRay::ImGui::Button("Select", { SizeX, 0 }))
 			{
-				UIChooseForm::SelectItem(smObject,1, m_Current,0,0,0,0,0);
+				UIChooseForm::SelectItem(smObject, 1, m_Current, 0, 0, 0, 0, 0);
 				m_Selection = true;
 			}
-			ImGui::SameLine();
-			if (ImGui::Button("Refresh", ImVec2(XSize, 0)))
+			ImGui::SameLine(0, ItemSpacingX);
+			if (XRay::ImGui::Button("Refresh", { SizeX, 0 }))
 			{
 				RefreshList();
 			}
+
+			XRay::ImGui::EndExpand();
 		}
-		ImGui::Separator();
-		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
-		ImGui::TreePop();
+
+		ImGui::PopStyleVar(); // IndentSpacing
+
+		XRay::ImGui::EndDarkChild();
+	}
+}
+
+void UIObjectTool::GenerateGarbage()
+{
+	static EGarbageGenerator Generator;
+	ESceneObjectTool* ObjectToolPtr = static_cast<ESceneObjectTool*>(Scene->GetTool(OBJCLASS_SCENEOBJECT));
+	auto ObjectList = ObjectToolPtr->GetObjects();
+
+	bool Placed = false;
+
+	for (CCustomObject* Object : ObjectList)
+	{
+		if (!Object->Selected())
+			continue;
+
+		Generator.Generate((CSceneObject*)Object);
+		Placed = true;
+	}
+
+	if (!Placed)
+	{
+		ELog.DlgMsg(mtInformation, mbOK, "An object or terrain must be selected!");
 	}
 }
 
@@ -168,6 +255,7 @@ void UIObjectTool::DrawRandomAppend()
 			ImVec4 TextColor = { 1.f, 1.f, 0.7f, 1.f };
 			ImGui::TextColored(TextColor, RAIFile.data());
 		}
+
 		float ButtonSize = ImGui::GetWindowSize().x / 2 - 10;
 		if (ImGui::Button("Multiple Append", { ButtonSize , 0 }))
 		{
@@ -260,7 +348,7 @@ void UIObjectTool::DrawRandomAppend()
 		if (ImGui::Button("Custom.."))
 		{
 			m_PropRandom = true;
-			ParentTools->FillAppendRandomPropertiesBegin();
+			ParentTools->FillAppendRandomPropertiesBegin(PropsRandomAppend);
 		}
 
 		ImGui::EndChild();
@@ -308,15 +396,18 @@ void UIObjectTool::DrawObjectsList()
 	if (!bDrawList)
 		return;
 
-	if (ImGui::Begin("Edit group items", &bDrawList))
+	if (ImGui::Begin("Edit Group Items", &bDrawList))
 	{
 		if (!RefreshInProgress)
 		{
 			//if (ImGui::BeginChild("Props"))
 			{
-				ImGui::Image(m_RealTexture ? m_RealTexture : (m_TextureNull->pSurface), ImVec2(128, 128));
+				ImGui::Image(m_RealTexture ? m_RealTexture->get_SRView()->GetRawSRV() : (m_TextureNull->get_SRView()->GetRawSRV()), ImVec2(128, 128));
 				ImGui::SameLine();
+				ImGui::BeginChild("##EGIProps", { 0, 128 });
 				m_Props->Draw();
+				ImGui::EndChild();
+
 				ImGui::Separator();
 			}
 			//ImGui::EndChild();
@@ -436,6 +527,7 @@ void UIObjectTool::OnItemFocused(ListItem* item)
 {
 	if (m_RealTexture)m_RemoveTexture = m_RealTexture;
 	m_RealTexture = nullptr;
+
 	m_Props->ClearProperties();
 	m_Current = nullptr;
 	if (item)
@@ -444,7 +536,17 @@ void UIObjectTool::OnItemFocused(ListItem* item)
 		auto * m_Thm = ImageLib.CreateThumbnail(m_Current, EImageThumbnail::ETObject);
 		if (m_Thm)
 		{
-			m_Thm->Update((ID3DBaseTexture*&)m_RealTexture);
+			IRHISurface* Surface = nullptr;
+			m_Thm->Update(Surface);
+
+			if (Surface != nullptr)
+			{
+				m_RealTexture = new CTexture;
+				m_RealTexture->surface_set(Surface);
+
+				Surface->Release();
+			}
+
 			PropItemVec Info;
 			m_Thm->FillInfo(Info);
 			m_Props->AssignItems(Info);
@@ -454,7 +556,7 @@ void UIObjectTool::OnItemFocused(ListItem* item)
 
 void UIObjectTool::SelByRefObject(bool flag)
 {
-	LPCSTR N = Current();
+	const char* N = Current();
 	if (N) {
 		ObjectIt _F = Scene->FirstObj(OBJCLASS_SCENEOBJECT);
 		ObjectIt _E = Scene->LastObj(OBJCLASS_SCENEOBJECT);
@@ -473,7 +575,7 @@ void UIObjectTool::MultiSelByRefObject(bool clear_prev)
 	LPU32Vec 	sellist;
 	if (Scene->GetQueryObjects(objlist, OBJCLASS_SCENEOBJECT, 1, 1, -1)) {
 		for (ObjectIt it = objlist.begin(); it != objlist.end(); it++) {
-			LPCSTR N = ((CSceneObject*)*it)->RefName();
+			const char* N = ((CSceneObject*)*it)->RefName();
 			ObjectIt _F = Scene->FirstObj(OBJCLASS_SCENEOBJECT);
 			ObjectIt _E = Scene->LastObj(OBJCLASS_SCENEOBJECT);
 			for (; _F != _E; _F++) {

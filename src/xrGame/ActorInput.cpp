@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "Actor.h"
+#include "PickupManager.h"
 #include "Torch.h"
 #include "trade.h"
 #include "../xrEngine/CameraBase.h"
@@ -13,6 +14,7 @@
 #include "Car.h"
 #include "UIGameSP.h"
 #include "Inventory.h"
+#include "InventoryWeaponSlotLayout.h"
 #include "Level.h"
 #include "game_cl_base.h"
 #include "../xrEngine/xr_level_controller.h"
@@ -37,21 +39,58 @@
 #include "HudItem.h"
 #include "WeaponKnife.h"
 #include "../xrEngine/XR_IOConsole.h"
+#include "UIMainIngameWnd.h"
+#include "../xrEngine/CustomHUD.h"
+#include "ui/UIRadialMenuWeapon.h"
+#include "ui/UIPdaWnd.h"
+#include "ActorEffector.h"
+#include "PostprocessAnimator.h"
+#include "ControllerAutoaim.h"
+#include "CameraFirstEye.h"
+#include "Grenade.h"
+#include "InteractiveObject.h"
+#include "nvg.h"
+#include "Bolt.h"
 
 extern u32 hud_adj_mode;
 
-void CActor::IR_OnKeyboardPress(int cmd)
+void CActor::IR_OnKeyboardPress(int dik)
 {
-	if(hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))	return;
-
-	if (Remote())		return;
-	if (IsTalking())	return;
-	if (m_input_external_handler && !m_input_external_handler->authorized(cmd))	return;
-	if (load_screen_renderer.IsActive()) {
+	auto bind = get_binded_action(dik);
+	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
+	{
 		return;
 	}
 
-	switch (cmd)
+	if (Remote())
+	{
+		return;
+	}
+
+	if (IsTalking())
+	{
+		return;
+	}
+
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+	if (HudAnimator() != nullptr)
+	{
+		if (HudAnimator()->InputKeyPress(bind))
+		{
+			return;
+		}
+	}
+
+	switch (bind)
 	{
 	case kWPN_FIRE:
 		{
@@ -70,31 +109,37 @@ void CActor::IR_OnKeyboardPress(int cmd)
 		}break;
 	}
 
-	if (!g_Alive()) return;
-
-	if(m_holder && kUSE != cmd)
-	{
-		m_holder->OnKeyboardPress			(cmd);
-		if(m_holder->allowWeapon() && inventory().Action((u16)cmd, CMD_START))		return;
-		return;
-	}else
-		if(inventory().Action((u16)cmd, CMD_START))					return;
-
 #ifndef MASTER_GOLD
-	if(psActorFlags.test(AF_NO_CLIP))
+	if (psActorFlags.test(AF_NO_CLIP))
 	{
-		NoClipFly(cmd);
+		NoClipFly(bind);
+		if (m_holder && kUSE != bind)
+			m_holder->OnKeyboardPress(dik);
 		return;
 	}
 #endif //DEBUG
 
+	if (!g_Alive()) return;
 
+	auto bindRadial = get_binded_action(dik, agUIRadialWeapon);
+	if(m_holder && kUSE != bind)
+	{
+		m_holder->OnKeyboardPress			(dik);
+		if(m_holder->allowWeapon() && inventory().Action((u16)bind, CMD_START))		return;
+		return;
+	}
+	else
+	{
+
+		if (inventory().Action(bindRadial == kNOTBINDED ? (u16)bind : (u16)bindRadial, CMD_START))
+			return;
+	}
 	if (IsWaunded)
 	{
 		return;
 	}
 
-	switch(cmd)
+	switch(bind)
 	{
 	case kJUMP:		
 		{
@@ -118,11 +163,6 @@ void CActor::IR_OnKeyboardPress(int cmd)
 			cam_Set(eacFirstEye);
 		break;
 	case kCAM_3:	cam_Set			(eacFreeLook);				break;
-	case kNIGHT_VISION:
-		{
-			SwitchNightVision();
-			break;
-		}
 	case kTORCH:
 		{
 			SwitchTorch();
@@ -147,14 +187,14 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	case kQUICK_KICK:
 	{
 		PIItem knife_item = inventory().ItemFromSlot(KNIFE_SLOT);
-		if (m_sQuickKickAnimator.size() > 0 && knife_item != nullptr)
+		if (m_sQuickKickAnimator.size() > 0 && knife_item != nullptr && HudAnimator())
 		{
-			if (!HudAnimator()->IsActive())
+			if (!HudAnimator()->IsAnyAnimatorActive())
 			{
 				if (knife_item != inventory().ActiveItem())
 				{
 					StartAnimator(m_sQuickKickAnimator);
-					HudAnimator()->SetLeftCallback({ this, &CActor::MakeKick });
+					HudAnimator()->ItemAnimator()->SetLeftCallback({ this, &CActor::MakeKick });
 				}
 				else
 				{
@@ -164,11 +204,55 @@ void CActor::IR_OnKeyboardPress(int cmd)
 			}
 		}
 	}break;
+	case kQUICK_GRENADE:
+	{
+		PIItem grenade_item = inventory().ItemFromSlot(GRENADE_SLOT);
+		if (m_sQuickGrenadeAnimator.size() > 0 && grenade_item != nullptr)
+		{
+			if (!HudAnimator()->IsAnyAnimatorActive())
+			{
+				if (grenade_item != inventory().ActiveItem())
+				{
+					grenade_item->cast_grenade()->spawn_fake_missile();
+					StartAnimator(m_sQuickGrenadeAnimator);
+					HudAnimator()->ItemAnimator()->SetLeftCallback({this, &CActor::MakeThrowGrenade});
+				}
+				else
+				{
+					grenade_item->Action(kWPN_FIRE, CMD_START);
+					grenade_item->Action(kWPN_FIRE, CMD_STOP);
+				}
+			}
+		}
+	}break;
+	case kQUICK_BOLT:
+	{
+		PIItem bolt_item = inventory().ItemFromSlot(BOLT_SLOT);
+		if (m_sQuickBoltAnimator.size() > 0 && bolt_item != nullptr)
+		{
+			if (!HudAnimator()->IsAnyAnimatorActive())
+			{
+				if (bolt_item != inventory().ActiveItem())
+				{
+					StartAnimator(m_sQuickBoltAnimator);
+					HudAnimator()->ItemAnimator()->SetLeftCallback({this, &CActor::MakeThrowBolt});
+					bolt_item->cast_bolt()->spawn_fake_missile();
+				}
+				else
+				{
+					bolt_item->Action(kWPN_FIRE, CMD_START);
+					bolt_item->Action(kWPN_FIRE, CMD_STOP);
+				}
+			}
+		}
+	}
+	break;
 	case kUSE:
 		ActorUse();
+		UpdatePickupMode();
 		break;
 	case kDROP:
-		b_DropActivated			= TRUE;
+		b_DropActivated			= true;
 		f_DropPower				= 0;
 		break;
 	case kNEXT_SLOT:
@@ -184,13 +268,13 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	{
 		if (IsGameTypeSingle())
 		{
-			PIItem itm = inventory().item((cmd == kUSE_BANDAGE) ? CLSID_IITEM_BANDAGE : CLSID_IITEM_MEDKIT);
+			PIItem itm = inventory().item((bind == kUSE_BANDAGE) ? CLSID_IITEM_BANDAGE : CLSID_IITEM_MEDKIT);
 			if (itm)
 			{
 				inventory().Eat(itm);
 				SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("item_used", true, 3.0f);
 				string1024					str;
-				xr_strconcat(str, *CStringTable().translate("st_item_used"), ": ", itm->NameItem());
+				xr_strconcat(str, g_pStringTable->translate("st_item_used").c_str(), ": ", itm->NameItem());
 				_s->wnd()->TextItemControl()->SetText(str);
 			}
 		}
@@ -199,105 +283,169 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	case kQUICK_USE_2:
 	case kQUICK_USE_3:
 	case kQUICK_USE_4:
+	{
+		ActorQuickSlotUse(bind);
+	}
+	break;
+	case kSHOW_QUICK_SLOTS:
+	{
+		// Only process if hide quick slots option is enabled
+		if (HUD_IsQuickSlotsAutoHide())
 		{
-			if (HudAnimator() && HudAnimator()->IsActive())
+			if (CurrentGameUI() && CurrentGameUI()->UIMainIngameWnd)
 			{
-				return;
-			}
-
-			if (!CurrentGameUI()->ActorMenu().m_pQuickSlot)
-			{
-				break;
-			}
-			
-			const shared_str& item_name		= g_quick_use_slots[cmd-kQUICK_USE_1];
-			if(item_name.size())
-			{
-				PIItem best_itm = nullptr;
-
-				for (auto& it : inventory().m_ruck)
-				{
-					if (it->m_section_id == item_name && (best_itm == nullptr || it->GetCondition() < best_itm->GetCondition()))
-					{
-						best_itm = it;
-					}
-				}
-
-				if (best_itm != nullptr)
-				{
-					IsGameTypeSingle() ? inventory().Eat(best_itm) : inventory().ClientEat(best_itm);
-					
-					SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("item_used", true);
-					string1024 str = {};
-
-					xr_strconcat(str,*g_pStringTable->translate("st_item_used"),": ", best_itm->NameItem());
-					_s->wnd()->TextItemControl()->SetText(str);
-					
-					CurrentGameUI()->ActorMenu().m_pQuickSlot->ReloadReferences(this);
-				}
+				CurrentGameUI()->UIMainIngameWnd->SetQuickSlotsPanelVisible(true);
 			}
 		}
+	}
+	break;
+	case kWPN_RADIAL_MENU:
+	{
+		CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+		if (RMW->isInitialized && !RMW->IsShown())
+			RMW->ShowDialog(false);
 		break;
+	}
+	}
+	switch (bindRadial)
+	{
+	case kNIGHT_VISION:
+	{
+		SwitchNightVision();
+		break;
+	}
 	}
 }
 
 void CActor::IR_OnMouseWheel(int direction)
 {
-	if(hud_adj_mode)
+	if (hud_adj_mode)
 	{
 		g_player_hud->tune({ 0.f,0.f,float(direction) });
 		return;
 	}
 
-	if(inventory().Action( (direction>0)? (u16)kWPN_ZOOM_DEC:(u16)kWPN_ZOOM_INC , CMD_START)) return;
-
-
-	if (direction>0)
-		OnNextWeaponSlot				();
+	if (inventory().Action(direction > 0 ? (u16)kWPN_ZOOM_DEC : (u16)kWPN_ZOOM_INC, CMD_START))
+		return;
+	
+	if (psActorFlags.test(AF_NO_CLIP))
+	{
+		if (Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT) || Level().IR_GetKeyState(SDL_SCANCODE_RSHIFT))
+		{
+			SetNoclipSpeedScale(direction > 0 ? 5.0: -5.0f);
+			return;
+		}
+		SetNoclipSpeedScale(direction > 0 ? 1.0: -1.0f);
+	}
 	else
-		OnPrevWeaponSlot				();
+	{
+		if (direction > 0)
+			OnNextWeaponSlot();
+		else
+			OnPrevWeaponSlot();
+	}
 }
 
-void CActor::IR_OnKeyboardRelease(int cmd)
+void CActor::IR_OnKeyboardRelease(int dik)
 {
+	auto bind = get_binded_action(dik);
 	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
 	{
 		return;
 	}
 
 	if (Remote())
+	{
 		return;
+	}
 
-	if (m_input_external_handler && !m_input_external_handler->authorized(cmd))	return;
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
+	{
+		return;
+	}
 
 	if (IsWaunded)
 	{
 		return;
 	}
 
+	if (HudAnimator() != nullptr)
+	{
+		if (HudAnimator()->InputKeyRelease(bind))
+		{
+			return;
+		}
+	}
+
 	if (g_Alive())	
 	{
+		auto bindRadial = get_binded_action(dik, agUIRadialWeapon);
 		if(m_holder)
 		{
-			m_holder->OnKeyboardRelease(cmd);
+			m_holder->OnKeyboardRelease(dik);
 			
-			if(m_holder->allowWeapon() && inventory().Action((u16)cmd, CMD_STOP))		return;
+			if(m_holder->allowWeapon() && inventory().Action((u16)bind, CMD_STOP))		return;
 			return;
-		}else
-			if(inventory().Action((u16)cmd, CMD_STOP))		return;
-
-
-
-		switch(cmd)
+		}
+		else
 		{
-		case kJUMP:		mstate_wishful &=~mcJump;		break;
-		case kDROP:		if(GAME_PHASE_INPROGRESS == Game().Phase()) g_PerformDrop();				break;
+			if (inventory().Action(bindRadial == kNOTBINDED ? (u16)bind : (u16)bindRadial, CMD_STOP))
+				return;
+		}
+
+
+		switch (bind)
+		{
+			case kL_STRAFE:
+			case kR_STRAFE:
+				leftStickThreshold.x = 0.0f;
+				break;
+			case kFWD:
+			case kBACK:
+				leftStickThreshold.y = 0.0f;
+				break;
+			case kJUMP:
+				mstate_wishful &= ~mcJump;
+				break;
+		case kSHOW_QUICK_SLOTS:
+		{
+			// Only process if hide quick slots option is enabled
+			if (HUD_IsQuickSlotsAutoHide())
+			{
+				// Only hide panel if it was shown by key press (not by item use)
+				// This prevents hiding when key binding is changed and old key is released
+				if (CurrentGameUI() && CurrentGameUI()->UIMainIngameWnd)
+				{
+					// Check if panel was actually shown by key press before hiding
+					// The panel state is managed by SetQuickSlotsPanelVisible which sets m_quick_slots_force_visible_by_key
+					// We only hide if the panel was force-visible (meaning it was shown by key)
+					CurrentGameUI()->UIMainIngameWnd->SetQuickSlotsPanelVisible(false);
+				}
+			}
+		}
+		break;
+		case kWPN_RADIAL_MENU:
+			CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+			if (RMW->isInitialized && RMW->IsShown())
+			{
+				RMW->TryActivateSelectedSector();
+				RMW->HideDialog();
+			}
+			break;
+		}
+		switch (bindRadial)
+		{
+		case kDROP:		
+			if (GAME_PHASE_INPROGRESS == Game().Phase() && !CImGuiManager::Instance().IsCapturingInputs()) 
+				g_PerformDrop();				
+			break;
 		}
 	}
 }
 
-void CActor::IR_OnKeyboardHold(int cmd)
+void CActor::IR_OnKeyboardHold(int dik)
 {
+	auto bind = get_binded_action(dik);
 	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
 	{
 		if (pInput->iGetAsyncKeyState(SDL_SCANCODE_RIGHT))
@@ -333,46 +481,129 @@ void CActor::IR_OnKeyboardHold(int cmd)
 		return;
 	}
 
-	if (Remote() || !g_Alive())					return;
-	if (m_input_external_handler && !m_input_external_handler->authorized(cmd))	return;
-	if (IsTalking())							return;
-
-	if(m_holder)
+	if (Remote())	
 	{
-		m_holder->OnKeyboardHold(cmd);
+		return;
+	}
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
+	{
+		return;
+	}
+
+	if (IsTalking())
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
 		return;
 	}
 
 #ifndef MASTER_GOLD
-	if(psActorFlags.test(AF_NO_CLIP) && (cmd==kFWD || cmd==kBACK || cmd==kL_STRAFE || cmd==kR_STRAFE 
-		|| cmd==kJUMP || cmd==kCROUCH))
+	if (psActorFlags.test(AF_NO_CLIP) && (bind == kFWD || bind == kBACK || bind == kL_STRAFE || bind == kR_STRAFE
+		|| bind == kJUMP || bind == kCROUCH))
 	{
-		NoClipFly(cmd);
+		NoClipFly(bind);
 		return;
 	}
 #endif //DEBUG
+
+	if (!g_Alive())
+	{
+		return;
+	}
+
+	if(m_holder)
+	{
+		m_holder->OnKeyboardHold(dik);
+		return;
+	}
 
 	if (IsWaunded)
 	{
 		return;
 	}
 
+	if (HudAnimator() != nullptr)
+	{
+		if (HudAnimator()->InputKeyHold(bind))
+		{
+			return;
+		}
+	}
+
 	float LookFactor = GetLookFactor();
-	switch(cmd)
+	switch(bind)
 	{
 	case kUP:
 	case kDOWN: 
-		cam_Active()->Move( (cmd==kUP) ? kDOWN : kUP, 0, LookFactor);									break;
+		cam_Active()->Move( (bind==kUP) ? kDOWN : kUP, 0, LookFactor);									break;
 	case kCAM_ZOOM_IN: 
 	case kCAM_ZOOM_OUT: 
-		cam_Active()->Move(cmd);												break;
+		cam_Active()->Move(bind);												break;
 	case kLEFT:
 	case kRIGHT:
-		if (eacFreeLook!=cam_active) cam_Active()->Move(cmd, 0, LookFactor);	break;
+		if (eacFreeLook!=cam_active) cam_Active()->Move(bind, 0, LookFactor);	break;
 
 	case kACCEL:	mstate_wishful |= mcAccel;									break;
-	case kL_STRAFE:	mstate_wishful |= mcLStrafe;								break;
-	case kR_STRAFE:	mstate_wishful |= mcRStrafe;								break;
+	case kL_STRAFE:	
+		mstate_wishful |= mcLStrafe;
+		if (mstate_wishful & mcRStrafe)
+		{
+			leftStickThreshold.x = 0.0f;
+		}
+		else
+		{
+			leftStickThreshold.x = -1.0f;
+		}
+		break;
+	case kR_STRAFE:	
+		mstate_wishful |= mcRStrafe;
+		if (mstate_wishful & mcLStrafe)
+		{
+			leftStickThreshold.x = 0.0f;
+		}
+		else
+		{
+			leftStickThreshold.x = 1.0f;
+		}
+		break;
+	case kFWD:		
+		mstate_wishful |= mcFwd;
+		if (mstate_wishful & mcBack)
+		{
+			leftStickThreshold.y = 0.0f;
+		}
+		else
+		{
+			leftStickThreshold.y = 1.0f;
+		}
+		break;
+	case kBACK:		
+		mstate_wishful |= mcBack;
+		if (mstate_wishful & mcFwd)
+		{
+			leftStickThreshold.y = 0.0f;
+		}
+		else
+		{
+			leftStickThreshold.y = -1.0f;
+		}
+		break;
+	case kCROUCH:
+		{
+			if( !psActorFlags.test(AF_CROUCH_TOGGLE) )
+					mstate_wishful |= mcCrouch;
+
+		}break;
+		case kUSE:
+			UpdatePickupMode();
+			break;
+	}
+
+	switch (get_binded_action(dik, agAiming))
+	{
 	case kL_LOOKOUT:
 		if (eacLookAt != cam_active)
 			mstate_wishful |= mcLLookout;
@@ -385,20 +616,61 @@ void CActor::IR_OnKeyboardHold(int cmd)
 		else
 			psActorFlags.set(AF_RIGHT_SHOULDER, false);
 		break;
-	case kFWD:		mstate_wishful |= mcFwd;									break;
-	case kBACK:		mstate_wishful |= mcBack;									break;
-	case kCROUCH:
-		{
-			if( !psActorFlags.test(AF_CROUCH_TOGGLE) )
-					mstate_wishful |= mcCrouch;
+	}
+}
 
-		}break;
+void CActor::IR_OnMouseMoveCorrectMouseSense(int& p_dx, int& p_dy, float& sense)
+{
+	static const bool EnableControllerSuicide = EngineExternal()[EEngineExternalGame::EnableSuicideByController];
+
+	if (!EnableControllerSuicide)
+	{
+		return;
+	}
+
+	const auto& InputCorrectionParams = GetCurrentControllerInputCorrectionParams();
+	if (InputCorrectionParams.ReverseAxisY)
+	{
+		p_dy = -(p_dy);
+	}
+
+	float RotAng = InputCorrectionParams.RotateAngle;
+	float SenseScaleX = InputCorrectionParams.SenseScalerX;
+	float SenseScaleY = InputCorrectionParams.SenseScalerY;
+
+	static const float ROTATE_SCALER = 10.0f;
+
+	if (fabs(RotAng) > EPS || fabs(SenseScaleX - 1) > EPS || fabs(SenseScaleY - 1) > EPS)
+	{
+		sense /= ROTATE_SCALER;
+		float dx = ROTATE_SCALER * p_dx * SenseScaleX;
+		float dy = ROTATE_SCALER * p_dy * SenseScaleY;
+
+		if (fabs(RotAng) > EPS)
+		{
+			p_dx = floor(dx * cos(RotAng) + dy * sin(RotAng));
+			p_dy = floor(dy * cos(RotAng) - dx * sin(RotAng));
+		}
+		else
+		{
+			p_dx = floor(dx);
+			p_dy = floor(dy);
+		}
+
+		ControllerInputRandomOffset ControllerOffset = GetControllerInputRandomOffset();
+		p_dx += floor(ControllerOffset.OffsetX * ROTATE_SCALER);
+		p_dy += floor(ControllerOffset.OffsetY * ROTATE_SCALER);
+	}
+	else
+	{
+		ControllerInputRandomOffset ControllerOffset = GetControllerInputRandomOffset();
+		p_dx += ControllerOffset.OffsetX;
+		p_dy += ControllerOffset.OffsetY;
 	}
 }
 
 void CActor::IR_OnMouseMove(int dx, int dy)
 {
-
 	if (hud_adj_mode)
 	{
 		float LookFactor = GetLookFactor();
@@ -406,7 +678,7 @@ void CActor::IR_OnMouseMove(int dx, int dy)
 		CCameraBase* C = cameras[cam_active];
 		float scale = (C->f_fov / g_fov) * psMouseSens * psMouseSensScale / 50.0f / LookFactor;
 		float dx_ = float(dx) * scale;
-		float dy_ = ((psMouseInvert.test(1)) ? -1 : 1) * float(dy) * scale * 3.0f / 4.0f;
+		float dy_ = (psMouseInvert ? -1 : 1) * float(dy) * scale * 3.0f / 4.0f;
 		g_player_hud->tune({ dx_, dy_, 0.f });
 		return;
 	}
@@ -418,6 +690,11 @@ void CActor::IR_OnMouseMove(int dx, int dy)
 	}
 
 	if (Remote())
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
 	{
 		return;
 	}
@@ -435,31 +712,199 @@ void CActor::IR_OnMouseMove(int dx, int dy)
 
 	if (CWeapon* wpn = iitem != nullptr ? iitem->cast_weapon() : nullptr)
 	{
-		if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled())
+		if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled() && !wpn->IsAltZoomed())
 		{
 			float zoom_scale = scale * (wpn->GetLensFOV() * 0.02f);
 			scale = _lerp(scale, zoom_scale, wpn->GetAimFactor());
 		}
 	}
 
+	IR_OnMouseMoveCorrectMouseSense(dx, dy, scale);
+
 	if (dx)
 	{
 		float d = float(dx) * scale;
-		cam_Active()->Move((d < 0) ? kLEFT : kRIGHT, _abs(d));
+		cam_Active()->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
 	}
 
 	if (dy)
 	{
-		float d = ((psMouseInvert.test(1)) ? -1 : 1) * float(dy) * scale * 3.0f / 4.0f;
-		cam_Active()->Move((d > 0) ? kUP : kDOWN, _abs(d));
+		float d = (psMouseInvert ? -1 : 1) * float(dy) * scale * 3.0f / 4.0f;
+		cam_Active()->Move((d > 0) ? kUP : kDOWN, std::abs(d));
+	}
+}
+
+
+void CActor::IR_OnGyroscopeMove(Fvector3 value)
+{
+	PIItem iitem = inventory().ActiveItem();
+	if (iitem != nullptr && iitem->cast_hud_item())
+	{
+		iitem->cast_hud_item()->ResetSubStateTime();
+	}
+
+	if (Remote())
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+	if (m_holder)
+	{
+		m_holder->OnGyroscopeMove(value);
+		return;
+	}
+
+	float LookFactor = GetLookFactor();
+
+	CCameraBase* C = cameras[cam_active];
+	float scale = (C->f_fov / g_fov) / LookFactor * 0.01f;
+
+	if (CWeapon* wpn = iitem != nullptr ? iitem->cast_weapon() : nullptr)
+	{
+		if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled() && !wpn->IsAltZoomed())
+		{
+			float zoom_scale = scale * (wpn->GetLensFOV() * 0.02f);
+			scale = _lerp(scale, zoom_scale, wpn->GetAimFactor());
+		}
+	}
+
+	if (value.x)
+	{
+		float d = (psGyroscopeInvertY ? -1 : 1) * value.x * scale;
+		cam_Active()->Move((d < 0) ? kUP : kDOWN, std::abs(d));
+	}
+
+	if (value.y)
+	{
+		float d = (psGyroscopeInvertX ? -1 : 1) * value.y * scale;
+		cam_Active()->Move((d > 0) ? kLEFT : kRIGHT, std::abs(d));
+	}
+}
+
+void CActor::IR_OnTouchpadMove(Fvector2 value)
+{
+	PIItem iitem = inventory().ActiveItem();
+	if (iitem != nullptr && iitem->cast_hud_item())
+	{
+		iitem->cast_hud_item()->ResetSubStateTime();
+	}
+
+	if (Remote())
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+	if (m_holder)
+	{
+//		m_holder->OnGyroscopeMove(value);
+		return;
+	}
+
+	float LookFactor = GetLookFactor();
+
+	CCameraBase* C = cameras[cam_active];
+	float scale = (C->f_fov / g_fov) / LookFactor * 0.01f;
+
+	if (CWeapon* wpn = iitem != nullptr ? iitem->cast_weapon() : nullptr)
+	{
+		if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled() && !wpn->IsAltZoomed())
+		{
+			float zoom_scale = scale * (wpn->GetLensFOV() * 0.02f);
+			scale = _lerp(scale, zoom_scale, wpn->GetAimFactor());
+		}
+	}
+
+	if (value.x)
+	{
+		float d = (psGyroscopeInvertY ? -1 : 1) * value.x * scale;
+		cam_Active()->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
+	}
+
+	if (value.y)
+	{
+		float d = (psGyroscopeInvertX ? -1 : 1) * value.y * scale;
+		cam_Active()->Move((d > 0) ? kUP : kDOWN, std::abs(d));
 	}
 }
 
 void CActor::IR_GamepadUpdateStick(int id, Fvector2 value)
 {
-	// Left stick
-	if (id == 0)
+	if (Remote())
 	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+	if (m_holder)
+	{
+		m_holder->OnGamepadAxisMove(id, value);
+		return;
+	}
+
+#ifndef MASTER_GOLD
+	if (psActorFlags.test(AF_NO_CLIP) && id == 0)
+	{
+		NoClipFlyStick(value);
+		return;
+	}
+#endif // DEBUG
+
+	float absValueX = std::abs(value.x);
+	if (id != 2 && fis_zero(value.x) && fis_zero(value.y) || 
+		(CurrentGameUI() && CurrentGameUI()->RadialMenuWeapon()->isInitialized && CurrentGameUI()->RadialMenuWeapon()->IsShown())
+		|| ((HudAnimator() && HudAnimator()->PdaAnimator()) ? HudAnimator()->PdaAnimator()->IsZoomed() : CurrentGameUI()->PdaMenu()->IsShown()))
+	{
+		if (id == 0)
+		{
+			if (mstate_wishful & mcAccel)
+			{
+				mstate_wishful &= ~mcAccel;
+			}
+			if (mstate_wishful & mcLStrafe)
+			{
+				mstate_wishful &= ~mcLStrafe;
+			}
+			if (mstate_wishful & mcRStrafe)
+			{
+				mstate_wishful &= ~mcRStrafe;
+			}
+			if (mstate_wishful & mcFwd)
+			{
+				mstate_wishful &= ~mcFwd;
+			}
+			if (mstate_wishful & mcBack)
+			{
+				mstate_wishful &= ~mcBack;
+			}
+		}
+		return;
+	}
+	// Left stick
+	switch (id)
+	{
+	case 0:
+	{
+		leftStickThreshold = value;
+
+		if (!g_Alive())
+		{
+			return;
+		}
+
 		if (!fis_zero(value.x))
 		{
 			mstate_wishful |= (value.x > 0.f) ? mcRStrafe : mcLStrafe;
@@ -468,33 +913,41 @@ void CActor::IR_GamepadUpdateStick(int id, Fvector2 value)
 		if (!fis_zero(value.y))
 		{
 			mstate_wishful |= (value.y > 0.f) ? mcFwd : mcBack;
-
-			if (value.y < 0.22f)
-			{
-				mstate_wishful |= mcAccel;
-			}
-			else
-			{
-				mstate_wishful &= ~mcAccel;
-
-				if (value.y > 0.75f)
-				{
-					mstate_wishful |= mcSprint;
-				}
-				else
-				{
-					mstate_wishful &= ~mcSprint;
-				}
-			}
 		}
-	}
+
+		if (std::abs(value.y) < 0.375f
+			&& std::abs(value.x) < 0.375f
+			&& !(mstate_real & mcCrouch))
+		{
+			mstate_wishful |= mcAccel;
+		}
+		else if (!(mstate_real & mcAccel) && !isActorAccelerated(mstate_real, IsZoomAimingMode()))
+		{
+			mstate_wishful &= ~mcAccel;
+		}
+	}break;
 	// Right stick
-	else if (id == 1)
+	case 1:
 	{
+		PIItem iitem = inventory().ActiveItem();
+		if (iitem != nullptr && iitem->cast_hud_item())
+		{
+			iitem->cast_hud_item()->ResetSubStateTime();
+		}
+
 		float LookFactor = GetLookFactor();
 
 		CCameraBase* C = cameras[cam_active];
-		float scale = (C->f_fov / g_fov) * psMouseSens * psMouseSensScale / 50.f / LookFactor;
+		float scale = (C->f_fov / g_fov) * psGamepadSens * Device.fTimeDelta * psMouseSensScale / LookFactor;
+
+		if (CWeapon* wpn = iitem != nullptr ? iitem->cast_weapon() : nullptr)
+		{
+			if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled() && !wpn->IsAltZoomed())
+			{
+				float zoom_scale = scale * (wpn->GetLensFOV() * 0.02f);
+				scale = _lerp(scale, zoom_scale, wpn->GetAimFactor());
+			}
+		}
 
 		if (!fis_zero(value.x))
 		{
@@ -504,61 +957,369 @@ void CActor::IR_GamepadUpdateStick(int id, Fvector2 value)
 
 		if (!fis_zero(value.y))
 		{
-			float d = ((psMouseInvert.test(1)) ? -1 : 1) * value.y * scale * 3.f / 4.f;
+			float d = (psGamepadInvert ? -1 : 1) * value.y * scale * 3.f / 4.f;
 			d *= 8;
 
 			cam_Active()->Move((d > 0) ? kUP : kDOWN, std::abs(d));
 		}
+	}break;
 	}
-	else if (id == 2)
-	{
-		if (!fis_zero(value.x))
-		{
-			IR_OnKeyboardPress(kWPN_ZOOM);
-		}
-		else
-		{
-			IR_OnKeyboardRelease(kWPN_ZOOM);
-		}
+}
 
-		if (!fis_zero(value.y))
+u32 gamepad_crouch_time_global = 0;
+void CActor::IR_GamepadKeyPress(int id)
+{
+	auto bind = get_binded_action(id);
+	if (hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
+	{
+		return;
+	}
+
+	if (Remote())
+	{
+		return;
+	}
+
+	if (IsTalking())
+	{
+		return;
+	}
+
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+	if (HudAnimator() != nullptr)
+	{
+		if (HudAnimator()->InputKeyPress(bind))
 		{
-			IR_OnKeyboardPress(kWPN_FIRE);
+			return;
 		}
-		else
+	}
+
+#ifndef MASTER_GOLD
+	if (psActorFlags.test(AF_NO_CLIP))
+	{
+		NoClipFlyGamepad(bind);
+		if (m_holder && kUSE != bind)
+			m_holder->OnGamepadKeyPress(id);
+		return;
+	}
+#endif //DEBUG
+
+	if (!g_Alive()) return;
+
+	if(m_holder && kUSE != bind)
+	{
+		m_holder->OnGamepadKeyPress		(id);
+		if(m_holder->allowWeapon() && inventory().Action((u16)bind, CMD_START))		return;
+		return;
+	}
+	else if(inventory().Action((u16)bind, CMD_START))	
+	{
+		if (bind == kWPN_ZOOM)
 		{
-			IR_OnKeyboardRelease(kWPN_FIRE);
+			CWeapon* wpn = inventory().ActiveItem() ? inventory().ActiveItem()->cast_weapon() : nullptr;
+
+			if (wpn)
+			{
+				CEntityAlive* pAim = nullptr;
+
+				if (pAutoaim->auto_aim_pick_target(this, m_memory, pAim))
+				{
+					Fvector pos;
+					pAutoaim->look_at_pos_for_aiming(pos, pAim);
+					cam_Active()->LookAtPoint(pos, PI_DIV_2, PI);
+
+					lastTimeAutoAimStarted = Device.dwTimeContinual;
+				}
+			}
+		}
+		return;
+	}
+	if (IsWaunded)
+	{
+		return;
+	}
+
+	switch (bind)
+	{
+		case kUSE:
+		{
+			ActorUse();
+			UpdatePickupMode();
+			break;
+		}
+		case kCROUCH:
+		{
+			if (mstate_real & mcCrouch && mstate_real & mcAccel)
+			{
+				mstate_wishful &= mcAccel;
+			}
+			else
+			{
+				mstate_wishful ^= mcCrouch;
+			}
+			gamepad_crouch_time_global = Device.dwTimeContinual;
+			break;
+		}
+		case kJUMP:
+		{
+			mstate_wishful |= mcJump;
+			break;
+		}
+		case kSPRINT_TOGGLE:
+		{
+			if (Holder() == nullptr)
+				mstate_wishful ^= mcSprint;
+			break;
+		}
+		case kTORCH:
+		{
+			SwitchTorch();
+			break;
+		}
+		case kUSE_BANDAGE:
+		case kUSE_MEDKIT:
+		{
+			if (IsGameTypeSingle())
+			{
+				PIItem itm = inventory().item((bind == kUSE_BANDAGE) ? CLSID_IITEM_BANDAGE : CLSID_IITEM_MEDKIT);
+				if (itm)
+				{
+					inventory().Eat(itm);
+					SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("item_used", true, 3.0f);
+					string1024					str;
+					xr_strconcat(str, g_pStringTable->translate("st_item_used").c_str(), ": ", itm->NameItem());
+					_s->wnd()->TextItemControl()->SetText(str);
+				}
+			}
+		}break;
+		case kQUICK_USE_1:
+		case kQUICK_USE_2:
+		case kQUICK_USE_3:
+		case kQUICK_USE_4:
+		{
+			if (!IsZoomAimingMode())
+				ActorQuickSlotUse(bind);
+			break;
+		}
+		case kWPN_RADIAL_MENU:
+		{
+			if (!IsZoomAimingMode())
+			{
+				CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+				if (RMW->isInitialized && !RMW->IsShown())
+					RMW->ShowDialog(false);
+			}
+			break;
+		}
+		case kCAM_2:
+			if (active_cam() != eacLookAt)
+			{
+				cam_Set(eacLookAt);
+			}
+			else
+			{
+				cam_Set(eacFirstEye);
+			}
+			break;
+	}
+
+	EGameActions bindAim = get_binded_action(id, agAiming);
+	switch (bindAim)
+	{
+		case kL_LOOKOUT:
+		{
+			if (IsZoomAimingMode())
+			{
+				if (eacLookAt != cam_active)
+				{
+					if (!(mstate_wishful & mcLLookout))
+					{
+						mstate_wishful |= mcLLookout;
+					}
+					else
+					{
+						mstate_wishful &= mcLLookout;
+					}
+				}
+				else
+				{
+					psActorFlags.set(AF_RIGHT_SHOULDER, true);
+				}
+			}
+			break;
+		}
+		case kR_LOOKOUT:
+		{
+			if (IsZoomAimingMode())
+			{
+				if (eacLookAt != cam_active)
+				{
+					if (!(mstate_wishful & mcRLookout))
+					{
+						mstate_wishful |= mcRLookout;
+					}
+					else
+					{
+						mstate_wishful &= mcRLookout;
+					}
+				}
+				else
+				{
+					psActorFlags.set(AF_RIGHT_SHOULDER, false);
+				}
+			}
+			break;
+		}
+		case kWPN_ZOOM_INC:
+		case kWPN_ZOOM_DEC:
+		{
+			if (IsZoomAimingMode())
+			{
+				if (inventory().Action((u16)bindAim, CMD_START))
+					return;
+			}
+			break;
 		}
 	}
 }
 
-void CActor::IR_GamepadKeyPress(int id)
+void CActor::IR_GamepadKeyRelease(int id)
 {
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)
+	auto bind = get_binded_action(id);
+	
+	if (Remote())
 	{
-		IR_OnKeyboardPress(kPREV_SLOT);
+		return;
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)
+
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
 	{
-		IR_OnKeyboardPress(kNEXT_SLOT);
+		return;
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_SOUTH)
+
+	if (IsWaunded)
 	{
-		IR_OnKeyboardPress(kUSE);
+		return;
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_WEST)
+
+	if (HudAnimator() != nullptr)
 	{
-		IR_OnKeyboardPress(kWPN_RELOAD);
+		if (HudAnimator()->InputKeyRelease(bind))
+		{
+			return;
+		}
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_NORTH)
+
+	if (g_Alive())	
 	{
-		inventory().SetActiveSlot(NO_ACTIVE_SLOT);
+		if(m_holder)
+		{
+			m_holder->OnGamepadKeyRelease(id);
+			
+			if(m_holder->allowWeapon() && inventory().Action((u16)bind, CMD_STOP))		return;
+			return;
+		}else
+			if(inventory().Action((u16)bind, CMD_STOP))		return;
+
+
+
+		switch (bind)
+		{
+		case kJUMP:		
+			mstate_wishful &= ~mcJump;		
+			break;
+		case kWPN_RADIAL_MENU:
+			CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+			if (RMW->isInitialized && RMW->IsShown())
+			{
+				RMW->TryActivateSelectedSector();
+				RMW->HideDialog();
+			}
+			break;
+		}
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_LEFT_STICK)
+}
+
+void CActor::IR_GamepadKeyHold(int id)
+{
+	auto bind = get_binded_action(id);
+	
+	if (Remote())	
 	{
+		return;
 	}
-	else if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_RIGHT_STICK)
+	if (m_input_external_handler && !m_input_external_handler->authorized(bind))
 	{
+		return;
+	}
+
+	if (IsTalking())
+	{
+		return;
+	}
+
+	if (!g_Alive())
+	{
+		return;
+	}
+
+	if (load_screen_renderer.IsActive())
+	{
+		return;
+	}
+
+#ifndef MASTER_GOLD
+	if (psActorFlags.test(AF_NO_CLIP) && (bind == kJUMP || bind == kSPRINT_TOGGLE))
+	{
+		NoClipFlyGamepad(bind);
+		return;
+	}
+#endif // DEBUG
+
+	if(m_holder)
+	{
+//		m_holder->OnKeyboardHold(dik);
+		return;
+	}
+
+	if (IsWaunded)
+	{
+		return;
+	}
+
+	if (HudAnimator() != nullptr)
+	{
+		if (HudAnimator()->InputKeyHold(bind))
+		{
+			return;
+		}
+	}
+
+	switch (bind)
+	{
+		case kCROUCH:
+		{
+			if (Device.dwTimeContinual > (gamepad_crouch_time_global + 1000))
+			{
+				mstate_wishful |= mcAccel;
+			}
+			break;
+		}
+	
+		case kUSE:
+		{
+			UpdatePickupMode();
+			break;
+		}
 	}
 }
 
@@ -566,7 +1327,7 @@ void CActor::StartAnimator(const shared_str& section)
 {
 	if (IsGameTypeSingle())
 	{
-		HudAnimator()->StartAnimator(section);
+		HudAnimator()->ItemAnimator()->StartAnimator(section);
 	}
 	else
 	{
@@ -595,17 +1356,17 @@ static bool IsActionKeyPressed(const EGameActions& EGameAction)
 	return ((key1 != 0) && IsKeyPressed(key1)) || ((key2 != 0) && IsKeyPressed(key2));
 }
 
-static bool IsActionKeyPressedInGame(const EGameActions& EGameAction)
+bool CActor::IsActionKeyPressedInGame(const EGameActions& EGameAction) const
 {
-	return IsActionKeyPressed(EGameAction) && !Console->bVisible && CurrentGameUI() != nullptr && !CurrentGameUI()->TopInputReceiver() && g_pGameLevel && g_pGameLevel->Cameras().GetCamEffector(cefDemo) == nullptr && !load_screen_renderer.IsActive();
+	return IsActionKeyPressed(EGameAction) && !Console->bVisible && CurrentGameUI() != nullptr && !CurrentGameUI()->TopInputReceiver() && g_pGameLevel && g_pGameLevel->Cameras().GetCamEffector(cefDemo) == nullptr && !load_screen_renderer.IsActive() && !CImGuiManager::Instance().IsCapturingInputs();
 }
 
 void CActor::SetActorKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags mask, bool state, bool ignore_suicide)
 {
-	//if (!ignore_suicide && IsActorSuicideNow())
-	//{
-	//	return;
-	//}
+	if (!ignore_suicide && SuicideNow)
+	{
+		return;
+	}
 
 	if (state)
 	{
@@ -653,10 +1414,10 @@ void CActor::ProcessKeys(CHudItem* itm)
 	
 	if (IsActionKeyPressedInGame(kWPN_ZOOM) && (wpn->GetState() == CWeapon::eIdle || wpn->GetState() == CWeapon::eFire))
 	{
+		SetActorKeyRepeatFlag(kfUNZOOM, false);
 		if (!b_toggle_weapon_aim && wpn->CanAimNow() && !wpn->IsZoomed())
 		{
 			wpn->Action(kWPN_ZOOM, CMD_START);
-			SetActorKeyRepeatFlag(kfUNZOOM, false);
 		}
 	}
 
@@ -682,17 +1443,11 @@ void CActor::ProcessKeys(CHudItem* itm)
 		}
 	}
 
-	/*if (!wpn->IsActionProcessing() && wpn->GetState() != CWeapon::eSprintEnd && (GetMovementState(eReal) & mcSprint) == 0 && (m_iKeyFlags & kfFIRE) != 0)
+	if ((m_iKeyFlags & kfFIRE) != 0 && itm->CanStartAction(this))
 	{
 		wpn->Action(kWPN_FIRE, CMD_START);
-
-		if (!IsActionKeyPressed(kWPN_FIRE))
-		{
-			wpn->Action(kWPN_FIRE, CMD_STOP);
-		}
-
 		SetActorKeyRepeatFlag(kfFIRE, false);
-	}*/
+	}
 
 	if ((m_iKeyFlags & kfGLAUNCHSWITCH) != 0 && itm->CanStartAction(this))
 	{
@@ -746,6 +1501,24 @@ void CActor::ProcessKeys(CHudItem* itm)
 	{
 		wpn->Action(kFIREMODE_CHECK, CMD_START);
 		SetActorKeyRepeatFlag(kfFIREMODECHECK, false);
+	}
+
+	if ((m_iKeyFlags & kfCHAMBERLOAD) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_CHAMBER_LOAD, CMD_START);
+		SetActorKeyRepeatFlag(kfCHAMBERLOAD, false);
+	}
+
+	if ((m_iKeyFlags & kfCHAMBERUNLOAD) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_CHAMBER_UNLOAD, CMD_START);
+		SetActorKeyRepeatFlag(kfCHAMBERUNLOAD, false);
+	}
+
+	if ((m_iKeyFlags & kfCHAMBERCHECK) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_CHAMBER_CHECK, CMD_START);
+		SetActorKeyRepeatFlag(kfCHAMBERCHECK, false);
 	}
 }
 
@@ -817,7 +1590,14 @@ bool CActor::use_Holder(CHolderCustom* holder)
 
 void CActor::ActorUse()
 {
-	if (HudAnimator() && HudAnimator()->IsActive())
+	if (IsActorBurning() /* && !IsActorControlled()*/ && HudAnimator() != nullptr && HudAnimator()->BurnAnimator() != nullptr)
+	{
+		HudAnimator()->BurnAnimator()->StartAnimator();
+		m_need_fire_particle = true;
+		return;
+	}
+
+	if (HudAnimator() && HudAnimator()->IsAnyAnimatorActive())
 	{
 		return;
 	}
@@ -839,8 +1619,16 @@ void CActor::ActorUse()
 	{
 		m_pUsableObject->use(this);
 	}
+
+	if (m_pObjectWeLookingAt != nullptr)
+	{
+		if (CInteractiveObject* oCInteractiveObject = smart_cast<CInteractiveObject*>(m_pObjectWeLookingAt))
+		{
+			oCInteractiveObject->OnUse();
+		}
+	}
 	
-	if (m_pInvBoxWeLookingAt && m_pInvBoxWeLookingAt->nonscript_usable())
+	if (m_pInvBoxWeLookingAt && m_pInvBoxWeLookingAt->nonscript_usable() && m_use_disabled == false)
 	{
 		if (IsGameTypeSingleCompatible())
 		{
@@ -854,6 +1642,7 @@ void CActor::ActorUse()
 
 	if (!m_pUsableObject || m_pUsableObject->nonscript_usable())
 	{
+		bool isKeyHeld = pInput->GetControllerMode() ? pInput->iGetAsyncGamepadKeyState(get_action_dik(kSPRINT_TOGGLE)) : Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT);
 		if (m_pPersonWeLookingAt != nullptr)
 		{
 			CEntityAlive* pEntityAliveWeLookingAt = m_pPersonWeLookingAt->cast_entity_alive();
@@ -874,11 +1663,11 @@ void CActor::ActorUse()
 				{
 					//только если находимся в режиме single
 					CUIGameCustom* pGameSP = CurrentGameUI();
-					if (pGameSP && TestMonster)
+					if (pGameSP && TestMonster && m_use_disabled == false)
 					{
 						if (!m_pPersonWeLookingAt->deadbody_closed_status())
 						{
-							if (pEntityAliveWeLookingAt->AlreadyDie() && pEntityAliveWeLookingAt->GetLevelDeathTime() + 3000 < Device.dwTimeGlobal && !Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT))
+							if (pEntityAliveWeLookingAt->AlreadyDie() && !isKeyHeld)
 							{
 								pGameSP->StartCarBody(this, m_pPersonWeLookingAt);
 							}
@@ -896,7 +1685,7 @@ void CActor::ActorUse()
 			element = (u16)RQ.element;
 		}
 
-		if (object && Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT))
+		if (object && isKeyHeld)
 		{
 			bool b_allow = !!pSettings->line_exist("ph_capture_visuals", object->cNameVisual());
 			if (b_allow && !character_physics_support()->movement()->PHCapture())
@@ -920,101 +1709,127 @@ void CActor::ActorUse()
 	}
 }
 
-BOOL CActor::HUDview()const
+bool CActor::HUDview()const
 {
 	return IsFocused() && (cam_active == eacFirstEye) && ((!m_holder) || (m_holder && m_holder->allowWeapon() && m_holder->HUDView()));
 }
 
-static	u16 SlotsToCheck [] = {
-		KNIFE_SLOT		,		// 0
-		INV_SLOT_2		,		// 1
-		INV_SLOT_3		,		// 2
-		GRENADE_SLOT	,		// 3
-		ARTEFACT_SLOT	,		// 10
-};
+namespace
+{
+void ActorActivateWeaponCycleSlot(CActor& actor, u16 slotId)
+{
+	const u16 gameAction = InventoryWeaponSlotToGameAction(slotId);
+	if (gameAction != kWeaponCycleNoGameAction)
+	{
+		actor.IR_OnKeyboardPress(get_action_dik(static_cast<EGameActions>(gameAction)));
+	}
+	else
+	{
+		actor.inventory().ActiveWeapon(slotId);
+	}
+}
+} // namespace
 
 void	CActor::OnNextWeaponSlot()
 {
-	u32 ActiveSlot = inventory().GetActiveSlot();
-	if (ActiveSlot == NO_ACTIVE_SLOT) 
-		ActiveSlot = inventory().GetPrevActiveSlot();
-
-	if (ActiveSlot == NO_ACTIVE_SLOT) 
-		ActiveSlot = KNIFE_SLOT;
-	
-	u32 NumSlotsToCheck = sizeof(SlotsToCheck)/sizeof(SlotsToCheck[0]);	
-	
-	u32 CurSlot			= 0;
-	for (; CurSlot<NumSlotsToCheck; CurSlot++)
+	u32 activeSlot = inventory().GetActiveSlot();
+	if (activeSlot == NO_ACTIVE_SLOT)
 	{
-		if (SlotsToCheck[CurSlot] == ActiveSlot) break;
-	};
+		activeSlot = inventory().GetPrevActiveSlot();
+	}
 
-	if (CurSlot >= NumSlotsToCheck) 
+	if (activeSlot == NO_ACTIVE_SLOT)
+	{
+		activeSlot = KNIFE_SLOT;
+	}
+
+	xr_span<const u16> const cycle = InventoryWeaponCycleSlots();
+	const u32 cycleCount = static_cast<u32>(cycle.size());
+	if (cycleCount == 0)
+	{
 		return;
+	}
 
-	for (u32 i=CurSlot+1; i<NumSlotsToCheck; i++)
+	s32 curIndex = -1;
+	for (u32 i = 0; i < cycleCount; ++i)
 	{
-		if (inventory().ItemFromSlot(SlotsToCheck[i]))
+		if (cycle[i] == activeSlot)
 		{
-			if (SlotsToCheck[i] == ARTEFACT_SLOT) 
-			{
-				IR_OnKeyboardPress(kARTEFACT);
-			}
-			else
-				IR_OnKeyboardPress(kWPN_1 + i);
+			curIndex = static_cast<s32>(i);
+			break;
+		}
+	}
+
+	const u32 startIndex = curIndex < 0 ? 0u : static_cast<u32>(curIndex + 1);
+	for (u32 i = startIndex; i < cycleCount; ++i)
+	{
+		if (inventory().ItemFromSlot(cycle[i]))
+		{
+			ActorActivateWeaponCycleSlot(*this, cycle[i]);
 			return;
 		}
 	}
-};
+}
 
 void	CActor::OnPrevWeaponSlot()
 {
-	u32 ActiveSlot = inventory().GetActiveSlot();
-	if (ActiveSlot == NO_ACTIVE_SLOT) 
-		ActiveSlot = inventory().GetPrevActiveSlot();
-
-	if (ActiveSlot == NO_ACTIVE_SLOT) 
-		ActiveSlot = KNIFE_SLOT;
-
-	u32 NumSlotsToCheck = sizeof(SlotsToCheck)/sizeof(SlotsToCheck[0]);	
-	u32 CurSlot		= 0;
-
-	for (; CurSlot<NumSlotsToCheck; CurSlot++)
+	u32 activeSlot = inventory().GetActiveSlot();
+	if (activeSlot == NO_ACTIVE_SLOT)
 	{
-		if (SlotsToCheck[CurSlot] == ActiveSlot) break;
-	};
+		activeSlot = inventory().GetPrevActiveSlot();
+	}
 
-	if (CurSlot >= NumSlotsToCheck) 
-		CurSlot	= NumSlotsToCheck-1; //last in row
-
-	for (s32 i=s32(CurSlot-1); i>=0; i--)
+	if (activeSlot == NO_ACTIVE_SLOT)
 	{
-		if (inventory().ItemFromSlot(SlotsToCheck[i]))
+		activeSlot = KNIFE_SLOT;
+	}
+
+	xr_span<const u16> const cycle = InventoryWeaponCycleSlots();
+	const u32 cycleCount = static_cast<u32>(cycle.size());
+	if (cycleCount == 0)
+	{
+		return;
+	}
+
+	s32 curIndex = -1;
+	for (u32 i = 0; i < cycleCount; ++i)
+	{
+		if (cycle[i] == activeSlot)
 		{
-			if (SlotsToCheck[i] == ARTEFACT_SLOT) 
-			{
-				IR_OnKeyboardPress(kARTEFACT);
-			}
-			else
-				IR_OnKeyboardPress(kWPN_1 + i);
+			curIndex = static_cast<s32>(i);
+			break;
+		}
+	}
+
+	const s32 startIndex = curIndex < 0 ? static_cast<s32>(cycleCount) - 1 : curIndex - 1;
+	for (s32 i = startIndex; i >= 0; --i)
+	{
+		if (inventory().ItemFromSlot(cycle[i]))
+		{
+			ActorActivateWeaponCycleSlot(*this, cycle[i]);
 			return;
 		}
 	}
-};
+}
 
-float	CActor::GetLookFactor()
+float CActor::GetLookFactor()
 {
-	if (m_input_external_handler) 
+	if (m_input_external_handler)
+	{
 		return m_input_external_handler->mouse_scale_factor();
+	}
 
+
+	float factor = 1.f;
+
+	PIItem pItem = inventory().ActiveItem();
 	
-	float factor	= 1.f;
+	static bool use_weapon_factor = EngineExternal()[EEngineExternalGame::EnableWeaponAffectsOnMouseSensitivity];
 
-	PIItem pItem	= inventory().ActiveItem();
-
-	if (pItem)
+	if (pItem && use_weapon_factor)
+	{
 		factor *= pItem->GetControlInertionFactor();
+	}
 
 	VERIFY(!fis_zero(factor));
 
@@ -1029,22 +1844,50 @@ void CActor::set_input_external_handler(CActorInputHandler *handler)
 
 	// release fire button
 	if (handler)
-		IR_OnKeyboardRelease	(kWPN_FIRE);
+		IR_OnKeyboardRelease	(get_binded_action(kWPN_FIRE));
 
 	// set handler
 	m_input_external_handler	= handler;
 }
 
+void CActor::StartNVPPE()
+{
+	if (Cameras().GetPPEffector(EEffectorPPType(10337)) == nullptr)
+	{
+		CPostprocessAnimator* pp = new CPostprocessAnimator(10337, false);
+		pp->Load("night_vision.ppe");
+		Cameras().AddPPEffector(pp);
+	}
+}
+
 void CActor::SwitchNightVision()
 {
-	if (CurrentGameUI() && CurrentGameUI()->TopInputReceiver())
+	PIItem item_from_slot = inventory().ItemFromSlot(NVG_SLOT);
+	CNVG* oNVG = item_from_slot != nullptr ? smart_cast<CNVG*>(item_from_slot) : nullptr;
+
+	bool has_nvg = GetOutfit() && GetOutfit()->GetNV_Sect().size() > 0 || GetHelmet() && GetHelmet()->GetNV_Sect().size() > 0 || oNVG;
+
+	if (!has_nvg)
 	{
 		return;
 	}
 
-	bool has_nvg = GetOutfit() && GetOutfit()->m_NightVisionSect.size() > 0 || GetHelmet() && GetHelmet()->m_NightVisionSect.size() > 0;
+	if (CHudStateAnimator* state_animator = HudAnimator()->CurrentAnimator() != nullptr ? HudAnimator()->CurrentAnimator()->cast_hud_state_animator() : nullptr)
+	{
+		if (state_animator->GetState() == CHudStateAnimator::EAnimatorStates::eIdle)
+		{
+			if (state_animator->m_eAnimationsFlags.test(CHudStateAnimator::EAnimationsFlags::af_nvg))
+			{
+				state_animator->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_nvg, true);
+				state_animator->SetState(CHudStateAnimator::EAnimatorStates::eDeviceSwitch);
+				return;
+			}
+		}
 
-	if (!has_nvg)
+		return;
+	}
+
+	if (GetDevice(true) && GetDevice(true)->NeedActivation())
 	{
 		return;
 	}
@@ -1056,19 +1899,19 @@ void CActor::SwitchNightVision()
 
 	if (itm != nullptr && dev != nullptr)
 	{
-		if (wpn != nullptr && wpn->IsZoomed())
+		if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 		{
 			return;
 		}
 
 		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
 		{
-			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfNIGHTVISION))
+			if (dev->GetState() != itm->GetState() && !itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfNIGHTVISION))
 			{
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
+			if (itm->IsPending())
 			{
 				return;
 			}
@@ -1083,7 +1926,7 @@ void CActor::SwitchNightVision()
 
 	if (itm != nullptr)
 	{
-		if (wpn != nullptr && wpn->IsZoomed())
+		if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 		{
 			return;
 		}
@@ -1095,7 +1938,7 @@ void CActor::SwitchNightVision()
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle)
+			if (itm->IsPending())
 			{
 				return;
 			}
@@ -1110,7 +1953,7 @@ void CActor::SwitchNightVision()
 	{
 		if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
 		{
-			if (dev->GetState() != CCustomDevice::eIdle)
+			if (dev->IsPending())
 			{
 				return;
 			}
@@ -1125,10 +1968,11 @@ void CActor::SwitchNightVision()
 	{
 		if (m_sNVGAnimator.size() > 0)
 		{
-			if (HudAnimator() && !HudAnimator()->IsActive())
+			if (HudAnimator() && !HudAnimator()->ItemAnimator()->IsActive())
 			{
 				StartAnimator(m_sNVGAnimator);
-				HudAnimator()->SetLeftCallback({ GetNightVisionEffector(), &CNightVisionEffector::SwitchNightVision });
+				HudAnimator()->ItemAnimator()->SetLeftCallback({ GetNightVisionEffector(), &CNightVisionEffector::SwitchNightVision });
+				HudAnimator()->ItemAnimator()->SetRightCallback({ this, &CActor::StartNVPPE });
 			}
 		}
 		else
@@ -1139,8 +1983,11 @@ void CActor::SwitchNightVision()
 }
 
 void CActor::SwitchTorch()
-{ 
-	if (CurrentGameUI() && CurrentGameUI()->TopInputReceiver())
+{
+	static const bool TorchOnlyInOutfit = EngineExternal()[EEngineExternalGame::EnableTorchOnlyInOutfit];
+	bool has_torch = TorchOnlyInOutfit && (GetOutfit() && GetOutfit()->IsTorchAvailable() || GetHelmet() && GetHelmet()->IsTorchAvailable()) || !TorchOnlyInOutfit;
+
+	if (!has_torch)
 	{
 		return;
 	}
@@ -1149,6 +1996,26 @@ void CActor::SwitchTorch()
 
 	if (CTorch* torch = item_from_slot ? item_from_slot->cast_torch() : nullptr)
 	{
+		if (CHudStateAnimator* state_animator = HudAnimator()->CurrentAnimator() != nullptr ? HudAnimator()->CurrentAnimator()->cast_hud_state_animator() : nullptr)
+		{
+			if (state_animator->GetState() == CHudStateAnimator::EAnimatorStates::eIdle)
+			{
+				if (state_animator->m_eAnimationsFlags.test(CHudStateAnimator::EAnimationsFlags::af_torch))
+				{
+					state_animator->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_torch, true);
+					state_animator->SetState(CHudStateAnimator::EAnimatorStates::eDeviceSwitch);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (GetDevice(true) && GetDevice(true)->NeedActivation())
+		{
+			return;
+		}
+
 		PIItem active_item = inventory().ActiveItem();
 		CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 		CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
@@ -1156,19 +2023,19 @@ void CActor::SwitchTorch()
 
 		if (itm != nullptr && dev != nullptr)
 		{
-			if (wpn && wpn->IsZoomed())
+			if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 			{
 				return;
 			}
 
-			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_nvg))
+			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_torch) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_torch))
 			{
-				if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfHEADLAMP))
+				if (dev->GetState() != itm->GetState() && !itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfHEADLAMP))
 				{
 					return;
 				}
 
-				if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
+				if (itm->IsPending())
 				{
 					return;
 				}
@@ -1183,7 +2050,7 @@ void CActor::SwitchTorch()
 
 		if (itm != nullptr)
 		{
-			if (wpn && wpn->IsZoomed())
+			if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 			{
 				return;
 			}
@@ -1195,7 +2062,7 @@ void CActor::SwitchTorch()
 					return;
 				}
 
-				if (itm->GetState() != CHUDState::eIdle)
+				if (itm->IsPending())
 				{
 					return;
 				}
@@ -1210,7 +2077,7 @@ void CActor::SwitchTorch()
 		{
 			if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_torch))
 			{
-				if (dev->GetState() != CCustomDevice::eIdle)
+				if (dev->IsPending())
 				{
 					return;
 				}
@@ -1223,10 +2090,10 @@ void CActor::SwitchTorch()
 
 		if (m_sHeadlampAnimator.size() > 0)
 		{
-			if (HudAnimator() && !HudAnimator()->IsActive())
+			if (HudAnimator() && !HudAnimator()->ItemAnimator()->IsActive())
 			{
 				StartAnimator(m_sHeadlampAnimator);
-				HudAnimator()->SetLeftCallback({ torch, &CTorch::Switch });
+				HudAnimator()->ItemAnimator()->SetLeftCallback({ torch, &CTorch::Switch });
 			}
 		}
 		else
@@ -1245,6 +2112,26 @@ void CActor::ClearMask()
 		return;
 	}
 
+	if (CHudStateAnimator* state_animator = HudAnimator()->CurrentAnimator() != nullptr ? HudAnimator()->CurrentAnimator()->cast_hud_state_animator() : nullptr)
+	{
+		if (state_animator->GetState() == CHudStateAnimator::EAnimatorStates::eIdle)
+		{
+			if (state_animator->m_eAnimationsFlags.test(CHudStateAnimator::EAnimationsFlags::af_clear_mask))
+			{
+				state_animator->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_clear_mask, true);
+				state_animator->SetState(CHudStateAnimator::EAnimatorStates::eDeviceSwitch);
+				return;
+			}
+		}
+
+		return;
+	}
+
+	if (GetDevice(true) && GetDevice(true)->NeedActivation())
+	{
+		return;
+	}
+
 	PIItem active_item = inventory().ActiveItem();
 	CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 	CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
@@ -1252,19 +2139,19 @@ void CActor::ClearMask()
 
 	if (itm != nullptr && dev != nullptr)
 	{
-		if (wpn != nullptr && wpn->IsZoomed())
+		if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 		{
 			return;
 		}
 
 		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_clear_mask) && dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_clear_mask))
 		{
-			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfCLEARMASK))
+			if (dev->GetState() != itm->GetState() && !itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfCLEARMASK))
 			{
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle || dev->GetState() != CCustomDevice::eIdle)
+			if (itm->IsPending())
 			{
 				return;
 			}
@@ -1279,7 +2166,7 @@ void CActor::ClearMask()
 
 	if (itm != nullptr)
 	{
-		if (wpn != nullptr && wpn->IsZoomed())
+		if (wpn != nullptr && (wpn->IsZoomed() || wpn->GetState() == CWeapon::eFire))
 		{
 			return;
 		}
@@ -1291,7 +2178,7 @@ void CActor::ClearMask()
 				return;
 			}
 
-			if (itm->GetState() != CHUDState::eIdle)
+			if (itm->IsPending())
 			{
 				return;
 			}
@@ -1306,7 +2193,7 @@ void CActor::ClearMask()
 	{
 		if (dev->m_eAnimationsFlags.test(CCustomDevice::EAnimationsFlags::af_clear_mask))
 		{
-			if (dev->GetState() != CCustomDevice::eIdle)
+			if (dev->IsPending())
 			{
 				return;
 			}
@@ -1319,10 +2206,10 @@ void CActor::ClearMask()
 
 	if (m_sClearMaskAnimator.size() > 0)
 	{
-		if (HudAnimator() && !HudAnimator()->IsActive())
+		if (HudAnimator() && !HudAnimator()->ItemAnimator()->IsActive())
 		{
 			StartAnimator(m_sClearMaskAnimator);
-			HudAnimator()->SetLeftCallback({ this, &CActor::ClearMaskCB });
+			HudAnimator()->ItemAnimator()->SetLeftCallback({ this, &CActor::ClearMaskCB });
 		}
 	}
 }
@@ -1341,72 +2228,145 @@ void CActor::MakeKick()
 	}
 }
 
+void CActor::MakeThrowBolt()
+{
+	PIItem bolt_item = inventory().ItemFromSlot(BOLT_SLOT);
+	if (CBolt* pBolt = bolt_item != nullptr ? bolt_item->cast_bolt() : nullptr)
+	{
+		u8 slot = HudAnimator()->SlotToRestore();
+		pBolt->FastThrow();
+		HudAnimator()->SlotToRestore() = slot;
+	}
+}
+
+void CActor::MakeThrowGrenade()
+{
+	PIItem grenade_item = inventory().ItemFromSlot(GRENADE_SLOT);
+	if (CGrenade* pGrenade = grenade_item != nullptr ? grenade_item->cast_grenade() : nullptr)
+	{
+		u8 slot = HudAnimator()->SlotToRestore();
+		pGrenade->FastThrow();
+		HudAnimator()->SlotToRestore() = slot;
+	}
+}
+
+void CActor::UpdatePickupMode()
+{
+	if (g_Alive() && !CurrentGameUI()->TopInputReceiver())
+	{
+		pPickup->SetPickupMode(true);
+	}
+}
+
 #ifndef MASTER_GOLD
 #include "../xrPhysics/IPHWorld.h"
 collide::rq_result GetPickResult(Fvector pos, Fvector dir, float range, CObject* ignore);
+
 void CActor::NoClipFly(int cmd)
 {
-    Fvector cur_pos, right, left;
-    cur_pos.set(0, 0, 0);
-    float scale = 5.f;
-    if (pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))
-        scale = 2.0f;
-    else if (pInput->iGetAsyncKeyState(SDL_SCANCODE_X))
-        scale = 7.0f;
-    else if (pInput->iGetAsyncKeyState(SDL_SCANCODE_LALT))
-        scale = 10.0f;
-    else if (pInput->iGetAsyncKeyState(SDL_SCANCODE_CAPSLOCK))
-        scale = 15.0f;
-    else if (pInput->iGetAsyncKeyState(SDL_SCANCODE_DELETE))
+	Fvector cur_pos;
+	cur_pos.set(0, 0, 0);
+	CCar* pCar = m_holder ? m_holder->cast_car() : nullptr;
+
+	if (pInput->iGetAsyncKeyState(SDL_SCANCODE_DELETE))
 	{
-        collide::rq_result RQ = GetPickResult(cam_Active()->Position(), cam_Active()->Direction(), 1000.0f, this);
-        if (RQ.element>=0)
-            SetPhPosition(XFORM().translate(Fvector(cam_Active()->Position()).mad(Fvector(cam_Active()->Direction()), RQ.range)));
-    }
+		collide::rq_result RQ = GetPickResult(Device.vCameraPosition, Device.vCameraDirection, 1000.0f, this);
+		if (RQ.element>=0)
+		{
+			if (pCar)
+			{
+				pCar->m_pPhysicsShell->Disable();
+				pCar->m_pPhysicsShell->DisableCollision();
+				pCar->m_pPhysicsShell->SetGlTransformDynamic(pCar->XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+				pCar->correct_spawn_pos();
+				pCar->m_pPhysicsShell->set_LinearVel(zero_vel);
+				pCar->m_pPhysicsShell->set_AngularVel(zero_vel);
+				pCar->m_pPhysicsShell->GetGlobalTransformDynamic(&XFORM());
+				pCar->m_pPhysicsShell->Enable();
+			}
+			else if (m_pPhysicsShell)
+			{
+				m_pPhysicsShell->Disable();
+				m_pPhysicsShell->DisableCollision();
+				m_pPhysicsShell->SetGlTransformDynamic(XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+				correct_spawn_pos();
+				m_pPhysicsShell->set_LinearVel(zero_vel);
+				m_pPhysicsShell->set_AngularVel(zero_vel);
+				m_pPhysicsShell->GetGlobalTransformDynamic(&XFORM());
+				m_pPhysicsShell->Enable();
+			}
+			else
+				SetPhPosition(XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+		}
+	}
 
 	switch (cmd)
 	{
 		case kJUMP:
-			cur_pos.mad({ 0,1,0 }, scale / 2.0f);
+		{
+			Fvector top;
+			top.set(Device.vCameraTop);
+			cur_pos.mad(top, GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, { 0,1,0 }, (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, top, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(top, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kCROUCH:
-			cur_pos.mad({ 0,-1,0 }, scale / 2.0f);
+		{
+			Fvector down;
+			down.set(Device.vCameraTop).invert();
+			cur_pos.mad(down, GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, { 0,-1,0 }, (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, down, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(down, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kFWD:
-			cur_pos.mad(cam_Active()->vDirection, scale / 2.0f);
+		{
+			cur_pos.mad(Device.vCameraDirection, GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, cam_Active()->vDirection, (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, Device.vCameraDirection, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(Device.vCameraDirection, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kBACK:
-			cur_pos.mad(Fvector(cam_Active()->vDirection).invert(), scale / 2.0f);
+		{
+			cur_pos.mad(Fvector(Device.vCameraDirection).invert(), GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, Fvector(cam_Active()->vDirection).invert(), (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, Fvector(Device.vCameraDirection).invert(), (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(Fvector(Device.vCameraDirection).invert(), (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kR_STRAFE:
-			right.set(cam_Active()->Right());
-			cur_pos.mad(right, scale / 2.0f);
+		{
+			Fvector right;
+			right.set(Device.vCameraRight);
+			cur_pos.mad(right, GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, right, (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, right, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(right, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kL_STRAFE:
-			left.set(Fvector(cam_Active()->Right()).invert());
-			cur_pos.mad(left, scale / 2.0f);
+		{
+			Fvector left;
+			left.set(Device.vCameraRight).invert();
+			cur_pos.mad(left, GetNoclipSpeedScale() / 2.0f);
 			if (m_pPhysicsShell)
-				m_pPhysicsShell->applyImpulseTrace(cur_pos, left, (scale * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
-			break;
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, left, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			if (pCar && pCar->m_pPhysicsShell)
+				pCar->m_pPhysicsShell->applyImpulse(left, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}break;
 		case kCAM_1:
-		    cam_Set(eacFirstEye);
-		    break;
+			cam_Set(eacFirstEye);
+			break;
 		case kCAM_2:
-		    cam_Set(eacLookAt);
-		    break;
+			cam_Set(eacLookAt);
+			break;
 		case kCAM_3:
-		    cam_Set(eacFreeLook);
-		    break;
+			cam_Set(eacFreeLook);
+			break;
 		case kNIGHT_VISION:
 			SwitchNightVision();
 			break;
@@ -1432,10 +2392,217 @@ void CActor::NoClipFly(int cmd)
 				}
 			}
 		}break;
+		case kWPN_RADIAL_MENU:
+		{
+			CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+			if (RMW->isInitialized && !RMW->IsShown())
+			{
+				RMW->ShowDialog(false);
+			}
+			break;
+		}
 	}
-	if(!m_pPhysicsShell)
-		SetPhPosition(XFORM().translate_add(cur_pos.mul(scale * Device.fTimeDelta)));
+	if(!m_pPhysicsShell && !pCar)
+		SetPhPosition(XFORM().translate_add(cur_pos.mul(GetNoclipSpeedScale() * Device.fTimeDelta)));
 
 	if(inventory().Action((u16)cmd, CMD_START))return;
 }
+
+void CActor::NoClipFlyStick(Fvector2 value)
+{
+	Fvector cur_pos;
+	cur_pos.set(0, 0, 0);
+	CCar* pCar = m_holder ? m_holder->cast_car() : nullptr;
+
+	if (!fis_zero(value.x))
+	{
+		Fvector camDir = Device.vCameraRight;
+		if (value.x < 0.0f)
+		{
+			camDir.invert();
+		}
+		cur_pos.mad(camDir, (GetNoclipSpeedScale() / 2.0f) * std::abs(value.x));
+		if (m_pPhysicsShell)
+		{
+			m_pPhysicsShell->applyImpulseTrace(cur_pos, camDir, (GetNoclipSpeedScale() * std::abs(value.x) * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}
+		if (pCar && pCar->m_pPhysicsShell)
+		{
+			pCar->m_pPhysicsShell->applyImpulse(camDir, (GetNoclipSpeedScale() * std::abs(value.x) * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}
+	}
+
+	if (!fis_zero(value.y))
+	{
+		Fvector camDir = Device.vCameraDirection;
+		if (value.y < 0.0f)
+		{
+			camDir.invert();
+		}
+		cur_pos.mad(camDir, GetNoclipSpeedScale() / 2.0f * std::abs(value.y));
+		if (m_pPhysicsShell)
+		{
+			m_pPhysicsShell->applyImpulseTrace(cur_pos, camDir, (GetNoclipSpeedScale() * std::abs(value.y) * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}
+		if (pCar && pCar->m_pPhysicsShell)
+		{
+			pCar->m_pPhysicsShell->applyImpulse(camDir, (GetNoclipSpeedScale() * std::abs(value.y) * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+		}
+	}
+
+	if(!m_pPhysicsShell && !pCar)
+		SetPhPosition(XFORM().translate_add(cur_pos.mul(GetNoclipSpeedScale() * Device.fTimeDelta)));
+}
+
+
+void CActor::NoClipFlyGamepad(int cmd)
+{
+	Fvector cur_pos;
+	cur_pos.set(0, 0, 0);
+	CCar* pCar = m_holder ? m_holder->cast_car() : nullptr;
+
+	switch (cmd)
+	{
+		case kJUMP:
+		{
+			Fvector top;
+			top.set(Device.vCameraTop);
+			cur_pos.mad(top, GetNoclipSpeedScale() / 2.0f);
+			if (m_pPhysicsShell)
+			{
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, top, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			}
+			if (pCar && pCar->m_pPhysicsShell)
+			{
+				pCar->m_pPhysicsShell->applyImpulse(top, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			}
+		}
+		break;
+		case kSPRINT_TOGGLE:
+		{
+			Fvector down;
+			down.set(Device.vCameraTop).invert();
+			cur_pos.mad(down, GetNoclipSpeedScale() / 2.0f);
+			if (m_pPhysicsShell)
+			{
+				m_pPhysicsShell->applyImpulseTrace(cur_pos, down, (GetNoclipSpeedScale() * m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			}
+			if (pCar && pCar->m_pPhysicsShell)
+			{
+				pCar->m_pPhysicsShell->applyImpulse(down, (GetNoclipSpeedScale() * pCar->m_pPhysicsShell->getMass() * physics_world()->Gravity()) * Device.fTimeDelta);
+			}
+		}
+		break;
+		case kTORCH:
+			SwitchTorch();
+			break;
+		case kUSE:
+			ActorUse();
+			break;
+		case kCROUCH:
+		{
+			collide::rq_result RQ = GetPickResult(Device.vCameraPosition, Device.vCameraDirection, 1000.0f, this);
+			if (RQ.element >= 0)
+			{
+				if (pCar)
+				{
+					pCar->m_pPhysicsShell->Disable();
+					pCar->m_pPhysicsShell->DisableCollision();
+					pCar->m_pPhysicsShell->SetGlTransformDynamic(pCar->XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+					pCar->correct_spawn_pos();
+					pCar->m_pPhysicsShell->set_LinearVel(zero_vel);
+					pCar->m_pPhysicsShell->set_AngularVel(zero_vel);
+					pCar->m_pPhysicsShell->GetGlobalTransformDynamic(&XFORM());
+					pCar->m_pPhysicsShell->Enable();
+				}
+				else if (m_pPhysicsShell)
+				{
+					m_pPhysicsShell->Disable();
+					m_pPhysicsShell->DisableCollision();
+					m_pPhysicsShell->SetGlTransformDynamic(XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+					correct_spawn_pos();
+					m_pPhysicsShell->set_LinearVel(zero_vel);
+					m_pPhysicsShell->set_AngularVel(zero_vel);
+					m_pPhysicsShell->GetGlobalTransformDynamic(&XFORM());
+					m_pPhysicsShell->Enable();
+				}
+				else
+				{
+					SetPhPosition(XFORM().translate(Fvector(Device.vCameraPosition).mad(Fvector(Device.vCameraDirection), RQ.range)));
+				}
+			}
+			break;
+		}
+		case kWPN_RADIAL_MENU:
+		{
+			CUIRadialMenuWeapon* RMW = CurrentGameUI()->RadialMenuWeapon();
+			if (RMW->isInitialized && !RMW->IsShown())
+			{
+				RMW->ShowDialog(false);
+			}
+			break;
+		}
+	}
+	if (!m_pPhysicsShell && !pCar)
+	{
+		SetPhPosition(XFORM().translate_add(cur_pos.mul(GetNoclipSpeedScale() * Device.fTimeDelta)));
+	}
+
+	if (inventory().Action((u16)cmd, CMD_START))
+	{
+		return;
+	}
+}
+
 #endif //DEBUG
+
+void CActor::ActorQuickSlotUse(int cmd)
+{
+	// Show quick slots panel on item use
+	if (CurrentGameUI() && CurrentGameUI()->UIMainIngameWnd)
+	{
+		CurrentGameUI()->UIMainIngameWnd->ShowQuickSlotsPanel();
+	}
+
+	if (HudAnimator() && HudAnimator()->ItemAnimator()->IsActive())
+	{
+		return;
+	}
+
+	if (!CurrentGameUI() || !CurrentGameUI()->ActorMenu() || !CurrentGameUI()->ActorMenu()->m_pQuickSlot)
+	{
+		return;
+	}
+
+	const shared_str& item_name = g_quick_use_slots[cmd - kQUICK_USE_1];
+	if (item_name.size())
+	{
+		PIItem best_itm = nullptr;
+
+		for (auto& it : inventory().m_ruck)
+		{
+			if (it->cast_game_object()->object_removed())
+			{
+				continue;
+			}
+
+			if (it->m_section_id == item_name && (best_itm == nullptr || it->GetCondition() < best_itm->GetCondition()))
+			{
+				best_itm = it;
+			}
+		}
+
+		if (best_itm != nullptr)
+		{
+			IsGameTypeSingle() ? inventory().Eat(best_itm) : inventory().ClientEat(best_itm);
+
+			SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("item_used", true);
+			string1024 str = {};
+
+			xr_strconcat(str, *g_pStringTable->translate("st_item_used"), ": ", best_itm->NameItem());
+			_s->wnd()->TextItemControl()->SetText(str);
+
+			CurrentGameUI()->ActorMenu()->m_pQuickSlot->ReloadReferences(this);
+		}
+	}
+}

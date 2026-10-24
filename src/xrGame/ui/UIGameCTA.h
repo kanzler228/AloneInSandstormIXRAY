@@ -21,10 +21,10 @@ class CUIProgressShape;
 class CUIMessageBoxEx;
 class UIVoteStatusWnd;
 class game_cl_CaptureTheArtefact;
-class CUITextWnd;
+class CUIStatic;
 
 /// This class used to control UI part of client for Capture the Artefact mp game mode.
-class CUIGameCTA : public UIGameMP
+class CUIGameCTA final : public UIGameMP
 {
 private:
 	CUISpawnWnd			*m_pUITeamSelectWnd;
@@ -38,7 +38,7 @@ private:
 	CUIMapDesc*						m_pMapDesc;
 	CUIMoneyIndicator*				m_pMoneyIndicator;
 	CUIRankIndicator*				m_pRankIndicator;
-	CUITextWnd*						m_pReinforcementInidcator;
+	CUIStatic*						m_pReinforcementInidcator;
 	CUIProgressShape*				m_pReinforcementInidcator_old;
 	CUIMessageBoxEx*				m_pBuySpawnMsgBox;
 	UIVoteStatusWnd*				m_voteStatusWnd;
@@ -54,15 +54,15 @@ private:
 	bool							m_team_panels_shown;
 
 
-	CUITextWnd*						m_spectator_caption;
-	CUITextWnd*						m_pressjump_caption;
-	CUITextWnd*						m_pressbuy_caption;
-	CUITextWnd*						m_round_result_caption;	
-	CUITextWnd*						m_force_respawn_time_caption;
-	CUITextWnd*						m_spectrmode_caption;
-	CUITextWnd*						m_warm_up_caption;
-	CUITextWnd*						m_time_caption;
-	CUITextWnd*						m_demo_play_caption;
+	CUIStatic*						m_spectator_caption;
+	CUIStatic*						m_pressjump_caption;
+	CUIStatic*						m_pressbuy_caption;
+	CUIStatic*						m_round_result_caption;
+	CUIStatic*						m_force_respawn_time_caption;
+	CUIStatic*						m_spectrmode_caption;
+	CUIStatic*						m_warm_up_caption;
+	CUIStatic*						m_time_caption;
+	CUIStatic*						m_demo_play_caption;
 
 	struct PresetItem
 	{
@@ -152,25 +152,25 @@ public:
 
 			void		SetReinforcementTimes	(u32 curTime, u32 maxTime);
 
-	virtual void		ChangeTotalMoneyIndicator	(LPCSTR newMoneyString);
-	virtual void		DisplayMoneyChange			(LPCSTR deltaMoney);
+	virtual void		ChangeTotalMoneyIndicator	(const char* newMoneyString);
+	virtual void		DisplayMoneyChange			(const char* deltaMoney);
 	virtual void		DisplayMoneyBonus			(KillMessageStruct* bonus);
 			
 			void		SetRank(ETeam team, u8 rank);
 			void		SetScore(s32 max_score, s32 greenTeamScore, s32 blueTeamScore);
 
-			void		SetRoundResultCaption(LPCSTR str);
-			void		SetPressBuyMsgCaption(LPCSTR str);
-			void		SetPressJumpMsgCaption(LPCSTR str);
-			void		SetSpectatorMsgCaption(LPCSTR str);
-			void		SetSpectrModeMsgCaption			(LPCSTR str);
-			void		SetWarmUpCaption				(LPCSTR str);
-			void		SetTimeMsgCaption				(LPCSTR str);
-			void		SetDemoPlayCaption				(LPCSTR str);
+			void		SetRoundResultCaption(const char* str);
+			void		SetPressBuyMsgCaption(const char* str);
+			void		SetPressJumpMsgCaption(const char* str);
+			void		SetSpectatorMsgCaption(const char* str);
+			void		SetSpectrModeMsgCaption			(const char* str);
+			void		SetWarmUpCaption				(const char* str);
+			void		SetTimeMsgCaption				(const char* str);
+			void		SetDemoPlayCaption				(const char* str);
 			void		ResetCaptions();
 
-			void		SetVoteMessage(LPCSTR str);
-			void		SetVoteTimeResultMsg(LPCSTR str);
+			void		SetVoteMessage(const char* str);
+			void		SetVoteTimeResultMsg(const char* str);
 };
 
 #endif

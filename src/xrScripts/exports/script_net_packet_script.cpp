@@ -9,6 +9,7 @@
 #include "stdafx.h"
 #include "pch_script.h"
 #include "script_net_packet.h"
+#include "alife_space.h"
 
 using namespace luabind;
 
@@ -17,7 +18,7 @@ bool r_eof(NET_Packet *self_)
 	return			(!!self_->r_eof());
 }
 
-LPCSTR r_stringZ(NET_Packet *self_)
+const char* r_stringZ(NET_Packet *self_)
 {
 	shared_str			temp;
 	self_->r_stringZ	(temp);
@@ -26,7 +27,12 @@ LPCSTR r_stringZ(NET_Packet *self_)
 
 void w_bool(NET_Packet *self_, bool value)
 {
-	self_->w_u8		(value ? 1 : 0);
+	self_->w_u8(value ? 1 : 0);
+}
+
+void w_bool(NET_Packet *self_, int value) // Echo of WinAPI...
+{
+	self_->w_u8(value ? 1 : 0);
 }
 
 bool r_bool(NET_Packet *self_)
@@ -41,14 +47,26 @@ ClientID r_clientID(NET_Packet *self_)
 	return clientID;
 }
 
+static void w_object_id(NET_Packet* self_, ALife::_OBJECT_ID id)
+{
+	(*self_) << id;
+}
+
+static ALife::_OBJECT_ID r_object_id(NET_Packet* self_)
+{
+	ALife::_OBJECT_ID id;
+	(*self_) >> id;
+	return id;
+}
+
 u32 r_begin(NET_Packet* self)
 {
 	u16 dummy_u16;
 	return (self->r_begin(dummy_u16));
 }
 
-LPCSTR script_section = "script";
-LPCSTR current_version = "current_server_entity_version";
+const char* script_section = "script";
+const char* current_version = "current_server_entity_version";
 
 u16	SCRIPTS_API script_server_object_version()
 {
@@ -64,6 +82,7 @@ u16	SCRIPTS_API script_server_object_version()
 }
 
 #pragma optimize("s",on)
+template<>
 void CScriptNetPacket::script_register(lua_State *L)
 {
 	module(L)
@@ -83,6 +102,7 @@ void CScriptNetPacket::script_register(lua_State *L)
 //			.def("w_seek",			&NET_Packet::w_seek			)
 			.def("w_tell",			&NET_Packet::w_tell			)
 			.def("w_vec3",			&NET_Packet::w_vec3			)
+			.def("w_vec4",			&NET_Packet::w_vec4			)
 			.def("w_float",			&NET_Packet::w_float		)
 			.def("w_u64",			&NET_Packet::w_u64			)
 			.def("w_s64",			&NET_Packet::w_s64			)
@@ -92,16 +112,18 @@ void CScriptNetPacket::script_register(lua_State *L)
 			.def("w_s16",			&NET_Packet::w_s16			)
 			.def("w_u8",			&NET_Packet::w_u8			)
 			.def("w_s8",			&NET_Packet::w_s8			)
-			.def("w_bool",			&w_bool						)
+			.def("w_bool",			(void(*)(NET_Packet*, bool))&w_bool						)
+			.def("w_bool",			(void(*)(NET_Packet*, int))&w_bool						)
 			.def("w_float_q16",		&NET_Packet::w_float_q16	)
 			.def("w_float_q8",		&NET_Packet::w_float_q8		)
 			.def("w_angle16",		&NET_Packet::w_angle16		)
 			.def("w_angle8",		&NET_Packet::w_angle8		)
 			.def("w_dir",			&NET_Packet::w_dir			)
 			.def("w_sdir",			&NET_Packet::w_sdir			)
-			.def("w_stringZ",		(void (NET_Packet::*)(LPCSTR))(&NET_Packet::w_stringZ	))
+			.def("w_stringZ",		(void (NET_Packet::*)(const char*))(&NET_Packet::w_stringZ	))
 			.def("w_matrix",		&NET_Packet::w_matrix		)
 			.def("w_clientID",		&NET_Packet::w_clientID		)
+			.def("w_object_id",			&w_object_id		)
 			.def("w_chunk_open8",	&NET_Packet::w_chunk_open8, out_value<2>())
 			.def("w_chunk_close8",	&NET_Packet::w_chunk_close8	)
 			.def("w_chunk_open16",	&NET_Packet::w_chunk_open16, out_value<2>())
@@ -112,6 +134,7 @@ void CScriptNetPacket::script_register(lua_State *L)
 			.def("r_seek",			&NET_Packet::r_seek			)
 			.def("r_tell",			&NET_Packet::r_tell			)
 			.def("r_vec3",			(void (NET_Packet::*)(Fvector&))(&NET_Packet::r_vec3)			,pure_out_value<2>())
+			.def("r_vec4",			(void (NET_Packet::*)(Fvector4&))(&NET_Packet::r_vec4)			,pure_out_value<2>())
 			.def("r_bool",			&r_bool						)
 			.def("r_float",			(float	(NET_Packet::*)()	)(&NET_Packet::r_float		))
 			.def("r_u64",			(u64	(NET_Packet::*)()	)(&NET_Packet::r_u64		))
@@ -129,6 +152,7 @@ void CScriptNetPacket::script_register(lua_State *L)
 			.def("r_stringZ",		&r_stringZ)
 			.def("r_matrix",		&NET_Packet::r_matrix		)
 			.def("r_clientID",		&r_clientID					)
+			.def("r_object_id",		&r_object_id		)
 			.def("r_elapsed",		&NET_Packet::r_elapsed		)
 			.def("r_advance",		&NET_Packet::r_advance		)
 			.def("r_eof",			&r_eof						)

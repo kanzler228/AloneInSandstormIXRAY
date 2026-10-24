@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "UITabControl.h"
 #include "UITabButton.h"
 
@@ -54,7 +54,7 @@ bool CUITabControl::IsChangedOptValue() const
 }
 
 // добавление кнопки-закладки в список закладок контрола
-bool CUITabControl::AddItem(LPCSTR pItemName, LPCSTR pTexName, Fvector2 pos, Fvector2 size)
+bool CUITabControl::AddItem(const char* pItemName, const char* pTexName, Fvector2 pos, Fvector2 size)
 {
 	CUITabButton *pNewButton = new CUITabButton();
 	pNewButton->SetAutoDelete	(true);
@@ -80,6 +80,39 @@ bool CUITabControl::AddItem(CUITabButton *pButton)
 	return						true;
 }
 
+void CUITabControl::RemoveItemById(const shared_str& id)
+{
+	TABS_VECTOR_it it = m_TabsArr.begin();
+	for (; it != m_TabsArr.end(); ++it)
+	{
+		CUITabButton* btn = *it;
+		if (btn->m_btn_id == id)
+		{
+			break;
+		}
+	}
+    const bool tabControlItemFound = it != m_TabsArr.end();
+
+    R_ASSERT(tabControlItemFound);
+    if (tabControlItemFound)
+    {
+        DetachChild(*it);
+        m_TabsArr.erase(it);
+    }
+}
+
+void CUITabControl::RemoveItemByIndex(u32 index)
+{
+    R_ASSERT(m_TabsArr.size() > index);
+
+    // Меняем значение заданного элемента, и последнего элемента.
+    // Так как у нас хранятся указатели операция будет проходить быстро.
+    std::swap(m_TabsArr[index], m_TabsArr.back());
+
+    DetachChild(m_TabsArr.back());
+    m_TabsArr.pop_back();
+}
+
 void CUITabControl::RemoveAll()
 {
 	TABS_VECTOR_it it = m_TabsArr.begin();
@@ -100,10 +133,18 @@ void CUITabControl::SendMessage(CUIWindow *pWnd, s16 msg, void *pData)
 			{
 				m_sPushedId = m_TabsArr[i]->m_btn_id;
 				if (m_sPrevPushedId == m_sPushedId)
-					return;
-                
+				{
+					if (!m_bAllowReselect)
+					{
+						return;
+					}
+
+					OnTabChange(m_sPushedId, m_sPrevPushedId);
+					break;
+				}
+
 				OnTabChange(m_sPushedId, m_sPrevPushedId);
-				m_sPrevPushedId = m_sPushedId;							
+				m_sPrevPushedId = m_sPushedId;
 				break;
 			}
 		}
@@ -154,6 +195,16 @@ void CUITabControl::OnTabChange(const shared_str& sCur, const shared_str& sPrev)
 	GetMessageTarget()->SendMessage			(this, TAB_CHANGED, nullptr);
 }
 
+int CUITabControl::GetActiveIndex() const
+{
+    for (int i = 0; i < (int)m_TabsArr.size(); ++i)
+    {
+        if (m_TabsArr[i]->m_btn_id == m_sPushedId)
+            return i;
+    }
+    return -1;
+}
+
 void CUITabControl::SetActiveTab(const shared_str& sNewTab)
 {
 	if (m_sPushedId == sNewTab)
@@ -163,6 +214,60 @@ void CUITabControl::SetActiveTab(const shared_str& sNewTab)
 	OnTabChange			(m_sPushedId, m_sPrevPushedId);
 	
 	m_sPrevPushedId		= m_sPushedId;
+}
+
+void CUITabControl::SetActiveTabByIndex(u32 index)
+{
+	CUITabButton* newBtn = GetButtonByIndex(index);
+	CUITabButton* prevBtn = GetButtonById(GetActiveId());
+	if (newBtn == prevBtn)
+		return;
+
+	SetActiveTab(newBtn->m_btn_id);
+}
+
+void CUITabControl::NextTab(bool bAllowLoop)
+{
+	if (m_TabsArr.size() < 2)
+	{
+		return;
+	}
+
+	int nextIdx = GetActiveIndex() + 1;
+	if (nextIdx > GetButtonsVector()->size()-1)
+	{
+		if (bAllowLoop)
+		{
+			nextIdx = 0;
+		}
+		else
+		{
+			return;
+		}
+	}
+	SetActiveTabByIndex(nextIdx);
+}
+
+void CUITabControl::PrevTab(bool bAllowLoop)
+{
+	if (m_TabsArr.size() < 2)
+	{
+		return;
+	}
+
+	int nextIdx = GetActiveIndex() - 1;
+	if (nextIdx < 0)
+	{
+		if (bAllowLoop)
+		{
+			nextIdx = GetButtonsVector()->size() - 1;
+		}
+		else
+		{
+			return;
+		}
+	}
+	SetActiveTabByIndex(nextIdx);
 }
 
 bool CUITabControl::OnKeyboardAction(int dik, EUIMessages keyboard_action)
@@ -195,23 +300,12 @@ CUITabButton* CUITabControl::GetButtonById(const shared_str& id)
 	else
 		return nullptr;
 }
-/*
-const shared_str CUITabControl::GetCommandName(const shared_str& id)
-{ 
-	CUITabButton* tb			= GetButtonById(id);
-	R_ASSERT2					(tb, id.c_str());
 
-	return (GetButtonByIndex(i))->WindowName();
-};
-
-CUIButton* CUITabControl::GetButtonByCommand(const shared_str& n)
+CUITabButton* CUITabControl::GetButtonByIndex(u32 index) const
 {
-	for(u32 i = 0; i<m_TabsArr.size(); ++i)
-		if(m_TabsArr[i]->WindowName() == n)
-			return m_TabsArr[i];
-
-	return nullptr;
-}*/
+    R_ASSERT(index < (int)m_TabsArr.size());
+    return m_TabsArr[index];
+}
 
 void CUITabControl::ResetTab()
 {
@@ -223,9 +317,9 @@ void CUITabControl::ResetTab()
 	m_sPrevPushedId	= "";
 }
 
-LPCSTR CUITabControl::GetActiveId_script()
+const char* CUITabControl::GetActiveId_script()
 { 
-	LPCSTR res = GetActiveId().c_str();
+	const char* res = GetActiveId().c_str();
 	return res;
 }
 
@@ -234,7 +328,5 @@ void CUITabControl::Enable(bool status)
 	for(u32 i=0; i<m_TabsArr.size(); ++i)
 		m_TabsArr[i]->Enable(status);
 
-//	m_sPushedId		= "";
-//	m_sPrevPushedId	= "";
 	inherited::Enable(status);
 }

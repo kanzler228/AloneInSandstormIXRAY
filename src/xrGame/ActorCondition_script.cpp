@@ -20,7 +20,7 @@ void BoosterForEach(CActorCondition* conditions, const luabind::functor<bool> &f
 	}
 }
 
-bool ApplyBooster_script(CActorCondition* cond, const SBooster& B, LPCSTR sect)
+bool ApplyBooster_script(CActorCondition* cond, const SBooster& B, const char* sect)
 {
 	return cond->ApplyBooster(B, sect);
 }
@@ -39,9 +39,9 @@ void ClearAllBoosters(CActorCondition* conditions)
 
 void WoundForEach(CActorCondition* conditions, const luabind::functor<bool> &funct)
 {
-	CEntityCondition::WOUND_VECTOR const& cur_wounds = conditions->wounds();
-	CEntityCondition::WOUND_VECTOR::const_iterator it = conditions->wounds().begin();
-	CEntityCondition::WOUND_VECTOR::const_iterator it_e = conditions->wounds().end();
+	auto const& cur_wounds = conditions->wounds();
+	auto it = conditions->wounds().begin();
+	auto it_e = conditions->wounds().end();
 	for (; it != it_e ; ++it)
 	{
 		if (funct((*it)) == true)
@@ -95,6 +95,8 @@ void CActorCondition::script_register(lua_State *L)
 			.def("ChangeRadiation", &CEntityCondition::ChangeRadiation)
 			.def("ChangePsyHealth", &CEntityCondition::ChangePsyHealth)
 			.def("ChangeAlcohol", &CEntityCondition::ChangeAlcohol)
+			.def("ChangeIntoxication", &CEntityCondition::ChangeIntoxication)
+			.def("GetIntoxication", &CEntityCondition::GetIntoxication)
 			.def("SetMaxPower", &CEntityCondition::SetMaxPower)
 			.def("GetMaxPower", &CEntityCondition::GetMaxPower)
 			.def("ChangeEntityMorale", &CEntityCondition::ChangeEntityMorale)

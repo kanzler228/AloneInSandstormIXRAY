@@ -1,11 +1,6 @@
 #ifndef __V3D__
 #define __V3D__
 
-// Inline call
-#ifndef IC
-#define IC __forceinline
-#endif
-
 template <class T>
 struct _vector3 
 {
@@ -15,16 +10,22 @@ public:
 	typedef Self&		SelfRef;
 	typedef const Self&	SelfCRef;
 public:
-	T x = 0;
-	T y = 0;
-	T z = 0;
+	T x = T(0);
+	T y = T(0);
+	T z = T(0);
+
+	constexpr _vector3(T _x = T(0), T _y = T(0), T _z = T(0)): x(_x), y(_y), z(_z) {}
+	constexpr _vector3(T _x) = delete;
+	constexpr _vector3(T _x, T _y) = delete;
+
+    constexpr ~_vector3() = default;
 
 	// access operators
 	ICF	T&			operator[] (int i)					{ return *((T*)this + i); }
 	ICF	T&			operator[] (int i)	const			{ return *((T*)this + i); }
 
 	template<class T1>
-	IC bool operator==(T1 ls)
+	ICF bool operator==(T1 ls) const
 	{
 		return x == ls.x && y == ls.y && z == ls.z;
 	}
@@ -55,43 +56,43 @@ public:
 	ICF	SelfRef	div(const Self &a, const Self &v)		{ x=a.x/v.x;y=a.y/v.y;	z=a.z/v.z;		return *this;	};
 	ICF SelfRef	div(const Self &a, T s)					{ x=a.x/s;  y=a.y/s;	z=a.z/s;		return *this;	};
 
-	IC	SelfRef	invert()								{ x=-x; y=-y; z=-z;						return *this;	}
-	IC	SelfRef	invert(const Self &a)					{ x=-a.x; y=-a.y; z=-a.z;				return *this;	}
+	ICF	SelfRef	invert()								{ x=-x; y=-y; z=-z;						return *this;	}
+	ICF	SelfRef	invert(const Self &a)					{ x=-a.x; y=-a.y; z=-a.z;				return *this;	}
 
-	IC	SelfRef	min(const Self &v1,const Self &v2)		{ x = _min(v1.x,v2.x); y = _min(v1.y,v2.y); z = _min(v1.z,v2.z);	return *this;	}
-	IC	SelfRef	min(const Self &v)						{ x = _min(x,v.x);	y = _min(y,v.y);	z = _min(z,v.z);			return *this;	}
-	IC	SelfRef	max(const Self &v1,const Self &v2)		{ x = _max(v1.x,v2.x); y = _max(v1.y,v2.y);	z = _max(v1.z,v2.z);	return *this;	}
-	IC	SelfRef	max(const Self &v)						{ x = _max(x,v.x);	y = _max(y,v.y);	z = _max(z,v.z);			return *this;	}
+	ICF	SelfRef	min(const Self &v1,const Self &v2)		{ x = std::min(v1.x,v2.x); y = std::min(v1.y,v2.y); z = std::min(v1.z,v2.z);	return *this;	}
+	ICF	SelfRef	min(const Self &v)						{ x = std::min(x,v.x);	y = std::min(y,v.y);	z = std::min(z,v.z);			return *this;	}
+	ICF	SelfRef	max(const Self &v1,const Self &v2)		{ x = std::max(v1.x,v2.x); y = std::max(v1.y,v2.y);	z = std::max(v1.z,v2.z);	return *this;	}
+	ICF	SelfRef	max(const Self &v)						{ x = std::max(x,v.x);	y = std::max(y,v.y);	z = std::max(z,v.z);			return *this;	}
 
-	IC	SelfRef	abs(const Self &v)						{ x = _abs(v.x); y=_abs(v.y); z=_abs(v.z);							return *this;	}
-	ICF BOOL	similar(const Self &v, T E=EPS_L) const	{ return _abs(x-v.x)<E && _abs(y-v.y)<E && _abs(z-v.z)<E;};
+	ICF	SelfRef	abs(const Self &v)						{ x = std::abs(v.x); y=std::abs(v.y); z=std::abs(v.z);							return *this;	}
+	ICF bool	similar(const Self &v, T E=EPS_L) const	{ return std::abs(x-v.x)<E && std::abs(y-v.y)<E && std::abs(z-v.z)<E;};
 
-	IC	SelfRef	set_length(T l)
+	ICF	SelfRef	set_length(T l)
 	{
 		mul(l/magnitude());
 		return *this;	
 	} 
 
 	// Align vector3 by axis (!y)
-	IC	SelfRef	align() 
+	ICF	SelfRef	align()
 	{
 		y = 0;
-		if (_abs(z)>=_abs(x))	{ z /= _abs(z?z:1);	x = 0; }
-		else					{ x /= _abs(x);		z = 0; }
+		if (std::abs(z)>=std::abs(x))	{ z /= std::abs(z?z:1);	x = 0; }
+		else					{ x /= std::abs(x);		z = 0; }
 		return *this;	
 	}
 
 	// Squeeze
-	IC SelfRef	squeeze(T Epsilon)
+	ICF SelfRef	squeeze(T Epsilon)
 	{
-		if (_abs(x) < Epsilon) x = 0;
-		if (_abs(y) < Epsilon) y = 0;
-		if (_abs(z) < Epsilon) z = 0;
+		if (std::abs(x) < Epsilon) x = 0;
+		if (std::abs(y) < Epsilon) y = 0;
+		if (std::abs(z) < Epsilon) z = 0;
 		return *this;	
 	}
 
 	// Clamp vector3
-	IC	SelfRef	clamp(const Self &min, const Self max) 
+	ICF	SelfRef	clamp(const Self &min, const Self max)
 	{
 		::clamp(x,min.x,max.x);
 		::clamp(y,min.y,max.y);
@@ -99,9 +100,9 @@ public:
 		return *this;	
 	}
 
-	IC	SelfRef	clamp(const Self &_v) 
+	ICF	SelfRef	clamp(const Self &_v)
 	{
-		Self v;	v.x = _abs(_v.x);	v.y = _abs(_v.y);	v.z = _abs(_v.z);
+		Self v;	v.x = std::abs(_v.x);	v.y = std::abs(_v.y);	v.z = std::abs(_v.z);
 		::clamp(x,-v.x,v.x);
 		::clamp(y,-v.y,v.y);
 		::clamp(z,-v.z,v.z);
@@ -109,7 +110,7 @@ public:
 	}
 
 	// Interpolate vectors (inertion)
-	IC	SelfRef	inertion(const Self &p, T v) 
+	ICF	SelfRef	inertion(const Self &p, T v)
 	{
 		T inv = 1.f-v;
 		x = v*x + inv*p.x;
@@ -118,50 +119,146 @@ public:
 		return *this;	
 	}
 
-	IC SelfRef spring_inertion(const Self& target, Self& velocity, T deltaTime, T stiffness, T damping)
+	//damped harmonic oscillator
+	ICF SelfRef spring_inertion(const Self& target, Self& velocity, T deltaTime, T stiffness, T damping)
 	{
-		Self acceleration;
-		acceleration.sub(target, *this);
-		acceleration.mul(stiffness);
+		T criticalDamping = 2.f * std::sqrt(stiffness);
+		T dampingRatio = damping / criticalDamping;
 
-		Self dampForce;
-		dampForce.mul(velocity, damping);
-		acceleration.sub(dampForce);
+		Self delta;
+		delta.sub(*this, target);
 
-		velocity.x += acceleration.x * deltaTime;
-		velocity.y += acceleration.y * deltaTime;
-		velocity.z += acceleration.z * deltaTime;
+		Self temp1, temp2, temp3;
 
-		x += velocity.x * deltaTime;
-		y += velocity.y * deltaTime;
-		z += velocity.z * deltaTime;
+		if (dampingRatio < 1.f)
+		{
+			T omega = std::sqrt(stiffness);
+			T omegaSq = 1.f - dampingRatio * dampingRatio;
+			T dampedOmega = omega * std::sqrt(omegaSq);
+
+			T decay = std::exp(-dampingRatio * omega * deltaTime);
+
+			T cosTerm = std::cos(dampedOmega * deltaTime);
+			T sinTerm = std::sin(dampedOmega * deltaTime);
+
+			T deltaCoeff = cosTerm + dampingRatio * omega / dampedOmega * sinTerm;
+
+			temp1.mul(delta, deltaCoeff);
+			temp1.mul(decay);
+
+			T velCoeff = sinTerm / dampedOmega;
+			temp2.mul(velocity, velCoeff);
+			temp2.mul(decay);
+
+			temp3 = target;
+			temp3.add(temp1);
+			temp3.add(temp2);
+			Self sum;
+			sum.mul(delta, deltaCoeff);
+			temp1.mul(velocity, velCoeff);
+			sum.add(temp1);
+
+			sum.mul(-dampingRatio * omega);
+
+			T deltaVelCoeff = -dampedOmega * sinTerm + dampingRatio * omega * cosTerm;
+			temp1.mul(delta, deltaVelCoeff);
+			sum.add(temp1);
+
+			temp1.mul(velocity, cosTerm);
+			sum.add(temp1);
+
+			sum.mul(decay);
+
+			velocity = sum;
+			*this = temp3;
+		}
+		else if (dampingRatio > 1.f)
+		{
+			T omega = std::sqrt(stiffness);
+			T xiSqMinus1 = dampingRatio * dampingRatio - 1.f;
+			T alpha1 = -dampingRatio * omega + omega * std::sqrt(xiSqMinus1);
+			T alpha2 = -dampingRatio * omega - omega * std::sqrt(xiSqMinus1);
+
+			T det = alpha2 - alpha1;
+			T c2 = (velocity.x - alpha1 * delta.x) / det;
+			T c1 = delta.x - c2;
+
+			Self newPos, newVel;
+
+			T exp1 = std::exp(alpha1 * deltaTime);
+			T exp2 = std::exp(alpha2 * deltaTime);
+
+			newPos.x = target.x + c1 * exp1 + c2 * exp2;
+			newVel.x = c1 * alpha1 * exp1 + c2 * alpha2 * exp2;
+
+			c2 = (velocity.y - alpha1 * delta.y) / det;
+			c1 = delta.y - c2;
+
+			newPos.y = target.y + c1 * exp1 + c2 * exp2;
+			newVel.y = c1 * alpha1 * exp1 + c2 * alpha2 * exp2;
+
+			c2 = (velocity.z - alpha1 * delta.z) / det;
+			c1 = delta.z - c2;
+
+			newPos.z = target.z + c1 * exp1 + c2 * exp2;
+			newVel.z = c1 * alpha1 * exp1 + c2 * alpha2 * exp2;
+
+			*this = newPos;
+			velocity = newVel;
+		}
+		else
+		{
+			T omega = std::sqrt(stiffness);
+			T expTerm = std::exp(-omega * deltaTime);
+
+			temp1.mul(delta, omega);
+			temp1.add(velocity);
+			temp1.mul(deltaTime);
+			temp1.add(delta);
+			temp1.mul(expTerm);
+
+			temp2 = target;
+			temp2.add(temp1);
+
+			temp3.mul(delta, omega);
+			temp3.add(velocity);
+			temp3.mul(deltaTime);
+			temp3.add(delta);
+			temp3.mul(-omega);
+			temp3.add(velocity);
+			temp3.mul(expTerm);
+
+			*this = temp2;
+			velocity = temp3;
+		}
 
 		Self diff;
 		diff.sub(target, *this);
+
 		if (diff.magnitude() < EPS_L && velocity.magnitude() < 0.01f)
 		{
-			set(target);
-			velocity.set(0.f, 0.f, 0.f);
+			*this = target;
+			velocity = { T(0),T(0),T(0) };
 		}
 
 		return *this;
 	}
 
-	IC	SelfRef	average(const Self &p) 
+	ICF	SelfRef	average(const Self &p)
 	{
 		x = (x+p.x)*0.5f;
 		y = (y+p.y)*0.5f;
 		z = (z+p.z)*0.5f;
 		return *this;	
 	}
-	IC	SelfRef	average(const Self &p1, const Self &p2) 
+	ICF	SelfRef	average(const Self &p1, const Self &p2)
 	{
 		x = (p1.x+p2.x)*0.5f;
 		y = (p1.y+p2.y)*0.5f;
 		z = (p1.z+p2.z)*0.5f;
 		return *this;	
 	}
-	IC	SelfRef	lerp(const Self &p1, const Self &p2, T t )
+	ICF	SelfRef	lerp(const Self &p1, const Self &p2, T t )
 	{
 		T invt = 1.f-t;
 		x = p1.x*invt + p2.x*t;
@@ -171,28 +268,28 @@ public:
 	}
 
 	// Direct vector3 from point P by dir D with length M
-	IC	SelfRef	mad(const Self &d, T m) 
+	ICF	SelfRef	mad(const Self &d, T m)
 	{
 		x += d.x*m;
 		y += d.y*m;
 		z += d.z*m;
 		return *this;	
 	}
-	IC	SelfRef	mad(const Self &p, const Self &d, T m) 
+	ICF	SelfRef	mad(const Self &p, const Self &d, T m)
 	{
 		x = p.x + d.x*m;
 		y = p.y + d.y*m;
 		z = p.z + d.z*m;
 		return *this;	
 	}
-	IC	SelfRef	mad(const Self& d, const Self& s) 
+	ICF	SelfRef	mad(const Self& d, const Self& s)
 	{
 		x += d.x*s.x;
 		y += d.y*s.y;
 		z += d.z*s.z;
 		return *this;	
 	}
-	IC	SelfRef	mad(const Self &p, const Self &d, const Self &s) 
+	ICF	SelfRef	mad(const Self &p, const Self &d, const Self &s)
 	{
 		x = p.x + d.x*s.x;
 		y = p.y + d.y*s.y;
@@ -200,19 +297,26 @@ public:
 		return *this;	
 	}
 
-	// SQ magnitude
-	IC	T	square_magnitude(void) const 
-	{
-		return x*x + y*y + z*z;
-	}
-	// magnitude
-	IC	T	magnitude(void) const 
-	{
-		return _sqrt(square_magnitude());
-	}
+	// magnitude^2
+	ICF T square_magnitude() const { return x*x + y*y + z*z; }
+	ICF T square_magnitude_x() const { return x*x; }
+	ICF T square_magnitude_y() const { return y*y; }
+	ICF T square_magnitude_z() const { return z*z; }
+	ICF T square_magnitude_xy() const { return x*x + y*y; }
+	ICF T square_magnitude_xz() const { return x*x + z*z; }
+	ICF T square_magnitude_yz() const { return y*y + z*z; }
+
+	// sqrt(magnitude^2)
+	ICF T magnitude() const { return _sqrt(square_magnitude()); }
+	ICF T magnitude_x() const { return _sqrt(square_magnitude_x()); }
+	ICF T magnitude_y() const { return _sqrt(square_magnitude_y()); }
+	ICF T magnitude_z() const { return _sqrt(square_magnitude_z()); }
+	ICF T magnitude_xy() const { return _sqrt(square_magnitude_xy()); }
+	ICF T magnitude_xz() const { return _sqrt(square_magnitude_xz()); }
+	ICF T magnitude_yz() const { return _sqrt(square_magnitude_yz()); }
 
 	// Normalize
-	IC	T	normalize_magn(void) 
+	ICF	T	normalize_magn(void)
 	{
 		VERIFY(square_magnitude() > std::numeric_limits<T>::min());
 		T len		= magnitude();
@@ -246,6 +350,22 @@ public:
 		return *this;	
 	}
 
+	ICF	Self GetNormalizedCopy(void)
+	{
+#ifdef FS_DEBUG
+		VERIFY(square_magnitude() > std::numeric_limits<T>::min());
+#endif
+		Self Copy(*this);
+		return Copy.normalize();
+	}
+
+	// Safe-Normalize
+	ICF	Self	GetSafeNormalizedCopy(void)
+	{
+		Self Copy(*this);
+		return Copy.normalize_safe();
+	}
+
 	// Normalize
 	ICF	SelfRef	normalize(const Self &v) 
 	{
@@ -268,19 +388,19 @@ public:
 		}
 		return *this;	
 	}
-	IC SelfRef	random_dir		(CRandom& R = ::Random)
+	ICF SelfRef	random_dir		(CRandom& R = ::Random)
 	{
 		//z	= R.randF(-1,1);
-		z	= _cos(R.randF(PI));
+		z	= std::cos(R.randF(PI));
 		T a = R.randF(PI_MUL_2);
-		T r = _sqrt(1-z*z);
-		T sa= _sin (a);
-		T ca= _cos (a);
+		T r = std::sqrt(1-z*z);
+		T sa= std::sin (a);
+		T ca= std::cos (a);
 		x	= r * ca;
 		y	= r * sa;
 		return *this;	
 	};
-	IC SelfRef	random_dir		(const Self& ConeAxis, float ConeAngle, CRandom& R = ::Random)
+	ICF SelfRef	random_dir		(const Self& ConeAxis, float ConeAngle, CRandom& R = ::Random)
 	{
 		Self				rnd;
 		rnd.random_dir		(R);
@@ -288,14 +408,14 @@ public:
 		normalize			();
 		return *this;	
 	}	
-	IC SelfRef	random_point	(const Self& BoxSize, CRandom& R = ::Random)
+	ICF SelfRef	random_point	(const Self& BoxSize, CRandom& R = ::Random)
 	{
 		x					= R.randFs(BoxSize.x);
 		y					= R.randFs(BoxSize.y);
 		z					= R.randFs(BoxSize.z);
 		return *this;	
 	}
-	IC SelfRef	random_point	(T r, CRandom& R = ::Random)
+	ICF SelfRef	random_point	(T r, CRandom& R = ::Random)
 	{	
 		random_dir			(R);
 		mul					(R.randF(r));
@@ -316,9 +436,9 @@ public:
 	}
 
 	// Distance calculation
-	IC	T		distance_to_xz(const Self &v) const
+	ICF	T		distance_to_xz(const Self &v) const
 	{	return _sqrt( (x-v.x)*(x-v.x) + (z-v.z)*(z-v.z) );	}
-	IC	T		distance_to_xz_sqr(const Self &v) const
+	ICF	T		distance_to_xz_sqr(const Self &v) const
 	{	return (x-v.x)*(x-v.x) + (z-v.z)*(z-v.z);	}
 
 	// Distance calculation
@@ -330,20 +450,20 @@ public:
 	{	return _sqrt(distance_to_sqr(v));	}
 
 	// Barycentric coords
-	IC	SelfRef	from_bary			(const Self &V1, const Self &V2, const Self &V3, T u, T v, T w)
+	ICF	SelfRef	from_bary			(const Self &V1, const Self &V2, const Self &V3, T u, T v, T w)
 	{
 		x = V1.x*u + V2.x*v + V3.x*w;
 		y = V1.y*u + V2.y*v + V3.y*w;
 		z = V1.z*u + V2.z*v + V3.z*w;
 		return *this;	
 	}
-	IC	SelfRef	from_bary			(const Self &V1, const Self &V2, const Self &V3, const Self &B)
+	ICF	SelfRef	from_bary			(const Self &V1, const Self &V2, const Self &V3, const Self &B)
 	{	
 		from_bary(V1,V2,V3,B.x,B.y,B.z); 
 		return *this;	
 	}
 
-	IC	SelfRef	from_bary4			(const Self &V1, const Self &V2, const Self &V3, const Self &V4, T u, T v, T w, T t)
+	ICF	SelfRef	from_bary4			(const Self &V1, const Self &V2, const Self &V3, const Self &V4, T u, T v, T w, T t)
 	{
 		x = V1.x*u + V2.x*v + V3.x*w + V4.x*t;
 		y = V1.y*u + V2.y*v + V3.y*w + V4.y*t;
@@ -351,7 +471,7 @@ public:
 		return *this;	
 	}
 
-    IC SelfRef	mknormal_non_normalized	(const Self &p0, const Self & p1, const Self &p2 )
+	ICF SelfRef	mknormal_non_normalized	(const Self &p0, const Self & p1, const Self &p2 )
 	{
     	_vector3<T> v01,v12;
     	v01.sub( p1, p0 );
@@ -359,15 +479,15 @@ public:
     	crossproduct( v01, v12 );
 		return *this;	
     };
-    IC SelfRef	mknormal( const Self &p0, const Self &p1, const Self &p2 )
+	ICF SelfRef	mknormal( const Self &p0, const Self &p1, const Self &p2 )
 	{
 		mknormal_non_normalized(p0,p1,p2);
     	normalize_safe();
 		return *this;	
     };
-	IC	SelfRef	setHP	(T h, T p)
+	ICF	SelfRef	setHP	(T h, T p)
 	{
-        T _ch=_cos(h), _cp=_cos(p), _sh=_sin(h), _sp=_sin(p);
+        T _ch= std::cos(h), _cp= std::cos(p), _sh= std::sin(h), _sp= std::sin(p);
         x = -_cp*_sh;
         y = _sp;
         z = _cp*_ch;
@@ -411,19 +531,19 @@ public:
 			else						return atanf(y/hyp);
 		}
 	}
-	IC	SelfRef	reflect(const Self& dir, const Self& norm)
+	ICF	SelfRef	reflect(const Self& dir, const Self& norm)
 	{
 		return mad(dir,norm,-2*dir.dotproduct(norm));
 	}
-	IC	SelfRef	slide(const Self& dir, const Self& norm)
+	ICF	SelfRef	slide(const Self& dir, const Self& norm)
 	{	// non normalized
 		return mad(dir,norm,-dir.dotproduct(norm));
 	}
-    IC static void generate_orthonormal_basis(const _vector3<T>& dir, _vector3<T>& up, _vector3<T>& right)
+	static ICF void generate_orthonormal_basis(const _vector3<T>& dir, _vector3<T>& up, _vector3<T>& right)
     {
         T fInvLength;
 
-        if ( _abs(dir.x) >= _abs(dir.y) ){
+        if ( std::abs(dir.x) >= std::abs(dir.y) ){
             // W.x or W.z is the largest magnitude component, swap them
             fInvLength = 1.f/_sqrt(dir.x*dir.x+dir.z*dir.z);
             up.x = -dir.z*fInvLength;
@@ -441,7 +561,7 @@ public:
 
         right.crossproduct(up,dir); //. <->
     }
-	IC static void generate_orthonormal_basis_normalized(_vector3<T>& dir, _vector3<T>& up, _vector3<T>& right)
+	static ICF void generate_orthonormal_basis_normalized(_vector3<T>& dir, _vector3<T>& up, _vector3<T>& right)
 	{
 		T fInvLength;
 		dir.normalize();
@@ -470,20 +590,33 @@ public:
 		}
 	}
 
-	IC float 	length		() const						{	return _sqrt(x*x+y*y+z*z);					}
-	IC float 	length2		() const						{	return (x*x+y*y+z*z);						}
-	
-	IC float 	operator*	(const _vector3 &a) const		{	return x*a.x + y*a.y + z*a.z;				}
-	IC _vector3 	operator*	(const float s) const			{	return _vector3(x*s, y*s, z*s);				}
-	IC _vector3 	operator/	(const float s) const			{	float invs = 1.0f / s;	return _vector3(x*invs, y*invs, z*invs);	}
-	IC _vector3 	operator+	(const _vector3& a) const		{	return _vector3(x+a.x, y+a.y, z+a.z);		}
-	IC _vector3 	operator-	(const _vector3& a) const		{	return _vector3(x-a.x, y-a.y, z-a.z);		}
-	IC _vector3 	operator-	()								{	return _vector3(-x, -y, -z); }
-	IC _vector3& operator+=	(const _vector3& a)				{	x += a.x;y += a.y;z += a.z;	return *this;	}
-	IC _vector3& operator-=	(const _vector3& a)		 		{	x -= a.x;y -= a.y;z -= a.z;	return *this;	}
-	IC _vector3& operator*=	(const float a)					{	x *= a;	y *= a;	z *= a;	return *this;		}
-	IC _vector3& operator/=	(const float a)					{	float b = 1.0f / a;	x *= b;	y *= b;	z *= b;	return *this;		}
-	IC _vector3 	operator^	(const _vector3& b) const		{	return _vector3(y*b.z-z*b.y,z*b.x-x*b.z,x*b.y-y*b.x);		}
+
+	ICF T 	operator* (const Self&a) const		{ return x*a.x+y*a.y+z*a.z; }//dot
+	ICF Self operator* (const T s) const		{ return Self{x*s, y*s, z*s}; }//mul
+
+	ICF Self operator/ (const Self& a) const	{ return Self{ x/a.x, y/a.y, z/a.z }; }//div
+	ICF Self operator/ (const T s) const		{ T invs = 1.0f/s; return Self{x*invs, y*invs, z*invs}; }//fast div
+
+	ICF Self operator+ (const Self& a) const	{ return Self{x+a.x, y+a.y, z+a.z}; }//add
+	ICF Self operator+ (const T s) const		{ return Self{ x+s, y+s, z+s }; }//add
+
+	ICF Self operator- (const Self& a) const	{ return Self{x-a.x, y-a.y, z-a.z}; }//sub
+	ICF Self operator- (const T s) const		{ return Self{ x-s, y-s, z-s }; }//sub
+
+	ICF Self& operator+= (const Self& a)		{ x += a.x;y += a.y;z += a.z; return *this; }//add
+	ICF Self& operator+= (const T s)			{ x += s;y += s;z += s; return *this; }//add
+
+	ICF Self& operator-= (const Self& a)		{ x -= a.x;y -= a.y;z -= a.z; return *this;	}//sub
+	ICF Self& operator-= (const T s)			{ x -= s; y -= s; z -= s; return *this; }//sub
+
+	ICF Self& operator*= (const Self& a)		{ x *= a.x;	y *= a.y; z *= a.z;	return *this; }//mul
+	ICF Self& operator*= (const T a)			{ x *= a; y *= a; z *= a; return *this; }//mul
+
+	ICF Self& operator/= (const Self& a)		{ x /= a.x; y /= a.y; z /= a.z; return *this; }//div
+	ICF Self& operator/= (const T a)			{ T b = 1.0f / a; x *= b; y *= b; z *= b; return *this;	}//fast div
+
+	ICF Self operator- ()						{ return Self(-x, -y, -z); }//invert
+	ICF Self operator^ (const Self& b) const	{ return Self {y*b.z-z*b.y,z*b.x-x*b.z,x*b.y-y*b.x}; }//cross
 };
 typedef _vector3<float>		Fvector;
 typedef _vector3<float>		Fvector3;
@@ -493,36 +626,46 @@ typedef _vector3<s32>		Ivector;
 typedef _vector3<s32>		Ivector3;
 
 template <class T>
-BOOL	_valid			(const _vector3<T>& v)	{ return _valid((T)v.x) && _valid((T)v.y) && _valid((T)v.z);	}
+ICF bool _valid (const _vector3<T>& v)	{ return _valid((T)v.x) && _valid((T)v.y) && _valid((T)v.z); }
+
+template <class T>
+ICF constexpr _vector3<T> lerp(const _vector3<T>& _val_a, const _vector3<T>& _val_b, const float& _factor)
+{
+	T x = (_val_a.x * (1.0 - _factor)) + (_val_b.x * _factor);
+	T y = (_val_a.y * (1.0 - _factor)) + (_val_b.y * _factor);
+	T z = (_val_a.z * (1.0 - _factor)) + (_val_b.z * _factor);
+	return { x, y, z };
+}
 
 //////////////////////////////////////////////////////////////////////////
-#pragma warning(push)
-#pragma warning(disable:4244)
-ICF		double	rsqrt			(double v)		{	return 1.0/_sqrt(v);			}
-IC		BOOL	exact_normalize (float* a)
+ICF double rsqrt (double v) { return 1.0/_sqrt(v); }
+ICF bool exact_normalize (float* a)
 {
-	double	sqr_magnitude	= a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
-	double	epsilon			= 1.192092896e-05F;
-	if		(sqr_magnitude > epsilon)
+	double sqr_magnitude = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+	double epsilon = 1.192092896e-05F;
+	if (sqr_magnitude > epsilon)
 	{
-		double	l	=	rsqrt(sqr_magnitude);
-		a[0]		*=	l;
-		a[1]		*=	l;
-		a[2]		*=	l;
-		return		TRUE;
+		double l = rsqrt(sqr_magnitude);
+		a[0] *=	l;
+		a[1] *=	l;
+		a[2] *=	l;
+		return true;
 	}
 	double a0,a1,a2,aa0,aa1,aa2,l;
 	a0 = a[0];
 	a1 = a[1];
 	a2 = a[2];
-	aa0 = _abs(a0);
-	aa1 = _abs(a1);
-	aa2 = _abs(a2);
-	if (aa1 > aa0) {
-		if (aa2 > aa1) {
+	aa0 = std::abs(a0);
+	aa1 = std::abs(a1);
+	aa2 = std::abs(a2);
+	if (aa1 > aa0)
+	{
+		if (aa2 > aa1)
+		{
 			goto aa2_largest;
 		}
-		else {		// aa1 is largest
+		else
+		{	// aa1 is largest
 			a0 /= aa1;
 			a2 /= aa1;
 			l = rsqrt (a0*a0 + a2*a2 + 1);
@@ -531,8 +674,10 @@ IC		BOOL	exact_normalize (float* a)
 			a[2] = a2*l;
 		}
 	}
-	else {
-		if (aa2 > aa0) {
+	else
+	{
+		if (aa2 > aa0)
+		{
 aa2_largest:	// aa2 is largest
 			a0 /= aa2;
 			a1 /= aa2;
@@ -541,13 +686,15 @@ aa2_largest:	// aa2 is largest
 			a[1] = a1*l;
 			a[2] = (double)_copysign(l,a2);
 		}
-		else {		// aa0 is largest
-			if (aa0 <= 0) {
+		else
+		{	// aa0 is largest
+			if (aa0 <= 0)
+			{
 				// dDEBUGMSG ("vector has zero size"); ... this messace is annoying
-				a[0] = 0;	// if all a's are zero, this is where we'll end up.
-				a[1] = 1;	// return a default unit length vector.
+				a[0] = 0;// if all a's are zero, this is where we'll end up.
+				a[1] = 1;// return a default unit length vector.
 				a[2] = 0;
-				return	FALSE;
+				return	false;
 			}
 			a1 /= aa0;
 			a2 /= aa0;
@@ -557,9 +704,7 @@ aa2_largest:	// aa2 is largest
 			a[2] = a2*l;
 		}
 	}
-	return	TRUE;
+	return true;
 }
-IC BOOL	exact_normalize	(Fvector3& a)	{	return exact_normalize(&a.x);	}
-#pragma warning(pop)
-
+ICF bool exact_normalize(Fvector3& a) { return exact_normalize(&a.x);	}
 #endif

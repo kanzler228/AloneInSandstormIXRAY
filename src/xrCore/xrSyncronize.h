@@ -6,7 +6,8 @@
 class XRCORE_API xrCriticalSection
 {
 private:
-	xrCriticalSection(xrCriticalSection const & copy) {};
+	xrCriticalSection(const xrCriticalSection&) = delete;
+	xrCriticalSection& operator=(const xrCriticalSection&) = delete;
 #ifdef IXR_WINDOWS
 	CRITICAL_SECTION pmutex;
 #elif defined(IXR_LINUX)
@@ -20,7 +21,7 @@ public:
 
     void				Enter	();
     void				Leave	();
-	BOOL				TryEnter();
+	bool				TryEnter();
 };
 
 
@@ -58,8 +59,8 @@ public:
     void AcquireShared();
     void ReleaseShared();
 
-    BOOL TryAcquireExclusive();
-    BOOL TryAcquireShared();
+    bool TryAcquireExclusive();
+    bool TryAcquireShared();
 };
 //Write functions guard: lock.AcquireExclusive(); ... lock.ReleaseExclusive();
 //Read functions guard: lock.AcquireShared(); ... lock.ReleaseShared();

@@ -10,7 +10,7 @@
 #ifdef DEBUG
 #include "PHDebug.h"
 #endif
-moving_bones_snd_player::moving_bones_snd_player( IKinematics *K, CInifile* ini, LPCSTR section, const Fmatrix &object  ):
+moving_bones_snd_player::moving_bones_snd_player( IKinematics *K, CInifile* ini, const char* section, const Fmatrix &object  ):
 	bone_id( BI_NONE ),
 	min_factor( -FLT_MAX ),
 	max_factor( -FLT_MAX ),
@@ -34,15 +34,12 @@ Fmatrix& moving_bones_snd_player::bone_matrix( )
 	return ( kinematics->LL_GetTransform( bone_id ) );
 }
 #ifdef DEBUG
-BOOL dbg_moving_bones_snd_player = FALSE;
+bool dbg_moving_bones_snd_player = false;
 #endif
 static const float sm_factor = 0.99f;
 static const float play_threthhold = 0.2f; 
 void moving_bones_snd_player::update( float time_delta, CGameObject &object )
 {
-	
-	VERIFY( sound._handle() );
-
 	Fmatrix new_position;
 	new_position.mul_43( object.XFORM(), bone_matrix() );
 
@@ -52,7 +49,7 @@ void moving_bones_snd_player::update( float time_delta, CGameObject &object )
 	float aw_speed = aw.magnitude();
 	smothed_velocity = smothed_velocity * sm_factor  + aw_speed * ( 1.f - sm_factor );
 	
-	if( !sound._feedback() )
+	if( !sound.is_playing() )
 	{
 		if( smothed_velocity > play_threthhold )
 			play( object );
@@ -103,14 +100,12 @@ void moving_bones_snd_player::update( float time_delta, CGameObject &object )
 
 void moving_bones_snd_player::play( CGameObject &O )
 {
-	VERIFY( sound._handle() );
 	previous_position.mul_43( O.XFORM(), bone_matrix() );
 	sound.play_at_pos( &O, O.XFORM().c, sm_Looped ); 
 }
 
 void moving_bones_snd_player::stop( )
 {
-	VERIFY( sound._handle() );
 	sound.stop();
 }
 
@@ -123,7 +118,7 @@ moving_bones_snd_player* create_moving_bones_snd_player( CInifile* ini, IKinemat
 
 moving_bones_snd_player* create_moving_bones_snd_player( CGameObject &O )
 {
-	IKinematics *K = smart_cast<IKinematics*>( O.Visual() );
+	IKinematics *K = PKinematics( O.Visual() );
 	VERIFY( K );
 	moving_bones_snd_player	*ret = create_moving_bones_snd_player( O.spawn_ini(), *K,  O.XFORM() );
 	if(ret)
@@ -132,14 +127,13 @@ moving_bones_snd_player* create_moving_bones_snd_player( CGameObject &O )
 }
 
 
-void moving_bones_snd_player::load( IKinematics &K, CInifile& ini, LPCSTR section, const Fmatrix &object )
+void moving_bones_snd_player::load( IKinematics &K, CInifile& ini, const char* section, const Fmatrix &object )
 {
 	VERIFY( ini.section_exist( section ) );
 	kinematics = &K;
 	VERIFY( kinematics );
 
 	sound.create( ini.r_string( section, "sound" ), st_Effect, sg_SourceType );
-	VERIFY( sound._handle() );
 	bone_id			= kinematics->LL_BoneID( ini.r_string( section, "bone" ) );
 	VERIFY( BI_NONE != bone_id );
 	min_factor		= ini.r_float(section, "min_factor" );

@@ -1,12 +1,4 @@
 #pragma once
-// xrServer.h: interface for the xrServer class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_XRSERVER_H__65728A25_16FC_4A7B_8CCE_D798CA5EC64E__INCLUDED_)
-#define AFX_XRSERVER_H__65728A25_16FC_4A7B_8CCE_D798CA5EC64E__INCLUDED_
-#pragma once
-
 #include "../xrNetServer/NET_Server.h"
 #include "game_sv_base.h"
 #include "id_generator.h"
@@ -15,26 +7,21 @@
 #include "xrClientsPool.h"
 #include "FreeMP/ScriptEvents.h"
 
-#ifdef DEBUG
-//. #define SLOW_VERIFY_ENTITIES
-#endif
-
-
 class CSE_Abstract;
-
-const u32	NET_Latency		= 50;		// time in (ms)
+const u32 NET_Latency = 50; // time in (ms)
 
 // t-defs
-typedef xr_hash_map<u16, CSE_Abstract*>	xrS_entities;
+using xrS_entities = xr_hash_map<u16, CSE_Abstract*>;
 
-class xrClientData	: public IClient
+class xrClientData :
+	public IClient
 {
 public:
 	CSE_Abstract*			owner;
-	BOOL					net_Ready;
-	BOOL					net_Accepted;
+	bool					net_Ready;
+	bool					net_Accepted;
 	
-	BOOL					net_PassUpdates;
+	bool					net_PassUpdates;
 	u32						net_LastMoveUpdateTime;
 	
 	game_PlayerState*		ps;
@@ -43,7 +30,7 @@ public:
 		u32						m_dwLastMaxPingWarningTime;
 	}m_ping_warn;
 	struct{
-		BOOL					m_has_admin_rights;
+		bool					m_has_admin_rights;
 		u32						m_dwLoginTime;
 	}m_admin_rights;
 
@@ -63,12 +50,11 @@ public:
 	virtual void			Clear					();
 };
 
-
 // main
-struct	svs_respawn
+struct svs_respawn
 {
-	u32		timestamp;
-	u16		phantom;
+	u32 timestamp;
+	u16 phantom;
 };
 IC bool operator < (const svs_respawn& A, const svs_respawn& B)	{ return A.timestamp<B.timestamp; }
 
@@ -87,7 +73,8 @@ namespace file_transfer
 class clientdata_proxy;
 class server_info_uploader;
 
-class xrServer	: public IPureServer  
+class xrServer :
+	public IPureServer  
 {
 private:
 	xrS_entities				entities;
@@ -176,8 +163,6 @@ public:
 
 	void					Export_game_type		(IClient* CL);
 	void					Perform_game_export		();
-	BOOL					PerformRP				(CSE_Abstract* E);
-	void					PerformMigration		(CSE_Abstract* E, xrClientData* from, xrClientData* to);
 	
 	IC void					clear_ids				()
 	{
@@ -197,16 +182,15 @@ public:
 	void					Perform_reject			(CSE_Abstract* what, CSE_Abstract* from, int delta);
 	void					Perform_destroy			(CSE_Abstract* tpSE_Abstract, u32 mode);
 
-	CSE_Abstract*			Process_spawn			(NET_Packet& P, ClientID sender, BOOL bSpawnWithClientsMainEntityAsParent=FALSE, CSE_Abstract* tpExistedEntity=0);
+	CSE_Abstract*			Process_spawn			(NET_Packet& P, ClientID sender, bool bSpawnWithClientsMainEntityAsParent=false, CSE_Abstract* tpExistedEntity=0);
 	void					Process_update			(NET_Packet& P, ClientID sender);
 	void					Process_save			(NET_Packet& P, ClientID sender);
 	void					Process_event			(NET_Packet& P, ClientID sender);
-	void					Process_event_ownership	(NET_Packet& P, ClientID sender, u32 time, u16 ID, BOOL bForced = FALSE);
+	void					Process_event_ownership	(NET_Packet& P, ClientID sender, u32 time, u16 ID, bool bForced = false);
 	bool					Process_event_reject	(NET_Packet& P, const ClientID sender, const u32 time, const u16 id_parent, const u16 id_entity, bool send_message = true);
 	void					Process_event_destroy	(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack);
 	void					Process_event_activate	(NET_Packet& P, const ClientID sender, const u32 time, const u16 id_parent, const u16 id_entity, bool send_message = true);
 	
-	xrClientData*			SelectBestClientToMigrateTo		(CSE_Abstract* E, BOOL bForceAnother=FALSE);
 	void					SendConnectResult		(IClient* CL, u8 res, u8 res1, char* ResultStr);
 	void			SendConfigFinished		(ClientID const & clientId);
 	void					SendProfileCreationError(IClient* CL, char const * reason);
@@ -257,12 +241,11 @@ public:
 			void			ClearDisconnectedPool	() { m_disconnected_clients.Clear(); };
 
 	virtual IClient*		client_Create		();								// create client info
-	virtual void			client_Replicate	();								// replicate current state to client
 	virtual IClient*		client_Find_Get		(ClientID ID);					// Find earlier disconnected client
 	virtual void			client_Destroy		(IClient* C);					// destroy client info
 
 	// utilities
-	CSE_Abstract*			entity_Create		(LPCSTR name);
+	CSE_Abstract*			entity_Create		(const char* name);
 	void					entity_Destroy		(CSE_Abstract *&P);
 	u32						GetEntitiesNum		()			{ return (u32)entities.size(); };
 	CSE_Abstract*			GetEntity			(u32 Num);
@@ -281,10 +264,10 @@ public:
 	void					SLS_Load			(IReader&	fs);	
 			shared_str		level_name			(const shared_str &server_options) const;
 			shared_str		level_version		(const shared_str &server_options) const;
-	static	LPCSTR			get_map_download_url(LPCSTR level_name, LPCSTR level_version);
+	static	const char*			get_map_download_url(const char* level_name, const char* level_version);
 
 	void					create_direct_client();
-	BOOL					IsDedicated			() const	{return m_bDedicated;};
+	bool					IsDedicated			() const	{return m_bDedicated;};
 
 	virtual void			Assign_ServerType	( string512& res ) {};
 	virtual bool			HasPassword			()	{ return false; }
@@ -309,26 +292,30 @@ public:
 #endif
 };
 
-
 #ifdef DEBUG_DRAW
-		enum e_dbg_net_Draw_Flags
-		{
-
-			dbg_draw_actor_alive			=(1<<0),	
-			dbg_draw_actor_dead				=(1<<1),	
-			dbg_draw_customzone				=(1<<2),	
-			dbg_draw_teamzone				=(1<<3),	
-			dbg_draw_invitem				=(1<<4),	
-			dbg_draw_actor_phys				=(1<<5),	
-			dbg_draw_customdetector			=(1<<6),	
-			dbg_destroy						=(1<<7),	
-			dbg_draw_autopickupbox			=(1<<8),	
-			dbg_draw_rp						=(1<<9),	
-			dbg_draw_climbable				=(1<<10),
-			dbg_draw_skeleton				=(1<<11),
-			dbg_draw_lchangers				=(1<<12)
-		};
-extern	Flags32	dbg_net_Draw_Flags;
+enum e_dbg_net_Draw_Flags
+{
+	dbg_draw_actor_alive			=(1<<0),	
+	dbg_draw_actor_dead				=(1<<1),	
+	dbg_draw_customzone				=(1<<2),	
+	dbg_draw_teamzone				=(1<<3),	
+	dbg_draw_invitem				=(1<<4),	
+	dbg_draw_actor_phys				=(1<<5),	
+	dbg_draw_customdetector			=(1<<6),	
+	dbg_destroy						=(1<<7),	
+	dbg_draw_autopickupbox			=(1<<8),	
+	dbg_draw_rp						=(1<<9),	
+	dbg_draw_climbable				=(1<<10),
+	dbg_draw_skeleton				=(1<<11),
+	dbg_draw_lchangers				=(1<<12)
+};
+extern Flags32 dbg_net_Draw_Flags;
 #endif
 
-#endif // !defined(AFX_XRSERVER_H__65728A25_16FC_4A7B_8CCE_D798CA5EC64E__INCLUDED_)
+//this is a response tag that server puts in the first byte of response packet.
+enum MapSyncResponse
+{
+	SuccessSync = 0,		// in this case, all is OK :)
+	InvalidChecksum = 1,		// in this case, client has corrupted map geometry (checksum error)
+	YouHaveOtherMap = 2			// in this case, client has other map
+}; //enum MapSyncResponse

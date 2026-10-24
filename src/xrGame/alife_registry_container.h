@@ -12,7 +12,6 @@
 #include "PdaMsg.h"
 #include "encyclopedia_article_defs.h"
 #include "alife_abstract_registry.h"
-#include "character_info_defs.h"
 #include "relation_registry_defs.h"
 
 
@@ -26,6 +25,7 @@ using CInfoPortionRegistry = CALifeAbstractRegistry<u16, KNOWN_INFO_VECTOR>;
 using CRelationRegistry = CALifeAbstractRegistry<u16, RELATION_DATA>;
 using CGameNewsRegistry = CALifeAbstractRegistry<u16, GAME_NEWS_VECTOR>;
 using CSpecificCharacterRegistry = CALifeAbstractRegistry<shared_str, int>;
+using CEncyclopediaRegistry = CALifeAbstractRegistry<u16, ARTICLE_VECTOR>;
 
 class CALifeRegistryContainer
 {
@@ -37,6 +37,7 @@ public:
     CMapLocationRegistry       m_map_locations;
     CGameTaskRegistry          m_game_tasks;
     CActorStatisticRegistry    m_actor_statistics;
+    CEncyclopediaRegistry      m_encyclopedia_registry;
 
     template <typename T>
     T& get();

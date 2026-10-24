@@ -1,25 +1,30 @@
 #pragma once
 #include <ctype.h>
 #include <cstdlib>
+#include <strings.h>
 
+#define _strcmpi strcasecmp
+#define stricmp strcasecmp
 #define _stricmp stricmp
 #define strcmpi stricmp
 #define lstrcpy strcpy
-#define stricmp strcasecmp
 #define _vsnprintf vsnprintf
 #define vsprintf_s(dest, size, format, args) vsprintf(dest, format, args)
 #define strlwr _strlwr
 #define sscanf_s sscanf
+#define _strnicmp strncasecmp
+
 inline const char* itoa(float val)
 {
-    static std::string temp;
-    temp = std::to_string(val).c_str();
-    return temp.c_str();
+    static char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%g", val);
+    return buffer;
 }
 
-inline void itoa(float val, char* str, [[maybe_unused]]size_t size)
+inline const char* itoa(float val, char* str, [[maybe_unused]]size_t size)
 {
     strcpy(str, itoa(val));
+    return str;
 }
 
 inline void strupr(char* s)
@@ -29,6 +34,42 @@ inline void strupr(char* s)
         *s = static_cast<char>(std::toupper(static_cast<unsigned char>(*s)));
         ++s;
     }
+}
+
+inline char* strtok_s(char* str, const char* delim, char** context) {
+    if (str == NULL && (*context) == NULL) {
+        return NULL;  // Нечего парсить
+    }
+
+    if (str != NULL) {
+        *context = str;  // Начинаем новую строку
+    }
+
+    // Пропускаем ведущие разделители
+    char* token_start = *context;
+    while (*token_start != '\0' && strchr(delim, *token_start) != NULL) {
+        token_start++;
+    }
+
+    if (*token_start == '\0') {
+        *context = NULL;
+        return NULL;  // Больше токенов нет
+    }
+
+    // Ищем конец токена
+    char* token_end = token_start;
+    while (*token_end != '\0' && strchr(delim, *token_end) == NULL) {
+        token_end++;
+    }
+
+    if (*token_end != '\0') {
+        *token_end = '\0';          // Заменяем разделитель на ноль
+        *context = token_end + 1;   // Сохраняем позицию после токена
+    } else {
+        *context = NULL;            // Дошли до конца строки
+    }
+
+    return token_start;
 }
 
 #define _itoa itoa
@@ -89,11 +130,11 @@ inline errno_t strncpy_s(char * dest, const char * src, size_t count)
     if (count == 0)
         return ERANGE;
 
-    size_t len = std::strlen(src);
+    size_t len = strlen(src);
     if (len >= count)
         len = count - 1;
 
-    std::memcpy(dest, src, len);
+    memcpy(dest, src, len);
     dest[len] = '\0';
 
     return 0;
@@ -166,13 +207,28 @@ inline int strcat_s(char * dest, size_t num, const char * source)
 
 inline int vsnprintf_s(char* buffer, size_t size, size_t, const char* format, va_list list)
 {
-    //TODO add bound check
-    return vsnprintf(buffer, size, format, list);
+    if (buffer == nullptr || size == 0)
+        return -1;
+    
+    std::vector<char> temp(size);
+    int result = vsnprintf(temp.data(), size, format, list);
+    
+    if (result >= 0 && (size_t)result < size)
+    {
+        memcpy(buffer, temp.data(), result + 1);
+    } 
+    else if (result >= 0 && size > 0)
+    {
+        memcpy(buffer, temp.data(), size - 1);
+        buffer[size - 1] = '\0';
+    }
+    
+    return result;
 }
 
 IC bool IsCharAlphaNumeric(char ch)
 {
-    return iswctype (ch, wctype("upper") | wctype("lower") | wctype("digit"));
+    return std::isalnum(ch);
 }
 
 #include <stdint.h>
@@ -299,13 +355,14 @@ IC int _cdecl _ui64toa_s(uint64_t value, char *str, size_t size, int radix)
     return 0;
 }
 
+#ifndef XR_USE_DXVK_NATIVE
+using LARGE_INTEGER = long long;
+using ULARGE_INTEGER = unsigned long long;
+#endif
 
-using LARGE_INTEGER = long long int;
-using ULARGE_INTEGER = unsigned long long int;
-
-IC LARGE_INTEGER _cdecl _atoi64(const char *str)
+IC long long _cdecl _atoi64(const char *str)
 {
-    ULARGE_INTEGER RunningTotal = 0;
+    unsigned long long RunningTotal = 0;
     char bMinus = 0;
 
     while (*str == ' ' || (*str >= '\011' && *str <= '\015'))

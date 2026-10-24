@@ -8,7 +8,7 @@
 
 #pragma once
 
-extern u32	dwfGetIDByLevelName	(CInifile *ini, LPCSTR level_name);
+extern u32	dwfGetIDByLevelName	(CInifile *ini, const char* level_name);
 
 IC	IGameGraph &CGameSpawnConstructor::game_graph		() const
 {
@@ -25,7 +25,7 @@ IC	CGameSpawnConstructor::SPAWN_GRAPH &CGameSpawnConstructor::spawn_graph	()
 	return						(*m_spawn_graph);
 }
 
-IC	u32	CGameSpawnConstructor::level_id					(LPCSTR level_name)
+IC	u32	CGameSpawnConstructor::level_id					(const char* level_name)
 {
 	if (strcmp(Scene->m_LevelOp.m_FNLevelPath.c_str(), level_name) == 0)return 0;
 	return					-1;//	(dwfGetIDByLevelName(&game_info(), level_name));
@@ -43,16 +43,12 @@ IC	void CGameSpawnConstructor::add_level_points		(const LEVEL_POINT_STORAGE &lev
 
 IC	void CGameSpawnConstructor::add_level_changer		(CSE_ALifeLevelChanger *level_changer)
 {
-	m_critical_section.Enter	();
-	m_level_changers.push_back	(level_changer);
-	m_critical_section.Leave	();
+ 	m_level_changers.push_back	(level_changer);
 }
 
 IC	void CGameSpawnConstructor::add_edge				(ALife::_SPAWN_ID id0, ALife::_SPAWN_ID id1, float weight)
 {
-	m_critical_section.Enter	();
 	spawn_graph().add_edge		(id0,id1,weight);
-	m_critical_section.Leave	();
 }
 
 IC	u32	CGameSpawnConstructor::level_point_count		() const

@@ -1,9 +1,7 @@
-#ifndef ExportSkeletonH
-#define ExportSkeletonH
-
-#include "PropSlimTools.h"
-//#include "../../../Layers/xrRender/SkeletonCustom.h"
+#pragma once
+#include "../../Public/VIMP_Processor.h"
 #include "EditMesh.h"
+
 //---------------------------------------------------------------------------
 const int clpSMX = 28, clpSMY=16, clpSMZ=28;
 //---------------------------------------------------------------------------
@@ -11,7 +9,7 @@ const int clpSMX = 28, clpSMY=16, clpSMZ=28;
 class CEditableObject;
 class CSurface;
 class CInifile;
-extern ECORE_API BOOL g_force16BitTransformQuant;
+extern ECORE_API bool g_force16BitTransformQuant;
 extern ECORE_API float g_EpsSkelPositionDelta;
 
 struct ECORE_API SSkelVert: public st_SVert{
@@ -39,28 +37,28 @@ struct ECORE_API SSkelVert: public st_SVert{
         sort_by_bone(); // need to similar 
     }
 
-    BOOL	similar_pos(SSkelVert& V)
+    bool	similar_pos(SSkelVert& V)
     {
         return offs.similar(V.offs, g_EpsSkelPositionDelta);
     }
-    BOOL	similar(SSkelVert& V)
+    bool	similar(SSkelVert& V)
     {
-        if (bones.size() != V.bones.size())	return FALSE;
+        if (bones.size() != V.bones.size())	return false;
         for (u8 k = 0; k < (u8)bones.size(); k++)
         {
             if (!bones[k].similar(V.bones[k]))
-                return FALSE;
+                return false;
         }
         if (!uv.similar(V.uv, EPS_S))
-            return FALSE;
+            return false;
 
         if (!offs.similar(V.offs, g_EpsSkelPositionDelta))
-            return FALSE;
+            return false;
 
         if (!norm.similar(V.norm, g_EpsSkelPositionDelta))
-            return FALSE;
+            return false;
 
-        return TRUE;
+        return true;
     }
 };
 
@@ -149,9 +147,9 @@ protected:
 		ArbitraryList<VIPM_SWR>	m_SWR;// The records of the collapses.
 	    u32				m_SkeletonLinkType;
     public:
-        SSplit			(CSurface* surf, const Fbox& bb, u16 part);
+        SSplit (CSurface* surf, const Fbox& bb, u16 part);
 
-        bool			valid()
+        bool valid()
         {
         	if (m_Verts.empty()) return false;
         	if (m_Faces.empty()) return false;
@@ -190,6 +188,8 @@ protected:
         }
     }
 public:
+    virtual ~CExportSkeletonCustom() = default;
+
     virtual bool    	Export				(IWriter& F, u8 infl)=0;
 };
 
@@ -210,5 +210,3 @@ public:
 
 void ECORE_API 			ComputeOBB_RAPID	(Fobb &B, FvectorVec& V, u32 t_cnt);
 void ECORE_API 			ComputeOBB_WML		(Fobb &B, FvectorVec& V);
-
-#endif

@@ -10,17 +10,21 @@ class	CUIGameCustom;
 class	CUI;
 class	CUIDialogWnd;
 
+class game_cl_freemp;
+class game_cl_CaptureTheArtefact;
+
 struct SZoneMapEntityData{
 	Fvector	pos;
 	u32		color;
 	SZoneMapEntityData(){pos.set(.0f,.0f,.0f);color = 0xff00ff00;}
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
 
 struct WeaponUsageStatistic;
 
-class	game_cl_GameState	: public game_GameState, public ISheduled
+class game_cl_GameState	: public game_GameState, public ISheduled
 {
-	typedef game_GameState	inherited;
+	using inherited = game_GameState;
 	shared_str							m_game_type_name;
 protected:
 	CUIGameCustom*						m_game_ui_custom;
@@ -58,8 +62,8 @@ protected:
 public:
 									game_cl_GameState		();
 	virtual							~game_cl_GameState		();
-				LPCSTR				type_name				() const {return *m_game_type_name;};
-				void				set_type_name			(LPCSTR s);
+				const char*				type_name				() const {return *m_game_type_name;};
+				void				set_type_name			(const char* s);
 	virtual		void				Init					(){};
 	virtual		void				net_import_state		(NET_Packet& P);
 	virtual		void				net_import_update		(NET_Packet& P);
@@ -87,7 +91,7 @@ public:
 	void							u_EventGen				(NET_Packet& P, u16 type, u16 dest);
 	void							u_EventSend				(NET_Packet& P);
 
-	virtual		void				ChatSay					(LPCSTR phrase, bool bAll)	{};
+	virtual		void				ChatSay					(const char* phrase, bool bAll)	{};
 	virtual		void				OnChatMessage			(NET_Packet* P)	{};
 	virtual		void				OnWarnMessage			(NET_Packet* P)	{};
 	virtual		void				OnRadminMessage			(u16 type, NET_Packet* P)	{};
@@ -97,7 +101,7 @@ public:
 	virtual		bool				IsVotingEnabled			(u16 flag) {return (m_u16VotingEnabled & flag) != 0;};
 	virtual		bool				IsVotingActive			()	{ return false; };
 	virtual		void				SetVotingActive			( bool Active )	{ };
-	virtual		void				SendStartVoteMessage	(LPCSTR args)	{};
+	virtual		void				SendStartVoteMessage	(const char* args)	{};
 	virtual		void				SendVoteYesMessage		()	{};
 	virtual		void				SendVoteNoMessage		()	{};
 	virtual		void				OnVoteStart				(NET_Packet& P)	{};
@@ -120,4 +124,12 @@ public:
 	virtual		bool				IsPlayerInTeam			(game_PlayerState* ps, ETeam team) {return ps->team == team;};
 	virtual		void				OnConnected				();
 	virtual		void				OnScreenResolutionChanged() {};
+
+	virtual game_cl_Single* cast_game_cl_single() override { return nullptr; }
+	virtual game_cl_mp* cast_game_cl_mp() override { return nullptr; }
+	virtual game_cl_freemp* cast_game_cl_freemp() override { return nullptr; }
+	virtual game_cl_CaptureTheArtefact* cast_game_cl_capturetheartefact() override { return nullptr; }
+	virtual game_cl_Deathmatch* cast_game_cl_deathmatch() override { return nullptr; }
+	virtual game_cl_ArtefactHunt* cast_game_cl_artefacthunt() override { return nullptr; }
+	virtual game_cl_TeamDeathmatch* cast_game_cl_teamdeathmatch() override { return nullptr; }
 };

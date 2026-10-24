@@ -13,7 +13,7 @@
 #include "game_base.h"
 
 class game_cl_CaptureTheArtefact;
-class	CtaGameArtefact :
+class	CtaGameArtefact final :
 		public	CArtefact
 {
 public:
@@ -21,8 +21,8 @@ public:
 	virtual				~CtaGameArtefact			();
 
 	virtual		bool	Action						(s32 cmd, u32 flags);
-	virtual		void	OnStateSwitch				(u32 S);
-	virtual		void	OnAnimationEnd				(u32 state);
+	virtual		void	OnStateSwitch				(u8 S);
+	virtual		void	OnAnimationEnd				(u8 state);
 	virtual		void	UpdateCLChild				();
 	virtual		bool	CanTake						() const;
 	//virtual		void	net_Export					(NET_Packet& P);
@@ -31,7 +31,7 @@ public:
 protected:
 	virtual		void	CreateArtefactActivation	();
 	virtual		void	InitializeArtefactRPoint	();
-	//virtual		BOOL	net_Relevant				();
+	//virtual		bool	net_Relevant				();
 private:
 				bool	IsMyTeamArtefact			();
 	typedef CArtefact inherited;

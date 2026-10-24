@@ -18,12 +18,13 @@ export const supportStatusMap: Record<string, SupportMeta> = {
   '/sounds/general-information': { label: '2.0', state: 'supported' },
   '/platforms/multiplayer/general-information': { label: '2.0', state: 'supported' },
   '/platforms/clear-sky/technical-features': { label: '1.4', state: 'supported' },
-  '/platforms/shadow-of-chernobyl/technical-features': { label: '2.0', state: 'supported' },
+  '/platforms/shadow-of-chernobyl/technical-features': { label: '1.4', state: 'supported' },
   '/graphics/dynamic-wallmark': { label: '2.0', state: 'supported' },
   '/scripting/weather-manager': { label: 'Unsupported', state: 'unsupported' },
   '/scripting/luamarshal': { label: 'Unsupported', state: 'unsupported' },
   '/editors/particles': { label: '1.4', state: 'supported' },
   '/weapon-system/shot-pattern-system': { label: '1.4', state: 'supported' },
+  '/interface/sleep-dialog': { label: 'rolling', state: 'supported' },
 }
 
 const normalizeLink = (link: string) => link.replace(/^\/(en|ru)(?=\/)/, '')

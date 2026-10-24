@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "PHDynamicData.h"
 #include "ExtendedGeom.h"
@@ -29,10 +29,8 @@ IC bool PhOutOfBoundaries(const Fvector& v)
 }
 
 //fly distance to lose control
-const float LOSE_CONTROL_DISTANCE=0.5f;
-
-const float CLAMB_DISTANCE=0.5f;
-const float CLIMB_GETUP_HEIGHT=0.3f;
+const float LOSE_CONTROL_DISTANCE = 0.5f;
+const float CLAMB_DISTANCE = 0.5f;
 
 float IC sgn(float v)
 {
@@ -42,14 +40,14 @@ float IC sgn(float v)
 bool test_sides(const Fvector& center, const Fvector& side_dir, const Fvector& fv_dir, const Fvector& box, int tri_id)
 {
 	Triangle tri;
-	CalculateInitTriangle(inl_ph_world().ObjectSpace().GetStaticTris() + tri_id, tri, inl_ph_world().ObjectSpace().GetStaticVerts());
-	Fvector* verts = inl_ph_world().ObjectSpace().GetStaticVerts();
+	CalculateInitTriangle(&inl_ph_world().ObjectSpace().GetStaticTris()[tri_id], tri, inl_ph_world().ObjectSpace().GetStaticVerts().data());
+	xr_vector<Fvector>& verts = inl_ph_world().ObjectSpace().GetStaticVerts();
 	{
 		float dist = cast_fv(tri.norm).dotproduct(center) - tri.dist;
 
 		float fvn = cast_fv(tri.norm).dotproduct(fv_dir); float sg_fvn = sgn(fvn);
 		float sdn = cast_fv(tri.norm).dotproduct(side_dir); float sg_sdn = sgn(sdn);
-		if (sg_fvn * fvn * box.z + sg_sdn * sdn * box.x + _abs(tri.norm[1]) * box.y > _abs(dist))return false;
+		if (sg_fvn * fvn * box.z + sg_sdn * sdn * box.x + std::abs(tri.norm[1]) * box.y > std::abs(dist))return false;
 	}
 
 	float sdc = side_dir.dotproduct(center);
@@ -58,23 +56,22 @@ bool test_sides(const Fvector& center, const Fvector& side_dir, const Fvector& f
 	float abs_sd0 = sg_sd0 * sd0;
 	float abs_sd1 = sg_sd1 * sd1;
 
-	float sd, abs_sd, sg_sd;
+	float abs_sd, sg_sd;
 	u32 v;
 	if (sg_sd0 == sg_sd1)
 	{
-		sd = -sd0 - sd1;
 		abs_sd = abs_sd0 + abs_sd1;
 		sg_sd = -sg_sd0;
 		v = tri.T->verts[2];
 	}
 	else if (abs_sd0 > abs_sd1)
 	{
-		sd = sd0; abs_sd = abs_sd0; sg_sd = sg_sd0;
+		abs_sd = abs_sd0; sg_sd = sg_sd0;
 		v = tri.T->verts[0];
 	}
 	else
 	{
-		sd = sd1; abs_sd = abs_sd1; sg_sd = sg_sd1;
+		abs_sd = abs_sd1; sg_sd = sg_sd1;
 		v = tri.T->verts[1];
 	}
 
@@ -115,7 +112,7 @@ bool test_sides(const Fvector& center, const Fvector& side_dir, const Fvector& f
 		float sg_dist = sgn(dist);
 		if (sgn(ov_prg - c_prg) != sg_dist)
 		{
-			if (_abs(fv_dir.dotproduct(crs)) * box.z + _abs(side_dir.dotproduct(crs)) * box.x < sg_dist * dist) return false;
+			if (std::abs(fv_dir.dotproduct(crs)) * box.z + std::abs(side_dir.dotproduct(crs)) * box.x < sg_dist * dist) return false;
 		}
 	}
 
@@ -199,7 +196,7 @@ void CPHSimpleCharacter::TestPathCallback(bool& do_colide,bool bo1,dContact& c,S
 
 void CPHSimpleCharacter::SetBox(const dVector3& sizes)
 {
-	m_radius = _min(sizes[0], sizes[2]) / 2.f;
+	m_radius = std::min(sizes[0], sizes[2]) / 2.f;
 	m_cyl_hight = sizes[1] - 2.f * m_radius;
 	if (m_cyl_hight < 0.f) m_cyl_hight = 0.01f;
 	const dReal k = 1.20f;
@@ -240,7 +237,7 @@ void CPHSimpleCharacter::Create(dVector3 sizes){
 	m_creation_step		=	ph_world->m_steps_num;
 	////////////////////////////////////////////////////////
 
-	m_radius=_min(sizes[0],sizes[2])/2.f;
+	m_radius= std::min(sizes[0],sizes[2])/2.f;
 	m_current_object_radius=m_radius;
 	m_cyl_hight=sizes[1]-2.f*m_radius;
 	if (m_cyl_hight<0.f) m_cyl_hight=0.01f;
@@ -757,7 +754,6 @@ void CPHSimpleCharacter::PhTune(dReal step)
 
 const float CHWON_ACCLEL_SHIFT=0.4f;
 const float CHWON_AABB_FACTOR =1.f;
-const float CHWON_ANG_COS	  =M_SQRT1_2;
 const float CHWON_CALL_UP_SHIFT=0.05f;
 const float CHWON_CALL_FB_HIGHT=1.5f;
 const float CHWON_AABB_FB_FACTOR =1.f;
@@ -849,7 +845,7 @@ bool CPHSimpleCharacter::ValidateWalkOnMesh()
 	tmp.grow		(AABB_						);
 	query.merge		(tmp);
 	query.get_CD	(q_c,q_d);
-
+	thread_local CDB::COLLIDER XRC;
 	XRC.box_options(0);
 	XRC.box_query(inl_ph_world().ObjectSpace().GetStaticModel(),q_c,q_d);
 
@@ -1391,7 +1387,6 @@ void CPHSimpleCharacter::InitContact(dContact* c, bool& do_collide, u16 material
 	u16 contact_material = bo1 ? material_idx_2 : material_idx_1;
 	SGameMtl* tri_material = GMLibrary().GetMaterialByIdx(contact_material);
 
-	bool bClimable = !!tri_material->Flags.test(SGameMtl::flClimable);
 	if (is_control && m_elevator_state.ClimbingState())
 	{
 		c->surface.mu = 0.f;
@@ -1589,7 +1584,7 @@ void CPHSimpleCharacter::set_State(const SPHNetState& state)
 
 void CPHSimpleCharacter::get_spatial_params()
 {
-	spatialParsFromDGeom((dGeomID)m_space, SpatialComponent->spatial.sphere.P,AABB, SpatialComponent->spatial.sphere.R);
+	spatialParsFromDGeom((dGeomID)m_space, SpatialComponent->sphere.P,AABB, SpatialComponent->sphere.R);
 }
 
 float CPHSimpleCharacter::FootRadius()
@@ -1824,9 +1819,8 @@ IC bool valide_res( u16& res_material_idx, const collide::rq_result	&R )
 {
 	if(!R.O)
 	{
-		CDB::TRI	* tri	= inl_ph_world().ObjectSpace().GetStaticTris( ) + R.element;
-		VERIFY( tri );
-		res_material_idx	= tri->material;
+		CDB::TRI& tri = inl_ph_world().ObjectSpace().GetStaticTris()[R.element];
+		res_material_idx	= tri.material;
 		return !ignore_material( res_material_idx );
 	}
 

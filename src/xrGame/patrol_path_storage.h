@@ -14,7 +14,7 @@ class CGameLevelCrossTable;
 class CGameGraph;
 
 #include "object_interfaces.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class CPatrolPathStorage : public IPureSerializeObject<IReader,IWriter> {
 private:
@@ -31,6 +31,7 @@ protected:
 public:
 	IC								CPatrolPathStorage	();
 	virtual							~CPatrolPathStorage	();
+	virtual void					unload				();
 	virtual	void					load				(IReader &stream);
 	virtual	void					save				(IWriter &stream);
 

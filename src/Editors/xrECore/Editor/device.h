@@ -23,10 +23,8 @@ extern ECORE_API CEditorRenderDevice* EDevice;
 
 #define REContext ((IDirect3DDevice9*)EDevice->GetRenderContext())
 #define REDevice ((IDirect3DDevice9*)EDevice->GetRenderDevice())
-#define RESwapchainTarget ((IDirect3DSurface9*)EDevice->GetSwapchainTexture())
 #define RETarget ((IDirect3DSurface9*)EDevice->GetRenderTexture())
 #define REDepth ((IDirect3DSurface9*)EDevice->GetDepthTexture())
-#define RESwapchain ((IDirect3DDevice9*)EDevice->GetSwapchain())
 
 class ECORE_API CEditorRenderDevice :
 	public CRenderDevice
@@ -42,7 +40,7 @@ private:
 
 	void _SetupStates();
 	void _Create(IReader* F);
-	void _Destroy(BOOL bKeepTextures);
+	void _Destroy(bool bKeepTextures);
 
 public:
 	ref_shader m_WireShader;
@@ -53,7 +51,6 @@ public:
 
 	float RenderRadius;
 	u32 dwRealWidth, dwRealHeight;
-	float m_RenderArea;
 	float m_ScreenQuality;
 
 	u32 dwFillMode;
@@ -68,7 +65,7 @@ public:
 	virtual ~CEditorRenderDevice();
 
 
-	virtual bool Paused() const { return FALSE; };
+	virtual bool Paused() const { return false; };
 	void time_factor(float);
 	bool Create();
 	void Destroy();
@@ -83,7 +80,7 @@ public:
 
 	void Initialize(void);
 	void ShutDown(void);
-	void Reset(IReader* F, BOOL bKeepTextures);
+	void Reset(IReader* F, bool bKeepTextures);
 
 	void MaximizedWindow();
 	void ResoreWindow(bool moving);
@@ -93,7 +90,6 @@ public:
 	{
 	}
 
-	IC float GetRenderArea() { return m_RenderArea; }
 	// Sprite rendering
 	IC float _x2real(float x)
 	{
@@ -108,8 +104,8 @@ public:
 	// draw
 	void SetShader(ref_shader sh) { m_CurrentShader = sh; }
 	ref_shader GetShader() { return m_CurrentShader; }
-	void DP(D3DPRIMITIVETYPE pt, ref_geom geom, u32 startV, u32 pc);
-	void DIP(D3DPRIMITIVETYPE pt, ref_geom geom, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC);
+	void DP(ERHI_PRIMITIVE_TOPOLOGY pt, ref_geom geom, u32 startV, u32 pc);
+	void DIP(ERHI_PRIMITIVE_TOPOLOGY pt, ref_geom geom, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC);
 
 	IC void SetRS(D3DRENDERSTATETYPE p1, u32 p2)
 	{
@@ -124,7 +120,7 @@ public:
 	}
 
 	// light&material
-	IC void LightEnable(u32 dwLightIndex, BOOL bEnable)
+	IC void LightEnable(u32 dwLightIndex, bool bEnable)
 	{
 		CHK_DX(REDevice->LightEnable(dwLightIndex, bEnable));
 	}
@@ -154,7 +150,7 @@ public:
 	void InitTimer();
 
 	// Mode control
-	virtual void Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason) override
+	virtual void Pause(bool bOn, bool bTimer, bool bSound, const char* reason) override
 	{
 	}
 

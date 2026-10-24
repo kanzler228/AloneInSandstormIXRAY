@@ -9,6 +9,7 @@
 #pragma once
 
 #include "memory_space.h"
+#include "../xrSound/ai_sounds.h"
 
 #ifdef DEBUG
 #	define USE_SELECTED_SOUND
@@ -18,9 +19,7 @@ namespace MemorySpace {
 	struct CSoundObject;
 };
 
-enum ESoundTypes;
-
-class CCustomMonster;
+class CCreature;
 class CAI_Stalker;
 
 class CSoundMemoryManager {
@@ -39,7 +38,7 @@ private:
 	typedef xr_vector<CDelayedSoundObject>				DELAYED_SOUND_OBJECTS;
 
 private:
-	CCustomMonster				*m_object;
+	CCreature				*m_object;
 	CAI_Stalker					*m_stalker;
 	CSound_UserDataVisitor		*m_visitor;
 	DELAYED_SOUND_OBJECTS		m_delayed_objects;
@@ -79,11 +78,11 @@ protected:
 	IC		void				priority				(const ESoundTypes &sound_type, u32 priority);
 
 public:
-	IC							CSoundMemoryManager		(CCustomMonster *object, CAI_Stalker *stalker, CSound_UserDataVisitor *visitor);
+	IC							CSoundMemoryManager		(CCreature *object, CAI_Stalker *stalker, CSound_UserDataVisitor *visitor);
 	virtual						~CSoundMemoryManager	();
-	virtual	void				Load					(LPCSTR section);
+	virtual	void				Load					(const char* section);
 	virtual	void				reinit					();
-	virtual	void				reload					(LPCSTR section);
+	virtual	void				reload					(const char* section);
 	virtual void				feel_sound_new			(CObject* who, int eType, CSound_UserDataPtr user_data, const Fvector &Position, float power);
 	virtual	void				update					();
 			void				remove_links			(CObject *object);

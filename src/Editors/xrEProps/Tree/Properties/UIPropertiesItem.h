@@ -12,10 +12,13 @@ public:
 	void SetSelect();
 	void SetUnselect();
 
+	void SetOpenRecursive(bool bOpen);
+
 public:
 	PropItem* PItem;
 	UIPropertiesForm* PropertiesFrom;
 	bool IsTexture = false;
+	bool NeedCallback = false;
 
 protected:
 	virtual UITreeItem* CreateItem(shared_str Name);
@@ -23,4 +26,5 @@ protected:
 private:
 	void RemoveMixed();
 	bool IsSelect = false;
+	bool IsOpen = true;
 };

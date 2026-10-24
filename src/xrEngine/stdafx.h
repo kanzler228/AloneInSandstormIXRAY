@@ -9,17 +9,7 @@
 #	define D3D_DEBUG_INFO
 #endif
 
-
-// you must define ENGINE_BUILD then building the engine itself
-// and not define it if you are about to build DLL
-#ifdef ENGINE_BUILD
-	#define DLL_API			__declspec(dllimport)
-	#define ENGINE_API		__declspec(dllexport)
-#else
-	#undef	DLL_API
-	#define DLL_API			__declspec(dllexport)
-	#define ENGINE_API		__declspec(dllimport)
-#endif
+#include "ExportDefines.h"
 
 #include "../xrCore/API/xrAPI.h"
 
@@ -37,13 +27,13 @@
 #include "device.h"
 #include "../xrCore/FS.h"
 
-#include "../xrCore/Collision/xrXRC.h"
+#include "../xrCore/Collision/xrCDB.h"
 
 #include "../xrSound/Sound.h"
 #include "bone.h"
 
 extern ENGINE_API CInifile *pGameIni;
-
+extern ENGINE_API bool g_dedicated_server;
 
 #if !defined(DEBUG) && !defined(LUA_DEBUG)
 #	define LUABIND_NO_ERROR_CHECKING
@@ -59,5 +49,5 @@ extern ENGINE_API CInifile *pGameIni;
 
 
 struct ISE_AbstractLEOwner{
-	virtual void			get_bone_xform			(LPCSTR name, Fmatrix& xform) = 0;
+	virtual void			get_bone_xform			(const char* name, Fmatrix& xform) = 0;
 };

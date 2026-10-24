@@ -2,6 +2,7 @@
 #include "VoiceSender.h"
 #include "game_cl_mp.h"
 #include"game_sv_mp.h"
+
 #include "../xrSound/Recorder/SoundVoiceChat.h"
 
 void CVoiceSender::Send(VoicePacket** packets, u8 count)
@@ -19,5 +20,5 @@ void CVoiceSender::Send(VoicePacket** packets, u8 count)
 		P.w(packet->data, packet->length);
 	}
 
-	Level().Send(P, net_flags(FALSE, TRUE, TRUE, TRUE));
+	Level().Send(P, net_flags(false, true, true, true));
 }

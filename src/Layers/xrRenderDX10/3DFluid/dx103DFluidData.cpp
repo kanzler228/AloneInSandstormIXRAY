@@ -20,35 +20,28 @@ namespace
 	};
 }
 
-DXGI_FORMAT	dx103DFluidData::m_VPRenderTargetFormats[ VP_NUM_TARGETS ] = 
+ERHI_FORMAT	dx103DFluidData::m_VPRenderTargetFormats[ VP_NUM_TARGETS ] = 
 {
-	DXGI_FORMAT_R16G16B16A16_FLOAT,	//	VP_VELOCITY0 
-	DXGI_FORMAT_R16_FLOAT,			//	VP_PRESSURE
-	DXGI_FORMAT_R16_FLOAT			//	VP_COLOR
+	ERHI_FORMAT::R16G16B16A16_FLOAT,	//	VP_VELOCITY0 
+	ERHI_FORMAT::R16_FLOAT,			//	VP_PRESSURE
+	ERHI_FORMAT::R16_FLOAT			//	VP_COLOR
 };
 
 dx103DFluidData::dx103DFluidData()
 {
-	D3D_TEXTURE3D_DESC desc;
-	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+	RHITextureDesc desc;
+	desc.BindFlags = ERHI_BIND_FLAG::SHADER_RESOURCE | ERHI_BIND_FLAG::RENDER_TARGET;
 	desc.CPUAccessFlags = 0; 
 	desc.MipLevels = 1;
 	desc.MiscFlags = 0;
-	desc.Usage = D3D_USAGE_DEFAULT;
+	desc.Usage = ERHI_USAGE::USAGE_DEFAULT;
 	desc.Width =  FluidManager.GetTextureWidth();
 	desc.Height = FluidManager.GetTextureHeight();
 	desc.Depth =  FluidManager.GetTextureDepth();
 
-	D3D_SHADER_RESOURCE_VIEW_DESC SRVDesc;
-	ZeroMemory( &SRVDesc, sizeof(SRVDesc) );
-	SRVDesc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE3D;
-	SRVDesc.Texture3D.MipLevels = 1;
-	SRVDesc.Texture3D.MostDetailedMip = 0;
-
 	for(int rtIndex=0; rtIndex<VP_NUM_TARGETS; rtIndex++)
 	{
 		desc.Format = m_VPRenderTargetFormats[rtIndex];
-		SRVDesc.Format = m_VPRenderTargetFormats[rtIndex];
 		CreateRTTextureAndViews( rtIndex, desc );
 	}
 }
@@ -66,24 +59,19 @@ dx103DFluidData::~dx103DFluidData()
 	}
 }
 
-void dx103DFluidData::CreateRTTextureAndViews(int rtIndex, D3D_TEXTURE3D_DESC TexDesc)
+void dx103DFluidData::CreateRTTextureAndViews(int rtIndex, const RHITextureDesc& TexDesc)
 {
-	// Create the texture
-	CHK_DX( RDevice->CreateTexture3D(&TexDesc,nullptr,&m_pRTTextures[rtIndex]));
-	// Create the render target view
-	
-	D3D_RENDER_TARGET_VIEW_DESC DescRT;
+	m_pRTTextures[rtIndex] = GRHI->CreateTexture3D(TexDesc, nullptr);
+
+	RHIRenderTargetViewDesc DescRT;
 	DescRT.Format = TexDesc.Format;
-	DescRT.ViewDimension =  D3D_RTV_DIMENSION_TEXTURE3D;
-	DescRT.Texture3D.FirstWSlice = 0;
-	DescRT.Texture3D.MipSlice = 0;
-	DescRT.Texture3D.WSize = TexDesc.Depth;
+	DescRT.ViewDimension = ERHI_RTV_DIMENSION::TEXTURE3D;
+	DescRT.FirstArraySlice = 0;
+	DescRT.MipSlice = 0;
+	DescRT.ArraySize = TexDesc.Depth;
 
-	CHK_DX( RDevice->CreateRenderTargetView( m_pRTTextures[rtIndex], &DescRT, &m_pRenderTargetViews[rtIndex]) );
-
-	float color[4] = {0, 0, 0, 0 };
-
-	RContext->ClearRenderTargetView( m_pRenderTargetViews[rtIndex], color );
+	m_pRenderTargetViews[rtIndex] = GRHI->CreateRenderTargetView(m_pRTTextures[rtIndex], DescRT);
+	GRHI->ClearTarget(m_pRenderTargetViews[rtIndex]);
 }
 
 void dx103DFluidData::DestroyRTTextureAndViews(int rtIndex)
@@ -118,9 +106,9 @@ void dx103DFluidData::Load(IReader *data)
 void dx103DFluidData::ParseProfile(const xr_string &Profile)
 {
 	string_path fn;
-	FS.update_path(fn, "$game_config$",Profile.c_str());
+	FS.update_path(fn, _game_config_,Profile.c_str());
 	
-	CInifile	ini(fn,TRUE,TRUE,FALSE);
+	CInifile	ini(fn,true,true,false);
 
 	Msg("Reading fog volume config: %s", fn);
 

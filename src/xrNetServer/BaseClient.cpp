@@ -25,12 +25,12 @@ BaseClient::BaseClient(CTimer * timer) : net_Statistic(timer)
 // -----------------------------------------------------------------------------
 BaseClient::~BaseClient()
 {
-	psNET_direct_connect = FALSE;
+	psNET_direct_connect = false;
 }
 
 // -----------------------------------------------------------------------------
 #pragma region connect / disconnect
-void BaseClient::ParseConnectionOptions(LPCSTR options, ClientConnectionOptions& out)
+void BaseClient::ParseConnectionOptions(const char* options, ClientConnectionOptions& out)
 {
 	// SERVER NAME
 	if (strchr(options, '/'))
@@ -84,7 +84,7 @@ void BaseClient::ParseConnectionOptions(LPCSTR options, ClientConnectionOptions&
 	};
 
 	// CLIENT PORT
-	out.bClPortWasSet = FALSE;
+	out.bClPortWasSet = false;
 	out.cl_port = START_PORT_LAN_CL;
 	if (strstr(options, "portcl="))
 	{
@@ -93,15 +93,15 @@ void BaseClient::ParseConnectionOptions(LPCSTR options, ClientConnectionOptions&
 		if (strchr(portstr, '/'))	*strchr(portstr, '/') = 0;
 		out.cl_port = atol(portstr);
 		clamp(out.cl_port, int(START_PORT), int(END_PORT));
-		out.bClPortWasSet = TRUE;
+		out.bClPortWasSet = true;
 	};
 }
 
-bool BaseClient::Connect(LPCSTR options)
+bool BaseClient::Connect(const char* options)
 {
 	R_ASSERT(options);
 
-	net_Disconnected = FALSE;
+	net_Disconnected = false;
 
 	if (!psNET_direct_connect)
 	{
@@ -109,8 +109,8 @@ bool BaseClient::Connect(LPCSTR options)
 		ParseConnectionOptions(options, connectOpt);
 
 		net_Connected = EnmConnectionWait;
-		net_Syncronised = FALSE;
-		net_Disconnected = FALSE;
+		net_Syncronised = false;
+		net_Disconnected = false;
 
 		bool success = CreateConnection(connectOpt);
 		if (!success)
@@ -123,13 +123,13 @@ bool BaseClient::Connect(LPCSTR options)
 
 	// Sync	
 	net_TimeDelta = 0;
-	return TRUE;
+	return true;
 }
 
 void BaseClient::Disconnect()
 {
 	net_Connected = EnmConnectionWait;
-	net_Syncronised = FALSE;
+	net_Syncronised = false;
 
 	DestroyConnection();
 }
@@ -188,14 +188,14 @@ void client_sync_thread(void* P)
 
 void BaseClient::net_Syncronize()
 {
-	net_Syncronised = FALSE;
+	net_Syncronised = false;
 	net_DeltaArray.clear();
 	thread_spawn(client_sync_thread, "network-time-sync", 0, this);
 }
 
 bool BaseClient::Sync_Thread()
 {
-	MSYS_PING			clPing;
+	MSYS_PING clPing;
 
 	//***** Ping server
 	net_DeltaArray.clear();
@@ -204,13 +204,19 @@ bool BaseClient::Sync_Thread()
 	for (; IsConnectionInit() && !net_Disconnected; )
 	{
 		// Waiting for queue empty state
-		if (net_Syncronised)	break; // Sleep(2000);
+		if (net_Syncronised)
+		{
+			break;
+		}
+
 		else {
-			DWORD			dwPending = 0;
-			do {
+			DWORD dwPending = 0;
+			do 
+			{
 				GetPendingMessagesCount(dwPending);
-				Sleep(1);
-			} while (dwPending);
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			while (dwPending);
 		}
 
 		// Construct message
@@ -219,8 +225,7 @@ bool BaseClient::Sync_Thread()
 		clPing.dwTime_ClientSend = TimerAsync(device_timer);
 
 		// Send it
-#ifdef IXR_WINDOWS
-		__try
+		try
 		{
 			if (!IsConnectionInit() || net_Disconnected)
 				break;
@@ -231,37 +236,25 @@ bool BaseClient::Sync_Thread()
 				break;
 			}
 		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
+		catch (...)
 		{
 			Msg("* CLIENT: SyncThread: EXIT. (failed to send - disconnected?)");
 			break;
 		}
-#else
-	try
-	 {
-        if (!IsConnectionInit() || net_Disconnected)
-			break;
 
-        if (!SendPingMessage(clPing))
-		{
-            Msg("* DirectPlayClient: SyncThread: EXIT. (failed to send - disconnected?)");
-            break;
-        }
-    }
-    catch (...)
-	{
-        Msg("* CLIENT: SyncThread: EXIT. (failed to send - disconnected?)");
-        break;
-    }
-#endif
 		// Waiting for reply-packet to arrive
-		if (!net_Syncronised) {
+		if (!net_Syncronised)
+		{
 			u32	old_size = net_DeltaArray.size();
 			u32	timeBegin = TimerAsync(device_timer);
-			while ((net_DeltaArray.size() == old_size) && (TimerAsync(device_timer) - timeBegin < 5000))		Sleep(1);
+			while ((net_DeltaArray.size() == old_size) && (TimerAsync(device_timer) - timeBegin < 5000))
+			{
+				Sleep(1);
+			}
 
-			if (net_DeltaArray.size() >= syncSamples) {
-				net_Syncronised = TRUE;
+			if (net_DeltaArray.size() >= syncSamples) 
+			{
+				net_Syncronised = true;
 				net_TimeDelta = net_TimeDelta_Calculated;
 				return true;
 			}
@@ -271,7 +264,7 @@ bool BaseClient::Sync_Thread()
 	return false;
 }
 
-void	BaseClient::Sync_Average()
+void BaseClient::Sync_Average()
 {
 	//***** Analyze results
 	s64	 summary_delta = 0;
@@ -301,7 +294,7 @@ void BaseClient::_Recieve(const void* data, u32 data_size, u32 /*param*/)
 		)
 	{
 		// Internal system message
-		if ((data_size == sizeof(MSYS_PING)))
+		if (data_size == (u32)sizeof(MSYS_PING))
 		{
 			// It is reverted(server) ping
 			u32		    time = TimerAsync(device_timer);
@@ -335,7 +328,7 @@ bool BaseClient::net_HasBandwidth()
 	u32 dwTime = TimeGlobal(device_timer);
 	u32 dwInterval = 0;
 	if (net_Disconnected) 
-		return FALSE;
+		return false;
 
 	if (psNET_ClientUpdate != 0) dwInterval = 1000 / psNET_ClientUpdate;
 	if (psNET_Flags.test(NETFLAG_MINIMIZEUPDATES))	dwInterval = 1000;	// approx 3 times per second
@@ -345,7 +338,7 @@ bool BaseClient::net_HasBandwidth()
 		if (0 != psNET_ClientUpdate && (dwTime - net_Time_LastUpdate) > dwInterval)
 		{
 			net_Time_LastUpdate = dwTime;
-			return TRUE;
+			return true;
 		}
 	}
 	else if (0 != psNET_ClientUpdate && (dwTime - net_Time_LastUpdate) > dwInterval)
@@ -356,22 +349,22 @@ bool BaseClient::net_HasBandwidth()
 		DWORD dwPending = 0;
 		if (!GetPendingMessagesCount(dwPending))
 		{
-			return FALSE;
+			return false;
 		}
 
 		if (dwPending > u32(psNET_ClientPending))
 		{
 			net_Statistic.dwTimesBlocked++;
-			return FALSE;
+			return false;
 		};
 
 		UpdateStatistic();
 
 		// ok
 		net_Time_LastUpdate = dwTime;
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }
 #pragma endregion

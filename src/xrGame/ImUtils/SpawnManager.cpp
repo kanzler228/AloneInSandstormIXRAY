@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "../Level.h"
 #include "../GamePersistent.h"
 #include "../game_cl_single.h"
@@ -19,6 +19,11 @@ struct SectionData
 {
 	Section Sorted{};
 	Section Unsorted{};
+	void clear()
+	{
+		Sorted.clear();
+		Unsorted.clear();
+	}
 };
 
 struct
@@ -58,7 +63,7 @@ struct
 	Section Anomalies{};
 	Section Others{};
 
-	xr_unique_ptr<CScriptSound> sound_tip;
+	CScriptSound* sound_tip;
 	string_path sound_tip_path{};
 	bool legacyNewsMode{false};
 } imgui_spawn_manager;
@@ -81,7 +86,24 @@ Section FilterSectionsWithSearch(const Section& sections, const char* searchBuff
 
 void DestroySpawnManagerWindow()
 {
-	imgui_spawn_manager.sound_tip.reset();
+	imgui_spawn_manager.WeaponsSections.clear();
+	imgui_spawn_manager.ItemsSections.clear();
+	imgui_spawn_manager.ItemsUsedSections.clear();
+	imgui_spawn_manager.DevicesSections.clear();
+	imgui_spawn_manager.AmmoSections.clear();
+	imgui_spawn_manager.OutfitSections.clear();
+	imgui_spawn_manager.AddonSections.clear();
+	imgui_spawn_manager.ArtefactSections.clear();
+	imgui_spawn_manager.MpStuffSections.clear();
+
+	imgui_spawn_manager.NpcList.clear();
+	imgui_spawn_manager.Squads.clear();
+	imgui_spawn_manager.Monsters.clear();
+	imgui_spawn_manager.Vehicles.clear();
+	imgui_spawn_manager.DynamicObjects.clear();
+	imgui_spawn_manager.Explosives.clear();
+	imgui_spawn_manager.Anomalies.clear();
+	imgui_spawn_manager.Others.clear();
 }
 
 void InitSections()
@@ -97,7 +119,7 @@ void InitSections()
 	imgui_spawn_manager.legacyNewsMode = !xml_test.NavigateToNode("caption_static");
 
 	string_path	file_path;
-	FS.update_path(file_path, "$game_config$", "misc\\script_sound.ltx");
+	FS.update_path(file_path, _game_config_, "misc\\script_sound.ltx");
 	CInifile ini(file_path);
 
 	if (ini.line_exist("pda_tips", "path") == 1)
@@ -109,44 +131,42 @@ void InitSections()
 		xr_sprintf(with_format_name, sizeof(with_format_name), "%s.ogg", pSoundRelativeName);
 
 
-		if (FS.exist("$game_sounds$", with_format_name))
+		if (FS.exist(_game_sounds_, with_format_name))
 		{
-			memcpy_s(imgui_spawn_manager.sound_tip_path, sizeof(imgui_spawn_manager.sound_tip_path), pSoundRelativeName, strlen(pSoundRelativeName));
+		    memcpy(imgui_spawn_manager.sound_tip_path, pSoundRelativeName, strlen(pSoundRelativeName) + 1);
 		}
 	}
 	else
 	{
 		string128 sndName = "device\\pda\\pda_tip";
-		memcpy_s(imgui_spawn_manager.sound_tip_path, sizeof(imgui_spawn_manager.sound_tip_path), sndName, sizeof(sndName));
+		memcpy(imgui_spawn_manager.sound_tip_path, sndName, sizeof(sndName));
 	}
 
 	//xr_set<xr_string> classes = {};
-	for (const auto& pSection : pSettings->sections())
+	CInifile::Root& sections = pSettings->sections();
+	for (CInifile::Sect& sect : sections)
 	{
-		if (pSection == nullptr)
-			continue;
-
-		xr_string_view name = pSection->Name.c_str();
+		xr_string_view name = sect.Name.c_str();
 
 		if (name.empty())
 			continue;
 
-		if (!pSection->line_exist("class"))
+		if (!sect.line_exist("class"))
 			continue;
 
 		CLASS_ID classId = pSettings->r_clsid(name.data(), "class");
 
-		if (pSection->line_exist("visual"))
+		if (sect.line_exist("visual"))
 		{
 			xr_string_view visual = pSettings->r_string(name.data(), "visual");
 			shared_str full_path;
 
 			if (visual.find(".ogf") == xr_string_view::npos)
 			{
-				full_path.printf("%s%s%s", FS.get_path("$game_meshes$")->m_Path, visual.data(), ".ogf");
+				full_path.printf("%s%s%s", FS.get_path(_game_meshes_)->m_Path, visual.data(), ".ogf");
 			}
 			else {
-				full_path.printf("%s%s", FS.get_path("$game_meshes$")->m_Path, visual.data());
+				full_path.printf("%s%s", FS.get_path(_game_meshes_)->m_Path, visual.data());
 			}
 			xr_strlwr(full_path);
 			if (!FS.exist(full_path.c_str()))
@@ -156,9 +176,9 @@ void InitSections()
 			}
 		}
 
-		bool isInvItem = pSection->line_exist("cost") && pSection->line_exist("inv_weight");
-		bool isFakeItem = pSection->line_exist("inv_grid_width") && pSettings->r_u32(name.data(), "inv_grid_width") <= 0 &&
-						  pSection->line_exist("inv_grid_height") && pSettings->r_u32(name.data(), "inv_grid_height") <= 0;
+		bool isInvItem = sect.line_exist("cost") && sect.line_exist("inv_weight");
+		bool isFakeItem = sect.line_exist("inv_grid_width") && pSettings->r_u32(name.data(), "inv_grid_width") <= 0 &&
+			sect.line_exist("inv_grid_height") && pSettings->r_u32(name.data(), "inv_grid_height") <= 0;
 
 		isInvItem &= !isFakeItem;
 
@@ -167,156 +187,156 @@ void InitSections()
 		{
 			if (isInvItem)
 			{
-				imgui_spawn_manager.MpStuffSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.MpStuffSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.MpStuffSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.MpStuffSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_weapon(classId))
 		{
 			bool isValidSect = true;
-			if (pSection->line_exist("parent_section"))
+			if (sect.line_exist("parent_section"))
 			{
 				const char* parentSection = pSettings->r_string(name.data(), "parent_section");
 				isValidSect = parentSection != nullptr && *parentSection != '\0' && strcmp(parentSection, name.data()) == 0;
 			}
 			if (isInvItem && isValidSect)
 			{
-				imgui_spawn_manager.WeaponsSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.WeaponsSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.WeaponsSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.WeaponsSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_item(classId))
 		{
-			if (!pSection->line_exist("immunities_sect"))
+			if (!sect.line_exist("immunities_sect"))
 				continue;
 
 			if (isInvItem)
 			{
-				imgui_spawn_manager.ItemsSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.ItemsSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.ItemsSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.ItemsSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_item_used(classId))
 		{
-			if (!pSection->line_exist("immunities_sect"))
+			if (!sect.line_exist("immunities_sect"))
 				continue;
 
 			if (isInvItem)
 			{
-				imgui_spawn_manager.ItemsUsedSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.ItemsUsedSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.ItemsUsedSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.ItemsUsedSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_device(classId))
 		{
-			if (!pSection->line_exist("immunities_sect"))
+			if (!sect.line_exist("immunities_sect"))
 				continue;
 
 			if (isInvItem)
 			{
-				imgui_spawn_manager.DevicesSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.DevicesSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.DevicesSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.DevicesSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_ammo(classId))
 		{
 			if (isInvItem)
 			{
-				imgui_spawn_manager.AmmoSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.AmmoSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.AmmoSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.AmmoSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_outfit(classId))
 		{
 			if (isInvItem)
 			{
-				imgui_spawn_manager.OutfitSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.OutfitSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.OutfitSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.OutfitSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_addon(classId))
 		{
 			if (isInvItem)
 			{
-				imgui_spawn_manager.AddonSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.AddonSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.AddonSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.AddonSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_artefact(classId))
 		{
 			if (isInvItem)
 			{
-				imgui_spawn_manager.ArtefactSections.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.ArtefactSections.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.ArtefactSections.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.ArtefactSections.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_npc(classId))
 		{
-			imgui_spawn_manager.NpcList.push_back({ name, pSection });
+			imgui_spawn_manager.NpcList.push_back({ name, &sect });
 		}
 		else if (g_pClsidManager->is_squad(classId))
 		{
-			if (pSection->line_exist("faction") && (pSection->line_exist("npc") || pSection->line_exist("npc_in_squad")))
+			if (sect.line_exist("faction") && (sect.line_exist("npc") || sect.line_exist("npc_in_squad")))
 			{
-				imgui_spawn_manager.Squads.Sorted.push_back({ name, pSection });
+				imgui_spawn_manager.Squads.Sorted.push_back({ name, &sect });
 			}
 			else
 			{
-				imgui_spawn_manager.Squads.Unsorted.push_back({ name, pSection });
+				imgui_spawn_manager.Squads.Unsorted.push_back({ name, &sect });
 			}
 		}
 		else if (g_pClsidManager->is_monster(classId))
 		{
-			imgui_spawn_manager.Monsters.push_back({ name, pSection });
+			imgui_spawn_manager.Monsters.push_back({ name, &sect });
 		}
 		else if (g_pClsidManager->is_anomaly(classId))
 		{
-			imgui_spawn_manager.Anomalies.push_back({ name, pSection });
+			imgui_spawn_manager.Anomalies.push_back({ name, &sect });
 		}
 		else if (g_pClsidManager->is_vehicle(classId))
 		{
-			imgui_spawn_manager.Vehicles.push_back({ name, pSection });
+			imgui_spawn_manager.Vehicles.push_back({ name, &sect });
 		}
 		else if (g_pClsidManager->is_dynamic_object(classId))
 		{
-			imgui_spawn_manager.DynamicObjects.push_back({ name, pSection });
+			imgui_spawn_manager.DynamicObjects.push_back({ name, &sect });
 		}
 		else if (g_pClsidManager->is_explo(classId))
 		{
-			imgui_spawn_manager.Explosives.push_back({ name, pSection });
+			imgui_spawn_manager.Explosives.push_back({ name, &sect });
 		}
 		else {
 			//string32 temp; CLSID2TEXT(classId, temp);
 			//classes.insert(temp);
 
-			imgui_spawn_manager.Others.push_back({ name, pSection });
+			imgui_spawn_manager.Others.push_back({ name, &sect });
 		}
 	}
 }
@@ -334,9 +354,9 @@ void RenderSpawnManagerWindow() {
 	if (g_pClsidManager == nullptr)
 		return;
 
-	if (imgui_spawn_manager.sound_tip.get() == nullptr)
+	if (imgui_spawn_manager.sound_tip == nullptr)
 	{
-		imgui_spawn_manager.sound_tip = xr_make_unique<CScriptSound>(imgui_spawn_manager.sound_tip_path);
+		imgui_spawn_manager.sound_tip = new CScriptSound(imgui_spawn_manager.sound_tip_path);
 		imgui_spawn_manager.sound_tip->SetVolume(0.8f);
 	}
 
@@ -951,7 +971,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("NPC"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.NpcList.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.NpcList.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##NpcList", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -967,7 +987,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Monsters"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.Monsters.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.Monsters.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##Monsters", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1002,7 +1022,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Anomalies"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.Anomalies.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.Anomalies.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##Anomalies", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1018,7 +1038,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Vehicles"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.Vehicles.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.Vehicles.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##Vehicles", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1034,7 +1054,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Explosives"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.Explosives.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.Explosives.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##Explosives", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1050,7 +1070,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Dynamic Objects"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.DynamicObjects.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.DynamicObjects.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##DynamicObjects", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1066,7 +1086,7 @@ void RenderSpawnManagerWindow() {
 				if (ImGui::BeginTabItem("Others"))
 				{
 					size_t number_imgui{};
-					ImGui::Text("total sections count: %d", imgui_spawn_manager.Others.size());
+					ImGui::Text("total sections count: %zu", imgui_spawn_manager.Others.size());
 					static string128 searchBuffer = "";
 					ImGui::InputText("Search##Others", searchBuffer, IM_ARRAYSIZE(searchBuffer));
 
@@ -1088,11 +1108,12 @@ void SpawnManager_ProcessSections(Section& sections, size_t& number_imgui)
 {
 	auto sm_process_button = [](bool is_table, const xr_string_view& section_name, CInifile::Sect* pSection, size_t& number_imgui) {
 		string128 imname{};
-		memcpy_s(imname, sizeof(imname), section_name.data(), section_name.size());
+		memcpy(imname, section_name.data(), section_name.size());
+		imname[section_name.size()] = '\0';
 
 		string16 index{};
 		xr_sprintf(index, sizeof(index), "##%zu", number_imgui);
-		memcpy_s(imname + section_name.size(), sizeof(imname), index, sizeof(index));
+		memcpy(imname + section_name.size(), index, sizeof(index));
 
 		if (SpawnManager_RenderButtonOrImage(pSection, imname))
 		{
@@ -1200,7 +1221,7 @@ void SpawnManager_HandleButtonPress(CInifile::Sect* section)
 
 	if (Actor())
 	{
-		if (imgui_spawn_manager.sound_tip.get())
+		if (imgui_spawn_manager.sound_tip)
 		{
 			imgui_spawn_manager.sound_tip->PlayAtPos(Actor()->lua_game_object(), Fvector().set(0.0f, 0.0f, 0.0f), 0.0f, sm_2D);
 		}
@@ -1226,8 +1247,8 @@ void SpawnManager_HandleButtonPress(CInifile::Sect* section)
 		text_news_final += text_news;
 
 		GAME_NEWS_DATA				news_data;
-		news_data.m_type = GAME_NEWS_DATA::eNewsType::eNews;
-		news_data.news_caption = g_pStringTable->translate("general_in_item");
+		news_data.m_type = GAME_NEWS_DATA::eNews;
+		news_data.news_caption = "general_in_item";
 		news_data.news_text = text_news_final.c_str();
 		news_data.show_time = 3000;
 		news_data.texture_name = "ui_ixray_spawn_icon";
@@ -1354,6 +1375,8 @@ Section FilterSectionsWithSearch(const Section& sections, const char* searchBuff
 			xr_string lowerSectionName = xr_strlwr_rus(sectionKey);
 
 			const char* rawName = READ_IF_EXISTS(pSettings, r_string, sectionKey, "inv_name", sectionKey);
+			if (!rawName || !*rawName)
+				rawName = sectionKey;
 
 			xr_string lowerTranslated = xr_strlwr_rus(g_pStringTable->translate(rawName).c_str());
 
@@ -1362,4 +1385,23 @@ Section FilterSectionsWithSearch(const Section& sections, const char* searchBuff
 		});
 
 	return filtered;
+}
+
+void SpawnManager_OnPressed(int key)
+{
+	switch (key)
+	{
+	case SDL_Scancode::SDL_SCANCODE_ESCAPE:
+	{
+		if (Engine.External.EditorStates[u8(EditorUI::Game_SpawnManager)])
+		{
+			Engine.External.EditorStates[u8(EditorUI::Game_SpawnManager)] = false;
+		}
+		break;
+	}
+	}
+}
+
+void SpawnManager_OnReleased(int key)
+{
 }

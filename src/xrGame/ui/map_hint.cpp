@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "map_hint.h"
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrUI/UIXmlInit.h"
@@ -10,7 +10,7 @@
 #include "UIInventoryUtilities.h"
 #include "../../xrEngine/string_table.h"
 
-CUIStatic* init_static_field(CUIXml& uiXml, LPCSTR path, LPCSTR path2)
+CUIStatic* init_static_field(CUIXml& uiXml, const char* path, const char* path2)
 {
 	CUIStatic* S					= new CUIStatic();
 	string512						buff;
@@ -21,9 +21,23 @@ CUIStatic* init_static_field(CUIXml& uiXml, LPCSTR path, LPCSTR path2)
 	return							S;
 }
 
-void CUIMapLocationHint::Init(CUIXml& uiXml, LPCSTR path)
+void CUIMapLocationHint::Init(CUIXml& uiXml, const char* path)
 {
 	CUIXmlInit						xml_init;
+
+	if (!uiXml.NavigateToNode(path))
+	{
+		CUIXml xml_new;
+		xml_new.Load(CONFIG_PATH, UI_PATH, "hint_item.xml");
+
+		xml_init.InitFrameWindow(xml_new, "hint_item:frame", 0, this);
+
+		CUIStatic* S = nullptr;
+		S = init_static_field(xml_new, "hint_item", "description");
+		AttachChild(S);
+		m_info["simple_text"] = S;
+		return;
+	}
 
 	xml_init.InitFrameWindow		(uiXml,path,0,this);
 
@@ -60,11 +74,16 @@ void CUIMapLocationHint::Init(CUIXml& uiXml, LPCSTR path)
 void CUIMapLocationHint::SetInfoMode(u8 mode)
 {
 	m_info["simple_text"]->Show		(mode==1);
-	m_info["t_icon"]->Show			(mode==2);
-	m_info["t_caption"]->Show		(mode==2);
-	m_info["t_time"]->Show			(mode==2);
-	m_info["t_time_rem"]->Show		(mode==2);
-	m_info["t_hint_text"]->Show		(mode==2);
+	if (m_info["t_icon"])
+		m_info["t_icon"]->Show			(mode==2);
+	if (m_info["t_caption"])
+		m_info["t_caption"]->Show		(mode==2);
+	if (m_info["t_time"])
+		m_info["t_time"]->Show			(mode==2);
+	if (m_info["t_time_rem"])
+		m_info["t_time_rem"]->Show		(mode==2);
+	if (m_info["t_hint_text"])
+		m_info["t_hint_text"]->Show		(mode==2);
 }
 
 void CUIMapLocationHint::Draw_()
@@ -72,7 +91,7 @@ void CUIMapLocationHint::Draw_()
 	inherited::Draw			();
 }
 
-void CUIMapLocationHint::SetInfoStr(LPCSTR text)
+void CUIMapLocationHint::SetInfoStr(const char* text)
 {
 	SetInfoMode				(1);
 	CUIStatic* S			= m_info["simple_text"];
@@ -80,7 +99,7 @@ void CUIMapLocationHint::SetInfoStr(LPCSTR text)
 	S->AdjustHeightToText	();
 	float new_w				= S->GetWndPos().x + S->GetWndSize().x + 20.0f;
 
-	float new_h				= _max(64.0f, S->GetWndPos().y+S->GetWndSize().y+20.0f);
+	float new_h				= std::max(64.0f, S->GetWndPos().y+S->GetWndSize().y+20.0f);
 	SetWndSize				(Fvector2().set(new_w, new_h));
 }
 
@@ -89,7 +108,7 @@ void CUIMapLocationHint::SetInfoMSpot(CMapSpot* spot)
 	CMapLocation* ml		= spot->MapLocation();
 
 	CGameTask* gt			= Level().GameTaskManager()->HasGameTask(ml, true);
-	if(gt)
+	if(gt && m_info["t_icon"])
 		SetInfoTask			(gt);
 	else
 		SetInfoStr			(ml->GetHint());
@@ -103,8 +122,20 @@ void CUIMapLocationHint::SetInfoTask(CGameTask* task)
 	S->InitTexture					(task->m_icon_texture_name.c_str());
 	S->SetStretchTexture			(true);
 
+	Frect emptyRect = Frect().set(0.f, 0.f, 0.f, 0.f);
+	if (!task->m_icon_rect.cmp(emptyRect))
+	{
+		Frect r						= task->m_icon_rect;
+		Frect texture_rect;
+
+		texture_rect.lt.set			(r.x1, r.y1);
+		texture_rect.rb.set			(r.x2, r.y2);
+		texture_rect.rb.add			(texture_rect.lt);
+		S->SetTextureRect			(texture_rect);
+	}
+
 	S								= m_info["t_caption"];
-	S->TextItemControl()->SetTextST					(task->m_Title.c_str());
+	S->TextItemControl()->SetTextST	(g_pStringTable->ParseStringFromScript(task->m_Title).c_str());
 	S->AdjustHeightToText			();
 	//float new_w						= S->GetWndPos().x + S->GetWndSize().x + 20.0f;
 
@@ -131,7 +162,7 @@ void CUIMapLocationHint::SetInfoTask(CGameTask* task)
 	S->SetWndPos	(pos);
 
 	S						= m_info["t_hint_text"];
-	S->TextItemControl()->SetTextST			(task->m_Description.c_str());
+	S->TextItemControl()->SetTextST			(g_pStringTable->ParseStringFromScript(task->m_Description).c_str());
 	S->AdjustHeightToText	();
 	if ( b_rem )
 	{
@@ -169,7 +200,7 @@ void CUIMapLocationHint::SetInfoTask(CGameTask* task)
 		m_info["t_time_rem"]->SetWndPos( pos_ );
 
 		pos_   = m_info["t_hint_text"]->GetWndPos();
-		pos_.y = _max( pos_.y, m_info["t_icon"]->GetWndPos().y + m_info["t_icon"]->GetWndSize().y + 7 );
+		pos_.y = std::max( pos_.y, m_info["t_icon"]->GetWndPos().y + m_info["t_icon"]->GetWndSize().y + 7 );
 		m_info["t_hint_text"]->SetWndPos( pos_ );
 	}
 	else if ( task->GetTaskType() == eTaskTypeAdditional && Level().GameTaskManager()->IsMultipleTask() )

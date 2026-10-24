@@ -21,7 +21,7 @@ public:
 
 			CNightVisionEffector(CActor* actor);
 			~CNightVisionEffector();
-	void	Start(const shared_str& sect, bool play_sound = true);
+	void	Start(const shared_str& sect, bool play_sound, const Fcolor& color);
 	void	Stop(const float factor, bool play_sound = true);
 	bool	IsActive();
 	void	PlaySounds(EPlaySounds which);
@@ -30,17 +30,22 @@ public:
 	bool	GetStatus() const { return m_bNightVisionOn; }
 };
 
-class CWeaponNightVision
+struct TWeaponNightVision
 {
+private:
 	bool m_bNightVisionOn = false;
 	shared_str m_section;
-	CActor* m_pActor = nullptr;
 
 public:
-			CWeaponNightVision(const shared_str& sect, CActor* actor);
-			~CWeaponNightVision();
+	void EndComponent();
 
-	void	SwitchNightVision(bool vision_on);
-	bool	IsActive();
-	bool	GetStatus() const { return m_bNightVisionOn; }
+	void Load(const shared_str& sect);
+	void SwitchNightVision(bool vision_on);
+	bool IsActive();
+	bool GetStatus() const { return m_bNightVisionOn; }
+
+private:
+	ECS_COMPONENT(TWeaponNightVision)
+		ECS_STRING(m_section.c_str(), "NightVision Section")
+	ECS_END
 };

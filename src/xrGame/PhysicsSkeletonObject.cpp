@@ -2,7 +2,7 @@
 #include "PhysicsSkeletonObject.h"
 //#include "PhysicsShell.h"
 #include "../xrPhysics/PhysicsShell.h"
-#include "phsynchronize.h"
+#include "PHSynchronize.h"
 #include "xrServer_Objects_ALife.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../xrEngine/xr_collide_form.h"
@@ -17,7 +17,7 @@ CPhysicsSkeletonObject::~CPhysicsSkeletonObject()
 
 }
 
-BOOL CPhysicsSkeletonObject::net_Spawn(CSE_Abstract* DC)
+bool CPhysicsSkeletonObject::net_Spawn(CSE_Abstract* DC)
 {
 	CSE_Abstract *e	= (CSE_Abstract*)(DC);
 
@@ -25,23 +25,23 @@ BOOL CPhysicsSkeletonObject::net_Spawn(CSE_Abstract* DC)
 	xr_delete(collidable.model);
 	collidable.model = new CCF_Skeleton(this);
 	CPHSkeleton::Spawn(e);
-	setVisible(TRUE);
-	setEnabled(TRUE);
+	setVisible(true);
+	setEnabled(true);
 
 	if (PPhysicsShell() && !PPhysicsShell()->isBreakable())
 		SheduleUnregister();
 
-	return TRUE;
+	return true;
 }
 
 void	CPhysicsSkeletonObject::SpawnInitPhysics	(CSE_Abstract	*D)
 {
 	CreatePhysicsShell(D);
-	IKinematics* K=smart_cast<IKinematics*>	(Visual());
+	IKinematics* K = PKinematics(Visual());
 	if(K)	
 	{	
 		K->CalculateBones_Invalidate();
-		K->CalculateBones	(TRUE);
+		K->CalculateBones	(true);
 	}
 }
 
@@ -53,7 +53,7 @@ void CPhysicsSkeletonObject::net_Destroy()
 
 }
 
-void CPhysicsSkeletonObject::Load(LPCSTR section)
+void CPhysicsSkeletonObject::Load(const char* section)
 {
 	inherited::Load(section);
 	CPHSkeleton::Load(section);
@@ -84,15 +84,15 @@ void CPhysicsSkeletonObject::net_Save(NET_Packet &P)
 
 
 
-BOOL CPhysicsSkeletonObject::net_SaveRelevant()
+bool CPhysicsSkeletonObject::net_SaveRelevant()
 {
-	return TRUE;//!m_flags.test(CSE_ALifeObjectPhysic::flSpawnCopy);
+	return true;//!m_flags.test(CSE_ALifeObjectPhysic::flSpawnCopy);
 }
 
 
-BOOL CPhysicsSkeletonObject::UsedAI_Locations()
+bool CPhysicsSkeletonObject::UsedAI_Locations()
 {
-	return					(FALSE);
+	return					(false);
 }
 
 void CPhysicsSkeletonObject::UpdateCL()

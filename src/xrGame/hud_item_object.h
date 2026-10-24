@@ -19,13 +19,12 @@ class CGrenade;
 class CPhysicItem;
 class CPhysicsShellHolder;
 
-class CHudItemObject : 
-		public CInventoryItemObject,
-		public CHudItem
+class CHudItemObject : public CInventoryItemObject,
+	public CHudItem
 {
 protected: //чтоб нельзя было вызвать на прямую
-						CHudItemObject		();
-	virtual				~CHudItemObject		();
+	CHudItemObject() = default;
+	virtual	~CHudItemObject() = default;
 
 public:
 	virtual	DLL_Pure	*_construct			();
@@ -48,18 +47,19 @@ public:
 	virtual CBolt* cast_bolt() { return nullptr; }
 	virtual CPhysicsShellHolder* cast_physics_shell_holder() { return this; }
 	virtual CPhysicItem* cast_physics_item() { return this; }
+	virtual CWeaponShotgun* cast_weapon_shotgun() override { return nullptr; }
 
 public:
-	virtual void		Load				(LPCSTR section);
+	virtual void		Load				(const char* section);
 	virtual bool		Action				(u16 cmd, u32 flags);
-	virtual void		SwitchState			(u32 S);
-	virtual void		OnStateSwitch		(u32 S);
+	virtual void		SwitchState			(u8 S);
+	virtual void		OnStateSwitch		(u8 S);
 	virtual void		OnEvent				(NET_Packet& P, u16 type);
 	virtual void		OnH_A_Chield		();
 	virtual void		OnH_B_Chield		();
 	virtual void		OnH_B_Independent	(bool just_before_destroy);
 	virtual void		OnH_A_Independent	();
-	virtual	BOOL		net_Spawn			(CSE_Abstract* DC);
+	virtual	bool		net_Spawn			(CSE_Abstract* DC);
 	virtual void		net_Destroy			();
 	virtual bool		ActivateItem		();
 	virtual void		DeactivateItem	();

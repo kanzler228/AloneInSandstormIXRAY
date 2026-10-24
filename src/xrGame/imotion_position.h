@@ -2,8 +2,10 @@
 
 #include "interactive_motion.h"
 #include "../Include/xrRender/Kinematics.h"
+#include "../xrPhysics/PhysicsShell.h"
+
 class imotion_position;
-enum motion_history_state;
+
 class imotion_position:
 	public interactive_motion
 {
@@ -42,5 +44,5 @@ static	void	_BCL	rootbone_callback	( CBoneInstance *BI );
 		void	set_root_callback	();
 		void	remove_root_callback();
 
-			void	interactive_motion_diagnostic( LPCSTR message );
+			void	interactive_motion_diagnostic( const char* message );
 };

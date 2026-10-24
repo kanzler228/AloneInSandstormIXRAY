@@ -3,12 +3,11 @@
 #include "../../xrUI/Widgets/UIWindow.h"
 
 class CUIStatic;
-class CUITextWnd;
 class CUIXml;
 class CUIScrollView;
 class CMMSound;
 
-class CUIMMShniaga :	public CUIWindow,
+class CUIMMShniaga final :	public CUIWindow,
 						public CDeviceResetNotifier
 {
 public:
@@ -16,12 +15,14 @@ public:
 						CUIMMShniaga			();
 	virtual				~CUIMMShniaga			();
 
-			void 		InitShniaga				(CUIXml& xml_doc, LPCSTR path);
+			void 		InitShniaga				(CUIXml& xml_doc, const char* path);
 	virtual void 		Update					();
 	virtual void 		Draw					();
 
-	virtual bool 		OnMouseAction					(float x, float y, EUIMessages mouse_action);
-	virtual bool 		OnKeyboardAction				(int dik, EUIMessages keyboard_action);
+	virtual bool 		OnMouseAction			(float x, float y, EUIMessages mouse_action);
+	virtual bool 		OnKeyboardAction		(int dik, EUIMessages keyboard_action);
+	virtual bool 		OnGamepadKeyAction		(int id, EUIMessages keyboard_action);
+	virtual bool		OnGamepadKeyHold		(int key);
 	virtual void 		SendMessage				(CUIWindow* pWnd, s16 msg, void* pData = 0);
 			void 		SetVisibleMagnifier		(bool f);
 	virtual void		OnDeviceReset			();
@@ -34,7 +35,8 @@ public:
 		epi_new_game,
 		epi_none
 	};//enum	enum_page_id
-			void		SetPage					(enum_page_id page_id, LPCSTR xml_file, LPCSTR xml_path);
+			void		SetPage					(enum_page_id page_id, const char* xml_file, const char* xml_path);
+	IC enum_page_id		GetPage					()	{ return m_page; }
 			void		ShowPage				(enum_page_id page_id);
 protected:
 	typedef enum {
@@ -52,7 +54,7 @@ protected:
 	void 				ProcessEvent			(EVENT ev);
 
 	bool 				IsButton				(CUIWindow* st);
-	void 				CreateList				(xr_vector<CUITextWnd*>& lst, CUIXml& xml_doc, LPCSTR path, bool required = true);
+	void 				CreateList				(xr_vector<CUIStatic*>& lst, CUIXml& xml_doc, const char* path);
 	void 				ShowMain				();
 	void 				ShowNewGame				();
 	float				pos						(float x1, float x2, u32 t);
@@ -62,6 +64,8 @@ public:
 
     CUIStatic*			m_shniaga;
 	CUIStatic*			m_magnifier;
+	CUIStatic*			m_anims[2];
+	CUIStatic*			m_gratings[2];
 	CUIScrollView*		m_view;
 
     u32					m_start_time;
@@ -72,8 +76,8 @@ public:
 	float				m_offset;
 	u32					m_run_speed;
 
-	xr_vector<CUITextWnd*>	m_buttons;
-	xr_vector<CUITextWnd*>	m_buttons_new;
+	xr_vector<CUIStatic*>	m_buttons;
+	xr_vector<CUIStatic*>	m_buttons_new;
 
 	int						m_selected_btn;
 	enum_page_id			m_page;

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_monster_squad.h"
 #include "../../Entity.h"
 #include "../../entity_alive.h"
@@ -140,7 +140,8 @@ void CMonsterSquad::get_index_in_squad(ENTITY_VEC &members, const CEntity *m_ene
 		m_index++;
 		pEntity = members.back();
 		pEntity->cast_entity_alive()->m_squad_index = m_index;
-		smart_cast<CBaseMonster&>(*pEntity).SetEnemy(smart_cast<const CEntityAlive*>(m_enemy));
+		CEntity* enemy = const_cast<CEntity*>(m_enemy);
+		pEntity->cast_base_monster()->SetEnemy(enemy != nullptr ? enemy->cast_entity_alive() : nullptr);
 		members.pop_back();
 	}
 }
@@ -267,9 +268,11 @@ Fvector   CMonsterSquad::calc_monster_target_dir (CBaseMonster* monster, const C
 
 	const u8 squad_size  = squad_alife_count();
 	VERIFY(squad_size);
+	if (!squad_size)
+		return home2enemy.normalize();
 
 	u8 squad_index = get_index(monster);
-	if ( squad_index == -1 )
+	if ( squad_index == u8(-1))
 	{
 		squad_index = 0;
 	}

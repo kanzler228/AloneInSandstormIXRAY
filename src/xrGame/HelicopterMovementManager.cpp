@@ -7,10 +7,7 @@
 #include "script_game_object.h"
 #include "game_object_space.h"
 
-SHeliMovementState::~SHeliMovementState()
-{
-
-}
+SHeliMovementState::~SHeliMovementState() = default;
 
 void SHeliMovementState::net_Destroy()
 {
@@ -20,7 +17,7 @@ void SHeliMovementState::net_Destroy()
 	}
 }
 
-void SHeliMovementState::Load(LPCSTR section)
+void SHeliMovementState::Load(const char* section)
 {
 	float angularSpeedPitch		= pSettings->r_float(section,"path_angular_sp_pitch");
 	AngSP					= angularSpeedPitch;
@@ -142,7 +139,7 @@ void SHeliMovementState::UpdateMovToPoint()
 		type = eMovNone;
 	}
 }
-extern float STEP;
+
 bool SHeliMovementState::AlreadyOnPoint()
 {
 	float dist = GetDistanceToDestPosition();
@@ -153,7 +150,7 @@ bool SHeliMovementState::AlreadyOnPoint()
 		Fvector P1 = currP;
 		Fvector dir;
 		dir.setHP(currPathH,0.0f);
-		P1.mad(dir, curLinearSpeed*STEP);
+		P1.mad(dir, curLinearSpeed*Device.fTimeDelta);
 		float new_dist = desiredPoint.distance_to(P1);
 		res = new_dist>dist;
 	}
@@ -206,7 +203,7 @@ void SHeliMovementState::SetDestPosition(Fvector* pos)
 }
 
 
-void SHeliMovementState::goPatrolByPatrolPath (LPCSTR path_name, int start_idx)
+void SHeliMovementState::goPatrolByPatrolPath (const char* path_name, int start_idx)
 {
 	if(need_to_del_path&&currPatrolPath){
 		CPatrolPath* tmp = const_cast<CPatrolPath*>(currPatrolPath);

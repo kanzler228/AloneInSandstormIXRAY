@@ -80,7 +80,7 @@
 // 64 - CSE_ALifeObjectPhysic			flags, source_id, saved_bones moved to CSE_AlifePHSkeletonObject
 // 65 - CSE_ALifeObjectPhysic			startup_anim moved to CSE_AlifePHSkeletonObject
 // 66 - CSE_ALifeObjectPhysic			CSE_ALifeCar - heritage changed
-// 67 - CSE_ALifeCustomZone				new class appended, heritage changed
+// 67 - CSE_ALifeAnomalyZone				new class appended, heritage changed
 // 68 - CSE_ALifeHumanStalker,				
 //		CSE_ALifeMonsterBase			new class appended, heritage changed
 // 69 -	object broker changed from this version
@@ -119,11 +119,11 @@
 // 100 - CSE_ALifeObjectClimable		inheritance changed CSE_AlifeObject -> CSE_AlifeDynamicObject
 // 101 - CSE_ALifeCreaturePhantom		new class based on CSE_ALifeCreatureAbstract
 // 102 - CSE_ALifeAnomalousZone			appended m_owner_id
-// 103 - CSE_ALifeCustomZone			appended m_owner_id,removed from CSE_ALifeAnomalousZone
+// 103 - CSE_ALifeAnomalyZone			appended m_owner_id,removed from CSE_ALifeAnomalousZone
 // 104 - CSE_Visual						appended flags
 // 105 - CSE_ALifeTraderAbstract		added full name
-// 106 - CSE_ALifeCustomZone			enabled\disabled time
-// 107 - CSE_ALifeCustomZone			enabled\disabled time extended
+// 106 - CSE_ALifeAnomalyZone			enabled\disabled time
+// 107 - CSE_ALifeAnomalyZone			enabled\disabled time extended
 // 108 - CSE_ALifeTraderAbstract		removed property m_tpEvents
 // 109 - CSE_ALifeBaseMonster			added property m_spec_object
 // 110 - CSE_ALifeHumanAbstract			removed a lot
@@ -143,8 +143,8 @@
 //	   - CSE_ALifeAnomalousZone			removed property m_min_start_power
 //	   - CSE_ALifeAnomalousZone			removed property m_max_start_power
 //	   - CSE_ALifeAnomalousZone			removed property m_power_artefact_factor
-//	   - CSE_ALifeCustomZone			removed property m_attn
-//	   - CSE_ALifeCustomZone			removed property m_period
+//	   - CSE_ALifeAnomalyZone			removed property m_attn
+//	   - CSE_ALifeAnomalyZone			removed property m_period
 // 114 - CSE_ALifeMonsterAbstract		m_task_reached, internal member, added
 // 115 - CSE_ALifeCreatureAbstract		fHealth now in range 0..1
 // 116 - CSE_ALifeCreatureAbstract		appended with property m_game_death_time
@@ -162,10 +162,15 @@
 //       CSE_ALifeTraderAbstract		added property m_deadbody_can_take, m_deadbody_closed
 // 127	 CSE_ALifeObjectClimable		added material;
 // 128	 CSE_ALifeObjectClimable		added can_fire in smart covers;
-// 129	 CSE_ALifeItemWeapon			added cur_scope
+// 129	 CSE_ALifeItemWeapon			added bMisfire
 //       CSE_AlifeCreatureActor         added IsWaunded and helicopter sync
+// 130	 CSE_ALifeItemWeapon			added rt_zoom_factor
+// 131	 CSE_ALifeItemWeapon			added cur_scope
+// 132	 CSE_ALifeItemWeapon			added chamber_ammo_type
+// 133	 CSE_ALifeItemWeapon			added a_chamber_elapsed
+// 134	 CSE_ALifeItemWeaponMagazinedWGL	added m_bGrenadeMode
 //------------------------------------------------------------------------------
-#define SPAWN_VERSION	u16(129)
+#define SPAWN_VERSION u16(134)
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_Shape,ISE_Shape,CShapeData)
 public:
@@ -178,19 +183,19 @@ public:
 };
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_Spectator,CSE_Abstract)
-									CSE_Spectator	(LPCSTR caSection);
+									CSE_Spectator	(const char* caSection);
 	virtual							~CSE_Spectator	();
 	virtual u8						g_team			();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN(CSE_Temporary,CSE_Abstract)
 	u32								m_tNodeID;
-									CSE_Temporary	(LPCSTR caSection);
+									CSE_Temporary	(const char* caSection);
 	virtual							~CSE_Temporary	();
 SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN0(CSE_PHSkeleton)
-								CSE_PHSkeleton(LPCSTR caSection);
+								CSE_PHSkeleton(const char* caSection);
 virtual							~CSE_PHSkeleton();
 
 enum{
@@ -217,12 +222,12 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_AbstractVisual,CSE_Abstract,CSE_Visual)
 	typedef CSE_Abstract			inherited1;
 	typedef CSE_Visual				inherited2;
 
-	CSE_AbstractVisual										(LPCSTR caSection);
+	CSE_AbstractVisual										(const char* caSection);
 	virtual	~CSE_AbstractVisual								();
 	virtual CSE_Visual* 	visual					();
-	LPCSTR							getStartupAnimation		();
+	const char*							getStartupAnimation		();
 SERVER_ENTITY_DECLARE_END
 
 #ifndef AI_COMPILER
-extern CSE_Abstract	*F_entity_Create	(LPCSTR caSection);
+extern CSE_Abstract	*F_entity_Create	(const char* caSection);
 #endif

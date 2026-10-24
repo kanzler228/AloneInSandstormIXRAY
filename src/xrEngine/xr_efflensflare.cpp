@@ -31,7 +31,7 @@
 #define BLEND_DEC_SPEED 4.0f
 
 //------------------------------------------------------------------------------
-void CLensFlareDescriptor::SetSource(float fRadius, BOOL ign_color, LPCSTR tex_name, LPCSTR sh_name)
+void CLensFlareDescriptor::SetSource(float fRadius, bool ign_color, const char* tex_name, const char* sh_name)
 {
 	m_Source.fRadius	= fRadius;
 	m_Source.shader		= sh_name;
@@ -39,7 +39,7 @@ void CLensFlareDescriptor::SetSource(float fRadius, BOOL ign_color, LPCSTR tex_n
 	m_Source.ignore_color=ign_color;
 }
 
-void CLensFlareDescriptor::SetGradient(float fMaxRadius, float fOpacity, LPCSTR tex_name, LPCSTR sh_name)
+void CLensFlareDescriptor::SetGradient(float fMaxRadius, float fOpacity, const char* tex_name, const char* sh_name)
 {
 	m_Gradient.fRadius	= fMaxRadius;
 	m_Gradient.fOpacity	= fOpacity;
@@ -47,7 +47,7 @@ void CLensFlareDescriptor::SetGradient(float fMaxRadius, float fOpacity, LPCSTR 
 	m_Gradient.texture	= tex_name;
 }
 
-void CLensFlareDescriptor::AddFlare(float fRadius, float fOpacity, float fPosition, LPCSTR tex_name, LPCSTR sh_name)
+void CLensFlareDescriptor::AddFlare(float fRadius, float fOpacity, float fPosition, const char* tex_name, const char* sh_name)
 {
 	SFlare F;
 	F.fRadius	= fRadius;
@@ -58,33 +58,60 @@ void CLensFlareDescriptor::AddFlare(float fRadius, float fOpacity, float fPositi
 	m_Flares.push_back	(F);
 }
 
-/*
-ref_shader CLensFlareDescriptor::CreateShader(LPCSTR tex_name, LPCSTR sh_name)
+struct FlareDescriptorFields
 {
-	ref_shader	R;
-	if			(tex_name&&tex_name[0])	R.create(sh_name,tex_name);
-	return		R;
-}
-*/
+	const char* line;
+	const char* shader;
+	const char* texture;
+	const char* radius;
+	const char* ignore_color;
+};
 
-void CLensFlareDescriptor::load(CInifile* pIni, LPCSTR sect)
+FlareDescriptorFields SourceFields =
+{
+	"source", "source_shader", "source_texture", "source_radius", "source_ignore_color"
+};
+
+FlareDescriptorFields SunFields =
+{
+	"sun", "sun_shader", "sun_texture", "sun_radius", "sun_ignore_color"
+};
+
+void CLensFlareDescriptor::load(CInifile* pIni, const char* sect)
 {
 	section		= sect;
-	m_Flags.set	(flSource,pIni->r_bool(sect,"sun" ));
-	if (m_Flags.is(flSource)){
-		LPCSTR S= pIni->r_string 	( sect,"sun_shader" );
-		LPCSTR T= pIni->r_string 	( sect,"sun_texture" );
-		float r = pIni->r_float		( sect,"sun_radius" );
-		BOOL i 	= pIni->r_bool		( sect,"sun_ignore_color" );
-		SetSource(r,i,T,S);
+
+	const auto read = [&](FlareDescriptorFields f)
+		{
+			m_Flags.set(flSource, pIni->r_bool(sect, f.line));
+			if (m_Flags.is(flSource))
+			{
+				const char* s = pIni->r_string(sect, f.shader);
+				const char* t = pIni->r_string(sect, f.texture);
+				float r = pIni->r_float(sect, f.radius);
+				bool i = pIni->r_bool(sect, f.ignore_color);
+				SetSource(r, i, t, s);
+			}
+		};
+
+	if (pIni->line_exist(sect, SourceFields.line))
+	{
+		read(SourceFields);
+		// What if someone adapted SOC configs and didn't deleted "source" field?
+		// Try to read "sun" optional overriding values.
+		if (pIni->line_exist(sect, SunFields.line))
+			read(SunFields);
 	}
+	else
+		read(SunFields);
+
 	m_Flags.set	(flFlare,pIni->r_bool ( sect,"flares" ));
 	if (m_Flags.is(flFlare)){
-		LPCSTR S= pIni->r_string 	( sect,"flare_shader" );
-		LPCSTR T= pIni->r_string 	( sect,"flare_textures" );
-		LPCSTR R= pIni->r_string 	( sect,"flare_radius" );
-		LPCSTR O= pIni->r_string 	( sect,"flare_opacity");
-		LPCSTR P= pIni->r_string 	( sect,"flare_position");
+		const char* S= pIni->r_string 	( sect,"flare_shader" );
+		const char* T= pIni->r_string 	( sect,"flare_textures" );
+		const char* R= pIni->r_string 	( sect,"flare_radius" );
+		const char* O= pIni->r_string 	( sect,"flare_opacity");
+		const char* P= pIni->r_string 	( sect,"flare_position");
 		u32 tcnt= _GetItemCount(T);
 		string256 name;
 		for (u32 i=0; i<tcnt; i++){
@@ -97,14 +124,14 @@ void CLensFlareDescriptor::load(CInifile* pIni, LPCSTR sect)
 	}
 	m_Flags.set	(flGradient,CInifile::IsBOOL(pIni->r_string( sect, "gradient")));
 	if (m_Flags.is(flGradient)){
-		LPCSTR S= pIni->r_string 	( sect,"gradient_shader" );
-		LPCSTR T= pIni->r_string	( sect,"gradient_texture" );
+		const char* S= pIni->r_string 	( sect,"gradient_shader" );
+		const char* T= pIni->r_string	( sect,"gradient_texture" );
 		float r	= pIni->r_float		( sect,"gradient_radius"  );
 		float o = pIni->r_float		( sect,"gradient_opacity" );
 		SetGradient(r,o,T,S);
 	}
-	m_StateBlendUpSpeed	= 1.f/(_max(pIni->r_float( sect,"blend_rise_time" ),0.f)+EPS_S);
-	m_StateBlendDnSpeed	= 1.f/(_max(pIni->r_float( sect,"blend_down_time" ),0.f)+EPS_S);
+	m_StateBlendUpSpeed	= 1.f/(std::max(pIni->r_float( sect,"blend_rise_time" ),0.f)+EPS_S);
+	m_StateBlendDnSpeed	= 1.f/(std::max(pIni->r_float( sect,"blend_down_time" ),0.f)+EPS_S);
 
 	OnDeviceCreate();
 }
@@ -182,7 +209,7 @@ struct STranspParam
 	STranspParam		(collide::ray_cache	*p, const Fvector& _P, const Fvector& _D, float _f, float _vis_threshold):P(_P),D(_D),f(_f),pray_cache(p),vis(1.f),vis_threshold(_vis_threshold){}
 };
 
-IC BOOL material_callback(collide::rq_result& result, LPVOID params)
+IC bool material_callback(collide::rq_result& result, LPVOID params)
 {
 	STranspParam* fp= (STranspParam*)params;
 	float vis		= 1.f;
@@ -192,15 +219,19 @@ IC BOOL material_callback(collide::rq_result& result, LPVOID params)
 		IKinematics*K=PKinematics(result.O->renderable.visual);
 		if (K&&(result.element>0))
 			vis		= g_pGamePersistent->MtlTransparent(K->LL_GetData(u16(result.element)).game_mtl_idx);
-	}else{
-		CDB::TRI* T	= g_pGameLevel->ObjectSpace.GetStaticTris()+result.element;
-		vis			= g_pGamePersistent->MtlTransparent(T->material);
-		if (fis_zero(vis)){
-			Fvector* V	= g_pGameLevel->ObjectSpace.GetStaticVerts();
-			fp->pray_cache->set				(fp->P,fp->D,fp->f,TRUE);
-			fp->pray_cache->verts[0].set	(V[T->verts[0]]);
-			fp->pray_cache->verts[1].set	(V[T->verts[1]]);
-			fp->pray_cache->verts[2].set	(V[T->verts[2]]);
+	}
+	else
+	{
+		CDB::TRI& T	= g_pGameLevel->ObjectSpace.GetStaticTris()[result.element];
+		vis = g_pGamePersistent->MtlTransparent(T.material);
+		if (fis_zero(vis))
+		{
+			xr_vector<Fvector>& V = g_pGameLevel->ObjectSpace.GetStaticVerts();
+			auto& Tidxs = T.verts;
+			fp->pray_cache->set(fp->P,fp->D,fp->f,true);
+			fp->pray_cache->verts[0] = V[Tidxs[0]];
+			fp->pray_cache->verts[1] = V[Tidxs[1]];
+			fp->pray_cache->verts[2] = V[Tidxs[2]];
 		}
 	}
 	fp->vis			*=vis;
@@ -210,7 +241,7 @@ IC BOOL material_callback(collide::rq_result& result, LPVOID params)
 IC void	blend_lerp	(float& cur, float tgt, float speed, float dt)
 {
 	float diff		= tgt - cur;
-	float diff_a	= _abs(diff);
+	float diff_a	= std::abs(diff);
 	if (diff_a<EPS_S)	return;
 	float mot		= speed*dt;
 	if (mot>diff_a) mot=diff_a;
@@ -246,7 +277,11 @@ void CLensFlare::OnFrame(shared_str id)
 	Fvector& c		= g_pGamePersistent->Environment().CurrentEnv->sun_color;
 	LightColor.set	(c.x,c.y,c.z,1.f); 
 
-	CLensFlareDescriptor* desc = id.size() ? g_pGamePersistent->Environment().add_flare(m_Palette, id) : 0;
+    CInifile * pIni = g_pGamePersistent->Environment().m_suns_config;
+    if (!pIni)
+        pIni = pSettings;
+
+    CLensFlareDescriptor* desc = id.size() ? g_pGamePersistent->Environment().add_flare(m_Palette, id, pIni) : nullptr;
 
 //	LFState			previous_state = m_State;
 	switch(m_State){
@@ -368,7 +403,7 @@ void CLensFlare::OnFrame(shared_str id)
 				// cache outdated. real query.
 				r_dest.r_clear	();
 				if (g_pGameLevel->ObjectSpace.RayQuery	(r_dest,RD,material_callback,&TP,nullptr,o_main))
-					m_ray_cache[i].result = FALSE			;
+					m_ray_cache[i].result = false			;
 			}
 		}
 
@@ -392,10 +427,10 @@ void CLensFlare::OnFrame(shared_str id)
 		float sun_max		= 2.5f;
 		scr_pos.y			*= -1;
 
-		if (_abs(scr_pos.x) > sun_blend)	kx = ((sun_max - (float)_abs(scr_pos.x))) / (sun_max - sun_blend);
-		if (_abs(scr_pos.y) > sun_blend)	ky = ((sun_max - (float)_abs(scr_pos.y))) / (sun_max - sun_blend);
+		if (std::abs(scr_pos.x) > sun_blend)	kx = ((sun_max - (float)std::abs(scr_pos.x))) / (sun_max - sun_blend);
+		if (std::abs(scr_pos.y) > sun_blend)	ky = ((sun_max - (float)std::abs(scr_pos.y))) / (sun_max - sun_blend);
 
-		if (!((_abs(scr_pos.x) > sun_max) || (_abs(scr_pos.y) > sun_max))){
+		if (!((std::abs(scr_pos.x) > sun_max) || (std::abs(scr_pos.y) > sun_max))){
 			float op		= m_StateBlend*m_Current->m_Gradient.fOpacity;
 			fGradientValue	= kx * ky *  op * fBlend;
 		}else
@@ -403,7 +438,7 @@ void CLensFlare::OnFrame(shared_str id)
 	}
 }
 
-void CLensFlare::Render(BOOL bSun, BOOL bFlares, BOOL bGradient)
+void CLensFlare::Render(bool bSun, bool bFlares, bool bGradient)
 {
 	if (!bRender)		return;
 	if(!m_Current)		return;
@@ -412,13 +447,12 @@ void CLensFlare::Render(BOOL bSun, BOOL bFlares, BOOL bGradient)
 	m_pRender->Render(*this, bSun, bFlares, bGradient);
 }
 
-shared_str CLensFlare::AppendDef(CEnvironment& environment, CInifile* pIni, LPCSTR sect)
+shared_str CLensFlare::AppendDef(CEnvironment& environment, CInifile* pIni, const char* sect)
 {
-	if (!sect||(0==sect[0])) return "";
-	for (LensFlareDescIt it=m_Palette.begin(); it!=m_Palette.end(); it++)
-		if (0==xr_strcmp(*(*it)->section,sect)) return sect;
+	if (!sect||(0==sect[0])) 
+		return "";
 
-	environment.add_flare(m_Palette, sect); 
+	environment.add_flare(m_Palette, sect, pIni); 
 	return sect;
 }
 

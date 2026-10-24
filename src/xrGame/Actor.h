@@ -15,18 +15,21 @@
 #include "../xrEngine/StatGraph.h"
 #include "PhraseDialogManager.h"
 #include "../../xrUI/ui_defs.h"
-
+#include "ControllerAutoaim.h"
 #include "step_manager.h"
 #include "../xrScripts/script_export_space.h"
 #include "CustomDevice.h"
 #include "EffectorNightVision.h"
 #include "HudAnimatorManager.h"
+#include "nvg.h"
 
 using namespace ACTOR_DEFS;
 
 class CInfoPortion;
 struct GAME_NEWS_DATA;
 class CActorCondition;
+class CAI_Stalker;
+class CInventoryItem;
 class CCustomOutfit;
 class CGameTaskRegistryWrapper;
 class CGameNewsRegistryWrapper;
@@ -40,19 +43,16 @@ class CWeaponList;
 class CEffectorBobbing;
 class CHolderCustom;
 class CUsableScriptObject;
+class CController;
 
-struct SShootingEffector;
-struct SSleepEffector;
-class  CSleepEffectorPP;
 class CInventoryBox;
 
-class	CHudItem;
-class   CArtefact;
+class CHudItem;
+class CArtefact;
 
 struct SActorMotions;
 struct SActorVehicleAnims;
 class  CActorCondition;
-class SndShockEffector;
 class CActorFollowerMngr;
 
 struct CameraRecoil;
@@ -61,13 +61,17 @@ class CActorInputHandler;
 
 class CActorMemory;
 class CActorStatisticMgr;
-
+class CEncyclopediaRegistryWrapper;
 class CLocationManager;
 class CPickUpManager;
 class CCustomDevice;
+class CAutoAim;
 
 class CNightVisionEffector;
 class CHudAnimatorManager;
+
+class CAnimatorCamLerpEffectorConst;
+class THudVertexAssignedPatricles;
 
 class CActor: 
 	public IGame_Actor, 
@@ -76,7 +80,8 @@ class CActor:
 	public CInventoryOwner,
 	public CPhraseDialogManager,
 	public CStepManager,
-	public Feel::Sound
+	public Feel::Sound,
+	public pureFrame
 #ifdef DEBUG_DRAW
 	,public pureRender
 #endif
@@ -85,35 +90,44 @@ class CActor:
 private:
 	typedef CEntityAlive	inherited;
 	CPickUpManager* pPickup = nullptr;
+	CAutoAim* pAutoaim = nullptr;
 
 	const char* m_onBeforeHitCallback = {};
 	bool m_isBeforeHitCallback = false;
 public:
 										CActor				();
 	virtual								~CActor				();
+	void OnFrame();
+	THudVertexAssignedPatricles* GetHudVertexAssignedPatriclesComponent();
 
-public:
-	virtual BOOL						AlwaysTheCrow				()						{ return TRUE; }
+									public:
+	virtual bool						AlwaysTheCrow				()						{ return TRUE; }
 
-	virtual CAttachmentOwner*			cast_attachment_owner		()						{return this;}
-	virtual CInventoryOwner*			cast_inventory_owner		()						{return this;}
-	virtual CActor*						cast_actor					()						{return this;}
-	virtual CGameObject*				cast_game_object			()						{return this;}
-	virtual IInputReceiver*				cast_input_receiver			()						{return this;}
-	virtual CEntityAlive*				cast_entity_alive			()						{return this;}
-	virtual CEntity*					cast_entity					()						{return this;}
-	virtual CPhraseDialogManager*		cast_phrase_dialog_manager	()						{return this;}
-	virtual	CCharacterPhysicsSupport*	character_physics_support	()						{return m_pPhysics_support;}
+	virtual CAttachmentOwner*			cast_attachment_owner		() override						{return this;}
+	virtual CInventoryOwner*			cast_inventory_owner		() override						{return this;}
+	virtual CActor*						cast_actor					() override						{return this;}
+	virtual CGameObject*				cast_game_object			() override						{return this;}
+	virtual IInputReceiver*				cast_input_receiver			() override					{return this;}
+	virtual CEntityAlive*				cast_entity_alive			() override					{return this;}
+	virtual CEntity*					cast_entity					() override					{return this;}
+	virtual CPhraseDialogManager*		cast_phrase_dialog_manager	() override					{return this;}
+	virtual	CCharacterPhysicsSupport*	character_physics_support	() override					{return m_pPhysics_support;}
 	virtual	CCharacterPhysicsSupport*	character_physics_support	() const				{return m_pPhysics_support;}
 	virtual CPHDestroyable*				ph_destroyable				()						;
 			CHolderCustom*				Holder						()						{return m_holder;}
-public:
-	virtual xr_vector<xr_string>		GetKnowedPortions() const ;
-	virtual void						Load				( LPCSTR section );
+
+	virtual xr_vector<xr_string>		GetKnownPortions() const ;
+	virtual xr_vector<xr_string>		GetKnownPortionDialogs(shared_str id) const ;
+	virtual xr_vector<xr_string>		GetKnownPortionDisable(shared_str id) const;
+	virtual xr_vector<xr_string>		GetKnownPortionArticles(shared_str id) const;
+	virtual xr_vector<xr_string>		GetKnownPortionArticlesDisable(shared_str id) const;
+	virtual xr_vector<xr_string>		GetKnownPortionTasks(shared_str id) const;
+	virtual void						Load				( const char* section );
 
 	virtual void						shedule_Update		( u32 T );
 	void PlayRainOnHelmetSound();
 	virtual void						UpdateCL			( );
+	void draw_electrical_fur();
 			void						UpdateLensFOV		(CWeapon* wpn, float value);
 	void CheckFlyhack();
 			void						UpdatePlayerView	( );
@@ -124,8 +138,8 @@ public:
 
 	// Render
 	virtual void						renderable_Render			();
-	virtual BOOL						renderable_ShadowGenerate	();
-	virtual	void						feel_sound_new				(CObject* who, int type, CSound_UserDataPtr user_data, const Fvector& Position, float power);
+	virtual bool						renderable_ShadowGenerate	();
+	virtual	void						feel_sound_new				(CObject* who, int type, CSound_UserDataPtr user_data, const Fvector& position, float power);
 	virtual	Feel::Sound*				dcast_FeelSound				()	{ return this;	}
 			float						m_snd_noise;
 #ifdef DEBUG_DRAW
@@ -150,7 +164,10 @@ public:
 	void			 DumpTasks();
 #endif
 
-struct SDefNewsMsg{
+protected:
+	virtual void	AddEncyclopediaArticle(const CInfoPortion* info_portion) const;
+	virtual void	AddGameTask				(const CInfoPortion* info_portion) const;
+	struct SDefNewsMsg{
 		GAME_NEWS_DATA*	news_data;
 		u32				time;
 		bool operator < (const SDefNewsMsg& other) const {return time>other.time;}
@@ -166,25 +183,43 @@ public:
 	virtual void StartTalk			(CInventoryOwner* talk_partner);
 			void RunTalkDialog		(CInventoryOwner* talk_partner, bool disable_break);
 	CActorStatisticMgr&				StatisticMgr()	{return *m_statistic_manager;}
+			void OnMoneyChanged		(u32 previousMoney, u32 newMoney);
+			void AddDistanceMeters	(float deltaMeters);
+			void RegisterHeadshotKill();
+			void RegisterPlayerDeath();
+			void RegisterHelpWounded();
+			void TryRegisterHelpWounded(CAI_Stalker* targetStalker, const CInventoryItem* item);
+			static void ResetDeathStatCarryOver();
+			void OnDeathStatLoadedFromSave(u32 savedDeaths);
+			void OnDeathStatSavedToGame();
+			u32 GetStatMoneyEarned	() const { return m_statMoneyEarned; }
+			u32 GetStatMoneySpent	() const { return m_statMoneySpent; }
+			float GetStatDistanceMeters() const { return m_statDistanceMeters; }
+			u32 GetStatHeadshots	() const { return m_statHeadshots; }
+			u32 GetStatDeaths		() const { return m_statDeaths; }
+			u32 GetStatHelpWounded	() const { return m_statHelpWounded; }
+			u32 GetPdaRankingStatRevision() const { return m_pdaRankingStatRevision; }
+    CEncyclopediaRegistryWrapper*	encyclopedia_registry;
 	CGameNewsRegistryWrapper		*game_news_registry;
 	CCharacterPhysicsSupport		*m_pPhysics_support;
 
-	virtual LPCSTR	Name        () const {return CInventoryOwner::Name();}
+	virtual const char*	Name        () const {return CInventoryOwner::Name();}
 
 public:
 	//PhraseDialogManager
 	virtual void ReceivePhrase				(DIALOG_SHARED_PTR& phrase_dialog);
 	virtual void UpdateAvailableDialogs		(CPhraseDialogManager* partner);
 	virtual void TryToTalk					();
-			bool OnDialogSoundHandlerStart	(CInventoryOwner *inv_owner, LPCSTR phrase);
+			bool OnDialogSoundHandlerStart	(CInventoryOwner *inv_owner, const char* phrase);
 			bool OnDialogSoundHandlerStop	(CInventoryOwner *inv_owner);
 
 
 	virtual void reinit			();
-	virtual void reload			(LPCSTR section);
+	virtual void reload			(const char* section);
 	virtual bool use_bolts		() const;
 
 	virtual void OnItemTake		(CInventoryItem *inventory_item);
+	void OnItemTakeFromGround(CInventoryItem* inventory_item);
 
 	virtual void OnItemRuck		(CInventoryItem *inventory_item, const SInvItemPlace& previous_place);
 	virtual void OnItemBelt		(CInventoryItem *inventory_item, const SInvItemPlace& previous_place);
@@ -197,6 +232,7 @@ public:
 	virtual void						Die				(CObject* who);
 	virtual	void						Hit				(SHit* pHDS);
 	virtual	void						PHHit			(SHit &H);
+	virtual float						CalcHitDamage	(SHit* pHDS);
 	virtual void						HitSignal		(float P, Fvector &vLocalDir,	CObject* who, s16 element);
 			void						HitSector		(CObject* who, CObject* weapon);
 			void						HitMark			(float P, Fvector dir,			CObject* who, s16 element, Fvector position_in_bone_space, float impulse,  ALife::EHitType hit_type);
@@ -218,22 +254,6 @@ public:
 
 	CPickUpManager* GetPickupManager() { return pPickup; }
 
-	float previous_electronics_problems_counter = 0.0f;
-	float current_electronics_problems_counter = 0.0f;
-	float target_electronics_problems_counter = 0.0f;
-	bool last_problems_update_was_decrease = false;
-
-	void ResetElectronicsProblems();
-	void ResetElectronicsProblems_Full();
-	float PreviousElectronicsProblemsCnt() const;
-	bool ElectronicsProblemsImmediateApply();
-	bool ElectronicsProblemsInc();
-	float TargetElectronicsProblemsCnt() const;
-	float CurrentElectronicsProblemsCnt() const;
-	bool ElectronicsProblemsDec();
-	bool IsElectronicsProblemsDecreasing() const;
-	void UpdateElectronicsProblemsCnt(u32 dt);
-
 public:
 
 	//свойства артефактов
@@ -241,14 +261,38 @@ public:
 	void				UpdateConditionArtefacts();
 	void				HitArtefactsCondition(SHit& hit);
 			float		HitArtefactsOnBelt		(float hit_power, ALife::EHitType hit_type);
+			float		HitArtefactsOnBeltLegacy(float hit_power, ALife::EHitType hit_type);
 			float		GetProtection_ArtefactsOnBelt(ALife::EHitType hit_type);
+			float		GetArtefactEquipmentDurabilityModifier() const;
+			float		GetArtefactInventoryWeightModifier() const;
+			float		GetArtefactJumpHeightModifier() const;
+			float		GetArtefactMovementSpeedModifier() const;
+	virtual void		MoveArtefactBelt		(const CArtefact* artefact, bool on_belt);
+	const xr_vector<const CArtefact*>& ArtefactsOnBelt() {return m_ArtefactsOnBelt;}
 
 protected:
 	//звук тяжелого дыхания
 	ref_sound			m_HeavyBreathSnd = {};
 	ref_sound			m_BloodSnd = {};
 	ref_sound			m_DangerSnd = {};
+	u32					m_statMoneyEarned = 0;
+	u32					m_statMoneySpent = 0;
+	float				m_statDistanceMeters = 0.0f;
+	u32					m_statHeadshots = 0;
+	u32					m_statDeaths = 0;
+	u32					m_statDeathsSavedInLastLoad = 0;
+	u32					m_statHelpWounded = 0;
+	u16					m_lastHelpWoundedStalkerId = u16(-1);
+	u32					m_lastHelpWoundedGameTime = 0;
+	u32					m_pdaRankingStatRevision = 0;
+	bool				m_isMoneyStatInitialized = false;
+			void BumpPdaRankingStatRevision();
+	Fvector				m_lastStatPosition = {};
+	bool				m_hasLastStatPosition = false;
 	ref_sound			m_rainOnHelmetSnd = {};
+
+	xr_vector<const CArtefact*> m_ArtefactsOnBelt;
+
 protected:
 	// Death
 	float					m_hit_slowmo;
@@ -258,7 +302,6 @@ protected:
 	bool IsWaunded = false;
 
 	// media
-	SndShockEffector*		m_sndShockEffector;
 	xr_vector<ref_sound>	sndHit[ALife::eHitTypeMax];
 	ref_sound				sndDie[SND_DIE_COUNT];
 
@@ -269,7 +312,7 @@ protected:
 	float					m_fCamHeightFactor;
 
 	// Dropping
-	BOOL					b_DropActivated;
+	bool					b_DropActivated;
 	float					f_DropPower;
 
 	//random seed для Zoom mode
@@ -278,8 +321,6 @@ protected:
 	s32						m_ShotRndSeed;
 
 	bool					m_bOutBorder;
-	//сохраняет счетчик объектов в feel_touch, для которых необходимо обновлять размер колижена с актером 
-	u32						m_feel_touch_characters;
 private:
 	void					SwitchOutBorder(bool new_border_state);
 
@@ -311,7 +352,15 @@ private:
 	float m_fLookOutAmplK = 0.0f;
 	float m_fLookOutSpeedAmplDXPow = 0.0f;
 
-public:
+	float m_fNoclipSpeedScale = 3.0f;
+
+	bool m_bIsSafemode = false;
+
+	CAnimatorCamLerpEffectorConst* m_pCameraIdle = nullptr;
+
+	void UpdateCameraIdleAnimation();
+
+ public:
 	bool					m_bAllowDeathRemove;
 	float					m_fLegs_shift;
 
@@ -319,13 +368,39 @@ public:
 	shared_str				m_sHeadlampAnimator;
 	shared_str				m_sClearMaskAnimator;
 	shared_str				m_sQuickKickAnimator;
+	shared_str				m_sQuickGrenadeAnimator;
+	shared_str				m_sQuickBoltAnimator;
 	shared_str				m_sBurerKickAnimator;
 	shared_str				m_sFrontKickAnimator;
 	shared_str				m_sBackKickAnimator;
 
+	bool m_bIsControllerSuicideSchemeStart = false;
+	const char* m_sControllerSuicideSchemeStart = {};
+
+	bool m_bIsControllerSuicideSelectedByController = false;
+	const char* m_sControllerSuicideSelectedByController = {};
+
+	bool m_bIsControllerStopSuicide = false;
+	const char* m_sControllerStopSuicide = {};
+
+	bool m_bIsControllerSuicideShot = false;
+	const char* m_sControllerSuicideShot = {};
+
+	bool m_bIsControllerPsiAttackPrepare = false;
+	const char* m_sControllerPsiAttackPrepare = {};
+
+	bool m_bIsControllerSuicideAttack = false;
+	const char* m_sControllerSuicideAttack = {};
+
+	bool m_bIsControllerStdAttack = false;
+	const char* m_sControllerStdAttack = {};
+
 	void SetHandsJitterTime(u32 time) { _jitter_time_remains = time; }
 	bool IsHandJitter() const { return _jitter_time_remains > 0; }
 	float GetHandJitterScale(CHudItem* itm) const;
+
+	float GetNoclipSpeedScale() const;
+	void  SetNoclipSpeedScale(float scale);
 
 	void					SetZoomRndSeed			(s32 Seed = 0);
 	s32						GetZoomRndSeed			()	{ return m_ZoomRndSeed;	};
@@ -352,9 +427,10 @@ protected:
 
 	bool					use_Vehicle				(CHolderCustom* object);
 	void					ActorUse				();
+	void					ActorQuickSlotUse		(int cmd);
 
 protected:
-	BOOL					m_bAnimTorsoPlayed;
+	bool					m_bAnimTorsoPlayed;
 	static void				AnimTorsoPlayCallBack(CBlend* B);
 
 	// Rotation
@@ -379,6 +455,7 @@ public:
 	MotionID				m_current_legs;
 	MotionID				m_current_torso;
 	MotionID				m_current_head;
+	bool					m_bAnimOverride = false;
 
 	// callback на анимации модели актера
 	void					SetCallbacks		();
@@ -396,13 +473,15 @@ public:
 	void					g_SetSprintAnimation(u32 mstate_rl,MotionID &head,MotionID &torso,MotionID &legs);
 public:
 	virtual void			OnHUDDraw			(CCustomHUD* hud);
-			BOOL			HUDview				( )const ;
+			bool			HUDview				( )const ;
 
 	//visiblity 
 	virtual	float			ffGetFov			()	const	{ return 90.f;		}	
 	virtual	float			ffGetRange			()	const	{ return 500.f;		}
 
-	
+	IC bool IsSafemode() const { return m_bIsSafemode; }
+	IC void SetSafemodeStatus(bool status) { m_bIsSafemode = status; }
+
 public:
 	bool					HasCameraEffector	() const { return m_pActorEffector != nullptr; };
 	CActorCameraManager&	Cameras				() 	{VERIFY(HasCameraEffector()); return *m_pActorEffector;}
@@ -428,6 +507,7 @@ protected:
 	Fvector					vPrevCamDir;
 	float					fCurAVelocity;
 	CEffectorBobbing*		pCamBobbing;
+	u32						lastTimeAutoAimStarted = 0;
 
 
 	//менеджер эффекторов, есть у каждого актрера
@@ -440,12 +520,12 @@ public:
 
 	virtual void			feel_touch_new				(CObject* O);
 	virtual void			feel_touch_delete			(CObject* O);
-	virtual BOOL			feel_touch_contact			(CObject* O);
-	virtual BOOL			feel_touch_on_contact		(CObject* O);
+	virtual bool			feel_touch_contact			(CObject* O);
+	virtual bool			feel_touch_on_contact		(CObject* O);
 
 	CGameObject*			ObjectWeLookingAt			() {return m_pObjectWeLookingAt;}
 	CInventoryOwner*		PersonWeLookingAt			() {return m_pPersonWeLookingAt;}
-	LPCSTR					GetDefaultActionForObject	() {return *m_sDefaultObjAction;}
+	const char*					GetDefaultActionForObject	() {return *m_sDefaultObjAction;}
 protected:
 	CUsableScriptObject*	m_pUsableObject;
 	// Person we're looking at
@@ -461,6 +541,7 @@ protected:
 	shared_str				m_sCharacterUseAction;
 	shared_str				m_sDeadCharacterUseAction;
 	shared_str				m_sDeadCharacterUseOrDragAction;
+	shared_str				m_sDeadCharacterUseOrDragActionGamepad = "dead_character_use_or_drag_gp";
 	shared_str				m_sDeadCharacterDontUseAction;
 	shared_str				m_sCarCharacterUseAction;
 	shared_str				m_sInventoryItemUseAction;
@@ -506,7 +587,7 @@ public:
 	u32						mstate_old;
 	u32						mstate_real;
 
-	BOOL					m_bJumpKeyPressed;
+	bool					m_bJumpKeyPressed;
 
 	float					m_fWalkAccel;
 	float					m_fJumpSpeed;
@@ -531,22 +612,28 @@ public:
 public:
 	virtual void			IR_OnMouseMove			(int x, int y);
 	virtual void			IR_GamepadUpdateStick	(int id, Fvector2 value);
-	virtual void			IR_GamepadKeyPress(int id);
+	virtual void			IR_GamepadKeyPress		(int id);
+    virtual void			IR_GamepadKeyRelease    (int id);
+	virtual void			IR_GamepadKeyHold		(int id);
+	virtual void			IR_OnGyroscopeMove		(Fvector3 value);
+	virtual void			IR_OnTouchpadMove		(Fvector2 value);
 	virtual void			IR_OnKeyboardPress		(int dik);
 	virtual void			IR_OnKeyboardRelease	(int dik);
 	virtual void			IR_OnKeyboardHold		(int dik);
 	virtual void			IR_OnMouseWheel			(int direction);
 	virtual	float			GetLookFactor			();
+	bool					IsActionKeyPressedInGame(const EGameActions& EGameAction) const;
 	void					SetActorKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags mask, bool state, bool ignore_suicide = false);
 	void					ProcessKeys(CHudItem* itm = nullptr);
 
 public:
-	virtual void						g_WeaponBones		(int &L, int &R1, int &R2);
-	virtual void						g_fireParams		(const CHudItem* pHudItem, Fvector& P, Fvector& D);
+	virtual void						g_WeaponBones		(u16 &L, u16 &R1, u16 &R2) final override;
+	virtual void						g_fireParams		(const CHudItem* pHudItem, Fvector& P, Fvector& D) final override;
 	virtual bool						g_stateFire			() {return ! ((mstate_wishful & mcLookout) && !IsGameTypeSingle() );}
 
-	virtual BOOL						g_State				(SEntityState& state) const;
+	virtual bool						g_State				(SEntityState& state) const;
 	virtual	float						GetWeaponAccuracy	() const;
+	virtual	float						GetAgility() const;
 			float						GetFireDispertion	() const {return m_fdisp_controller.GetCurrentDispertion();}
 			bool						IsZoomAimingMode	() const {return m_bZoomAimingMode;}
 	virtual float						MaxCarryWeight		() const;
@@ -575,20 +662,29 @@ protected:
 	//crouch+no acceleration
 	float								m_fDispCrouchNoAccelFactor;
 
+	//коэффициенты на сколько процентов увеличится или уменьшиться ловкость для отдачи оружия, также учитывая скорость актера
+	float								m_fAgilityVelFactor;
+	//если актер бежит
+	float								m_fAgilityAccelFactor;
+	//если актер сидит
+	float								m_fAgilityCrouchFactor;
+	//crouch+no acceleration
+	float								m_fAgilityCrouchNoAccelFactor;
+
 protected:
 	//косточки используемые при стрельбе
-	int									m_r_hand;
-	int									m_l_finger1;
-    int									m_r_finger2;
-	int									m_eye_left;
-	int									m_eye_right;
+	u16									m_r_hand = BI_NONE;
+	u16									m_l_finger1 = BI_NONE;
+    u16									m_r_finger2 = BI_NONE;
+	u16									m_eye_left = BI_NONE;
+	u16									m_eye_right = BI_NONE;
 
-	int									m_l_clavicle;
-	int									m_r_clavicle;
-	int									m_spine2;
-	int									m_spine1;
-	int									m_spine;
-	int									m_neck;
+	u16									m_l_clavicle = BI_NONE;
+	u16									m_r_clavicle = BI_NONE;
+	u16									m_spine2 = BI_NONE;
+	u16									m_spine1 = BI_NONE;
+	u16									m_spine = BI_NONE;
+	u16									m_neck = BI_NONE;
 
 
 
@@ -597,7 +693,7 @@ protected:
 	//////////////////////////////////////////////////////////////////////////
 			void						ConvState			(u32 mstate_rl, string128 *buf);
 public:
-	virtual BOOL						net_Spawn			( CSE_Abstract* DC);
+	virtual bool						net_Spawn			( CSE_Abstract* DC);
 
 	virtual void						net_Export			( NET_Packet& P);				// export to server
 	virtual void						net_Import			( NET_Packet& P);				// import from server
@@ -606,19 +702,19 @@ public:
 	virtual void						SyncWrite(NET_Packet& Packet);
 
 	virtual void						net_Destroy			();
-	virtual BOOL						net_Relevant		();//	{ return getSVU() | getLocal(); };		// relevant for export to server
+	virtual bool						net_Relevant		();//	{ return getSVU() | getLocal(); };		// relevant for export to server
 	virtual	void						net_Relcase			( CObject* O );					//
 	virtual void 				on_requested_spawn  (CObject *object);
 	//object serialization
 	virtual void						save				(NET_Packet &output_packet);
 	virtual void						load				(IReader &input_packet);
 	virtual void						net_Save			(NET_Packet& P)																	;
-	virtual	BOOL						net_SaveRelevant	()																				;
+	virtual	bool						net_SaveRelevant	()																				;
 protected:
 	xr_deque<net_update>	NET;
 	Fvector					NET_SavedAccel;
 	net_update				NET_Last;
-	BOOL					NET_WasInterpolating;	// previous update was by interpolation or by extrapolation
+	bool					NET_WasInterpolating;	// previous update was by interpolation or by extrapolation
 	u32						NET_Time;				// server time of last update
 
 	//---------------------------------------------
@@ -698,8 +794,6 @@ public:
 //	virtual void			UpdatePosStack	( u32 Time0, u32 Time1 );
 	virtual void			MoveActor		(Fvector NewPos, Fvector NewDir);
 
-	virtual void			SpawnAmmoForWeapon		(CInventoryItem *pIItem);
-	virtual void			RemoveAmmoForWeapon		(CInventoryItem *pIItem);
 	virtual	void			spawn_supplies			();
 	virtual bool			human_being				() const
 	{
@@ -714,7 +808,8 @@ public:
 	virtual void			OnChangeVisual			();
 
 	virtual void			RenderIndicator			(Fvector dpos, float r1, float r2, const ui_shader &IndShader);
-	virtual void			RenderText				(LPCSTR Text, Fvector dpos, float* pdup, u32 color);
+	virtual void			RenderText				(const char* Text, Fvector dpos, float* pdup, u32 color);
+	virtual void			RenderItemUI();
 
 	//////////////////////////////////////////////////////////////////////////
 	// Controlled Routines
@@ -734,8 +829,8 @@ private:
 protected:
 		CStatGraph				*pStatGraph;
 
-		LPCSTR					invincibility_fire_shield_3rd;
-		LPCSTR					invincibility_fire_shield_1st;
+		const char*					invincibility_fire_shield_3rd;
+		const char*					invincibility_fire_shield_1st;
 		shared_str				m_sHeadShotParticle;
 		u32						last_hit_frame;
 #ifdef DEBUG
@@ -793,16 +888,22 @@ public:
 	virtual void				OnNextWeaponSlot				();
 	virtual void				OnPrevWeaponSlot				();
 			void				SwitchNightVision				();
+			void				StartNVPPE						();
 			void				SwitchTorch						();
 			void				ClearMask						();
 			void				ClearMaskCB						();
 			void				MakeKick						();
+			void				MakeThrowBolt					();
+			void				MakeThrowGrenade				();
+			void				UpdatePickupMode				();
 	CNightVisionEffector*		GetNightVisionEffector			() { return m_night_vision;}
 
 	CCustomDevice*				GetDevice						(bool in_slot = false);
 
 #ifndef MASTER_GOLD
 			void				NoClipFly						(int cmd);
+			void				NoClipFlyGamepad				(int cmd);
+			void				NoClipFlyStick					(Fvector2 val);
 #endif //DEBUG
 
 public:
@@ -830,7 +931,7 @@ public:
 	IC float					HitProbability					() {return m_hit_probability;}
 	virtual	CVisualMemoryManager*visual_memory					() const;
 
-	virtual	BOOL				BonePassBullet					(int boneID);
+	virtual	bool				BonePassBullet					(u16 boneID) final override;
 	virtual	void				On_B_NotCurrentEntity			();
 
 private:
@@ -866,6 +967,7 @@ public:
 			bool			inventory_disabled () const { return m_inventory_disabled; }
 			void			set_pda_disabled(bool is_disabled) { m_pda_disabled = is_disabled; }
 			bool			pda_disabled() const { return m_pda_disabled; }
+			void			set_use_disabled(bool is_disabled) { m_use_disabled = is_disabled; }
 			virtual IInputReceiver* GetIIR() override { return this; }
 private:
 			void			set_state_box(u32	mstate);
@@ -873,28 +975,109 @@ private:
 	bool					m_disabled_hitmarks;
 	bool					m_inventory_disabled;
 	bool					m_pda_disabled;
+	bool					m_use_disabled;
 //static CPhysicsShell		*actor_camera_shell;
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 
 private:
 	CScriptGameObject* m_pBestEnemy = nullptr;
+	xr_vector<const char*> m_burn_restore_materials{};
+	float m_burn_restore_material_speed = 0.0f;
+	float m_actor_burn_restore_speed = 0.0f;
+	float GetMaterialBurnRestoreSpeed(const char* mtl);
+	bool m_need_fire_particle = false;
+	Fvector2 leftStickThreshold;
 
+	bool isGamepadShooting = false;
+	bool isGamepadZooming = false;
 public:
+	virtual void SetActorSleepiness(const float value);
+	virtual void SetActorSatiety(const float value);
+	virtual void SetActorThirst(const float value);
+	virtual void SetActorHealth(const float value);
+	virtual void SetActorPower(const float value);
+	virtual void SetActorRadiation(const float value);
+	virtual void SetActorPsyHealth(const float value);
+	virtual void SetActorMorale(const float value);
+
 	void SetBestEnemy(CScriptGameObject* enemy);
 	CScriptGameObject* GetBestEnemy();
 
 	bool OnLadder = false;
 	IC bool is_ladder() const { return OnLadder; };
 
-	float fSprintFactor = 0;
-	float m_SprintFovFactor = 7.0f;
+	float fSprintFactor = 0.f;
+	float fSprintFactorIncreaseFactor = 4.f;
+	float fSprintFactorDecreaseFactor = 8.f;
+	float m_SprintFovFactor = 3.f;
+
+	struct ControllerInputRandomOffset
+	{
+		int OffsetX = 0;
+		int OffsetY = 0;
+	};
+
+	struct ControllerInputCorrectionParams
+	{
+		bool Active = false;
+		float RotateAngle = 0.0f;
+		float SenseScalerX = 1.0f;
+		float SenseScalerY = 1.0f;
+		bool ReverseAxisY = false;
+	} InputCorrection;
+
+	struct ControllerMouseControlParams
+	{
+		float MinSenseScale = 0.0f;
+		float MaxSenseScale = 0.0f;
+		int MinOffset = 0;
+		int MaxOffset = 0;
+		float KeyboardMoveK = 0.0f;
+	} ControllerMouseControl;
+
+	u32 ControlledTimeRemains = 0;
+	u32 ControllerPreparingStartTime = 0;
+	u32 LastShotDoneTime = 0;
+	float ControllerPrepareTime = 3.0f;
+	float ActorShockedTime = 10.0f;
+	float ControlledActorSpeedKoef = 1.0f;
+	xr_vector<CController*> ActiveControllers = {};
+	bool PlanningSuicide = false;
+	bool SuicideNow = false;
+	bool DeathActionStarted = false;
+	bool PsiBlockFailed;
+
+	bool IsActorBurning();
+	void AddActiveController(CController* monster_controller);
+	bool IsControllerSeeActor(CController* monster_controller);
+	bool IsControllerPreparing() const;
+	bool IsPsiBlocked() const;
+	bool CanUseItemForSuicide(CHudItem* item);
+	bool IsSuicideInreversible() const { return LastShotDoneTime > 0 || DeathActionStarted; }
+	float DistToSelectedContr(CController* controller);
+	float DistToContr();
+	void UpdateSuicide(u32 dt);
+	void OnSuicideAnimEnd();
+	bool CheckActorVisibilityForController();
+	void DoSuicideShot();
+	void NotifySuicideStopCallbackIfNeeded();
+	void NotifySuicideShotCallbackIfNeeded();
+	void ResetActorControl();
+	ControllerInputRandomOffset GetControllerInputRandomOffset();
+	ControllerInputCorrectionParams GetCurrentControllerInputCorrectionParams();
+	void ChangeInputRotateAngle();
+	void IR_OnMouseMoveCorrectMouseSense(int& dx, int& dy, float& scale);
+	void ReturnInputAfterController();
 };
 
 extern bool		isActorAccelerated			(u32 mstate, bool ZoomMode);
 
 IC	CActorCondition	&CActor::conditions	() const{ VERIFY(m_entity_condition); return(*m_entity_condition);}
 
+extern Fvector      g_start_position;
+extern int          g_start_game_vertex_id;
+extern shared_str   g_start_position_smart;
 extern CActor*		g_actor;
 extern CActor*		g_actor_single;
 CActor*				Actor		();

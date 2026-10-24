@@ -16,32 +16,36 @@
 #include "game_level_cross_table.h"
 #include "game_graph.h"
 #include "xrServer.h"
+#include "Level.h"
+#include "map_manager.h"
 
-void CSE_ALifeDynamicObject::on_spawn				()
+#include "ScriptsSubsystems/StoryID/StoryIDManager.h"
+
+void CSE_ALifeDynamicObject::on_spawn()
 {
-#ifdef DEBUG
-//	Msg			("[LSS] spawning object [%d][%d][%s][%s]",ID,ID_Parent,name(),name_replace());
-#endif
 }
 
-void CSE_ALifeDynamicObject::on_register			()
+void CSE_ALifeDynamicObject::on_register()
 {
-	CSE_ALifeObject		*object = this;
-	while (object->ID_Parent != ALife::_OBJECT_ID(-1)) {
-		object			= ai().alife().objects().object(object->ID_Parent);
-		VERIFY			(object);
+	CSE_ALifeObject* object = this;
+	while (object->ID_Parent != ALife::_OBJECT_ID(-1))
+	{
+		object = ai().alife().objects().object(object->ID_Parent);
+		VERIFY(object);
 	}
 
-	if (!alife().graph().level().object(object->ID,true))
+	if (EngineExternal()[EEngineExternalSystem::EngineScriptStoryID])
+	{
+		CScriptStoryIDManager::GetInstance().VerifiedRegisterObject(this);
+	}
+
+	if (!alife().graph().level().object(object->ID, true))
 		clear_client_data();
 }
 
 void CSE_ALifeDynamicObject::on_before_register		()
 {
 }
-
-#include "Level.h"
-#include "map_manager.h"
 
 void CSE_ALifeDynamicObject::on_unregister()
 {
@@ -56,6 +60,10 @@ void CSE_ALifeDynamicObject::on_unregister()
 
 
 	Level().MapManager().OnObjectDestroyNotify(ID);
+	if (EngineExternal()[EEngineExternalSystem::EngineScriptStoryID])
+	{
+		CScriptStoryIDManager::GetInstance().Unregister(ID);
+	}
 }
 
 void CSE_ALifeDynamicObject::switch_online			()
@@ -214,7 +222,7 @@ void CSE_ALifeInventoryBox::add_online	(const bool &update_registries)
 
 		l_tpALifeDynamicObject->o_Position		= object->o_Position;
 		l_tpALifeDynamicObject->m_tNodeID		= object->m_tNodeID;
-		object->alife().server().Process_spawn	(tNetPacket,clientID,FALSE,l_tpALifeInventoryItem->base());
+		object->alife().server().Process_spawn	(tNetPacket,clientID,false,l_tpALifeInventoryItem->base());
 		l_tpALifeDynamicObject->s_flags.band		(u16(-1) ^ M_SPAWN_UPDATE);
 		l_tpALifeDynamicObject->m_bOnline		= true;
 	}
@@ -306,7 +314,7 @@ void CSE_ALifeCar::add_online(const bool& update_registries)
 
 		l_tpALifeDynamicObject->o_Position = object->o_Position;
 		l_tpALifeDynamicObject->m_tNodeID = object->m_tNodeID;
-		object->alife().server().Process_spawn(tNetPacket, clientID, FALSE, l_tpALifeInventoryItem->base());
+		object->alife().server().Process_spawn(tNetPacket, clientID, false, l_tpALifeInventoryItem->base());
 		l_tpALifeDynamicObject->s_flags.band(u16(-1) ^ M_SPAWN_UPDATE);
 		l_tpALifeDynamicObject->m_bOnline = true;
 	}

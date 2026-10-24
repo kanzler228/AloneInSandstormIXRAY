@@ -4,7 +4,6 @@
 UILeftBarForm::UILeftBarForm()
 {
 	bUseSnapList = true;
-	bUseObjectsTool = true;
 	bDrawSnapListObjects = static_cast<CLevelPreferences*>(EPrefs)->OpenSnapList;
 	m_SnapListMode = false;
 	m_SnapItem_Current = 0;
@@ -14,7 +13,7 @@ UILeftBarForm::~UILeftBarForm()
 {
 }
 
-// Âñïîìîãàòåëüíàÿ ôóíêöèÿ äëÿ ðåíäåðèíãà êíîïêè èíñòðóìåíòà
+// Ð’ÑÐ¿Ð¾Ð¼Ð¾Ð³Ð°Ñ‚ÐµÐ»ÑŒÐ½Ð°Ñ Ñ„ÑƒÐ½ÐºÑ†Ð¸Ñ Ð´Ð»Ñ Ñ€ÐµÐ½Ð´ÐµÑ€Ð¸Ð½Ð³Ð° ÐºÐ½Ð¾Ð¿ÐºÐ¸ Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð°
 void RenderToolButton(ESceneToolBase * tool, ObjClassID tool_id)
 {
 	if (!tool) return;
@@ -23,7 +22,7 @@ void RenderToolButton(ESceneToolBase * tool, ObjClassID tool_id)
 	ImGui::PushID(tool->ClassName());
 	ImGui::BeginDisabled(!tool->IsEnabled());
 
-	// Êíîïêà âèäèìîñòè
+	// ÐšÐ½Ð¾Ð¿ÐºÐ° Ð²Ð¸Ð´Ð¸Ð¼Ð¾ÑÑ‚Ð¸
 	xr_string icon = visible ? ICON_FA_EYE"##" : ICON_FA_EYE_SLASH"##";
 	icon += tool->ClassName();
 
@@ -41,7 +40,7 @@ void RenderToolButton(ESceneToolBase * tool, ObjClassID tool_id)
 
 	ImGui::SameLine();
 
-	// Êíîïêà âûáîðà èíñòðóìåíòà
+	// ÐšÐ½Ð¾Ð¿ÐºÐ° Ð²Ñ‹Ð±Ð¾Ñ€Ð° Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð°
 	auto col_tool = ImGui::GetStyle().Colors[ImGuiCol_Button];
 	if (LTools->GetTarget() == tool_id)
 		col_tool = ImGui::GetStyle().Colors[ImGuiCol_ButtonActive];
@@ -60,14 +59,17 @@ void UILeftBarForm::Draw()
 {
 	ImGuiStyle& Style = ImGui::GetStyle();
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 4));
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
+	ImVec2	WindowPadding	= ImGui::GetStyle().WindowPadding;
+	ImVec2	ItemSpacing		= ImGui::GetStyle().ItemSpacing;
+	float	PannelPadding	= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::PanelPadding);
+	float	TablePadding	= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::TableBorder);
+	float	ButtonSize		= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, WindowPadding + ImVec2(PannelPadding, PannelPadding));
+	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(1.f, 1.f));
 
 	if (ImGui::Begin("Edit Mode", 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
 	{
-		static ObjClassID Tools[OBJCLASS_COUNT + 1] = {
+		static ESceneItemsGuids Tools[OBJCLASS_COUNT + 1] = {
 			OBJCLASS_SCENEOBJECT,
 			OBJCLASS_LIGHT,
 			OBJCLASS_SOUND_SRC,
@@ -87,12 +89,12 @@ void UILeftBarForm::Draw()
 			OBJCLASS_PUDDLES, // End right
 			OBJCLASS_force_dword
 		};
-
-		if (ImGui::BeginTable("EditModeTable", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_NoPadOuterX | ImGuiTableFlags_NoPadInnerX))
+		
+		if (ImGui::BeginTable("EditModeTable", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_NoBordersInBody ))
 		{
-			const float column_width = ImGui::GetContentRegionAvail().x * 0.5f;
-			ImGui::TableSetupColumn("Left", ImGuiTableColumnFlags_WidthFixed, column_width);
-			ImGui::TableSetupColumn("Right", ImGuiTableColumnFlags_WidthFixed, column_width);
+			ImGui::TableSetupColumn("Left", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableSetupColumn("Right", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0.f, 0.f });
 
 			for (u32 i = 0; Tools[i] != OBJCLASS_force_dword; i++)
 			{
@@ -103,74 +105,92 @@ void UILeftBarForm::Draw()
 					ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.0f);
 
 				ImGui::TableSetColumnIndex(i % 2);
-
-				ImGui::PushID(tool->ClassName());
-				ImGui::BeginDisabled(!tool->IsEnabled());
-
-				const bool IsVisible = tool->IsVisible();
-				const xr_string Icon = IsVisible ? ICON_FA_EYE"##" : ICON_FA_EYE_SLASH"##";
-				ImVec4 IconColor = ImGui::GetStyle().Colors[ImGuiCol_CheckMark];
-				if (!IsVisible) IconColor.w = 0.5f;
-
-				ImGui::PushStyleColor(ImGuiCol_Text, IconColor);
-				if (ImGui::Button(Icon.c_str(), ImVec2(20, 15)))
+				// --- Edit Mode Button
 				{
-					tool->m_EditFlags.set(ESceneToolBase::flVisible, !IsVisible);
-					UI->RedrawScene();
+					float FlagSize = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::IndicatorWidth);
+					float ButtonH = ImGui::GetFontSize() + FlagSize / 2.f;
+					float ShowH = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::CheckboxSize);
+
+
+					ImGui::PushID(tool->ClassName());
+					ImGui::BeginDisabled(!tool->IsEnabled());
+
+					auto cur = ImGui::GetCursorPos();
+					bool IsVisible = tool->IsVisible();
+					bool IsActive = (LTools->GetTarget() == Tools[id]);
+
+					// --- background button ---
+					ImGui::SetNextItemAllowOverlap();
+					if (XRay::ImGui::ButtonBackground(tool->ClassDesc(), &IsActive, { -0.01f, ButtonH }))
+					{
+						ExecCommand(COMMAND_CHANGE_TARGET, IsActive ? OBJCLASS_DUMMY : Tools[id]);
+					}
+
+					// --- Inactive Flag Stripe ---
+					if (!IsActive)
+					{
+						const	float	StripeWidth	= XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::IndicatorWidth);
+						const	float	Rounding	= ::ImGui::GetStyle().FrameRounding;
+								ImVec2	Min			= ::ImGui::GetItemRectMin();
+								ImVec2	Max			= ::ImGui::GetItemRectMax();
+						ImDrawList* dl = ImGui::GetWindowDrawList();
+						dl->AddRectFilled(
+							Min, { Min.x + StripeWidth, Min.y + ButtonH },
+							XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::Accent),
+							Rounding, ImDrawFlags_RoundCornersLeft);
+					}
+
+					// --- Show/hide button ---
+					const	xr_string	Icon		= IsVisible ? ICON_FA_EYE : ICON_FA_EYE_SLASH;
+					const	xr_string	IconText	= Icon;
+					const	ImColor		IconColor	= IsVisible
+						? XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::Accent)
+						: XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::ContentIconTint)
+						;
+					const	ImVec2		ShowPos		= { cur.x + FlagSize * 1.5f, cur.y + (ButtonH - ShowH) / 2.f };
+					ImGui::SetCursorPos(ShowPos);
+					ImGui::PushStyleColor(ImGuiCol_Button, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableTint).Value);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableHover).Value);
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::TableActive).Value);
+					ImGui::PushStyleColor(ImGuiCol_Text, IconColor.Value);
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.f);
+					ImGui::SetWindowFontScale(0.7f);
+					if (ImGui::Button(IconText.c_str(), { ShowH, ShowH }))
+					{
+						tool->m_EditFlags.set(ESceneToolBase::flVisible, !IsVisible);
+						UI->RedrawScene();
+					}
+					ImGui::SetWindowFontScale(1.0f);
+					ImGui::PopStyleColor(4);
+					ImGui::PopStyleVar();
+
+					// --- Text ---
+					ImGui::SameLine();
+					ImVec2	TextSize = ImGui::CalcTextSize(tool->ClassDesc());
+					ImGui::SetCursorPos({ ShowPos.x + ShowH + 4.f, cur.y + (ButtonH - TextSize.y) * 0.5f });
+					ImGui::Text(tool->ClassDesc());
+
+					ImGui::EndDisabled();
+					ImGui::PopID();
 				}
-				ImGui::PopStyleColor();
-
-				ImGui::SameLine(0, 0);
-
-				const bool IsActive = (LTools->GetTarget() == Tools[id]);
-				ImVec4 BtnColor = IsActive ? Style.Colors[ImGuiCol_ButtonActive] : Style.Colors[ImGuiCol_Button];
-
-				ImGui::PushStyleColor(ImGuiCol_Button, BtnColor);
-				if (ImGui::Button(tool->ClassDesc(), ImVec2(-1, 15)))
-				{
-					ExecCommand(COMMAND_CHANGE_TARGET, IsActive ? OBJCLASS_DUMMY : Tools[id]);
-				}
-				ImGui::PopStyleColor();
-
-				ImGui::EndDisabled();
-				ImGui::PopID();
 			}
+			ImGui::PopStyleVar();
+
 
 			ImGui::EndTable();
 		}
 
 	}
 	ImGui::End();
-	ImGui::PopStyleVar(4);
+	ImGui::PopStyleVar(2);
 
-	if (LTools->GetToolForm())
-	{
-		if (bUseObjectsTool)
-		{
-			if (ImGui::Begin("Object Tools", &bUseObjectsTool))
-			{
-				if (LTools->GetToolForm())
-					LTools->GetToolForm()->Draw();
-			}
-			ImGui::End();
-
-			if (UIObjectTool* pTool = smart_cast<UIObjectTool*>(LTools->GetToolForm()))
-			{
-				pTool->DrawObjectsList();
-			}
-			else if (UISpawnTool* pTool = smart_cast<UISpawnTool*>(LTools->GetToolForm()))
-			{
-				pTool->DrawObjectsList();
-			}
-			else if (UIParticlesTool* pTool = smart_cast<UIParticlesTool*>(LTools->GetToolForm()))
-			{
-				pTool->DrawObjectsList();
-			}
-		}
-	}
+	DrawObjectTool(WindowPadding, PannelPadding, ItemSpacing);
 
 	if (!bUseSnapList)
+	{
+		ImGui::PopStyleColor();
 		return;
+	}
 
 	if (ImGui::Begin("Snap List", &bUseSnapList))
 	{
@@ -241,4 +261,39 @@ void UILeftBarForm::Draw()
 		ImGui::PopStyleVar(2);
 	}
 	ImGui::End();
+}
+
+void UILeftBarForm::DrawObjectTool(ImVec2& WindowPadding, float PannelPadding, ImVec2& ItemSpacing)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, WindowPadding + ImVec2(PannelPadding, PannelPadding));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ItemSpacing.y, ItemSpacing.y));
+	if (ImGui::Begin("Object Tools", nullptr))
+	{
+		if (LTools->GetToolForm())
+		{
+			ImGui::BeginChild("Scroll", { -1.f, -1.f });
+				LTools->GetToolForm()->Draw();
+			ImGui::EndChild();
+		}
+	}
+	ImGui::End();
+	ImGui::PopStyleVar(2); // WindowPadding + ItemSpacing
+
+	if (UIObjectTool* pTool = smart_cast<UIObjectTool*>(LTools->GetToolForm()))
+	{
+		pTool->DrawObjectsList();
+	}
+	else if (UISpawnTool* pTool = smart_cast<UISpawnTool*>(LTools->GetToolForm()))
+	{
+		pTool->DrawObjectsList();
+	}
+	else if (UIParticlesTool* pTool = smart_cast<UIParticlesTool*>(LTools->GetToolForm()))
+	{
+		pTool->DrawObjectsList();
+	}
+	else
+	{
+		ImGui::Begin("Edit Group Items");
+		ImGui::End();
+	}
 }

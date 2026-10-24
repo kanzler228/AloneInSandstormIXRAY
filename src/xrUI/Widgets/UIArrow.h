@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UIStatic.h"
+#include "../../xrScripts/script_export_space.h"
 
 class UI_API CUIArrow:
 	public CUIStatic
@@ -12,7 +13,7 @@ public:
 					CUIArrow		();
 	virtual			~CUIArrow		();
 
-			void	init_from_xml	( CUIXml& xml, LPCSTR path, CUIWindow* parent );
+			void	init_from_xml	( CUIXml& xml, const char* path, CUIWindow* parent );
 			void	SetNewValue		( float new_value );
 			void	SetPos			( float pos );
 	IC		float	GetPos			()	{	return m_pos;	}
@@ -28,5 +29,5 @@ private:
 
 	float		m_temp_pos;
 	float		m_pos;
-
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

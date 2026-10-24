@@ -67,6 +67,9 @@ function CGeneralTask:__init(task_ini, id)
 	self.current_target = nil
 
 	self.icon			= utils.cfg_get_string(task_ini, id, "icon", nil, false, "", "ui_pda2_mtask_overlay")
+    self.icon_functor   = utils.cfg_get_string(task_ini, id, "icon_functor", nil, false, "", "condlist")
+    self.current_icon   = nil
+
 	self.prior			= utils.cfg_get_number(task_ini, id, "prior", nil, false, 0)
 	self.storyline		= utils.cfg_get_bool(task_ini, id, "storyline", nil, false, true)
 
@@ -97,6 +100,7 @@ function CGeneralTask:__init(task_ini, id)
 
 	self.current_title = task_functor[self.title_functor](self.id, "title", self.title, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
 	self.current_descr = task_functor[self.descr_functor](self.id, "descr", self.descr, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
+    self.current_icon  = task_functor[self.icon_functor](self.id, "icon", self.icon, self.cached_condlist)
 
 	local time = 0
 	if self.wait_time ~= nil then
@@ -130,7 +134,7 @@ function CGeneralTask:give_task(community)
 	t:set_title(self.current_title)
 	t:set_description(self.current_descr)
 	t:set_priority(self.prior)
-	t:set_icon_name(self.icon)
+	t:set_icon_name(self.current_icon)
 	t:add_complete_func("task_manager.task_complete")
 	t:add_fail_func("task_manager.task_fail")
 
@@ -174,13 +178,21 @@ function CGeneralTask:check_task(tm)
 	end
 
 	self.check_time = global_time
+    
+	local t_icon = task_functor[self.icon_functor](self.id, "icon", self.icon, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
+	if self.current_icon ~= t_icon then
+		printf("task [%s] updated due to icon change from [%s] to [%s]", tostring(self.id), tostring(self.current_icon), tostring(t_icon))
+		task_updated = true
+		self.current_icon = t_icon
+		self.t:set_icon_name(t_icon) --MTB_Jakub_Jurek
+	end
 
 	local t_tile = task_functor[self.title_functor](self.id, "title", self.title, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
 	if self.current_title ~= t_tile then
 		printf("task [%s] updated due to title change from [%s] to [%s]", tostring(self.id), tostring(self.current_title), tostring(t_tile))
 		task_updated = true
 		self.current_title = t_tile
-		self.t:set_title(game.translate_string(t_tile))
+		self.t:set_title(t_tile) --MTB_Jakub_Jurek
 	end
 
 	local t_descr = task_functor[self.descr_functor](self.id, "descr", self.descr, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
@@ -188,7 +200,7 @@ function CGeneralTask:check_task(tm)
 		printf("task [%s] updated due to description change from [%s] to [%s]", tostring(self.id), tostring(self.current_descr), tostring(t_descr))
 		task_updated = true
 		self.current_descr = t_descr
-		self.t:set_description(game.translate_string(t_descr))
+		self.t:set_description(t_descr) --MTB_Jakub_Jurek
 	end
 
 	local t_target = task_functor[self.target_functor](self.id, "target", self.target, self.cached_condlist) -- MTB-marek.siemieniuk: cached condlist
@@ -293,7 +305,7 @@ function CGeneralTask:check_level(target)
 	end
 	local s_obj = alife():object(target)
 	if(s_obj) then
-		local target_level = alife():level_name(game_graph():vertex(s_obj.m_game_vertex_id):level_id())
+		local target_level = alife():level_name(gg_vertex_level_id(s_obj.m_game_vertex_id))
 		local level_name = level.name()
 		if(level_name~=target_level) then
 			local guider_id = get_guider(target_level)
@@ -342,6 +354,7 @@ function CGeneralTask:save(packet)
 	packet:w_u8(id_by_status[self.status])
 	utils.w_CTime(packet, self.inited_time)
 	packet:w_stringZ(self.current_title)
+    packet:w_stringZ(self.current_icon)
 	packet:w_stringZ(self.current_descr)
 	packet:w_stringZ(tostring(self.current_target))
 	set_save_marker(packet, "save", true, "CGeneralTask")
@@ -352,6 +365,7 @@ function CGeneralTask:load(packet)
 	self.status = status_by_id[packet:r_u8()]
 	self.inited_time = utils.r_CTime(packet)
 	self.current_title = packet:r_stringZ()
+    self.current_icon = packet:r_stringZ()
 	self.current_descr = packet:r_stringZ()
 	self.current_target = packet:r_stringZ()
 	if self.current_target == "nil" then

@@ -105,6 +105,8 @@
 
 	<new_contact_snd>detectors\contact_1</new_contact_snd>
 
+	<quick_slots_panel show_speed="3.0" hide_speed="4.0" hide_delay="2.0" empty_red_glow_counter="1" empty_red_glow_icon="1" empty_red_intensity="1.0"/>
+
     <quick_slot0 x="20" y="710" width="40" height="40">
 	    <counter x="1" y="1" width="29" height="16">
 			<window_name>counter</window_name>
@@ -202,6 +204,18 @@
 		        <texture>ui_inGame2_Patroni_HUD_blue_bar</texture>
 	        </progress>
 	    </progress_bar_stamina>
+
+<!--Adaptive ammo Widget-->
+<!--
+		<static_ammo_adaptive x="872" y="663" width="70" height="40">
+			<clip_text x="0" y="0" width="40" height="37">
+				<text complex_mode="0" font="graffiti32" color="ui_7" align="r" vert_align="c"/>
+			</clip_text>
+			<total_text x="45" y="4" width="55" height="27">
+				<text complex_mode="0" font="graffiti22" r="238" g="155" b="23" a="200" align="l" vert_align="c"/>
+			</total_text>
+		</static_ammo_adaptive>
+-->
 
 		<static_cur_ammo x="852" y="690" width="68" height="37">
 			<text complex_mode="0" font="graffiti32" color="ui_7" align="c" vert_align="c">ammo</text>

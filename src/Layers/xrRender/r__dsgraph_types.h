@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../xrCore/FixedMap.h"
+#include "../../xrCore/Containers/FixedMap.h"
 
 //#define USE_DOUG_LEA_ALLOCATOR_FOR_RENDER
 
@@ -62,15 +62,18 @@
 
 class dxRender_Visual;
 
-// #define	USE_RESOURCE_DEBUGGER
-
 namespace R_dsgraph
 {
 	// Elementary types
+	// geom==nullptr selects the virtual Render() path; MT_NORMAL visuals resolve their draw
+	// parameters at insert time so the render walk never dereferences the visual at all.
 	struct _NormalItem
 	{
 		float ssa;
+		float R;
 		dxRender_Visual* pVisual;
+		SGeometry* geom;
+		u32 vBase, vCount, iBase, pCount;
 	};
 
 	struct _MatrixItem
@@ -92,27 +95,15 @@ namespace R_dsgraph
 		dxRender_Visual* pVisual;
 	};
 
-#ifdef USE_RESOURCE_DEBUGGER
-		using vs_type = ref_vs;
-		using ps_type = ref_ps;
-#ifdef USE_DX11
-		using gs_type = ref_gs;
-		using hs_type = ref_hs;
-		using ds_type = ref_ds;
-#endif //USE_DX11
-#else
-	#ifdef USE_DX11	//	DX10 needs shader signature to propperly bind deometry to shader
-		using vs_type = SVS*;
-		using gs_type = ID3DGeometryShader*;
-		using hs_type = ID3D11HullShader*;
-		using ds_type = ID3D11DomainShader*;
-	#else //USE_DX11
-		using vs_type = ID3DVertexShader*;
-	#endif
-		using ps_type = ID3DPixelShader*;
+#ifdef USE_DX11	//	DX10 needs shader signature to propperly bind deometry to shader
+	using vs_type = SVS*;
+	using gs_type = ID3DGeometryShader*;
+	using hs_type = ID3D11HullShader*;
+	using ds_type = ID3D11DomainShader*;
+#else //USE_DX11
+	using vs_type = ID3DVertexShader*;
 #endif
-
-
+	using ps_type = ID3DPixelShader*;
 
 	// NORMAL
 	using mapNormalDirect = xr_vector<_NormalItem,render_allocator::helper<_NormalItem>::result>;
@@ -144,7 +135,11 @@ namespace R_dsgraph
 
 	// MATRIX
 	using mapMatrixDirect = xr_vector<_MatrixItem,render_allocator::helper<_MatrixItem>::result>;
-	using mapMatrixItems = mapMatrixDirect;
+	struct mapMatrixItems
+	{
+		mapMatrixDirect visuals;
+		xr_vector<dxRender_Visual*, render_allocator::helper<dxRender_Visual*>::result> particles;
+	};
 	using mapMatrixTextures = FixedMAP<STextureList*,mapMatrixItems,render_allocator>;
 	using mapMatrixStates = FixedMAP<ID3DState*,mapMatrixTextures,render_allocator>;
 	using mapMatrixCS = FixedMAP<R_constant_table*,mapMatrixStates,render_allocator>;

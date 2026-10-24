@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMpTradeWnd.h"
 #include "UIMpItemsStoreWnd.h"
 
@@ -85,7 +85,7 @@ void CUIMpTradeWnd::UpdateMoneyIndicator()
 		//update preset money
 		for(u32 i=_preset_idx_last; i<=_preset_idx_3; ++i)
 		{
-			CUITextWnd* st					= m_static_preset_money[i];
+			CUIStatic* st					= m_static_preset_money[i];
 			_cost							= GetPresetCost((ETradePreset)i);
 			xr_sprintf						(buff, "%d", _cost);
 			st->SetText						(buff);
@@ -118,7 +118,7 @@ void CUIMpTradeWnd::SetMoneyChangeString(int diff)
 	m_static_money_change->ResetColorAnimation();
 }
 
-void CUIMpTradeWnd::SetInfoString(LPCSTR str)
+void CUIMpTradeWnd::SetInfoString(const char* str)
 {
 	m_static_information->SetText			(str);
 	m_static_information->ResetColorAnimation	();
@@ -141,7 +141,7 @@ CInventoryItem* CUIMpTradeWnd::CurrentIItem()
 {
 	return	(m_pCurrentCellItem)?(CInventoryItem*)m_pCurrentCellItem->m_pData : nullptr;
 }
-LPCSTR _team_names[]=
+const char* _team_names[]=
 {
 "green",
 "blue"

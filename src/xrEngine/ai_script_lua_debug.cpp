@@ -12,11 +12,11 @@
 
 using namespace Script;
 
-bool Script::bfPrintOutput(CLuaVirtualMachine *tpLuaVirtualMachine, LPCSTR caScriptFileName, int iErorCode)
+bool Script::bfPrintOutput(CLuaVirtualMachine *tpLuaVirtualMachine, const char* caScriptFileName, int iErorCode)
 {
 	for (int i=-1; ; --i)
 		if (lua_isstring(tpLuaVirtualMachine,i)) {
-			LPCSTR	S = lua_tostring(tpLuaVirtualMachine,i);
+			const char*	S = lua_tostring(tpLuaVirtualMachine,i);
 			if (!xr_strcmp(S,"cannot resume dead coroutine")) {
 				LuaOut	(Lua::eLuaMessageTypeInfo,"Script %s is finished",caScriptFileName);
 				return	(true);
@@ -30,7 +30,7 @@ bool Script::bfPrintOutput(CLuaVirtualMachine *tpLuaVirtualMachine, LPCSTR caScr
 		else {
 			for ( i=0; ; ++i)
 				if (lua_isstring(tpLuaVirtualMachine,i)) {
-					LPCSTR	S = lua_tostring(tpLuaVirtualMachine,i);
+					const char*	S = lua_tostring(tpLuaVirtualMachine,i);
 					if (!xr_strcmp(S,"cannot resume dead coroutine")) {
 						LuaOut	(Lua::eLuaMessageTypeInfo,"Script %s is finished",caScriptFileName);
 						return	(true);
@@ -79,9 +79,10 @@ void Script::vfPrintError(CLuaVirtualMachine *tpLuaVirtualMachine, int iErrorCod
 	}
 }
 
-LPCSTR Script::cafEventToString(int iEventCode)
+const char* Script::cafEventToString(int iEventCode)
 {
-	switch (iEventCode) {
+	switch (iEventCode) 
+	{
 		case LUA_HOOKCALL		: return("hook call");
 		case LUA_HOOKRET		: return("hook return");
 		case LUA_HOOKLINE		: return("hook line");
@@ -89,9 +90,8 @@ LPCSTR Script::cafEventToString(int iEventCode)
 		case LUA_HOOKTAILRET	: return("hook tail return");
 		default					: NODEFAULT;
 	}
-#ifdef DEBUG
-	return(0);
-#endif
+
+	return(nullptr);
 }
 
 bool Script::bfListLevelVars(CLuaVirtualMachine *tpLuaVirtualMachine, int iStackLevel)

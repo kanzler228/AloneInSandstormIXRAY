@@ -7,7 +7,7 @@
 CUIListBox::CUIListBox()
 {
 	m_pFont					= nullptr;
-	m_flags.set				(eItemsSelectabe, TRUE);
+	m_flags.set				(eItemsSelectabe, true);
 
 	m_def_item_height		 = 20;
 	m_text_color			= 0xff000000;
@@ -18,7 +18,7 @@ CUIListBox::CUIListBox()
 	InitScrollView			();
 }
 
-void CUIListBox::SetSelectionTexture(LPCSTR texture){
+void CUIListBox::SetSelectionTexture(const char* texture){
 	m_selection_texture = texture;
 }
 
@@ -40,7 +40,7 @@ bool CUIListBox::OnMouseAction(float x, float y, EUIMessages mouse_action)
 }
 
 #include "../../xrEngine/string_table.h"
-CUIListBoxItem* CUIListBox::AddTextItem(LPCSTR text)
+CUIListBoxItem* CUIListBox::AddTextItem(const char* text)
 {
 	CUIListBoxItem* pItem			= AddItem();
 
@@ -117,7 +117,7 @@ CUIListBoxItem* CUIListBox::GetSelectedItem()
 	return nullptr;
 }
 
-LPCSTR CUIListBox::GetSelectedText()
+const char* CUIListBox::GetSelectedText()
 {
 	if (CUIWindow* w = GetSelected())
 	{
@@ -131,27 +131,29 @@ LPCSTR CUIListBox::GetSelectedText()
 u32 CUIListBox::GetSelectedIDX()
 {
 	u32 _idx = 0;
-	CUIWindow* w = GetSelected();
 
-	xrCriticalSectionGuard guard(m_pad->csUi);
-
-	for (CUIWindow* child : m_pad->GetChildWndList())
+	if (CUIWindow* w = GetSelected())
 	{
-		if (CUIListBoxItem* item = child->ui_cast_list_box_item())
-		{
-			if (child == w)
-			{
-				return _idx;
-			}
+		xrCriticalSectionGuard guard(m_pad->csUi);
 
-			++_idx;
+		for (CUIWindow* child : m_pad->GetChildWndList())
+		{
+			if (child->ui_cast_list_box_item() != nullptr)
+			{
+				if (child == w)
+				{
+					return _idx;
+				}
+
+				++_idx;
+			}
 		}
 	}
 
 	return u32(-1);
 }
 
-LPCSTR CUIListBox::GetText(int idx)
+const char* CUIListBox::GetText(int idx)
 {
 	if (idx == -1)
 	{
@@ -238,7 +240,7 @@ void CUIListBox::SetSelectedTAG(u32 tag_val)
 	SetSelected(GetItemByTAG(tag_val));
 }
 
-void CUIListBox::SetSelectedText(LPCSTR txt)
+void CUIListBox::SetSelectedText(const char* txt)
 {
 	SetSelected(GetItemByText(txt));
 }
@@ -312,7 +314,7 @@ CUIListBoxItem* CUIListBox::GetItemByIDX(int idx)
 	return nullptr;
 }
 
-CUIListBoxItem* CUIListBox::GetItemByText(LPCSTR txt)
+CUIListBoxItem* CUIListBox::GetItemByText(const char* txt)
 {
 	xrCriticalSectionGuard guard(m_pad->csUi);
 
@@ -385,4 +387,60 @@ float CUIListBox::GetLongestLength()
 void CUIListBox::SetImmediateSelection(bool f)
 {
 	m_bImmediateSelection = f;
+}
+
+void CUIListBox::NextItem(bool selectOnly)
+{
+	if (m_pad->GetChildWndList().empty())
+	{
+		return;
+	}
+
+	int nextIdx = GetSelectedIDX() + 1;
+	if (nextIdx > m_pad->GetChildWndList().size() - 1)
+	{
+		nextIdx = 0;
+		ScrollToBegin();
+	}
+	SetSelectedIDX(nextIdx);
+	GetSelectedItem()->SendSelectionCallback();
+	if (!selectOnly)
+	{
+		GetSelectedItem()->SendClickCallback();
+	}
+
+	int pos = GetSelectedIDX() * GetItemHeight();
+	pos -= GetHeight()/2;
+	if (pos < 0)
+		pos = 0;
+
+	SetScrollPos(pos);
+}
+
+void CUIListBox::PrevItem(bool selectOnly)
+{
+	if (m_pad->GetChildWndList().empty())
+	{
+		return;
+	}
+
+	int nextIdx = GetSelectedIDX() - 1;
+	if (nextIdx < 0)
+	{
+		nextIdx = m_pad->GetChildWndList().size() - 1;
+		ScrollToEnd();
+	}
+	SetSelectedIDX(nextIdx);
+	GetSelectedItem()->SendSelectionCallback();
+	if (!selectOnly)
+	{
+		GetSelectedItem()->SendClickCallback();
+	}
+
+	int pos = GetSelectedIDX() * GetItemHeight();
+	pos -= GetHeight() / 2;
+	if (pos < 0)
+		pos = 0;
+
+	SetScrollPos(pos);
 }

@@ -23,16 +23,14 @@ class CStepManager {
 	} m_step_sound;
 
 	u32					m_time_anim_started = {};
-	xr_vector<ref_sound> m_rain_steps = {};
-	xr_vector<ref_sound> m_exo_steps = {};
-	bool is_exo = false;
+	bool				is_exo = false;
 public: 
 						CStepManager			();
 	virtual				~CStepManager			();
 
 	// init on construction
 	virtual DLL_Pure	*_construct				();
-	virtual	void		reload					(LPCSTR section);
+	virtual	void		reload					(const char* section);
 	
 	// call on set animation
 			void		on_animation_start		(MotionID motion_id, CBlend *blend);
@@ -42,8 +40,8 @@ public:
 	// process event
 	virtual	void		event_on_step			() {}
 
-	inline void PlayRainStep(const bool bHudView);
-	inline void PlayExoStep(const bool bHudView);
+	void PlayRainStep(const bool bHudView);
+	void PlayExoStep(const bool bHudView);
 	void CheckExo();
 protected:
 			Fvector		get_foot_position		(ELegType leg_type);

@@ -20,8 +20,8 @@ UIEditLibrary::UIEditLibrary()
 {
 	m_ObjectList = new UIItemListForm();
 	InitObjects();
-	m_ObjectList->SetOnItemFocusedEvent(TOnILItemFocused(this, &UIEditLibrary::OnItemFocused));
-	m_ObjectList->SetOnItemUnfocusedEvent(TOnILItemFocused(this, &UIEditLibrary::OnItemUnfocused));
+	m_ObjectList->SetOnItemFocusedEvent({this, &UIEditLibrary::OnItemFocused});
+	m_ObjectList->SetOnItemUnfocusedEvent({this, &UIEditLibrary::OnItemUnfocused});
 	m_ObjectList->m_Flags.set(UIItemListForm::fMultiSelect, true);
 
 	InternalProps = new UIPropertiesForm();
@@ -32,10 +32,10 @@ UIEditLibrary::UIEditLibrary()
 	m_SelectLods = false;
 	m_RealTexture = nullptr;
 
-	View.OnFocusCallback = ViewportFocusCallback;
+	View.OnFocusCallback = (xr_delegate<void()>)ViewportFocusCallback;
 
-	SearchList.SetOnItemFocusedEvent(TOnILItemFocused(this, &UIEditLibrary::OnItemFocused));
-	SearchList.SetOnItemUnfocusedEvent(TOnILItemFocused(this, &UIEditLibrary::OnItemUnfocused));
+	SearchList.SetOnItemFocusedEvent({this, &UIEditLibrary::OnItemFocused});
+	SearchList.SetOnItemUnfocusedEvent({this, &UIEditLibrary::OnItemUnfocused});
 }
 
 void UIEditLibrary::OnItemFocused(ListItem* item)
@@ -53,7 +53,13 @@ void UIEditLibrary::OnItemFocused(ListItem* item)
 
 		if (m_Thm && m_Thm->_FaceCount() != 0 && m_Thm->_VertexCount() != 0)
 		{
-			m_Thm->Update((ID3DBaseTexture*&)m_RealTexture);
+			IRHISurface* Surface = nullptr;
+			m_Thm->Update(Surface);
+
+			m_RealTexture = new CTexture();
+			m_RealTexture->surface_set(Surface);
+			Surface->Release();
+
 			m_Thm->FillInfo(Info);
 			PreviewProps->AssignItems(Info);
 		}
@@ -165,7 +171,7 @@ void UIEditLibrary::DrawObjects()
 {
 	ImGui::BeginChild("Object List");
 
-	// Поиск
+	// РџРѕРёСЃРє
 	string256 buf;
 	xr_strcpy(buf, SearchQuery.c_str());
 	ImGui::SetNextItemWidth(-1);
@@ -232,8 +238,8 @@ void UIEditLibrary::GenerateLOD(const RStringVec& props, bool bHighQuality)
 		if (O && O->IsMUStatic())
 		{
 			pb->Inc(O->GetName());
-			BOOL bLod = O->m_objectFlags.is(CEditableObject::eoUsingLOD);
-			O->m_objectFlags.set(CEditableObject::eoUsingLOD, FALSE);
+			bool bLod = O->m_objectFlags.is(CEditableObject::eoUsingLOD);
+			O->m_objectFlags.set(CEditableObject::eoUsingLOD, false);
 			xr_string tex_name;
 			tex_name = EFS.ChangeFileExt(O->GetName(), "");
 
@@ -353,7 +359,7 @@ void UIEditLibrary::DrawRightBar()
 {
 	if (ImGui::BeginChild("Right", ImVec2(0, 0)))
 	{
-		ImGui::Image(m_RealTexture ? m_RealTexture : EDevice->texture_null->pSurface, ImVec2(200, 200));
+		ImGui::Image(m_RealTexture ? m_RealTexture->get_SRView()->GetRawSRV() : EDevice->texture_null->get_SRView()->GetRawSRV(), ImVec2(200, 200));
 
 		PreviewProps->Draw();
 
@@ -887,7 +893,7 @@ void UIEditLibrary::ImportClick()
 
 			xr_delete(O);
 
-			LPCSTR p = FS.get_path(_objects_)->m_Path;
+			const char* p = FS.get_path(_objects_)->m_Path;
 			if (folder.Contains(p))
 			{
 				m_LastSelection = xr_string(folder.c_str() + strlen(p)) + nm;

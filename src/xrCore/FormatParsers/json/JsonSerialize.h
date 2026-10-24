@@ -1,5 +1,5 @@
 #pragma once
-#include <json/json.hpp>
+#include <nlohmann/json.hpp>
 #include "../../Concepts.h"
 
 #ifdef XRGAME_EXPORTS
@@ -15,6 +15,7 @@ private:
 public:
 	CJsonSerializer(shared_str FileName);
 	~CJsonSerializer();
+	void Save() const;
 
 	template <XRay::Concepts::Arithmetic T>
 	void Read(shared_str Section, T& Value) const
@@ -22,6 +23,16 @@ public:
 		if (JSONData.contains(*Section))
 		{
 			Value = JSONData[*Section].get<T>();
+		}
+	}
+
+	template <XRay::Concepts::Enum T>
+	void Read(shared_str Section, T& Value) const
+	{
+		if (JSONData.contains(*Section))
+		{
+			std::underlying_type_t<T> Temp = JSONData[*Section].get<std::underlying_type_t<T>>();
+			Value = static_cast<T>(Temp);
 		}
 	}
 
@@ -61,6 +72,12 @@ public:
 	void Write(shared_str Section, T Value)
 	{
 		JSONData[*Section] = Value;
+	}
+
+	template <XRay::Concepts::Enum T>
+	void Write(shared_str Section, T Value)
+	{
+		JSONData[*Section] = (std::underlying_type_t<T>)Value;
 	}
 
 	template <XRay::Concepts::XRayString T>

@@ -4,7 +4,7 @@
 #include "../../xrCore/Collision/ISpatial.h"
 //#include "../../xrEngine/xr_object.h"
 #if (RENDER==R_R2) || (RENDER==R_R4)
-#	include "light_package.h"
+#	include "Light_Package.h"
 #	include "light_smapvis.h"
 #endif //(RENDER==R_R2) || (RENDER==R_R4)
 
@@ -68,7 +68,10 @@ public:
 		bool		visible;		// visible/invisible
 		bool		pending;		// test is still pending
 		u16			smap_ID;
-	}				vis;
+		float		distance;
+	};
+
+	_vis vis;
 
 	union _xform
 	{
@@ -77,7 +80,7 @@ public:
 			Fmatrix						combine = {};
 			s32							minX, maxX;
 			s32							minY, maxY;
-			BOOL						transluent;
+			bool						transluent;
 		}	D;
 
 		struct _P
@@ -96,7 +99,7 @@ public:
 			u32							size;
 			u32							posX;
 			u32							posY;
-			BOOL						transluent;
+			bool						transluent;
 		}	S;
 
 	};
@@ -130,7 +133,7 @@ public:
 	virtual void	set_virtual_size		(float R) { virtual_size = R; }
 	virtual void	set_color				(const Fcolor& C)				{ color.set(C);				}
 	virtual void	set_color				(float r, float g, float b)		{ color.set(r,g,b,1);		}
-	virtual void	set_texture				(LPCSTR name);
+	virtual void	set_texture				(const char* name);
 	virtual void	set_hud_mode			(bool b)						{flags.bHudMode=b;}
 	virtual bool	get_hud_mode			()								{return flags.bHudMode;};
 

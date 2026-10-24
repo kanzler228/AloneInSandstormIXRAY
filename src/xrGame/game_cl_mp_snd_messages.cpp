@@ -3,7 +3,7 @@
 #include "game_cl_mp_snd_messages.h"
 #include "Level.h"
 
-void	game_cl_mp::LoadSndMessage			(LPCSTR caSection, LPCSTR caLine, u32 ID)
+void	game_cl_mp::LoadSndMessage			(const char* caSection, const char* caLine, u32 ID)
 {
 	if (!pSettings->section_exist(caSection)) return;
 	if (!pSettings->line_exist(caSection, caLine)) return;
@@ -19,7 +19,7 @@ void	game_cl_mp::LoadSndMessage			(LPCSTR caSection, LPCSTR caLine, u32 ID)
 	m_pSndMessages.back()->Load(ID, atol(Prior), Name);
 }
 
-void game_cl_mp::AddSoundMessage(LPCSTR sound_name, u32 const sound_priority, u32 const soundID)
+void game_cl_mp::AddSoundMessage(const char* sound_name, u32 const sound_priority, u32 const soundID)
 {
 	m_pSndMessages.push_back(new SND_Message());
 	m_pSndMessages.back()->Load(soundID, sound_priority, sound_name);
@@ -53,13 +53,13 @@ void	game_cl_mp::PlaySndMessage			(u32 ID)
 	SND_Message* SndMsg = *it;
 	
 //	if (Level().timeServer()<pSndMgs->pSound._handle()->length_ms() + pSndMgs->LastStarted) return;
-	if (SndMsg->pSound._feedback()) return;
+	if (SndMsg->pSound.is_playing()) return;
 
 	u32 MaxDelay = 0;
 	for (u32 i=0; i<m_pSndMessagesInPlay.size(); i++)
 	{
 		SND_Message* pSndMsgIP = m_pSndMessagesInPlay[i];
-		if (!pSndMsgIP->pSound._feedback())		 continue;
+		if (!pSndMsgIP->pSound.is_playing())		 continue;
 		if (pSndMsgIP->priority > SndMsg->priority) return;
 		if (pSndMsgIP->priority < SndMsg->priority) 
 		{
@@ -94,8 +94,7 @@ void	game_cl_mp::UpdateSndMessages	()
 	for (u32 i=0; i<m_pSndMessagesInPlay.size();)
 	{
 		SND_Message* pSndMsg = m_pSndMessagesInPlay[i];
-		if (pSndMsg->pSound._feedback() == nullptr)
-		{
+		if (!pSndMsg->pSound.is_playing()) {
 			m_pSndMessagesInPlay.erase(m_pSndMessagesInPlay.begin() + i);			
 			continue;
 		}

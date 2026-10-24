@@ -7,7 +7,7 @@
 // Copyright 2005 GSC Game World
 
 #include "stdafx.h"
-
+#include "UITextureMaster.h"
 #include "UILines.h"
 #include "UIXmlInit.h"
 #include "uilinestd.h"
@@ -23,65 +23,82 @@ CUILines::CUILines()
 	m_dwTextColor					= 0xffffffff;
 	m_dwTextGradientColor			= 0xff888888;
 	m_TextOffset.set				(0.0f,0.0f);
-	m_text							="";
+	m_text							= "";
+	m_text_src						= "";
 	uFlags.zero();
-	uFlags.set(flNeedReparse,		FALSE);
-	uFlags.set(flComplexMode,		FALSE);
-	uFlags.set(flPasswordMode,		FALSE);
-	uFlags.set(flColoringMode,		TRUE);
-	uFlags.set(flCutWordsMode,		FALSE);
-	uFlags.set(flRecognizeNewLine,	TRUE);
+	uFlags.set(flNeedReparse,		false);
+	uFlags.set(flComplexMode,		false);
+	uFlags.set(flPasswordMode,		false);
+	uFlags.set(flColoringMode,		true);
+	uFlags.set(flCutWordsMode,		false);
+	uFlags.set(flRecognizeNewLine,	true);
 	m_eTextGradientMode				= CGameFont::gm_vert;
 
-	m_wndSize = {0, 0};
-	m_wndPos  = {0, 0};
+	m_wndSize						= {0, 0};
+	m_wndPos						= {0, 0};
+	m_textShadow					= {};
 }
 
-CUILines::~CUILines(){
+CUILines::~CUILines()
+{
 
 }
 
-void CUILines::SetTextComplexMode(bool mode){
+void CUILines::SetTextComplexMode(bool mode)
+{
 	uFlags.set(flComplexMode, mode);
 	if (mode)
-		uFlags.set(flPasswordMode, FALSE);
+	{
+		uFlags.set(flPasswordMode, false);
+	}
 }
 
-void CUILines::SetPasswordMode(bool mode){
+void CUILines::SetPasswordMode(bool mode)
+{
 	uFlags.set(flPasswordMode, mode);
 	if (mode)
+	{
 		uFlags.set(flComplexMode, false);
+	}
 }
 
 
-void CUILines::SetColoringMode(bool mode){
+void CUILines::SetColoringMode(bool mode)
+{
 	uFlags.set(flColoringMode, mode);
 }
 
-void CUILines::SetCutWordsMode(bool mode){
+void CUILines::SetCutWordsMode(bool mode)
+{
 	uFlags.set(flCutWordsMode, mode);
 }
 
-void CUILines::SetEllipsis(bool mode){
+void CUILines::SetEllipsis(bool mode)
+{
 	uFlags.set(flEllipsis, mode);	
 }
 
-void CUILines::SetUseNewLineMode(bool mode){
+void CUILines::SetUseNewLineMode(bool mode)
+{
 	uFlags.set(flRecognizeNewLine, mode);	
 }
 
-
-void CUILines::SetText(const char* text){
-	
+void CUILines::SetText(const char* text)
+{
 	if (!m_pFont)
+	{
 		m_pFont = UI().Font().GetFont(LETTERICA16_FONT_NAME);
+	}
 
 	if (text && text[0] != 0)
 	{
-		if(m_text==text) 
+		if (m_text == text)
+		{
 			return;
+		}
+
         m_text = text;
-		uFlags.set(flNeedReparse, TRUE);
+		uFlags.set(flNeedReparse, true);
 	}
 	else
 	{
@@ -89,13 +106,12 @@ void CUILines::SetText(const char* text){
 		Reset();
 	}
 }
-void CUILines::SetTextST(LPCSTR str_id)
+void CUILines::SetTextST(const char* str_id)
 {
-	SetText	(*g_pStringTable->translate(str_id));
+	SetText	(*g_pStringTable->ParseStringFromScript(str_id));
 }
 
-
-LPCSTR CUILines::GetText()
+const char* CUILines::GetText()
 {
 	return m_text.c_str();
 }
@@ -105,11 +121,23 @@ void CUILines::Reset()
 	m_lines.clear();
 }
 
+void CUILines::ReloadText()
+{
+	SetTextST(m_text_src.c_str());
+}
+
 float get_str_width(CGameFont*pFont, int ch)
 {
 	if (ch < 0)
 	{
 		ch = (u8)ch;
+	}
+	if (ch >= GAMEPAD_GLYPH_START && ch <= GAMEPAD_GLYPH_END)
+	{
+		Frect rect = CUITextureMaster::GetTextureRect(g_FontManager->GamepadButtonMappings[ch]);
+		float w = pFont->sizeOfImage(rect).x + pFont->GetLetterSpacing();
+		UI().ClientToScreenScaledWidth(w);
+		return w;
 	}
 
 	float ll = pFont->SizeOf_(ch) + pFont->GetLetterSpacing();
@@ -139,7 +167,7 @@ void CUILines::ParseText(bool force)
 		line->AddSubLine(&subline);
 	}
 
-	BOOL bNewLines = FALSE;
+	bool bNewLines = false;
 
 	if (uFlags.test(flRecognizeNewLine))
 	{
@@ -159,7 +187,7 @@ void CUILines::ParseText(bool force)
 				pszSearch = szTempLine;
 				while ((pszTemp = strstr(pszSearch, "\\n")) != nullptr)
 				{
-					bNewLines = TRUE;
+					bNewLines = true;
 					*pszTemp = '\0';
 					ptmp_line->AddSubLine(pszSearch, tcolor);
 					pszSearch = pszTemp + 2;
@@ -328,7 +356,7 @@ void CUILines::ParseText(bool force)
 	}
 
 	xr_delete(line);
-	uFlags.set(flNeedReparse, FALSE);
+	uFlags.set(flNeedReparse, false);
 }
 
 float CUILines::GetVisibleHeight()
@@ -383,7 +411,7 @@ void CUILines::SetTextGradient(bool val)
 	m_pFont->SetGradient(val);
 }
 
-LPCSTR GetElipsisText(CGameFont* pFont, float width, LPCSTR source_text, LPSTR buff, int buff_len)
+const char* GetElipsisText(CGameFont* pFont, float width, const char* source_text, LPSTR buff, int buff_len)
 {
 	float text_len					= pFont->SizeOf_(source_text);
 	UI().ClientToScreenScaledWidth	(text_len);
@@ -418,82 +446,193 @@ LPCSTR GetElipsisText(CGameFont* pFont, float width, LPCSTR source_text, LPSTR b
 	}
 }
 
+void CUILines::SetTextShadow(bool enabled, float thickness, u32 color)
+{
+	m_textShadow.enabled = enabled && (thickness > 0.0f) && (color_get_A(color) > 0);
+	m_textShadow.thickness = thickness;
+	m_textShadow.color = color;
+}
+
+void CUILines::SetTextShadow(const SUIOutlineParams& params)
+{
+	SetTextShadow(params.enabled, params.thickness, params.color);
+}
+
 void CUILines::Draw(float x, float y)
 {
-	x		+= m_TextOffset.x;
-	y		+= m_TextOffset.y;
+	DrawInternal(x, y, false);
+}
+
+void CUILines::DrawWS(float x, float y)
+{
+	DrawInternal(x, y, true);
+}
+
+void CUILines::DrawInternal(float x, float y, bool worldSpace)
+{
+	x += m_TextOffset.x;
+	y += m_TextOffset.y;
 
 	static string256 passText;
 
-	if (m_text.size()==0)
+	if (m_text.size() == 0)
+	{
 		return;
+	}
 
 	R_ASSERT(m_pFont);
-	m_pFont->SetColor(m_dwTextColor);
 	m_pFont->SetGradientColor(m_dwTextGradientColor);
 
-	if (!uFlags.is(flComplexMode))
+	const u32 textAlpha = color_get_A(m_dwTextColor);
+	u32 outlineColor = 0;
+	if (m_textShadow.enabled && m_textShadow.thickness > 0.0f && textAlpha > 0)
 	{
-		Fvector2 text_pos;
-		text_pos.set(0,0);
-
-		text_pos.x = x + GetIndentByAlign();
-		text_pos.y = y + GetVIndentByAlign();
-		UI().ClientToScreenScaled(text_pos);
-
-		if (uFlags.test(flPasswordMode))
+		const u32 outlineAlpha = (color_get_A(m_textShadow.color) * textAlpha) / 255;
+		if (outlineAlpha > 0)
 		{
-			int sz = (int)m_text.size();
-			for (int i = 0; i < sz; i++)
-				passText[i] = '*';
-			passText[sz] = 0;
-			m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
-			m_pFont->SetGradientMode(m_eTextGradientMode);
-			m_pFont->Out(text_pos.x, text_pos.y, "%s", passText);
-		}
-		else{
-			m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
-			m_pFont->SetGradientMode(m_eTextGradientMode);
-			if(uFlags.test(flEllipsis) )
-			{
-				u32 buff_len	= sizeof(char)*xr_strlen(m_text.c_str()) + 1;
-
-				char* p			= static_cast<char*>(_alloca(buff_len));
-				LPCSTR			str = GetElipsisText(m_pFont, m_wndSize.x, m_text.c_str(), p, buff_len);
-
-				m_pFont->Out	(text_pos.x, text_pos.y, "%s", str);
-			}else
-				m_pFont->Out(text_pos.x, text_pos.y, "%s", m_text.c_str());
+			outlineColor = subst_alpha(m_textShadow.color, outlineAlpha);
 		}
 	}
-	else
+
+	auto emitSimple = [&](float ox, float oy, u32 color)
+	{
+		m_pFont->SetColor(color);
+		const CGameFont::EAligment drawAlign =
+			(m_eTextAlign == CGameFont::alJustify) ? CGameFont::alLeft : (CGameFont::EAligment)m_eTextAlign;
+		m_pFont->SetAligment(drawAlign);
+		m_pFont->SetGradientMode(m_eTextGradientMode);
+
+		if (!worldSpace)
+		{
+			Fvector2 textPos;
+			textPos.set(x + ox + GetIndentByAlign(), y + oy + GetVIndentByAlign());
+			UI().ClientToScreenScaled(textPos);
+
+			if (uFlags.test(flPasswordMode))
+			{
+				const int sz = (int)m_text.size();
+				for (int i = 0; i < sz; i++)
+				{
+					passText[i] = '*';
+				}
+				passText[sz] = 0;
+				m_pFont->Out(textPos.x, textPos.y, "%s", passText);
+			}
+			else if (uFlags.test(flEllipsis))
+			{
+				const u32 buffLen = sizeof(char) * xr_strlen(m_text.c_str()) + 1;
+				char* p = static_cast<char*>(_alloca(buffLen));
+				const char* str = GetElipsisText(m_pFont, m_wndSize.x, m_text.c_str(), p, buffLen);
+				m_pFont->Out(textPos.x, textPos.y, "%s", str);
+			}
+			else
+			{
+				m_pFont->Out(textPos.x, textPos.y, "%s", m_text.c_str());
+			}
+		}
+		else
+		{
+			const float posY = y + oy + GetVIndentByAlign();
+			const float posX = x + ox;
+
+			if (uFlags.test(flPasswordMode))
+			{
+				const int sz = (int)m_text.size();
+				for (int i = 0; i < sz; i++)
+				{
+					passText[i] = '*';
+				}
+				passText[sz] = 0;
+				m_pFont->Out(posX, posY, "%s", passText);
+			}
+			else if (uFlags.test(flEllipsis))
+			{
+				const u32 buffLen = sizeof(char) * xr_strlen(m_text.c_str()) + 1;
+				char* p = static_cast<char*>(_alloca(buffLen));
+				LPCSTR str = GetElipsisText(m_pFont, m_wndSize.x, m_text.c_str(), p, buffLen);
+				m_pFont->Out(posX, posY, "%s", str);
+			}
+			else
+			{
+				m_pFont->Out(posX, posY, "%s", m_text.c_str());
+			}
+		}
+	};
+
+	auto emitComplex = [&](float ox, float oy, u32 colorOverride)
 	{
 		ParseText();
 
-		Fvector2 pos;
-		// get vertical indent
-		pos.y			= y + GetVIndentByAlign();
-		float height	= m_pFont->CurrentHeight_() + m_pFont->GetLineSpacing();
-		UI().ClientToScreenScaledHeight(height);
-
-		u32 size		= (u32)m_lines.size();
-
-		m_pFont->SetAligment((CGameFont::EAligment)m_eTextAlign);
-		m_pFont->SetGradientMode(m_eTextGradientMode);
-		for (int i=0; i<(int)size; i++)
+		float posY = y + oy + GetVIndentByAlign();
+		float height = m_pFont->CurrentHeight_() + m_pFont->GetLineSpacing();
+		if (!worldSpace)
 		{
-			pos.x			= x + GetIndentByAlign();
-			m_lines[i].Draw	(m_pFont, pos.x, pos.y);
-			pos.y			+= height;
+			UI().ClientToScreenScaledHeight(height);
 		}
+
+		const u32 size = (u32)m_lines.size();
+		const bool useJustify = (m_eTextAlign == CGameFont::alJustify) && (size > 1);
+		m_pFont->SetAligment(useJustify ? CGameFont::alLeft : (CGameFont::EAligment)m_eTextAlign);
+		m_pFont->SetGradientMode(m_eTextGradientMode);
+		for (u32 i = 0; i < size; ++i)
+		{
+			const float posX = x + ox + (worldSpace ? 0.0f : GetIndentByAlign());
+			const bool justifyLine = useJustify && (i + 1 < size);
+			if (worldSpace)
+			{
+				if (justifyLine)
+				{
+					m_lines[i].DrawJustifiedWS(m_pFont, posX, posY, m_wndSize.x, colorOverride);
+				}
+				else
+				{
+					m_lines[i].DrawWS(m_pFont, posX, posY, colorOverride);
+				}
+			}
+			else
+			{
+				if (justifyLine)
+				{
+					m_lines[i].DrawJustified(m_pFont, posX, posY, m_wndSize.x, colorOverride);
+				}
+				else
+				{
+					m_lines[i].Draw(m_pFont, posX, posY, colorOverride);
+				}
+			}
+			posY += height;
+		}
+	};
+
+	if (!uFlags.is(flComplexMode))
+	{
+		if (outlineColor != 0)
+		{
+			for (const Fvector2& d : UIOutline::kDirs8)
+			{
+				emitSimple(d.x * m_textShadow.thickness, d.y * m_textShadow.thickness, outlineColor);
+			}
+		}
+		emitSimple(0.0f, 0.0f, m_dwTextColor);
 	}
+	else
+	{
+		if (outlineColor != 0)
+		{
+			for (const Fvector2& d : UIOutline::kDirs8)
+			{
+				emitComplex(d.x * m_textShadow.thickness, d.y * m_textShadow.thickness, outlineColor);
+			}
+		}
+		emitComplex(0.0f, 0.0f, 0);
+	}
+
 	m_pFont->OnRender();
 }
 
-
 void CUILines::OnDeviceReset()
 {
-	uFlags.set(flNeedReparse, TRUE);
+	uFlags.set(flNeedReparse, true);
 }
 
 float CUILines::GetIndentByAlign()const
@@ -505,6 +644,7 @@ float CUILines::GetIndentByAlign()const
 			return (m_wndSize.x)/2;
 		}break;
 	case CGameFont::alLeft:
+	case CGameFont::alJustify:
 		{
 			return 0;
 		}break;

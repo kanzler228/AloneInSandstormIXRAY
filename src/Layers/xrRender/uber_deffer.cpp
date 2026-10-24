@@ -4,7 +4,7 @@
 #include "dxRenderDeviceRender.h"
 void fix_texture_name(LPSTR fn);
 
-void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, LPCSTR detail_replace, bool DO_NOT_FINISH)
+void uber_deffer(CBlender_Compile& C, bool hq, const char* vs, const char* ps, bool aref, const char* detail_replace, bool DO_NOT_FINISH, bool DO_NOT_START)
 {
 	string256 fname, fnameA, fnameB;
 	xr_strcpy(fname, *C.L_textures[0]);
@@ -17,17 +17,17 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 #endif
 
 	bool bump = ps_r__common_flags.test(R2FLAG_USE_BUMP) && pTexture.bump_exist();
+	bool lmap = false;
 
 #ifndef _EDITOR
-	bool lmap = false;
-	if(C.L_textures.size() >= 3) {
+	if(C.L_textures.size() >= 3)
+	{
 		auto tex = C.L_textures[2].c_str();
-		if(tex[0] == 'l' && tex[1] == 'm' && tex[2] == 'a' && tex[3] == 'p') {
+		if(tex[0] == 'l' && tex[1] == 'm' && tex[2] == 'a' && tex[3] == 'p')
+		{
 			lmap = true;
 		}
 	}
-#else 
-	bool lmap = false;
 #endif
 
 	string256 dt;
@@ -37,8 +37,9 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 	string256 texDetailBumpX = { '\0' };
 	bool bHasDetailBump = false;
 
-	if(C.bDetail_Bump) {
-		LPCSTR detail_bump_texture = DEV->m_textures_description.GetBumpName(dt).c_str();
+	if(C.bDetail_Bump)
+	{
+		const char* detail_bump_texture = DEV->m_textures_description.GetBumpName(dt).c_str();
 		if(detail_bump_texture != nullptr && detail_bump_texture[0] != '\0') {
 			bHasDetailBump = true;
 			xr_strcpy(texDetailBump, sizeof(texDetailBump), detail_bump_texture);
@@ -58,41 +59,56 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		}
 	}
 
-	if(lmap) {
+	if(lmap) 
+	{
 		RImplementation.addShaderOption("USE_LM_HEMI", "1");
 	}
 
-	if(aref) {
+	if (ps_r2_ls_flags_ext.test(R2FLAGEXT_WIREFRAME))
+	{
+		aref = false;
+	}
+
+	if(aref)
+	{
 		RImplementation.addShaderOption("USE_AREF", "1");
+
 #ifdef USE_DX11
 		pTexture->Load();
-		auto Format = pTexture->get_Format();
 
-		if(Format >= DXGI_FORMAT_BC1_TYPELESS && Format < DXGI_FORMAT_BC2_TYPELESS) {
+		ERHI_FORMAT Format = pTexture->get_Format();
+
+		if(Format >= ERHI_FORMAT::BC1_TYPELESS && Format < ERHI_FORMAT::BC2_TYPELESS)
+		{
 			RImplementation.addShaderOption("USE_DXT1_HACK", "1");
 		}
 #endif
 	}
 
-	if(!!DEV->m_textures_description.UsePBRTexures(fname)) {
+	if(!!DEV->m_textures_description.UsePBRTexures(fname))
+	{
 		RImplementation.addShaderOption("USE_PBR", "1");
 	}
 
-	if(bump) {
+	if(bump)
+	{
 		RImplementation.addShaderOption("USE_BUMP", "1");
 
 		xr_strcpy(fnameA, pTexture.bump_get().c_str());
 		xr_strconcat(fnameB, fnameA, "#");
 	}
-	else {
+	else
+	{
 		fnameA[0] = fnameB[0] = 0;
 	}
 
-	if(C.bUseSteepParallax) {
+	if(C.bUseSteepParallax)
+	{
 		RImplementation.addShaderOption("USE_STEEPPARALLAX", "1");
 	}
 
-	if(dt && dt[0] && C.bDetail_Diffuse) {
+	if(dt && dt[0] && C.bDetail_Diffuse)
+	{
 		RImplementation.addShaderOption("USE_TDETAIL", "1");
 	}
 
@@ -104,16 +120,23 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		}
 	}
 
-	if(bHasDetailBump && dt && dt[0] && C.bDetail_Diffuse) {
+	if(bHasDetailBump && dt && dt[0] && C.bDetail_Diffuse)
+	{
 		RImplementation.addShaderOption("USE_TDETAIL_BUMP", "1");
 	}
 
-	if(hq) {
+	if(hq)
+	{
 		RImplementation.addShaderOption("USE_HIGH_QUALITY", "1");
 	}
 
-	if(bump) {
+	if (strstr(vs, "model") != nullptr)
+	{
+		RImplementation.addShaderOption("FORWARD_LIGHT", "1");
+	}
 
+	if(bump)
+	{
 		string512 errorMsg;
 		xr_sprintf(errorMsg, "Missing bump texture: %s\n\t\t\tLoading texture: %s", dt, C.L_textures[0].c_str());
 
@@ -121,16 +144,32 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		R_ASSERT3(fnameA[0] && xr_strlen(fnameA), errorMsg,  "Missing bump texture\n");
 	}
 
-	string_path temp;
+	string_path temp{};
 
 	static bool UseWinterPass = EngineExternal()[EEngineExternalRender::UseDynamicSnowMask];
-	bool snow_texture = UseWinterPass && FS.exist(temp, "$textures$", C.L_textures[0].c_str(), "_snowmask.dds");
+	bool snow_texture = UseWinterPass && FS.exist(temp, _textures_, C.L_textures[0].c_str(), "_snowmask.dds");
+
 	if (snow_texture)
 	{
 		RImplementation.addShaderOption("USE_SNOW_TEXTURE", "1");
 	}
+	
+	bool hair_texture = FS.exist(temp, _textures_, C.L_textures[0].c_str(), "_hairmask.dds");
 
-	if(bHasDetailBump)
+	if (hair_texture)
+	{
+		RImplementation.addShaderOption("USE_HAIRMASK", "1");
+	}
+	
+	bool specular_texture = FS.exist(temp, "$textures$", C.L_textures[0].c_str(), "_spec.dds");
+	specular_texture = specular_texture || FS.exist(temp, "$level$", C.L_textures[0].c_str(), "_spec.dds");
+
+	if (specular_texture)
+	{
+		RImplementation.addShaderOption("USE_IOR_TEXTURE", "1");
+	}
+
+	if (bHasDetailBump)
 	{
 		string512 errorMsg;
 		xr_sprintf(errorMsg, "Missing detail texture: %s\n\t\t\tLoading texture: %s", dt, C.L_textures[0].c_str());
@@ -139,44 +178,106 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		R_ASSERT3(texDetailBumpX[0] && xr_strlen(texDetailBumpX), errorMsg, "Missing detail texture");
 	}
 
+	if (auto pShaderOptions = DEV->m_textures_description.GetShaderExternal(fname))
+	{
+		for (auto& [Name, Value] : *pShaderOptions)
+		{
+			RImplementation.addShaderOption(Name.data(), Value.data());
+		}
+
 #ifdef USE_DX11
-	if (bump && hq && RImplementation.o.dx11_enable_tessellation && C.TessMethod != 0) {
+		if (hq && pShaderOptions->contains(xr_string("USE_PARRALAX_INTERIOR")))
+		{
+			C.r_Pass(vs, "forwrad_interior", FALSE, TRUE, FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE);
+
+			C.RS.SetRS(D3DRS_ZFUNC, D3D11_COMPARISON_EQUAL);
+			C.SetPassPriority(3);
+
+			if(RImplementation.o.dx11_allow_wboit_transparency)
+			{
+				C.PassSET_Blend(TRUE, D3DBLEND_ONE, D3DBLEND_ONE, false, 0);
+				C.PassSET_Blend(2, TRUE, D3DBLEND_DESTCOLOR, D3DBLEND_ZERO, false, 0);
+				C.PassSET_Blend(1, TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, false, 0);
+			}
+			else
+			{
+				C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, false, 0);
+			}
+
+			C.r_dx10Texture("s_base", C.L_textures[0]);
+			C.r_dx10Texture("s_env", "newsky_reflection_lobby_room");
+
+			C.r_dx10Texture("env_s0", r2_T_envs0);
+			C.r_dx10Texture("env_s1", r2_T_envs1);
+
+			if (lmap) 
+			{
+				C.r_dx10Texture("s_hemi", C.L_textures[2]);
+			}
+
+			C.r_dx10Texture("s_smap_sun", r2_RT_smap_depth_sun);
+			C.r_dx10Sampler("smp_smap");
+		
+			C.r_dx10Sampler("smp_base");
+			C.r_dx10Sampler("smp_linear");
+		
+			C.r_End(false);
+			C.RS.SetRS(D3DRS_ZFUNC, D3D11_COMPARISON_LESS_EQUAL);
+		}
+#endif // USE_DX11
+	}
+
+#ifdef USE_DX11
+	if (bump && hq && RImplementation.o.dx11_enable_tessellation && C.TessMethod != CBlender_Compile::NO_TESS)
+	{
 		string256 hs = "tess", ds = "tess";
 
-		if (C.TessMethod == CBlender_Compile::TESS_PN || C.TessMethod == CBlender_Compile::TESS_PN_HM) {
+		if (C.TessMethod & CBlender_Compile::TESS_PN) 
+		{
 			RImplementation.addShaderOption("TESS_PN", "1");
 		}
 
-		if (C.TessMethod == CBlender_Compile::TESS_HM || C.TessMethod == CBlender_Compile::TESS_PN_HM) {
+		if (C.TessMethod & CBlender_Compile::TESS_HM) 
+		{
 			RImplementation.addShaderOption("TESS_HM", "1");
 		}
 
 		C.r_TessPass(vs, hs, ds, "null", ps, FALSE);
 
 		u32 stage = C.r_dx10Sampler("smp_bump_ds");
-		if (stage != u32(-1)) {
-			C.i_dx10Address(stage, D3DTADDRESS_WRAP);
-			C.i_dx10FilterAnizo(stage, TRUE);
+
+		if (stage != u32(-1))
+		{
+			C.i_Address(stage, D3DTADDRESS_WRAP);
+			C.i_FilterAnizo(stage, true);
 		}
 
-		if (ps_r2_ls_flags_ext.test(R2FLAGEXT_WIREFRAME)) {
-			C.R().SetRS(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
-		}
-
-		if(bump) {
+		if (bump)
+		{
 			C.r_dx10Texture("s_tbump", fnameA);
 			C.r_dx10Texture("s_tbumpX", fnameB);
 		}
 
-		if (bHasDetailBump) {
+		if (bHasDetailBump)
+		{
 			C.r_dx10Texture("s_tdetailBumpX", texDetailBumpX);
 		}
 	}
-	else if (C.SH->flags.bLandscape) {
-		C.r_Pass(vs, ps, FALSE, TRUE, FALSE);
+	else if (!DO_NOT_START)
+	{
+		if (C.SH->flags.bLandscape)
+		{
+			C.r_Pass(vs, ps, false, true, false);
+		}
+		else
+		{
+			C.r_Pass(vs, ps, false);
+		}
 	}
-	else {
-		C.r_Pass(vs, ps, FALSE);
+
+	if (ps_r2_ls_flags_ext.test(R2FLAGEXT_WIREFRAME))
+	{
+		C.R().SetRS(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
 	}
 
 	C.r_dx10Texture("s_base", C.L_textures[0]);
@@ -200,19 +301,41 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 		C.r_dx10Texture("s_hemi", C.L_textures[2]);
 	}
 
+	string256 Path = {};
+
 	if (snow_texture)
 	{
-		string256 Path = {};
 		xr_strconcat(Path, *C.L_textures[0], "_snowmask");
 		C.r_dx10Texture("s_snow", Path);
 	}
 
+	if (hair_texture)
+	{
+		string256 Path = {};
+		xr_strconcat(Path, *C.L_textures[0], "_hairmask");
+		C.r_dx10Texture("s_hair", Path);
+	}
+
+	if (specular_texture)
+	{
+		xr_strconcat(Path, *C.L_textures[0], "_spec");
+		C.r_dx10Texture("s_specular", Path);
+	}
+
+	C.r_dx10Texture("s_smap_sun", r2_RT_smap_depth_sun);
+	C.r_dx10Sampler("smp_smap");
+
 	C.r_dx10Sampler("smp_base");
 	C.r_dx10Sampler("smp_linear");
 	C.r_dx10Sampler("smp_rtlinear");
+	C.r_dx10Sampler("smp_nofilter");
 
 #else //USE_DX11
-	C.r_Pass(vs, ps, FALSE);
+
+	if (!DO_NOT_START)
+	{
+		C.r_Pass(vs, ps, false);
+	}
 
 	C.r_Sampler_waf("s_base", C.L_textures[0].c_str(), false);
 
@@ -246,7 +369,73 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR vs, LPCSTR ps, BOOL aref, 
 	C.r_Sampler("sky_s1", "$user$sky1");
 #endif
 
-	if (!DO_NOT_FINISH) {
+	if (!DO_NOT_FINISH) 
+	{
+		C.r_End();
+	}
+}
+
+void uber_forward(CBlender_Compile& C, bool hq, const char* vs, const char* ps, bool aref, bool blend, const char* detail_replace, bool DO_NOT_FINISH, bool DO_NOT_START)
+{
+#ifdef USE_DX11
+	bool use_wboit = blend && !C.bHudElement && RImplementation.o.dx11_allow_wboit_transparency;
+
+	if (use_wboit)
+	{
+		RImplementation.addShaderOption("USE_WBOIT_TRANSPARENCY");
+	}
+#endif // USE_DX11
+
+	uber_deffer(C, hq, vs, ps, aref && !blend, detail_replace, true, DO_NOT_START);
+
+	if (blend) 
+	{
+		C.PassSET_ZB(TRUE, FALSE);
+
+#ifdef USE_DX11
+		if(use_wboit)
+		{
+			C.PassSET_Blend(TRUE, D3DBLEND_ONE, D3DBLEND_ONE, false, 0);
+			C.PassSET_Blend(2, TRUE, D3DBLEND_DESTCOLOR, D3DBLEND_ZERO, false, 0);
+			C.PassSET_Blend(1, TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, false, 0);
+
+			// Disable sorting for WBOIT
+			C.SetParams(C.SH->flags.iPriority, false);
+		}
+		else
+#endif // USE_DX11
+		{
+			C.PassSET_Blend(TRUE, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA, false, 0);
+		}
+	}
+
+#ifndef _EDITOR
+	#ifdef USE_DX11
+		C.r_dx10Texture("s_material", r2_material);
+		C.r_dx10Texture("s_position", r2_RT_P);
+
+		C.r_dx10Texture("env_s0", r2_T_envs0);
+		C.r_dx10Texture("env_s1", r2_T_envs1);
+
+		C.r_dx10Texture("sky_s0", r2_T_sky0);
+		C.r_dx10Texture("sky_s1", r2_T_sky1);
+
+		C.r_dx10Texture("s_env_fwd", r2_RT_env_fwd);
+
+		C.r_dx10Sampler("smp_material");
+	#elif RENDER==R_R2
+		C.r_Sampler("s_material", r2_material);
+
+		C.r_Sampler("env_s0", r2_T_envs0);
+		C.r_Sampler("env_s1", r2_T_envs1);
+
+		C.r_Sampler("sky_s0", r2_T_sky0);
+		C.r_Sampler("sky_s1", r2_T_sky1);
+	#endif
+#endif
+
+	if(!DO_NOT_FINISH)
+	{
 		C.r_End();
 	}
 }

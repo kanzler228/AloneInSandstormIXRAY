@@ -12,7 +12,7 @@ void CSoundRender_Source::decompress(u32 line, OggVorbis_File* ovf)
 	char*	dest			= (char*)SoundRender->cache.get_dataptr	(CAT,line);
 	u32		buf_offs		= (line*line_size) / 2 / m_wformat.nChannels;
 	u32		left_file		= dwBytesTotal - buf_offs;
-	u32		left			= (u32)_min	(left_file,line_size);
+	u32		left			= (u32)std::min(left_file,line_size);
 
 	// seek
 	u32	cur_pos				= u32(ov_pcm_tell(ovf));
@@ -23,7 +23,7 @@ void CSoundRender_Source::decompress(u32 line, OggVorbis_File* ovf)
 	i_decompress_fr(ovf,dest,left);
 }
 
-void CSoundRender_Source::LoadWave	(LPCSTR pName)
+void CSoundRender_Source::LoadWave	(const char* pName)
 {
 	PROF_EVENT("Sound: Load ogg");
 	pname					= pName;
@@ -102,7 +102,7 @@ void CSoundRender_Source::LoadWave	(LPCSTR pName)
 	}
 }
 
-void CSoundRender_Source::load(LPCSTR name)
+void CSoundRender_Source::load(const char* name)
 {
 	string_path			fn,N;
 	xr_strcpy				(N,name);

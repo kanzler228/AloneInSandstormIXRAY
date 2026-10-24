@@ -2,7 +2,7 @@
 #define _TextureDescrManager_included_
 
 #pragma once
-#include "ETextureParams.h"
+#include "../../xrEngine/ETextureParams.h"
 
 class cl_dt_scaler;
 
@@ -11,10 +11,10 @@ class CTextureDescrMngr
 	struct texture_assoc
 	{
 		shared_str			detail_name;
-		//R_constant_setup*	cs;
+		RHIShaderConstant::Setup*	cs;
 		u8					usage;
-        texture_assoc       () : /*cs(NULL),*/ usage(0) {}
-		~texture_assoc		() { /*xr_delete(cs);*/ }
+        texture_assoc       () : cs(nullptr), usage(0) {}
+		~texture_assoc		() { xr_delete(cs); }
 
 	};
 	struct texture_spec
@@ -23,11 +23,15 @@ class CTextureDescrMngr
 		float				m_material;
 		bool				m_use_steep_parallax;
 		bool				m_use_pbr;
+		ShaderExternalMap	ShadersOptions;
 	};
 	struct texture_desc{
 		texture_assoc*		m_assoc;
 		texture_spec*		m_spec;
-        texture_desc            ():m_assoc(NULL),m_spec(NULL){}
+#ifdef _EDITOR
+		STextureParams::ETType	m_type;
+#endif
+        texture_desc            ():m_assoc(nullptr),m_spec(nullptr){}
 	};
 
 	using map_TD = xr_map<shared_str, texture_desc>;
@@ -39,7 +43,8 @@ class CTextureDescrMngr
 	map_TD									m_texture_details;
 	map_CS									m_detail_scalers;
 
-	void		LoadTHM		(LPCSTR initial);
+	void		LoadTHM		(const char* initial);
+	void		LoadLTX		();
 
 public:
 				~CTextureDescrMngr();
@@ -48,9 +53,11 @@ public:
 public:
 	shared_str	GetBumpName		(const shared_str& tex_name) const;
 	float		GetMaterial		(const shared_str& tex_name) const;
-	void		GetTextureUsage	(const shared_str& tex_name, BOOL& bDiffuse, BOOL& bBump) const;
-	BOOL		GetDetailTexture(const shared_str& tex_name, LPCSTR& res, R_constant_setup* &CS) const;
-	BOOL		UseSteepParallax(const shared_str& tex_name) const;
-	BOOL		UsePBRTexures	(const shared_str& tex_name) const;
+	void		GetTextureUsage	(const shared_str& tex_name, bool& bDiffuse, bool& bBump) const;
+	bool		GetDetailTexture(const shared_str& tex_name, const char*& res, RHIShaderConstant::Setup* &CS) const;
+	bool		UseSteepParallax(const shared_str& tex_name) const;
+	bool		UsePBRTexures	(const shared_str& tex_name) const;
+
+	ShaderExternalMap* GetShaderExternal(const shared_str& tex_name) const;
 };
 #endif

@@ -27,25 +27,37 @@ public:
 
 	u32							dwLightMarkerID;
 	// 
-	IBlender*					b_occq;
-	IBlender*					b_accum_mask;
-	IBlender*					b_accum_direct;
-	IBlender*					b_accum_point;
-	IBlender*					b_accum_spot;
-	IBlender*					b_accum_reflected;
-	IBlender*					b_bloom;
-	IBlender*					b_luminance;
-	IBlender*					b_combine;
-	IBlender*					b_ssao;
+	IBlender* b_occq = nullptr;
+	IBlender* b_accum_mask = nullptr;
+	IBlender* b_accum_direct = nullptr;
+	IBlender* b_accum_point = nullptr;
+	IBlender* b_accum_spot = nullptr;
+	IBlender* b_accum_reflected = nullptr;
+	IBlender* b_bloom = nullptr;
+	IBlender* b_luminance = nullptr;
+	IBlender* b_combine = nullptr;
+	IBlender* b_ssao = nullptr;
 
-	IBlender*					b_fxaa;
-	IBlender*					b_spp;
-	IBlender*					b_smaa;
-	IBlender*					b_scale;
-	IBlender*					b_cas;
-	IBlender*					b_gtao;
-	IBlender*					b_taa;
-	IBlender*					b_gamma;
+	IBlender* b_fxaa = nullptr;
+	IBlender* b_spp = nullptr;
+	IBlender* b_gasmask = nullptr;
+	IBlender* b_smaa = nullptr;
+	IBlender* b_scale = nullptr;
+	IBlender* b_cas = nullptr;
+	IBlender* b_gtao = nullptr;
+	IBlender* b_taa = nullptr;
+	IBlender* b_gamma = nullptr;
+	IBlender* b_nvg = nullptr;
+	IBlender* b_sslr = nullptr;
+
+	//============== new bloom and lum ============
+	IBlender* b_bloom_downsample = nullptr;
+	IBlender* b_bloom_upsample = nullptr;
+	IBlender* b_new_adaptation = nullptr;
+	//=============================================
+
+	//============== new Depth of Field ==============
+	IBlender* b_new_dof = nullptr;
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -56,6 +68,11 @@ public:
 	xr_vector<dbg_line_t>										dbg_lines;
 	xr_vector<Fplane>												dbg_planes;
 #endif
+	
+	ref_rt						rt_sslr;
+	ref_rt						rt_sslr_temp;
+	ref_rt						rt_sslr_old;
+	ref_rt						rt_sslr_data;
 
 	// MRT-path
 	ref_rt						rt_Generic;
@@ -63,31 +80,65 @@ public:
 	ref_rt						rt_Back_Buffer_AA;
 	ref_rt						rt_Position;		// 64bit,	fat	(x,y,z,?)				(eye-space)
 	ref_rt						rt_Normal;			// 64bit,	fat	(x,y,z,hemi)			(eye-space)
-	ref_rt						rt_NormalTemp;		// 64bit,	fat	(x,y,z,hemi)			(eye-space)
 	ref_rt						rt_Color;			// 64/32bit,fat	(r,g,b,specular-gloss)	(or decompressed MET-8-8-8-8)
 	ref_rt						rt_Surface;
-	ref_rt						rt_SurfaceTemp;
 	ref_rt						rt_Velocity;
+	ref_rt						rt_ui_pda;
+	ref_rt						rt_ui_depth;
+	ref_rt						rt_ui_color;
+
+	ref_rt						rt_upscaled_depth;
+	ref_rt						rt_upscaled_depth_old;
 
 	ref_rtc						rt_Reflection;
 	ref_rtc						rt_Reflection_temp;
+	ref_rt						rt_Reflection_forward;
 	ref_rt						rt_Depth;
+
+	IRHISurface*				rt_smap_depth_sun_tex;
+	IRHIDepthStencilView*		rt_smap_depth_sun_dsv[3];
+	ref_texture					rt_smap_depth_sun;
 
 	// 
 	ref_rt						rt_Accumulator;		// 64bit		(r,g,b,specular)
+
+	ref_rt						rt_Forward;
+	ref_rt						rt_Revealage;
+
 	ref_rt						rt_Generic_0;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt						rt_Generic_1;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	//	Igor: for volumetric lights
 	ref_rt						rt_Generic_2;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt						rt_BackbufferLUT;		// 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
-	ref_rt						rt_Bloom_1;			// 32bit, dim/4	(r,g,b,?)
-	ref_rt						rt_Bloom_2;			// 32bit, dim/4	(r,g,b,?)
-	ref_rt						rt_LUM_64;			// 64bit, 64x64,	log-average in all components
-	ref_rt						rt_LUM_8;			// 64bit, 8x8,		log-average in all components
 
-	ref_rt						rt_LUM_pool[2]	;	// 1xfp32,1x1,		exp-result -> scaler
-	ref_texture				t_LUM_src		;	// source
-	ref_texture				t_LUM_dest		;	// destination & usage for current frame
+	ref_rt						rt_Bloom_A;			// 32bit, dim		(r,g,b,?)
+	ref_rt						rt_Bloom_B;			// 32bit, dim/2		(r,g,b,?)
+	ref_rt						rt_Bloom_C;			// 32bit, dim/4		(r,g,b,?)
+	ref_rt						rt_Bloom_D;			// 32bit, dim/8		(r,g,b,?)
+	ref_rt						rt_Bloom_E;			// 32bit, dim/16	(r,g,b,?)
+	ref_rt						rt_Bloom_F;			// 32bit, dim/32	(r,g,b,?)
+	ref_rt						rt_Bloom_G;			// 32bit, dim/64
+	ref_rt						rt_Bloom_A2;			// 32bit, dim		(r,g,b,?)
+	ref_rt						rt_Bloom_B2;			// 32bit, dim/2		(r,g,b,?)
+	ref_rt						rt_Bloom_C2;			// 32bit, dim/4		(r,g,b,?)
+	ref_rt						rt_Bloom_D2;			// 32bit, dim/8		(r,g,b,?)
+	ref_rt						rt_Bloom_E2;			// 32bit, dim/16	(r,g,b,?)
+	ref_rt						rt_Bloom_F2;			// 32bit, dim/32	(r,g,b,?)
+
+	ref_rt						rt_LUM_A;			// 32bit, 1024x1024,log-average in all components
+	ref_rt						rt_LUM_B;			// 32bit, 128x128,	log-average in all components
+	ref_rt						rt_LUM_C;			// 32bit, 16x16,	log-average in all components
+	ref_rt						rt_LUM_D;			// 64bit, 1x1,		log-average in all components
+	//==================================================
+
+	//============== new Depth of Field ==============
+	ref_rt						rt_dof_focus;			// 24bit, 1x1,		current focus distance
+	ref_rt						rt_dof_focus_prev;		// 24bit, 1x1,		prev frame focus distance
+	ref_rt						rt_dof_coc;				// 16bit, dim,		circle of confusion
+	ref_rt						rt_dof_coc_prev;		// 16bit, dim,		circle of confusion
+	ref_rt						rt_dof_blur1;			// 32bit, dim,		blur pass1
+	ref_rt						rt_dof_blur2;			// 32bit, dim,		blur pass2
+	ref_rt						rt_dof_blur3;			// 32bit, dim,		blur pass3
 
 	// env
 	ref_texture				t_envmap_0		;	// env-0
@@ -112,10 +163,14 @@ public:
 	ID3DTexture3D*			t_material_surf;
 	ref_texture					t_material;
 
-	ID3DTexture2D*			t_noise_surf	[TEX_jitter_count];
+	IRHISurface*			t_noise_surf	[TEX_jitter_count];
 	ref_texture					t_noise				[TEX_jitter_count];
+
+	ref_shader					s_sslr;
 private:
+
 	ref_shader					s_spp;
+	ref_shader					s_gasmask;
 	ref_shader					s_fxaa;
 	ref_shader					s_smaa;
 	ref_shader					s_scale;
@@ -123,6 +178,7 @@ private:
 	ref_shader					s_gtao;
 	ref_shader					s_puddles;
 	ref_shader					s_taa;
+	ref_shader					s_nvg;
 
 	// For gamma correction in windowed mode
 	ref_shader					s_gamma;
@@ -133,11 +189,6 @@ private:
 	// SMAA
 	ref_rt						rt_smaa_edgetex;
 	ref_rt						rt_smaa_blendtex;
-
-	ref_rt						rt_sslr;
-	ref_rt						rt_sslr_temp;
-	ref_rt						rt_sslr_old;
-	ref_rt						rt_sslr_data;
 
 	// SSAO
 	ref_rt						rt_ssao_temp;
@@ -161,45 +212,56 @@ private:
 	ref_geom						g_accum_omnipart;
 	ref_geom						g_accum_volumetric;
 
-	ID3DVertexBuffer*		g_accum_point_vb;
-	ID3DIndexBuffer*		g_accum_point_ib;
+	IRHIBuffer*		g_accum_point_vb;
+	IRHIBuffer*		g_accum_point_ib;
 
-	ID3DVertexBuffer*		g_accum_omnip_vb;
-	ID3DIndexBuffer*		g_accum_omnip_ib;
+	IRHIBuffer*		g_accum_omnip_vb;
+	IRHIBuffer*		g_accum_omnip_ib;
 
-	ID3DVertexBuffer*		g_accum_spot_vb	;
-	ID3DIndexBuffer*		g_accum_spot_ib	;
+	IRHIBuffer*		g_accum_spot_vb	;
+	IRHIBuffer*		g_accum_spot_ib	;
 
-	ID3DVertexBuffer*		g_accum_volumetric_vb;
-	ID3DIndexBuffer*		g_accum_volumetric_ib;
+	IRHIBuffer*		g_accum_volumetric_vb;
+	IRHIBuffer*		g_accum_volumetric_ib;
 
 	ID3DBlendState*			g_debug_blend_state = nullptr;
 
-	// Bloom
-	ref_geom					g_bloom_build;
-	ref_geom					g_bloom_filter;
-	ref_shader				s_bloom_dbg_1;
-	ref_shader				s_bloom_dbg_2;
-	ref_shader				s_bloom;
 	float							f_bloom_factor;
 
 	// Luminance
 	ref_shader			s_luminance;
 	float						f_luminance_adapt;
 
+	//================= new bloom and lum =================
+	ref_shader					s_bloom_downsample;
+	ref_shader					s_bloom_upsample;
+	ref_shader					s_lum_copy;
+	ref_shader					s_lum_downsample;
+	ref_shader					s_lum_calc;
+	//=====================================================
+
+	//============== new Depth of Field ==============
+	ref_shader					s_dof_focus;
+	ref_shader					s_dof_coc;
+	ref_shader					s_dof_blur1;
+	ref_shader					s_dof_blur2;
+	ref_shader					s_dof_blur3;
+	
+
+	// FX: ScreenQuad
+	IRHIBuffer* FSTriangleVB = nullptr;
+	IRHIBuffer* FSTriangleIB = nullptr;
+
 	// Combine
 	ref_geom					g_combine;
 	ref_geom					g_combine_VP;		// xy=p,zw=tc
 	ref_geom					g_combine_2UV;
 	ref_geom					g_combine_cuboid;
-	ref_geom					g_aa_blur;
 	ref_geom					g_aa_AA;
-	ref_shader				s_combine_dbg_0;
-	ref_shader				s_combine_dbg_1;
-	ref_shader				s_combine_dbg_Accumulator;
-	ref_shader				s_combine;
 	ref_shader				s_combine_volumetric;
 public:
+	ref_shader				s_combine;
+	ref_geom				FSTriangleGeom;
 	ref_shader				s_postprocess;
 	ref_geom					g_postprocess;
 	ref_shader				s_menu;
@@ -229,6 +291,7 @@ private:
 	bool						m_bHasActiveVolumetric;
 public:
 								CRenderTarget			();
+								void CreateFSTriangle();
 								~CRenderTarget			();
 	void						accum_point_geom_create	();
 	void						accum_point_geom_destroy();
@@ -243,15 +306,16 @@ public:
 	void						u_stencil_optimize		(eStencilOptimizeMode eSOM = SO_Light);
 	void						u_compute_texgen_screen	(Fmatrix&	dest);
 	void						u_compute_texgen_jitter	(Fmatrix&	dest);
-	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, const ref_rt& _4, ID3DDepthStencilView* zb);
-	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb);
-	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, ID3DDepthStencilView* zb);
-	void						u_setrt					(u32 W, u32 H, ID3DRenderTargetView* _1, ID3DRenderTargetView* _2, ID3DRenderTargetView* _3, ID3DDepthStencilView* zb);
+	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, const ref_rt& _4, IRHIDepthStencilView* zb);
+	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, IRHIDepthStencilView* zb);
+	void						u_setrt					(const ref_rt& _1, const ref_rt& _2, IRHIDepthStencilView* zb);
+	void						u_setrt					(u32 W, u32 H, IRHIRenderTargetView* _1, IRHIRenderTargetView* _2, IRHIRenderTargetView* _3, IRHIDepthStencilView* zb);
+	void						u_setrt					(u32 W, u32 H, IRHIRenderTargetView* _1, IRHIRenderTargetView* _2, IRHIRenderTargetView* _3, IRHIRenderTargetView* _4, IRHIDepthStencilView* zb);
 	void						u_calc_tc_noise			(Fvector2& p0, Fvector2& p1);
 	void						u_calc_tc_duality_ss	(Fvector2& r0, Fvector2& r1, Fvector2& l0, Fvector2& l1);
-	BOOL						u_need_PP				();
+	bool						u_need_PP				();
 	bool						u_need_CM				();
-	BOOL						u_DBT_enable			(float zMin, float zMax);
+	bool						u_DBT_enable			(float zMin, float zMax);
 	void						u_DBT_disable			();
 
 	void						init_fsr				();
@@ -262,20 +326,32 @@ public:
 	bool						phase_dlss();
 	void						phase_scale				();
 
+	void						copy_position			();
+
 	void						phase_fxaa				();
 	void						phase_smaa				();
 	void						phase_taa				();
+	void						phase_mblur				();
+	void						phase_depth_upscale		();
 
 	void						phase_cas				();
+	void						phase_ui_postprocess	(Fcolor*);
+	void						phase_ui_postprocess_copy();
+
 	void						phase_gtao				();
 	void						phase_sslr				();
+	void						pharse_velocity			();
 
-	void						phase_puddles			();
+	void						phase_nvg				();
+
+	bool						phase_puddles			();
 
 	void						RenderEffect			(ScreenPostProcessType postProcessType, bool = true);
 	void						PhaseAberration			();
 	void						PhaseVignette			();
 	void						PhaseSaturation			();
+	void						PhaseRaindrops();
+	void						PhaseGasmask			();
 	void						PhaseWinter				();
 
 	void						phase_scene_forward		();
@@ -301,32 +377,41 @@ public:
 
 	bool						need_to_render_sunshafts();
 
-	BOOL						enable_scissor			(light* L);		// true if intersects near plane
+	bool						enable_scissor			(light* L);		// true if intersects near plane
 	void						enable_dbt_bounds		(light* L);
 
 	void						disable_aniso			();
 
 	void						draw_volume				(light* L);
-	void						accum_direct_cascade	(u32	sub_phase, Fmatrix& xform, Fmatrix& xform_prev, float fBias );
-	void						accum_direct_volumetric	(u32	sub_phase, const u32 Offset, const u32 i_offset, const Fmatrix &mShadow);
+	void						accum_direct_cascade	();
+	void						accum_direct_volumetric	();
 	void						accum_point				(light* L);
 	void						accum_spot				(light* L);
 	void						accum_reflected			(light* L);
 	//	Igor: for volumetric lights
 	void						accum_volumetric		(light* L);
+	void						accum_volumetric_lv		(light* L);
+
 	void						phase_bloom				();
 	void						phase_luminance			();
 	void						phase_combine			();
 	void						phase_combine_volumetric();
 	void						phase_pp				();
+	//==========================================================
+	void						phase_bloom_downsample();
+	void						phase_bloom_upsample();
+	void						phase_new_luminance();
+	void						phase_new_dof();
+	//==========================================================
+
 
 	virtual void				set_blur				(float	f)		{ param_blur=f;						}
 	virtual void				set_gray				(float	f)		{ param_gray=f;						}
-	virtual void				set_duality_h			(float	f)		{ param_duality_h=_abs(f);			}
-	virtual void				set_duality_v			(float	f)		{ param_duality_v=_abs(f);			}
+	virtual void				set_duality_h			(float	f)		{ param_duality_h=std::abs(f);			}
+	virtual void				set_duality_v			(float	f)		{ param_duality_v=std::abs(f);			}
 	virtual void				set_noise				(float	f)		{ param_noise=f;					}
 	virtual void				set_noise_scale			(float	f)		{ param_noise_scale=f;				}
-	virtual void				set_noise_fps			(float	f)		{ param_noise_fps=_abs(f)+EPS_S;	}
+	virtual void				set_noise_fps			(float	f)		{ param_noise_fps= std::abs(f)+EPS_S;	}
 	virtual void				set_color_base			(u32	f)		{ param_color_base=f;				}
 	virtual void				set_color_gray			(u32	f)		{ param_color_gray=f;				}
 	virtual void				set_color_add			(const Fvector	&f)		{ param_color_add=f;		}

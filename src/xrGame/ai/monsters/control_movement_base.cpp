@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_movement_base.h"
 #include "control_animation_base.h"
 #include "control_direction_base.h"
@@ -17,7 +17,7 @@ void CControlMovementBase::reinit()
 	m_man->capture		(this, ControlCom::eControlMovement);
 }
 
-void CControlMovementBase::load(LPCSTR section)
+void CControlMovementBase::load(const char* section)
 {
 	load_velocity	(section, "Velocity_Stand",			eVelocityParameterStand);
 	load_velocity	(section, "Velocity_WalkFwdNormal",	eVelocityParameterWalkNormal);
@@ -36,7 +36,7 @@ void CControlMovementBase::load(LPCSTR section)
 	m_man->path_builder().detail().add_velocity(eVelocityParameterIdle, CDetailPathManager::STravelParams(velocity_param.velocity.linear,velocity_param.velocity.angular_path,velocity_param.velocity.angular_real));	
 }
 
-void CControlMovementBase::load_velocity(LPCSTR section, LPCSTR line, u32 velocity_id)
+void CControlMovementBase::load_velocity(const char* section, const char* line, u32 velocity_id)
 {
 	SVelocityParam velocity_param;
 	if(pSettings->line_exist(section,line)) velocity_param.Load(section,line);
@@ -106,15 +106,12 @@ float CControlMovementBase::get_velocity_from_path()
 	const CDetailPathManager::STravelParams &current_velocity	= detail.velocity(cur_point_velocity_index);
 	if (fis_zero(current_velocity.linear_velocity) && (next_point_velocity_index != u32(-1))) {
 		const CDetailPathManager::STravelParams &next_velocity	= detail.velocity(next_point_velocity_index);
-		velocity							= _abs(next_velocity.linear_velocity);
+		velocity							= std::abs(next_velocity.linear_velocity);
 		m_object->dir().set_heading_speed	(next_velocity.real_angular_velocity);
 	} else {
-		velocity							= _abs(current_velocity.linear_velocity);
+		velocity							= std::abs(current_velocity.linear_velocity);
 		m_object->dir().set_heading_speed	(current_velocity.real_angular_velocity);
 	}
 
 	return velocity;
-	//m_accel		= ((m_man->movement().velocity_current() > velocity) ? 
-	//	m_object->anim().accel_get(eAV_Braking) :
-	//m_object->anim().accel_get(eAV_Accel));
 }

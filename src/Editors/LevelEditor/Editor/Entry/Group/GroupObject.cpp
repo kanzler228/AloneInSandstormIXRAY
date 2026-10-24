@@ -17,7 +17,7 @@
 #define GROUPOBJ_CHUNK_REFERENCE	  	0x0004
 #define GROUPOBJ_CHUNK_OPEN_OBJECT_LIST	0x0005
 
-CGroupObject::CGroupObject(LPVOID data, LPCSTR name):CCustomObject(data,name)
+CGroupObject::CGroupObject(LPVOID data, const char* name):CCustomObject(data,name)
 {
 	Construct	(data);
 }
@@ -89,7 +89,7 @@ bool CGroupObject::LL_AppendObject(CCustomObject* object)
 	}
 
 	object->OnAttach		(this);
-	object->m_CO_Flags.set	(flObjectInGroupUnique, FALSE);
+	object->m_CO_Flags.set	(flObjectInGroupUnique, false);
 	m_ObjectsInGroup.resize	(m_ObjectsInGroup.size()+1);
 	m_ObjectsInGroup.back().pObject = object;
 
@@ -99,14 +99,14 @@ bool CGroupObject::LL_AppendObject(CCustomObject* object)
 bool CGroupObject::AppendObjectLoadCB(CCustomObject* object)
 {
 	object->m_pOwnerObject			= this;
-	object->m_CO_Flags.set			(flObjectInGroup, TRUE);
+	object->m_CO_Flags.set			(flObjectInGroup, true);
 	m_ObjectsInGroup.resize			(m_ObjectsInGroup.size()+1);
 	m_ObjectsInGroup.back().pObject = object;
 
 
 	string256 			buf;
 	Scene->GenObjectName(object->FClassID, buf, object->GetName());
-	LPCSTR N = object->GetName();
+	const char* N = object->GetName();
 	if (xr_strcmp(N,buf)!=0)
 	{
 		Msg					("Load_Append name changed from[%s] to[%s]",object->GetName(), buf);
@@ -118,7 +118,7 @@ bool CGroupObject::AppendObjectLoadCB(CCustomObject* object)
 	return true;
 }
 
-void  CGroupObject::SetRefName(LPCSTR nm)
+void  CGroupObject::SetRefName(const char* nm)
 {
 	m_ReferenceName_ = nm;
 	if(nm && strstr(nm, "light_preset"))
@@ -128,7 +128,7 @@ void  CGroupObject::SetRefName(LPCSTR nm)
 }
 
 
-bool CGroupObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool CGroupObject::LoadLTX(CInifile& ini, const char* sect_name)
 {
 	u32 version = ini.r_u32(sect_name, "version");
 	if (version<0x0011)
@@ -175,15 +175,15 @@ bool CGroupObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
 		for (ObjectsInGroup::iterator it=m_ObjectsInGroup.begin(); it!=m_ObjectsInGroup.end(); ++it)
 			if(it->pObject)
 			{
-				it->pObject->m_CO_Flags.set(flObjectInGroup, TRUE);
-				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, TRUE);
+				it->pObject->m_CO_Flags.set(flObjectInGroup, true);
+				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, true);
 			}
 	}
 
 	return 			true;
 }
 
-void CGroupObject::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void CGroupObject::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	CCustomObject::SaveLTX(ini, sect_name);
 
@@ -193,12 +193,12 @@ void CGroupObject::SaveLTX(CInifile& ini, LPCSTR sect_name)
 	GetObjects		(grp_lst);
 	ObjectList::iterator it;
 	for(it=grp_lst.begin(); it!=grp_lst.end(); ++it)
-		(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, FALSE);
+		(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, false);
 		
 	Scene->SaveObjectsLTX(grp_lst, sect_name, "ingroup", ini);
 
 	for(it=grp_lst.begin(); it!=grp_lst.end(); ++it)
-		(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, TRUE);
+		(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, true);
 
 	ini.w_string		(sect_name, "ref_name", m_ReferenceName_.c_str());
 }
@@ -270,8 +270,8 @@ bool CGroupObject::LoadStream(IReader& F)
 		for (ObjectsInGroup::iterator it=m_ObjectsInGroup.begin(); it!=m_ObjectsInGroup.end(); ++it)
 			if(it->pObject)
 			{
-				it->pObject->m_CO_Flags.set(flObjectInGroup, TRUE);
-				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, TRUE);
+				it->pObject->m_CO_Flags.set(flObjectInGroup, true);
+				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, true);
 			}
 	}
 
@@ -291,12 +291,12 @@ void CGroupObject::SaveStream(IWriter& F)
 		GetObjects		(grp_lst);
 		ObjectList::iterator it;
 		for (it=grp_lst.begin(); it!=grp_lst.end(); ++it)
-			(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, FALSE);
+			(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, false);
 
 		Scene->SaveObjectsStream(grp_lst,GROUPOBJ_CHUNK_OBJECT_LIST,F);
 
 		for (it=grp_lst.begin(); it!=grp_lst.end(); ++it)
-			(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, TRUE);
+			(*it)->m_CO_Flags.set(CCustomObject::flObjectInGroup, true);
 	}
 
 	F.open_chunk	(GROUPOBJ_CHUNK_REFERENCE);
@@ -316,7 +316,7 @@ void CGroupObject::ReferenceChange(PropValue* sender)
 }
 
 
-bool CGroupObject::SetReference(LPCSTR ref_name)
+bool CGroupObject::SetReference(const char* ref_name)
 {
 	shared_str old_refs	= m_ReferenceName_;
 	SetRefName(ref_name);
@@ -378,7 +378,7 @@ bool CGroupObject::UpdateReference(bool bForceReload)
 			ObjectsInGroup::iterator itBk = ObjectsInGroupBk.begin();
 			for(; it!=m_ObjectsInGroup.end(); ++it, ++itBk)
 			{
-				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, FALSE);
+				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, false);
 			   
 			   if(itBk->pObject->m_CO_Flags.test(flObjectInGroupUnique) )
 			   {
@@ -393,11 +393,11 @@ bool CGroupObject::UpdateReference(bool bForceReload)
 			{
 				ELog.Msg		(mtError, "Not all objects synchronised correctly", GetName());
 				for (ObjectsInGroup::iterator it=m_ObjectsInGroup.begin(); it!=m_ObjectsInGroup.end(); ++it)
-						it->pObject->m_CO_Flags.set(flObjectInGroupUnique, FALSE);
+						it->pObject->m_CO_Flags.set(flObjectInGroupUnique, false);
 			}else
 			{ // first setup
 				for (ObjectsInGroup::iterator it=m_ObjectsInGroup.begin(); it!=m_ObjectsInGroup.end(); ++it)
-						it->pObject->m_CO_Flags.set(flObjectInGroupUnique, FALSE);
+						it->pObject->m_CO_Flags.set(flObjectInGroupUnique, false);
 			}
 		}
 
@@ -412,7 +412,7 @@ bool CGroupObject::UpdateReference(bool bForceReload)
 }
 
 
-void CGroupObject::FillProp(LPCSTR pref, PropItemVec& items)
+void CGroupObject::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref, items);
 	PropValue* V		= PHelper().CreateChoose	(items,PrepareKey(pref,"Reference"),&m_ReferenceName_, smGroup); 
@@ -434,16 +434,16 @@ void CGroupObject::FillProp(LPCSTR pref, PropItemVec& items)
 void CGroupObject::OnFreezeAllClick(ButtonValue* sender, bool& bModif, bool& bSafe)
 {
 	ButtonValue* V = smart_cast<ButtonValue*>(sender);
-	BOOL bDoUnique = FALSE;
+	bool bDoUnique = false;
 	switch (V->btn_num)
 	{
 		case 0: 
 		{   
-			bDoUnique = TRUE;
+			bDoUnique = true;
 		}break;
 		case 1:
 		{   
-			bDoUnique = FALSE;
+			bDoUnique = false;
 		}break;
 	}
 	for (ObjectsInGroup::iterator it=m_ObjectsInGroup.begin(); it!=m_ObjectsInGroup.end(); ++it)
@@ -498,8 +498,8 @@ void CGroupObject::OnSceneUpdate()
 					it->ObjectName	= buf;
 				}
 				
-				it->pObject->m_CO_Flags.set(flObjectInGroup, 		TRUE);
-				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, 	TRUE);
+				it->pObject->m_CO_Flags.set(flObjectInGroup, 		true);
+				it->pObject->m_CO_Flags.set(flObjectInGroupUnique, 	true);
 				if(it->pObject==NULL)
 					ELog.Msg	(mtError,"Gr%s' has invalid roup 'eference to object '%s'.", GetName(), it->ObjectName.c_str());
 */                    

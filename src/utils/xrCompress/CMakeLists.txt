@@ -21,6 +21,7 @@ list(APPEND COMPR_SRC_FILES ${COMPR_SOURCE_ALL_FILES})
 # xrCompress project
 add_executable(xrCompress ${COMPR_SRC_FILES})
 target_include_directories(xrCompress PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(xrCompress PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../xrCore/")
 
 # Move precompiled header
 target_validate_pch(xrCompress ${CMAKE_CURRENT_SOURCE_DIR})
@@ -39,7 +40,7 @@ endif()
 target_link_libraries(xrCompress PUBLIC xrCore)
 target_link_libraries(xrCompress PUBLIC imgui)
 if (WIN32)
-    target_link_libraries(xrCompress PRIVATE "winmm.lib")
+    target_link_libraries(xrCompress PRIVATE WindowsSDK::WinMM)
 endif()
 
 # Set relative runpath

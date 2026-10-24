@@ -12,10 +12,14 @@
 #include "patrol_path_manager.h"
 #include "ai_space.h"
 
-CPatrolPathParams::CPatrolPathParams(LPCSTR caPatrolPathToGo, const PatrolPathManager::EPatrolStartType tPatrolPathStart, const PatrolPathManager::EPatrolRouteType tPatrolPathStop, bool bRandom, u32 index)
+CPatrolPathParams::CPatrolPathParams(const char* caPatrolPathToGo, const PatrolPathManager::EPatrolStartType tPatrolPathStart, const PatrolPathManager::EPatrolRouteType tPatrolPathStop, bool bRandom, u32 index)
 {
 	m_path_name = caPatrolPathToGo;
 	m_path = ai().patrol_paths().path(m_path_name, true);
+	if (m_path == nullptr)
+	{
+		Msg("! There is no patrol path. m_path is nullptr: [%s]", caPatrolPathToGo);
+	}
 
 	R_ASSERT3(m_path, "There is no patrol path", caPatrolPathToGo);
 
@@ -83,7 +87,7 @@ GameGraph::_GRAPH_ID CPatrolPathParams::game_vertex_id	(u32 index) const
 	return (m_path->vertex(index)->data().game_vertex_id());
 }
 
-u32	CPatrolPathParams::point			(LPCSTR name) const
+u32	CPatrolPathParams::point			(const char* name) const
 {
 	if (m_path == nullptr)
 	{
@@ -137,7 +141,7 @@ Flags32 CPatrolPathParams::flags		(u32 index) const
 	return (Flags32().assign(m_path->vertex(index)->data().flags()));
 }
 
-LPCSTR	CPatrolPathParams::name	(u32 index) const
+const char*	CPatrolPathParams::name	(u32 index) const
 {
 	if (m_path == nullptr)
 	{

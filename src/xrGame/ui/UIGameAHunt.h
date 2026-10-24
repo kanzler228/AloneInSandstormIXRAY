@@ -10,18 +10,18 @@
 class CUIAHuntFragList;
 class CUIAHuntPlayerList;
 class game_cl_ArtefactHunt;
-class CUITextWnd;
+class CUIStatic;
 class CUIProgressShape;
 class CUIMessageBoxEx;
 
-class CUIGameAHunt: public CUIGameTDM
+class CUIGameAHunt final : public CUIGameTDM
 {
 private:
 	game_cl_ArtefactHunt * m_game;
 	typedef CUIGameTDM inherited;
 
 public:
-	CUITextWnd*	m_pReinforcementInidcator;
+	CUIStatic*	m_pReinforcementInidcator;
 	CUIProgressShape* m_pReinforcementInidcator_old;
 	CUIMessageBoxEx*	m_pBuySpawnMsgBox;
 
@@ -32,10 +32,11 @@ public:
 
 	virtual	void		Init					(int stage);
 	virtual	void		UnLoad					();
-			void		SetBuyMsgCaption		(LPCSTR str);
+			void		SetBuyMsgCaption		(const char* str);
 	virtual void		Render					();
 	virtual void		OnFrame					();
 
 protected:
-	CUITextWnd*	m_buy_msg_caption;		
+	CUIStatic*	m_buy_msg_caption;
+	shared_str	m_buy_msg_caption_legacy = "ah_buy";
 };

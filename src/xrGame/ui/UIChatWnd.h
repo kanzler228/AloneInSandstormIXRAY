@@ -5,9 +5,9 @@
 class CUIXml;
 class CUIGameLog;
 class CUIEditBox;
-class CUITextWnd;
+class CUIStatic;
 
-class CUIChatWnd: public CUIDialogWnd, public CUIWndCallback
+class CUIChatWnd final: public CUIDialogWnd, public CUIWndCallback
 {
 	typedef CUIDialogWnd inherited;
 
@@ -16,7 +16,7 @@ public:
 	virtual void		Show				(bool status);
 	virtual bool		NeedCursor			() {return false;}
 	void				Init				(CUIXml& uiXml);
-	void				SetEditBoxPrefix	(LPCSTR prefix);
+	void				SetEditBoxPrefix	(const char* prefix);
 	void				ChatToAll			(bool b) { sendNextMessageToAll = b; }
 	void				PendingMode			(bool const is_pending_mode);
 	virtual bool		NeedCursor			()const {return false;}
@@ -26,7 +26,7 @@ public:
 
 protected:
 	CUIEditBox*			UIEditBox;
-	CUITextWnd*			UIPrefix;
+	CUIStatic*			UIPrefix;
 
 	bool				sendNextMessageToAll;
 	bool				pendingGameMode;

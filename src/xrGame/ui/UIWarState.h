@@ -5,37 +5,36 @@
 //	Description : UI war state (PDA) window class
 ////////////////////////////////////////////////////////////////////////////
 
-#ifndef UI_WAR_STATE_H_INCLUDED
-#define UI_WAR_STATE_H_INCLUDED
+#pragma once
 
 #include "../../xrUI/Widgets/UIHint.h"
 
 class CUIXml;
 class CUIStatic;
+class CUIFrameWindow;
 
-class UIWarState : public UIHintWindow
+class UIWarState final : public UIHintWindow
 {
 private:
 	typedef UIHintWindow	inherited;
 
 	CUIStatic*		m_static;
-//	shared_str		m_def_texture;
-//	bool			m_installed;
 
 public:
-					UIWarState	();
-	virtual			~UIWarState	() {};
+					UIWarState	() = default;
+	virtual			~UIWarState	() = default;
 
-			void	InitXML			( CUIXml& xml, LPCSTR att_name, CUIWindow* parent );
+			void	InitXML			( CUIXml& xml, const char* att_name, CUIWindow* parent );
 			void	ClearInfo		();
-			bool	UpdateInfo		( LPCSTR icon, LPCSTR hint_text );
-	virtual	void	Draw			();
+			bool	UpdateInfo		( const char* icon, const char* hint_text );
+	virtual void	OnFocusReceive	();
+			void	ToggleHint		();		
 
 	virtual CUIWindow* ui_cast_window() { return this; }
+
+	CUIFrameWindow* m_frame_selected = nullptr;
 
 protected:
 
 }; // class UIWarState
-
-#endif // UI_WAR_STATE_H_INCLUDED
 

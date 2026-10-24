@@ -5,7 +5,7 @@
 
 struct SCartridgeParam
 {
-	float	kDist, kDisp, kHit/*, kCritical*/, kImpulse, kAP, kAirRes;
+    float	kDist, kDisp, kHit, kImpulse, kAP, kAirRes;
 	int		buckShot;
 	float	impair;
 	float	fWallmarkSize;
@@ -14,7 +14,6 @@ struct SCartridgeParam
 	IC void Init()
 	{
 		kDist = kDisp = kHit = kImpulse = 1.0f;
-//		kCritical = 0.0f;
 		kAP       = 0.0f;
 		kAirRes   = 0.0f;
 		buckShot  = 1;
@@ -24,11 +23,12 @@ struct SCartridgeParam
 	}
 };
 
-class CCartridge : public IAnticheatDumpable
+class CCartridge final : 
+	public IAnticheatDumpable
 {
 public:
 	CCartridge();
-	void Load(LPCSTR section, u8 LocalAmmoType);
+	void Load(const char* section, u8 LocalAmmoType);
 	float Weight() const;
 
 	shared_str	m_ammoSect;
@@ -49,21 +49,21 @@ public:
 
 	shared_str	m_InvShortName;
 
-	LPCSTR GetInventoryName() { return m_InvShortName.c_str(); };
+	const char* GetInventoryName() { return m_InvShortName.c_str(); };
 	virtual void				DumpActiveParams		(shared_str const & section_name, CInifile & dst_ini) const;
 	virtual shared_str const 	GetAnticheatSectionName	() const { return m_ammoSect; };
 };
 
-class CWeaponAmmo :	
-	public CInventoryItemObject {
-	typedef CInventoryItemObject		inherited;
+class CWeaponAmmo final : public CInventoryItemObject
+{
+	using inherited = CInventoryItemObject;
 public:
-									CWeaponAmmo			(void);
-	virtual							~CWeaponAmmo		(void);
+	CWeaponAmmo() = default;
+	virtual ~CWeaponAmmo() = default;
 
 	virtual CWeaponAmmo				*cast_weapon_ammo	()	{return this;}
-	virtual void					Load				(LPCSTR section);
-	virtual BOOL					net_Spawn			(CSE_Abstract* DC);
+	virtual void					Load				(const char* section);
+	virtual bool					net_Spawn			(CSE_Abstract* DC);
 	virtual void					net_Destroy			();
 	virtual void					net_Export			(NET_Packet& P);
 	virtual void					net_Import			(NET_Packet& P);

@@ -4,7 +4,6 @@
 #include "UIWndCallback.h"
 
 class CUIScrollBar;
-class CUIFixedScrollBar;
 
 class UI_API CUIScrollView :
 	public CUIWindow, 
@@ -29,7 +28,11 @@ enum {eVertFlip=(1<<0),eNeedRecalc=(1<<1),eFixedScrollBar=(1<<2),eItemsSelectabe
 	Ivector2		m_visible_rgn;
 
 virtual void		RecalcSize			();
-		void		UpdateScroll		();	
+		void		UpdateScroll		();
+		void		_updateVerticalScrollState();
+		void		_applyScrollPos		(int scrollPos);
+		bool		_createOrInitScrollBar();
+		void		_applyScrollBarLayout();
 		void 	OnScrollV		(CUIWindow*, void*);
 		void		SetRightIndention	(float val);
 		void		SetLeftIndention	(float val);
@@ -47,9 +50,13 @@ public:
 	virtual void	Draw				();
 	virtual void	Update				();
 			void	AddWindow			(CUIWindow* pWnd, bool auto_delete);
+			bool	HasWindow			(CUIWindow* pWnd);
 			void	RemoveWindow		(CUIWindow* pWnd);
 			void	Clear				();
+			bool	TryClear			();
+			bool	HasPad				() const							{ return m_pad != nullptr; }
 			void	ScrollToBegin		();
+			void	ScrollToItem		(CUIWindow *pItem, int addVerticalOffset);
 			void	ScrollToEnd			();
 			bool	GetVertFlip			()									{return !!m_flags.test(eVertFlip);}
 			bool	Empty				()
@@ -64,20 +71,25 @@ public:
 			float	GetDesiredChildWidth();
 	virtual	void	SetSelected			(CUIWindow*);
 	CUIWindow*		GetSelected			();
+			bool	MoveSelectionUp		(bool bAllowLoop);
+			bool	MoveSelectionDown	(bool bAllowLoop);
+
 			Fvector2 GetPadSize			();
 			void	ForceUpdate			();
 			int		GetMinScrollPos		();
 			int		GetMaxScrollPos		();
 			int		GetCurrentScrollPos	();
 			void	SetScrollPos		(int value);
-			void	SetScrollBarProfile	(LPCSTR profile);
+			void	SetScrollBarProfile	(const char* profile);
+			bool	ReinitScrollBar		();
 IC			bool	NeedShowScrollBar	();		// no comment
 			float	GetHorizIndent		();		// left + right indent
 			float	GetVertIndent		();		// top + bottom indent
 			void	UpdateChildrenLenght();		// set default width for all children
 			float	Scroll2ViewV		();		// calculate scale for scroll position
 	CUIScrollBar*	ScrollBar		() {return m_VScrollBar;}
-	
+			void	SetSelectionsAllowed(bool bOn) { m_flags.set(eItemsSelectabe, bOn);  }
+
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIScrollView* ui_cast_scroll_view() { return this; }
 
@@ -85,7 +97,7 @@ IC			bool	NeedShowScrollBar	();		// no comment
 	cmp_function	m_sort_function;
 };
 
-#define ADD_TEXT_TO_VIEW3(txt,st,view)		st = new CUITextWnd();						\
+#define ADD_TEXT_TO_VIEW3(txt,st,view)		st = new CUIStatic();						\
 											st->SetFont(UI().Font().pFontSystem16); \
 											st->SetText(txt);								\
 											st->SetTextComplexMode(true);					\
@@ -93,5 +105,5 @@ IC			bool	NeedShowScrollBar	();		// no comment
 											st->AdjustHeightToText();						\
 											view->AddWindow(st, true)
 
-#define ADD_TEXT_TO_VIEW2(txt,view)			CUITextWnd*	pSt;								\
+#define ADD_TEXT_TO_VIEW2(txt,view)			CUIStatic*	pSt;								\
 											ADD_TEXT_TO_VIEW3(txt,pSt,view)

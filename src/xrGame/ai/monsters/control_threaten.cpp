@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_threaten.h"
 #include "basemonster/base_monster.h"
 #include "control_animation_base.h"
@@ -32,7 +32,7 @@ void CControlThreaten::activate()
 	ctrl_dir->heading.target_angle	= m_man->direction().angle_to_target(m_object->EnemyMan.get_enemy()->Position());
 
 	//////////////////////////////////////////////////////////////////////////
-	IKinematicsAnimated	*skel	= smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	IKinematicsAnimated	*skel	= m_object->Visual()->dcast_PKinematicsAnimated();
 	
 	SControlAnimationData		*ctrl_anim = (SControlAnimationData*)m_man->data(this, ControlCom::eControlAnimation); 
 	VERIFY						(ctrl_anim);

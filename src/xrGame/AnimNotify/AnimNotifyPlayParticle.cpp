@@ -1,15 +1,14 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "AnimNotifyPlayParticle.h"
 
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/RenderVisual.h"
 
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 
 constexpr u32 m_particles_num = 20;
 
-void CAnimNotifyPlayParticle::Construct(const CInifile& ini, LPCSTR sect)
+void CAnimNotifyPlayParticle::Construct(const CInifile& ini, const char* sect)
 {
     m_particle_to_play = ini.r_string(sect, "particle");
 }

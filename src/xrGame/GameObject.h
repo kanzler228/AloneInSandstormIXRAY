@@ -2,9 +2,10 @@
 //
 //////////////////////////////////////////////////////////////////////
 #pragma once
-
 #include "../xrEngine/xr_object.h"
+#include "../xrCore/ECS/EntityOwner.h"
 #include "../xrNetServer/NET_DeprecatedConstants.h"
+
 #include "xrServer_Space.h"
 #include "alife_space.h"
 #include "UsableScriptObject.h"
@@ -12,6 +13,16 @@
 #include "Hit.h"
 #include "game_object_space.h"
 
+class CMincer;
+class CZoneCampfire;
+class CTorridZone;
+class CAmebaZone;
+class CHairsZone;
+class CGraviZone;
+class CBaseGraviZone;
+class CMosquitoBald;
+class CNoGravityZone;
+class CVisualZone;
 class CPhysicsShell;
 class CSE_Abstract;
 class CPHSynchronize;
@@ -23,11 +34,9 @@ class CEntityAlive;
 class CInventoryOwner;
 class CActor;
 class CPhysicsShellHolder;
-class CParticlesPlayer;
-class CCustomZone;
 class IInputReceiver;
 class CArtefact;
-class CCustomMonster;
+class CCreature;
 class CAI_Stalker;
 class CScriptEntity;
 class CAI_ObjectLocation;
@@ -43,6 +52,8 @@ class CBlend;
 class ai_obstacle;
 class CMissile;
 class CExplosiveRocket;
+class CCustomRocket;
+class CRocketLauncher;
 class CGrenade;
 class CUsableScriptObject;
 class CBreakableObject;
@@ -79,27 +90,37 @@ class CBackpack;
 class CClimableObject;
 class CPhysicObject;
 class CTeamBaseZone;
+class CWeaponShotgun;
+class CWeaponAutomaticShotgun;
 
 class IKinematics;
 class CAI_Trader;
 
 template <typename _return_type>
 class CScriptCallbackEx;
+struct CPHSoundPlayer;
 
 class CGameObject : 
 	public CObject, 
 	public CUsableScriptObject,
-	public CScriptBinder
+	public CScriptBinder,
+	public IECSOwner
 {
 	typedef CObject inherited;
-	bool							m_spawned;
-	Flags32							m_server_flags;
-	CAI_ObjectLocation				*m_ai_location;
-	ALife::_STORY_ID				m_story_id;
-	animation_movement_controller	*m_anim_mov_ctrl;
 protected:
+
+	CAI_ObjectLocation				*m_ai_location;
+	animation_movement_controller	*m_anim_mov_ctrl;
+	CPHSoundPlayer					*m_ph_sound_player;
+	ALife::_STORY_ID				m_story_id;
+	bool							m_spawned;
 	//время удаления объекта
 	bool					m_bObjectRemoved;
+	bool					m_bCrPr_Activated;
+	u32						m_dwCrPr_ActivationStep;
+	Flags32					m_server_flags;
+	int						m_script_clsid;
+	u32						m_spawn_time;
 public:
 	CGameObject();
 	virtual ~CGameObject();
@@ -113,12 +134,10 @@ public:
 	virtual CEntityAlive*				cast_entity_alive			()						{return nullptr;}
 	virtual CActor*						cast_actor					()						{return nullptr;}
 	virtual CAI_Trader*					cast_trader					()						{return nullptr;}
-	virtual CCustomZone*				cast_custom_zone			()						{return nullptr;}
 	virtual CPhysicsShellHolder*		cast_physics_shell_holder	()						{return nullptr;}
 	virtual IInputReceiver*				cast_input_receiver			()						{return nullptr;}
-	virtual CParticlesPlayer*			cast_particles_player		()						{return nullptr;}
 	virtual CArtefact*					cast_artefact				()						{return nullptr;}
-	virtual CCustomMonster*				cast_custom_monster			()						{return nullptr;}
+	virtual CCreature*				cast_creature			()						{return nullptr;}
 	virtual CAI_Stalker*				cast_stalker				()						{return nullptr;}
 	virtual CScriptEntity*				cast_script_entity			()						{return nullptr;}
 	virtual CWeapon*					cast_weapon					()						{return nullptr;}
@@ -166,9 +185,26 @@ public:
 	virtual CClimableObject* cast_climable_object() { return nullptr; }
 	virtual CPhysicObject* cast_physics_object() { return nullptr; }
 	virtual CTeamBaseZone* cast_team_base_zone() { return nullptr; }
+	virtual CCustomRocket* cast_custom_rocket() { return nullptr; }
+	virtual CRocketLauncher* cast_rocket_launcher() { return nullptr; }
+	virtual CWeaponShotgun* cast_weapon_shotgun() { return nullptr; }
+	virtual CWeaponAutomaticShotgun* cast_weapon_auto_shotgun() { return nullptr; }
+	virtual CVisualZone* cast_visual_zone() { return nullptr; }
+	virtual CNoGravityZone* cast_no_gravity_zone() { return nullptr; }
+	virtual CMosquitoBald* cast_mosquito_bald_zone() { return nullptr; }
+	virtual CBaseGraviZone* cast_base_gravi_zone() { return nullptr; }
+	virtual CGraviZone* cast_gravi_zone() { return nullptr; }
+	virtual CHairsZone* cast_hairs_zone() { return nullptr; }
+	virtual CAmebaZone* cast_ameba_zone() { return nullptr; }
+	virtual CTorridZone* cast_torrid_zone() { return nullptr; }
+	virtual CZoneCampfire* cast_zone_campfire() { return nullptr; }
+	virtual CMincer* cast_mincer_zone() { return nullptr; }
+	virtual CRadioactiveZone* cast_radioactive_zone() { return nullptr; }
+	virtual CAnomalyZone* cast_anomaly_zone() { return nullptr; }
+	IC CPHSoundPlayer* ph_sound_player() { return m_ph_sound_player; }
 
 public:
-	virtual BOOL						feel_touch_on_contact	(CObject *)					{return TRUE;}
+	virtual bool						feel_touch_on_contact	(CObject *)					{return true;}
 	virtual bool						use						(CGameObject* who_use)		{return CUsableScriptObject::use(who_use);};
 
 public:
@@ -179,8 +215,8 @@ public:
 	static void				u_EventSend			(NET_Packet& P, u32 dwFlags = DPNSEND_GUARANTEED	);
 	
 	// Methods
-	virtual void			Load				(LPCSTR section);
-	virtual BOOL			net_Spawn			(CSE_Abstract* DC);
+	virtual void			Load				(const char* section);
+	virtual bool			net_Spawn			(CSE_Abstract* DC);
 	virtual void			net_Destroy			();
 	virtual	void			net_Relcase			( CObject* O );	
 	virtual void			UpdateCL			( );
@@ -188,13 +224,13 @@ public:
 	//object serialization
 	virtual void			net_Save			(NET_Packet &net_packet);
 	virtual void			net_Load			(IReader	&ireader);
-	virtual BOOL			net_SaveRelevant	();
+	virtual bool			net_SaveRelevant	();
 	virtual void			save				(NET_Packet &output_packet);
 	virtual void			load				(IReader &input_packet);
 
-	virtual BOOL			net_Relevant		()	{ return getLocal();	}	// send messages only if active and local
+	virtual bool			net_Relevant		()	{ return getLocal();	}	// send messages only if active and local
 	virtual void			spatial_move		();
-	virtual BOOL			Ready				()	{ return getReady();	}	// update only if active and fully initialized by/for network
+	virtual bool			Ready				()	{ return getReady();	}	// update only if active and fully initialized by/for network
 //	virtual float			renderable_Ambient	();
 
 	virtual void			shedule_Update		(u32 dt);	
@@ -204,11 +240,11 @@ public:
 	virtual void			OnEvent				(NET_Packet& P, u16 type);
 	virtual	void			Hit					(SHit* pHDS) {};
 	virtual void			SetHitInfo				(CObject* who, CObject* weapon, s16 element, Fvector Pos, Fvector Dir)	{};
-	virtual	BOOL			BonePassBullet		(int boneID) { return FALSE; }
+	virtual	bool			BonePassBullet		(u16 boneID) { return false; }
 
 
 	//игровое имя объекта
-	virtual LPCSTR			Name                () const;
+	virtual const char*			Name                () const;
 	
 	//virtual void			OnH_A_Independent	();
 	virtual void			OnH_B_Chield		();
@@ -235,8 +271,8 @@ const animation_movement_controller* animation_movement		( ) const	{ return	m_an
 	  animation_movement_controller* animation_movement		( )			{ return	m_anim_mov_ctrl; }
 	// Game-specific events
 
-	virtual BOOL			UsedAI_Locations				();
-			BOOL			TestServerFlag					(u32 Flag) const;
+	virtual bool			UsedAI_Locations				();
+			bool			TestServerFlag					(u32 Flag) const;
 	virtual	bool			can_validate_position_on_spawn	(){return true;}
 #ifdef DEBUG_DRAW
 	virtual void			OnRender			();
@@ -244,13 +280,9 @@ const animation_movement_controller* animation_movement		( ) const	{ return	m_an
 
 			void			init				();
 	virtual	void			reinit				();
-	virtual	void			reload				(LPCSTR section);
+	virtual	void			reload				(const char* section);
 	///////////////////// network /////////////////////////////////////////
 	bool					object_removed		() const { return m_bObjectRemoved; };
-private:
-	bool					m_bCrPr_Activated;
-	u32						m_dwCrPr_ActivationStep;
-
 public:
 	virtual void			make_Interpolation	() {}; // interpolation from last visible to corrected position/rotation
 	virtual void			PH_B_CrPr			() {}; // actions & operations before physic correction-prediction steps
@@ -282,7 +314,7 @@ public:
 
 public:
 	typedef void  visual_callback(IKinematics *);
-	typedef svector<visual_callback*,6>			CALLBACK_VECTOR;
+	typedef FixedVector<visual_callback*,6>			CALLBACK_VECTOR;
 	typedef CALLBACK_VECTOR::iterator			CALLBACK_VECTOR_IT;
 
 	CALLBACK_VECTOR			m_visual_callback;
@@ -300,7 +332,6 @@ public:
 
 private:
 	mutable CScriptGameObject	*m_lua_game_object;
-	int						m_script_clsid;
 public:
 			CScriptGameObject	*lua_game_object() const;
 			int				clsid			() const
@@ -322,9 +353,6 @@ public:
 		VERIFY				(m_ai_location);
 		return				(*m_ai_location);
 	}
-
-private:
-	u32						m_spawn_time;
 
 public:
 	IC		u32				spawn_time			() const
@@ -365,7 +393,7 @@ private:
 
 public:
 	CScriptCallbackExVoid	&callback			(GameObject::ECallbackType type) const;
-	virtual	LPCSTR			visual_name			(CSE_Abstract *server_entity);
+	virtual	const char*			visual_name			(CSE_Abstract *server_entity);
 
 	virtual	void			On_B_NotCurrentEntity () {};
 

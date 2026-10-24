@@ -21,16 +21,16 @@ inherited(TRANSLATE_TYPE(one_instance), flt_max, destroy_from_engine)
 
 #define SET_VALUE(def, target, factor) (def + (target-def) * factor)
 
-BOOL CPPEffectorCustom::Process(SPPInfo& pp)
+bool CPPEffectorCustom::Process(SPPInfo& pp)
 {
-	if (!inherited::Process(pp)) return FALSE;
+	if (!inherited::Process(pp)) return false;
 
 	// update factor
-	if (!update()) return FALSE;
+	if (!update()) return false;
 
 	pp.lerp				(pp_identity, m_state, m_factor);
 
-	return TRUE;
+	return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -39,10 +39,10 @@ CPPEffectorControlled::CPPEffectorControlled(CPPEffectorController *controller, 
 {
 	m_controller = controller;
 }
-BOOL CPPEffectorControlled::update()
+bool CPPEffectorControlled::update()
 {
 	m_controller->update_factor();
-	return TRUE;
+	return true;
 }
 
 

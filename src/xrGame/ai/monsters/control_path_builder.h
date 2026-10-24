@@ -3,7 +3,7 @@
 #include "control_combase.h"
 #include "../../movement_manager.h"
 
-class CCustomMonster;
+class CCreature;
 class CControl_Manager;
 
 struct SControlPathBuilderData : public ControlCom::IComData {
@@ -38,16 +38,16 @@ class CControlPathBuilder :
 	friend	class CControl_Manager;
 
 public:
-					CControlPathBuilder		(CCustomMonster *monster);
+					CControlPathBuilder		(CCreature *monster);
 	virtual			~CControlPathBuilder	();
 
-	virtual void	load					(LPCSTR section);
+	virtual void	load					(const char* section);
 	virtual void	reinit					();
 	virtual void	update_schedule			();
 
 	virtual	void	on_travel_point_change	(const u32 &previous_travel_point_index);
 	virtual void	on_build_path			();
-	virtual	bool	can_use_distributed_computations (u32 option) const;
+	virtual	bool	can_use_distributed_computations () const override;
 
 			// services
 			bool	is_path_end				(float dist_to_end);

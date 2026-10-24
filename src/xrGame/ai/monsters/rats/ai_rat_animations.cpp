@@ -6,7 +6,7 @@
 //	Description : Animations, Bone transformations and Sounds for monster "Rat"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_rat.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
 #include "../../../ai_debug.h"
@@ -17,7 +17,7 @@
 // animations
 void CAI_Rat::load_animations	()
 {
-	IKinematicsAnimated* tpVisualObject = smart_cast<IKinematicsAnimated*>(Visual());
+	IKinematicsAnimated* tpVisualObject = Visual()->dcast_PKinematicsAnimated();
 	
 	// loading normal animations
 	m_tRatAnimations.tNormal.tGlobal.tpaDeath[0] = tpVisualObject->ID_Cycle("norm_death");
@@ -43,7 +43,7 @@ void CAI_Rat::load_animations	()
 
 void CAI_Rat::SelectAnimation(const Fvector& /**_view/**/, const Fvector& /**_move/**/, float /**speed/**/)
 {
-	IKinematicsAnimated	*tpVisualObject = smart_cast<IKinematicsAnimated*>(Visual());
+	IKinematicsAnimated	*tpVisualObject = Visual()->dcast_PKinematicsAnimated();
 	MotionID			tpGlobalAnimation;
 
 	if (!g_Alive()) {
@@ -72,10 +72,10 @@ void CAI_Rat::SelectAnimation(const Fvector& /**_view/**/, const Fvector& /**_mo
 						tpGlobalAnimation = m_tRatAnimations.tNormal.tGlobal.tpaIdle[0];
 				}
 				else
-					if (_abs(m_fSpeed - m_fAttackSpeed) < EPS_L)
+					if (std::abs(m_fSpeed - m_fAttackSpeed) < EPS_L)
 						tpGlobalAnimation = m_tRatAnimations.tNormal.tGlobal.tRunAttack;
 					else
-						if (_abs(m_fSpeed - m_fMaxSpeed) < EPS_L)
+						if (std::abs(m_fSpeed - m_fMaxSpeed) < EPS_L)
 							tpGlobalAnimation = m_tRatAnimations.tNormal.tGlobal.tRun.fwd;
 						else
 							tpGlobalAnimation = m_tRatAnimations.tNormal.tGlobal.tWalk.fwd;
@@ -94,7 +94,7 @@ void CAI_Rat::SelectAnimation(const Fvector& /**_view/**/, const Fvector& /**_mo
 
 #ifdef DEBUG
 	if (psAI_Flags.is(aiAnimation)) {
-		IKinematicsAnimated	*skeleton_animated = smart_cast<IKinematicsAnimated*>(Visual());
+		IKinematicsAnimated	*skeleton_animated = Visual()->dcast_PKinematicsAnimated();
 		Msg					("%6d %s animation : %s (%f,%f)",Device.dwTimeGlobal,"Global",skeleton_animated->LL_MotionDefName_dbg(m_tpCurrentGlobalAnimation),movement().m_body.current.yaw,movement().m_body.target.yaw);
 	}
 #endif

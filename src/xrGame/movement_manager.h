@@ -11,23 +11,19 @@
 #include "ai_monster_space.h"
 #include "graph_engine_space.h"
 #include "game_graph_space.h"
+#include "movement_manager_space.h"
+#include "detail_path_manager_space.h"
 
-namespace MovementManager {
-	enum EPathType;
-};
-
-namespace DetailPathManager {
-	enum EDetailPathType;
-};
-
-template <
+template 
+<
 	typename _Graph,
 	typename _VertexEvaluator,
 	typename _vertex_id_type
 >
 class CBaseLocationSelector;
 
-template <
+template 
+<
 	typename _Graph,
 	typename _VertexEvaluator,
 	typename _vertex_id_type,
@@ -35,25 +31,21 @@ template <
 >
 class CBasePathManager;
 
-template <
+template 
+<
 	typename _dist_type,
 	typename _index_type,
 	typename _iteration_type
 >
 struct SVertexType;
 
-template <
+template 
+<
 	typename _dist_type,
 	typename _index_type,
 	typename _iteration_type
 >
 struct SBaseParameters;
-
-template <
-	typename _dist_type,
-	typename _index_type,
-	typename _iteration_type
->
 struct SGameVertex;
 
 class CEnemyLocationPredictor;
@@ -64,7 +56,7 @@ class CGameGraph;
 class CLevelGraph;
 class CRestrictedObject;
 class CLocationManager;
-class CCustomMonster;
+class CCreature;
 
 namespace steering_behaviour { class manager; }
 
@@ -75,8 +67,8 @@ namespace DetailPathManager {
 class CLevelPathBuilder;
 class CDetailPathBuilder;
 
-class CMovementManager {
-private:
+class CMovementManager 
+{
 	friend class CLevelPathBuilder;
 	friend class CDetailPathBuilder;
 
@@ -85,25 +77,16 @@ protected:
 	typedef MovementManager::EPathType			EPathType;
 	typedef DetailPathManager::STravelPathPoint	CTravelPathPoint;
 	typedef GraphEngineSpace::CBaseParameters 	CBaseParameters;
-	typedef GraphEngineSpace::CGameVertexParams	CGameVertexParams;
 
 	typedef CBaseLocationSelector<
 				IGameGraph,
-				SGameVertex<
-					float,
-					u32,
-					u32
-				>,
+				SGameVertex,
 				u32
 			>		CGameLocationSelector;
 
 	typedef CBasePathManager<
 				IGameGraph,
-				SGameVertex<
-					float,
-					u32,
-					u32
-				>,
+				SGameVertex,
 				u32,
 				u32
 			>		CGamePathManager;
@@ -139,12 +122,8 @@ private:
 		
 		ePathStateDummy = u32(-1),
 	};
-
 protected:
-	typedef xr_vector<CObject*>	NEAREST_OBJECTS;
-
-protected:
-	NEAREST_OBJECTS			m_nearest_objects;
+	xr_vector<ISpatialShared>	m_nearest_objects;
 
 protected:
 	float					m_speed;
@@ -154,6 +133,9 @@ public:
 
 protected:
 	bool					m_path_actuality;
+	bool					m_extrapolate_path;
+	bool					m_build_at_once;
+	bool					m_wait_for_distributed_computation;
 
 private:
 	EPathState				m_path_state;
@@ -161,12 +143,9 @@ private:
 	bool					m_enabled;
 	Fvector					m_on_disable_object_position;
 	float					m_old_desirable_speed;
-	bool					m_extrapolate_path;
-	bool					m_build_at_once;
-	bool					m_wait_for_distributed_computation;
 
 public:
-	CGameVertexParams		*m_base_game_selector;
+	SGameVertex				*m_base_game_selector;
 	CBaseParameters			*m_base_level_selector;
 	CGameLocationSelector	*m_game_location_selector;
 	CGamePathManager		*m_game_path_manager;
@@ -177,7 +156,7 @@ public:
 	CLocationManager		*m_location_manager;
 	CLevelPathBuilder		*m_level_path_builder;
 	CDetailPathBuilder		*m_detail_path_builder;
-	CCustomMonster			*m_object;
+	CCreature			*m_object;
 
 private:
 			void	process_game_path		();
@@ -193,12 +172,12 @@ protected:
 
 public:
 
-					CMovementManager		(CCustomMonster *object);
+					CMovementManager		(CCreature *object);
 	virtual			~CMovementManager		();
-	virtual void	Load					(LPCSTR caSection);
+	virtual void	Load					(const char* caSection);
 	virtual void	reinit					();
-	virtual void	reload					(LPCSTR caSection);
-	virtual BOOL	net_Spawn				(CSE_Abstract* data);
+	virtual void	reload					(const char* caSection);
+	virtual bool	net_Spawn				(CSE_Abstract* data);
 	virtual void	net_Destroy				();
 	virtual	void	on_frame				(CPHMovementControl *movement_control, Fvector &dest_position);
 	IC		bool	actual					() const;
@@ -236,12 +215,12 @@ public:
 			bool	distance_to_destination_greater	(const float &distance_to_check) const;
 
 	IC		bool	wait_for_distributed_computation			() const;
-	virtual	bool	can_use_distributed_computations				(u32 option) const;
+	virtual	bool	can_use_distributed_computations			() const;
 			
 			void	clear_path				();
 
 public:
-	IC		CGameVertexParams		*base_game_params			() const;
+	IC		SGameVertex				*base_game_params			() const;
 	IC		CBaseParameters			*base_level_params			() const;
 	IC		CGameLocationSelector	&game_selector				() const;
 	IC		CGamePathManager		&game_path					() const;
@@ -250,7 +229,7 @@ public:
 	IC		CPatrolPathManager		&patrol						() const;
 	IC		CRestrictedObject		&restrictions				() const;
 	IC		CLocationManager		&locations					() const;
-	IC		CCustomMonster			&object						() const;
+	IC		CCreature			&object						() const;
 	IC		CLevelPathBuilder		&level_path_builder			() const;
 	IC		CDetailPathBuilder		&detail_path_builder		() const;
 

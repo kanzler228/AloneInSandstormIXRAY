@@ -4,7 +4,7 @@
 #include "../controlled_entity.h"
 #include "../../../../xrScripts/script_export_space.h"
 
-class CAI_Boar : public CBaseMonster,
+class CAI_Boar final : public CBaseMonster,
 				 public CControlledEntity<CAI_Boar> {
 
 	typedef		CBaseMonster	inherited;
@@ -14,8 +14,8 @@ public:
 					CAI_Boar			();
 	virtual			~CAI_Boar			();	
 
-	virtual void	Load				(LPCSTR section);
-	virtual BOOL	net_Spawn			(CSE_Abstract* DC);
+	virtual void	Load				(const char* section);
+	virtual bool	net_Spawn			(CSE_Abstract* DC);
 	virtual void	reinit				();
 
 	virtual void	UpdateCL			();

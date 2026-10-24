@@ -5,10 +5,10 @@
 #include "UIHelperGame.h"
 #include "../xrUI/Widgets/UIStatic.h"
 #include "../xrUI/Widgets/UIDialogWnd.h"
-
+#include "../xrUI/Widgets/UIGamepadLegend.h"
 #include "object_broker.h"
 #include "../xrEngine/string_table.h"
-
+#include "UIRadialMenuWeapon.h"
 #include "InventoryOwner.h"
 #include "ui/UIActorMenu.h"
 #include "ui/UIPdaWnd.h"
@@ -18,12 +18,18 @@
 #include "ui/UITalkWnd.h"
 #include "Actor.h"
 #include "Inventory.h"
+#include "UIInventoryWnd.h"
 #include "game_cl_base.h"
-
+#include "UICarBodyWnd.h"
+#include "UITradeWnd.h"
 #include "../xrEngine/x_ray.h"
 #include "ui/UICellItem.h"
+#include "ui/UITalkDialogWnd.h"
+#include "ui/UISleepWnd.h"
+#include "ActorHelmet.h"
+#include "UIUpgradeWnd.h"
 
-EGameIDs ParseStringToGameType(LPCSTR str);
+EGameIDs ParseStringToGameType(const char* str);
 
 bool predicate_sort_stat(const SDrawStaticStruct* s1, const SDrawStaticStruct* s2) 
 {
@@ -32,8 +38,8 @@ bool predicate_sort_stat(const SDrawStaticStruct* s1, const SDrawStaticStruct* s
 
 struct predicate_find_stat 
 {
-	LPCSTR	m_id;
-	predicate_find_stat(LPCSTR id):m_id(id)	{}
+	const char*	m_id;
+	predicate_find_stat(const char* id):m_id(id)	{}
 	bool	operator() (SDrawStaticStruct* s) 
 	{
 		return ( s->m_name==m_id );
@@ -41,9 +47,20 @@ struct predicate_find_stat
 };
 
 CUIGameCustom::CUIGameCustom()
-	: m_msgs_xml(nullptr),		m_ActorMenu(nullptr), 
-	  m_PdaMenu(nullptr),		m_window(nullptr), 
-	  UIMainIngameWnd(nullptr), m_pMessagesWnd(nullptr), TalkMenu(nullptr)
+	: 
+	m_msgs_xml(nullptr),		
+	m_pgameCaptions(nullptr),
+	m_ActorMenu(nullptr),
+	m_InventoryMenu(nullptr),
+	m_CarBodyMenu(nullptr),
+	m_TradeMenu(nullptr),
+	m_UpgradeMenu(nullptr),
+	m_PdaMenu(nullptr),
+	m_window(nullptr), 
+	UIMainIngameWnd(nullptr), 
+	m_pMessagesWnd(nullptr), 
+	m_RadialMenuWeapon(nullptr),
+	TalkMenu(nullptr)
 {
 	ShowGameIndicators		(true);
 	ShowCrosshair			(true);
@@ -61,9 +78,9 @@ CUIGameCustom::~CUIGameCustom()
 	g_pGameCustom = nullptr;
 }
 
-bool CUIGameCustom::HasShownDialogs() const
+bool CUIGameCustom::HasShownDialogs()
 {
-	return ActorMenu().IsShown() || PdaMenu().IsShown();
+	return GetActiveInventoryWindow() != nullptr || PdaMenu()->IsShown();
 }
 
 void CUIGameCustom::OnFrame()
@@ -105,7 +122,8 @@ void CUIGameCustom::OnFrame()
 void CUIGameCustom::Render()
 {
 	PROF_EVENT("CUIGameCustom::Render");
-
+	GameCaptions()->Draw();
+	
 	{
 		xrCriticalSectionGuard guard(ui_lock);
 		for (auto& it : m_custom_statics)
@@ -137,7 +155,7 @@ void CUIGameCustom::Render()
 		}
 
 		const static bool noHUDonMaster = EngineExternal()[EEngineExternalUI::DisableHudRenderingOnMaster];
-		bool renderHUD = noHUDonMaster ? g_SingleGameDifficulty != egdMaster : true;
+		bool renderHUD = noHUDonMaster ? (g_SingleGameDifficulty != egdMaster || (pActor && pActor->GetHelmet() && !fis_zero(pActor->GetHelmet()->m_fShowNearestEnemiesDistance))) : true;
 
 		if( GameIndicatorsShown() && psHUD_Flags.is(HUD_DRAW | HUD_DRAW_RT) && renderHUD )
 			UIMainIngameWnd->Draw();
@@ -149,7 +167,28 @@ void CUIGameCustom::Render()
 	DoRenderDialogs();
 }
 
-SDrawStaticStruct* CUIGameCustom::AddCustomStatic(LPCSTR id, bool bSingleInstance, float ttlDefault)
+void CUIGameCustom::AddCustomMessage		(const char* id, float x, float y, float font_size, CGameFont *pFont, u16 alignment, u32 color/* const char* def_text*/ )
+{
+	GameCaptions()->addCustomMessage(id,x,y,font_size,pFont,(CGameFont::EAligment)alignment,color,"");
+}
+
+void CUIGameCustom::AddCustomMessage		(const char* id, float x, float y, float font_size, CGameFont *pFont, u16 alignment, u32 color, /*const char* def_text,*/ float flicker )
+{
+	AddCustomMessage(id,x,y,font_size, pFont, alignment, color);
+	GameCaptions()->customizeMessage(id, CUITextBanner::tbsFlicker)->fPeriod = flicker;
+}
+
+void CUIGameCustom::CustomMessageOut(const char* id, const char* msg, u32 color)
+{
+	GameCaptions()->setCaption(id,msg,color,true);
+}
+
+void CUIGameCustom::RemoveCustomMessage		(const char* id)
+{
+	GameCaptions()->removeCustomMessage(id);
+}
+
+SDrawStaticStruct* CUIGameCustom::AddCustomStatic(const char* id, bool bSingleInstance, float ttlDefault)
 {
 	xrCriticalSectionGuard guard(ui_lock);
 
@@ -174,7 +213,7 @@ SDrawStaticStruct* CUIGameCustom::AddCustomStatic(LPCSTR id, bool bSingleInstanc
 	return sss;
 }
 
-SDrawStaticStruct * CUIGameCustom::AddHudMessage(LPCSTR text, LPCSTR text2, LPCSTR id, bool trnslate_second_text, float time, bool bSingleInstance) {
+SDrawStaticStruct * CUIGameCustom::AddHudMessage(const char* text, const char* text2, const char* id, bool trnslate_second_text, float time, bool bSingleInstance) {
 	VERIFY(text);
 
 	SDrawStaticStruct* HudMessage = AddCustomStatic(id ? id : "hud_message", bSingleInstance);
@@ -192,7 +231,7 @@ SDrawStaticStruct * CUIGameCustom::AddHudMessage(LPCSTR text, LPCSTR text2, LPCS
 	return HudMessage;
 }
 
-SDrawStaticStruct* CUIGameCustom::GetCustomStatic(LPCSTR id)
+SDrawStaticStruct* CUIGameCustom::GetCustomStatic(const char* id)
 {
 	xrCriticalSectionGuard guard(ui_lock);
 	st_vec::iterator it = std::find_if(m_custom_statics.begin(),m_custom_statics.end(), predicate_find_stat(id));
@@ -202,7 +241,7 @@ SDrawStaticStruct* CUIGameCustom::GetCustomStatic(LPCSTR id)
 	return nullptr;
 }
 
-void CUIGameCustom::RemoveCustomStatic(LPCSTR id)
+void CUIGameCustom::RemoveCustomStatic(const char* id)
 {
 	xrCriticalSectionGuard guard(ui_lock);
 	st_vec::iterator it = std::find_if(m_custom_statics.begin(),m_custom_statics.end(), predicate_find_stat(id) );
@@ -215,8 +254,10 @@ void CUIGameCustom::RemoveCustomStatic(LPCSTR id)
 
 void CUIGameCustom::OnInventoryAction(PIItem item, u16 action_type)
 {
-	if ( m_ActorMenu->IsShown() )
-		m_ActorMenu->OnInventoryAction( item, action_type );
+	if (GetActiveInventoryWindow())
+	{
+		GetActiveInventoryWindow()->OnInventoryAction(item, action_type);
+	}
 }
 
 #include "ui/UIGameTutorial.h"
@@ -226,42 +267,69 @@ extern CUISequencer* g_tutorial2;
 
 bool CUIGameCustom::ShowActorMenu()
 {
-	if ( m_ActorMenu->IsShown() )
+	if (m_ActorMenu)
 	{
-		m_ActorMenu->HideDialog();
-	}else
+		if (m_ActorMenu->IsShown())
+		{
+			m_ActorMenu->HideDialog();
+		}
+		else
+		{
+			HidePdaMenu();
+			CInventoryOwner* pIOActor	= Level().CurrentViewEntity() != nullptr ? Level().CurrentViewEntity()->cast_inventory_owner() : nullptr;
+			VERIFY(pIOActor);
+			m_ActorMenu->SetActor(pIOActor);
+			m_ActorMenu->SetMenuMode(mmInventory);
+			m_ActorMenu->ShowDialog(true);
+		}
+	}
+	else
 	{
-		HidePdaMenu();
-		CInventoryOwner* pIOActor	= Level().CurrentViewEntity() != nullptr ? Level().CurrentViewEntity()->cast_inventory_owner() : nullptr;
-		VERIFY						(pIOActor);
-		m_ActorMenu->SetActor		(pIOActor);
-		m_ActorMenu->SetMenuMode	(mmInventory);
-		m_ActorMenu->ShowDialog		(true);
+		if (m_InventoryMenu->IsShown())
+			m_InventoryMenu->HideDialog();
+		else
+		{
+			HidePdaMenu();
+			m_InventoryMenu->ShowDialog(true);
+		}
 	}
 	return true;
 }
 
 void CUIGameCustom::HideActorMenu()
 {
-	if ( m_ActorMenu->IsShown() )
+	if (GetActiveInventoryWindow())
 	{
-		m_ActorMenu->HideDialog();
+		GetActiveInventoryWindow()->HideDialog();
+	}
+
+	CInventoryOwner* pIOActor = Level().CurrentViewEntity() != nullptr ? Level().CurrentViewEntity()->cast_inventory_owner() : nullptr;
+	if (pIOActor && pIOActor->IsTalking())
+	{
+		TalkMenu->UITalkDialogWnd->Show();
 	}
 }
 
 //Alundaio:
 void CUIGameCustom::UpdateActorMenu()
 {
-	if (m_ActorMenu->IsShown())
+	if (m_ActorMenu && m_ActorMenu->IsShown())
 	{
 		m_ActorMenu->UpdateActor();
-		m_ActorMenu->RefreshCurrentItemCell();
+	}
+
+	if (GetActiveInventoryWindow())
+	{
+		GetActiveInventoryWindow()->RefreshCurrentItemCell();
 	}
 }
 
 CScriptGameObject* CUIGameCustom::CurrentItemAtCell()
 {
-	CUICellItem* itm = m_ActorMenu->CurrentItem();
+	if (!GetActiveInventoryWindow())
+		return (0);
+
+	CUICellItem* itm = GetActiveInventoryWindow()->CurrentItem();
 	if (!itm->m_pData)
 	{
 		return 0;
@@ -311,26 +379,59 @@ void CUIGameCustom::HidePdaMenu()
 	}
 }
 
+bool CUIGameCustom::ShowRadialMenuWeapon()
+{
+	if (!m_RadialMenuWeapon->isInitialized)
+		return false;
+
+	HidePdaMenu();
+	HideActorMenu();
+	m_RadialMenuWeapon->ShowDialog(true);
+	return true;
+}
+
+void CUIGameCustom::HideRadialMenuWeapon()
+{
+	if ( m_RadialMenuWeapon->IsShown() )
+	{
+		m_RadialMenuWeapon->HideDialog();
+	}
+}
+
 void  CUIGameCustom::StartTrade(CInventoryOwner* pActorInv, CInventoryOwner* pOtherOwner)
 {
 	//.	if( MainInputReceiver() )	return;
+	if (m_ActorMenu)
+	{
+		m_ActorMenu->SetActor(pActorInv);
+		m_ActorMenu->SetPartner(pOtherOwner);
 
-	m_ActorMenu->SetActor(pActorInv);
-	m_ActorMenu->SetPartner(pOtherOwner);
-
-	m_ActorMenu->SetMenuMode(mmTrade);
-	m_ActorMenu->ShowDialog(true);
+		m_ActorMenu->SetMenuMode(mmTrade);
+		m_ActorMenu->ShowDialog(true);
+	}
+	else if (m_TradeMenu)
+	{
+		m_TradeMenu->InitTrade(pActorInv, pOtherOwner);
+		m_TradeMenu->StartTrade();
+		m_TradeMenu->ShowDialog(true);
+	}
 }
 
 void  CUIGameCustom::StartUpgrade(CInventoryOwner* pActorInv, CInventoryOwner* pMech)
 {
-	//.	if( MainInputReceiver() )	return;
+	if (m_ActorMenu)
+	{
+		m_ActorMenu->SetActor(pActorInv);
+		m_ActorMenu->SetPartner(pMech);
 
-	m_ActorMenu->SetActor(pActorInv);
-	m_ActorMenu->SetPartner(pMech);
-
-	m_ActorMenu->SetMenuMode(mmUpgrade);
-	m_ActorMenu->ShowDialog(true);
+		m_ActorMenu->SetMenuMode(mmUpgrade);
+		m_ActorMenu->ShowDialog(true);
+	}
+	else
+	{
+		m_UpgradeMenu->StartUpgrade(pActorInv, pMech);
+		m_UpgradeMenu->ShowDialog(true);
+	}
 }
 
 void CUIGameCustom::StartTalk(bool disable_break)
@@ -346,6 +447,8 @@ void CUIGameCustom::HideShownDialogs()
 {
 	HideActorMenu();
 	HidePdaMenu();
+	if (SleepWnd && SleepWnd->IsShown())
+		SleepWnd->HideDialog();
 	CUIDialogWnd* mir = TopInputReceiver();
 	if (mir && mir == TalkMenu)
 	{
@@ -353,27 +456,66 @@ void CUIGameCustom::HideShownDialogs()
 	}
 }
 
-void CUIGameCustom::StartCarBody(CInventoryOwner* pActorInv, CInventoryOwner* pOtherOwner) //Deadbody search
+bool CUIGameCustom::StartCarBody(CInventoryOwner* pActorInv, CInventoryOwner* pOtherOwner) //Deadbody search
 {
-	if (TopInputReceiver())		return;
+	if (TopInputReceiver())
+	{
+		return false;
+	}
+	CBackpackAnimator* backpack_animator = pActorInv->cast_actor()->HudAnimator()->BackpackAnimator();
 
-	m_ActorMenu->SetActor(pActorInv);
-	m_ActorMenu->SetPartner(pOtherOwner);
+	if (backpack_animator != nullptr
+		&& backpack_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHidden
+		&& backpack_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHiding)
+	{
+		backpack_animator->SetState(CHudStateAnimator::EAnimatorStates::eHiding);
+	}
 
-	m_ActorMenu->SetMenuMode(mmDeadBodySearch);
-	m_ActorMenu->ShowDialog(true);
+	if (m_ActorMenu)
+	{
+		m_ActorMenu->SetActor(pActorInv);
+		m_ActorMenu->SetPartner(pOtherOwner);
+
+		m_ActorMenu->SetMenuMode(mmDeadBodySearch);
+		m_ActorMenu->ShowDialog(true);
+	}
+	else if (m_CarBodyMenu)
+	{
+		m_CarBodyMenu->InitCarBody(pActorInv, pOtherOwner);
+		m_CarBodyMenu->ShowDialog(true);
+	}
+	return true;
 }
 
-void CUIGameCustom::StartCarBody(CInventoryOwner* pActorInv, CInventoryBox* pBox) //Deadbody search
+bool CUIGameCustom::StartCarBody(CInventoryOwner* pActorInv, CInventoryBox* pBox) //Deadbody search
 {
-	if (TopInputReceiver())		return;
+	if (TopInputReceiver())
+	{
+		return false;
+	}
+	CBackpackAnimator* backpack_animator = pActorInv->cast_actor()->HudAnimator()->BackpackAnimator();
 
-	m_ActorMenu->SetActor(pActorInv);
-	m_ActorMenu->SetInvBox(pBox);
+	if (backpack_animator != nullptr
+		&& backpack_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHidden
+		&& backpack_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHiding)
+	{
+		backpack_animator->SetState(CHudStateAnimator::EAnimatorStates::eHiding);
+	}
 	VERIFY(pBox);
+	if (m_ActorMenu)
+	{
+		m_ActorMenu->SetActor(pActorInv);
+		m_ActorMenu->SetInvBox(pBox);
 
-	m_ActorMenu->SetMenuMode(mmDeadBodySearch);
-	m_ActorMenu->ShowDialog(true);
+		m_ActorMenu->SetMenuMode(mmDeadBodySearch);
+		m_ActorMenu->ShowDialog(true);
+	}
+	else if (m_CarBodyMenu)
+	{
+		m_CarBodyMenu->InitCarBody(pActorInv, pBox);
+		m_CarBodyMenu->ShowDialog(true);
+	}
+	return true;
 }
 
 void CUIGameCustom::SetClGame(game_cl_GameState* g)
@@ -384,12 +526,19 @@ void CUIGameCustom::SetClGame(game_cl_GameState* g)
 void CUIGameCustom::UnLoad()
 {
 	xr_delete					(m_msgs_xml);
+	xr_delete					(m_pgameCaptions);
 	xr_delete					(m_ActorMenu);
+	xr_delete					(m_InventoryMenu);
+	xr_delete					(m_CarBodyMenu);
+	xr_delete					(m_TradeMenu);
+	xr_delete					(m_UpgradeMenu);
+	xr_delete					(TalkMenu);
 	xr_delete					(m_PdaMenu);
 	xr_delete					(m_window);
 	xr_delete					(UIMainIngameWnd);
 	xr_delete					(m_pMessagesWnd);
-	xr_delete					(TalkMenu);
+	xr_delete					(m_RadialMenuWeapon);
+	xr_delete					(SleepWnd);
 }
 
 void CUIGameCustom::Load()
@@ -400,11 +549,24 @@ void CUIGameCustom::Load()
 		m_msgs_xml				= new CUIXml();
 		m_msgs_xml->Load		(CONFIG_PATH, UI_PATH, "ui_custom_msgs.xml");
 
+		R_ASSERT				(nullptr== m_pgameCaptions);
+		m_pgameCaptions			= new CUICaption();
+
+		CUIXml inventoryXml;
+		if (inventoryXml.Load(CONFIG_PATH, UI_PATH, "actor_menu.xml"))
+		{
+			m_ActorMenu				= new CUIActorMenu		();
+		}
+		else
+		{
+			m_CarBodyMenu			= new CUICarBodyWnd		();
+			m_InventoryMenu			= new CUIInventoryWnd	();
+			m_TradeMenu				= new CUITradeWnd		();
+			m_UpgradeMenu			= new CUIUpgradeWnd		();
+		}
+		
 		R_ASSERT				(nullptr==TalkMenu);
 		TalkMenu				= new CUITalkWnd();
-
-		R_ASSERT				(nullptr==m_ActorMenu);
-		m_ActorMenu				= new CUIActorMenu		();
 
 		R_ASSERT				(nullptr==m_PdaMenu);
 		m_PdaMenu				= new CUIPdaWnd			();
@@ -419,6 +581,11 @@ void CUIGameCustom::Load()
 		R_ASSERT				(nullptr==m_pMessagesWnd);
 		m_pMessagesWnd			= new CUIMessagesWindow();
 
+		R_ASSERT				(nullptr==m_RadialMenuWeapon);
+		m_RadialMenuWeapon		= new CUIRadialMenuWeapon();
+
+		R_ASSERT				(nullptr==SleepWnd);
+		SleepWnd				= new CUISleepWnd();
 		
 		Init					(0);
 		Init					(1);
@@ -437,13 +604,13 @@ void CUIGameCustom::OnConnected()
 	}
 }
 
-void CUIGameCustom::CommonMessageOut(LPCSTR text)
+void CUIGameCustom::CommonMessageOut(const char* text)
 {
 	m_pMessagesWnd->AddLogMessage(text);
 }
 void CUIGameCustom::UpdatePda()
 {
-	PdaMenu().UpdatePda();
+	PdaMenu()->UpdatePda();
 }
 
 void CUIGameCustom::update_fake_indicators(u8 type, float power)
@@ -454,6 +621,115 @@ void CUIGameCustom::update_fake_indicators(u8 type, float power)
 void CUIGameCustom::enable_fake_indicators(bool enable)
 {
 	UIMainIngameWnd->get_hud_states()->EnableFakeIndicators(enable);
+}
+
+void CUIGameCustom::ReloadGamepadLegends() 
+{
+	// Inventory
+	if (m_ActorMenu)
+	{
+		m_ActorMenu->ReloadGamepadLegend();
+	}
+	if (m_CarBodyMenu)
+	{
+		m_CarBodyMenu->ReloadGamepadLegend();
+	}
+	if (m_InventoryMenu)
+	{
+		m_InventoryMenu->ReloadGamepadLegend();
+	}
+	if (m_TradeMenu)
+	{
+		m_TradeMenu->ReloadGamepadLegend();
+	}
+	if (m_UpgradeMenu)
+	{
+		m_UpgradeMenu->ReloadGamepadLegend();
+	}
+	// Talk menu
+	if (TalkMenu)
+	{
+		if (TalkMenu->UITalkDialogWnd->m_gamepad_legend)
+		{
+			TalkMenu->UITalkDialogWnd->m_gamepad_legend->ReloadLegend();
+		}
+	}
+	// PDA
+	if (m_PdaMenu)
+	{
+		m_PdaMenu->ReloadGamepadLegends();
+	}
+	// Radial menu
+	if (m_RadialMenuWeapon)
+	{
+		if (m_RadialMenuWeapon->m_pGamepadLegend)
+		{
+			m_RadialMenuWeapon->m_pGamepadLegend->ReloadLegend();
+		}
+	}
+}
+
+CUIActorMenuBase* CUIGameCustom::GetInventoryMenu()
+{
+	if (m_ActorMenu)
+	{
+		return m_ActorMenu;
+	}
+	else
+	{
+		return m_InventoryMenu;
+	}
+}
+
+CUIActorMenuBase* CUIGameCustom::GetCarbodyMenu()
+{
+	if (m_ActorMenu)
+	{
+		return m_ActorMenu;
+	}
+	else
+	{
+		return m_CarBodyMenu;
+	}
+}
+
+CUIActorMenuBase* CUIGameCustom::GetTradeMenu()
+{
+	if (m_ActorMenu)
+	{
+		return m_ActorMenu;
+	}
+	else
+	{
+		return m_TradeMenu;
+	}
+}
+
+// Get any inventory window opened for now
+// You can't have more than one window opened, isn't it?
+CUIActorMenuBase* CUIGameCustom::GetActiveInventoryWindow()
+{
+	if (m_ActorMenu && m_ActorMenu->IsShown())
+	{
+		return m_ActorMenu;
+	}
+	else if (m_InventoryMenu && m_InventoryMenu->IsShown())
+	{
+		return m_InventoryMenu;
+	}
+	else if (m_CarBodyMenu && m_CarBodyMenu->IsShown())
+	{
+		return m_CarBodyMenu;
+	}
+	else if (m_TradeMenu && m_TradeMenu->IsShown())
+	{
+		return m_TradeMenu;
+	}
+	else if (m_UpgradeMenu && m_UpgradeMenu->IsShown())
+	{
+		return m_UpgradeMenu;
+	}
+	return nullptr;
 }
 
 SDrawStaticStruct::SDrawStaticStruct	()
@@ -473,7 +749,7 @@ bool SDrawStaticStruct::IsActual() const
 	return (Device.fTimeGlobal < m_endTime);
 }
 
-void SDrawStaticStruct::SetText(LPCSTR text)
+void SDrawStaticStruct::SetText(const char* text)
 {
 	m_static->Show(text!=nullptr);
 	if(text)
@@ -496,9 +772,9 @@ void SDrawStaticStruct::Update()
 }
 
 CMapListHelper	gMapListHelper;
-xr_token		game_types[];
+extern xr_token game_types[];
 
-void CMapListHelper::LoadMapInfo(LPCSTR map_cfg_fn, const xr_string& map_name, LPCSTR map_ver)
+void CMapListHelper::LoadMapInfo(const char* map_cfg_fn, const xr_string& map_name, const char* map_ver)
 {
 	CInifile	ini				(map_cfg_fn);
 
@@ -552,7 +828,7 @@ void CMapListHelper::LoadMapInfo(LPCSTR map_cfg_fn, const xr_string& map_name, L
 void CMapListHelper::Load()
 {
 	string_path					fn;
-	FS.update_path				(fn, "$game_config$", "mp\\map_list.ltx");
+	FS.update_path				(fn, _game_config_, "mp\\map_list.ltx");
 	CInifile map_list_cfg		(fn);
 
 	//read weathers set
@@ -566,10 +842,24 @@ void CMapListHelper::Load()
 		gw.m_weather_name		= (*wi).first;
 		gw.m_start_time			= (*wi).second;
 	}
+	
+	//read original maps from config
+	CInifile::Root& sections = map_list_cfg.sections();
+	for(CInifile::Sect& sect : sections)
+	{
+		m_storage.resize		(m_storage.size()+1);
+		SGameTypeMaps&	M		= m_storage.back();
+		M.m_game_type_name	= sect.Name;
+		M.m_game_type_id		= (EGameIDs)get_token_id(game_types, M.m_game_type_name.c_str() );
 
+		CInifile::Items& items = sect.Data;
+		M.m_map_names.reserve(items.size());
+		for(CInifile::Item& item : items)
+			M.m_map_names.push_back({ item.first, "1.0" });
+	}
 	// scan for additional maps
 	FS_FileSet			fset;
-	FS.file_list		(fset,"$game_levels$",FS_ListFiles,"*level.ltx");
+	FS.file_list		(fset,_game_levels_,FS_ListFiles,"*level.ltx");
 
 	FS_FileSetIt fit	= fset.begin();
 	FS_FileSetIt fit_e	= fset.end();
@@ -577,29 +867,29 @@ void CMapListHelper::Load()
 	for( ;fit!=fit_e; ++fit)
 	{
 		string_path					map_cfg_fn;
-		FS.update_path				(map_cfg_fn, "$game_levels$", (*fit).name.c_str());
+		FS.update_path				(map_cfg_fn, _game_levels_, (*fit).name.c_str());
 		LoadMapInfo					(map_cfg_fn, (*fit).name);
 	}
 	//scan all not laoded archieves
-	LPCSTR tmp_entrypoint			= "temporary_gamedata\\";
-	FS_Path* game_levels			= FS.get_path("$game_levels$");
+	const char* tmp_entrypoint			= "temporary_gamedata\\";
+	FS_Path* game_levels			= FS.get_path(_game_levels_);
 	xr_string prev_root				= game_levels->m_Root;
 	game_levels->_set_root			(tmp_entrypoint);
 
-	CLocatorAPI::archives_it it		= FS.m_archives.begin();
-	CLocatorAPI::archives_it it_e	= FS.m_archives.end();
+	CLocatorAPI::archives_it arch_it		= FS.m_archives.begin();
+	CLocatorAPI::archives_it arch_it_e	= FS.m_archives.end();
 
-	for(;it!=it_e;++it)
+	for(; arch_it != arch_it_e;++arch_it)
 	{
-		CLocatorAPI::archive& A		= *it;
+		CLocatorAPI::archive& A		= *arch_it;
 		if(A.hSrcFile)				continue;
 
-		LPCSTR ln					= A.header->r_string("header", "level_name");
-		LPCSTR lv					= A.header->r_string("header", "level_ver");
+		const char* ln					= A.header->r_string("header", "level_name");
+		const char* lv					= A.header->r_string("header", "level_ver");
 		FS.LoadArchive				(A, tmp_entrypoint);
 
 		string_path					map_cfg_fn;
-		FS.update_path				(map_cfg_fn, "$game_levels$", ln);
+		FS.update_path				(map_cfg_fn, _game_levels_, ln);
 
 		
 		xr_strcat					(map_cfg_fn,"\\level.ltx");
@@ -662,7 +952,7 @@ const GAME_WEATHERS& CMapListHelper::GetGameWeathers()
 
 // Change Level Wnd
 
-extern ENGINE_API BOOL bShowPauseString;
+extern ENGINE_API bool bShowPauseString;
 void CUIGameCustom::ChangeLevel(GameGraph::_GRAPH_ID game_vert_id,
 	u32 level_vert_id,
 	Fvector pos,
@@ -687,6 +977,158 @@ void CUIGameCustom::ChangeLevel(GameGraph::_GRAPH_ID game_vert_id,
 
 		UIChangeLevelWnd->ShowDialog(true);
 	}
+}
+
+void CUIGameCustom::ShowSleepDialog()
+{
+	if (SleepWnd == nullptr)
+	{
+		Msg("! [sleep] SleepWnd is null");
+		return;
+	}
+	if (!SleepWnd->HasInitializedLayout())
+	{
+		Msg("! [sleep] SleepWnd layout not initialized (ui_sleep_dialog.xml?)");
+		return;
+	}
+	SleepWnd->ShowSleepDialog();
+}
+
+void CUIGameCustom::ShowSleepDialogAtHour(int hours)
+{
+	if (SleepWnd != nullptr && SleepWnd->HasInitializedLayout())
+		SleepWnd->ShowSleepDialog(hours);
+}
+
+void CUIGameCustom::SetSleepHourPresets(xr_vector<int> hours)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetHourPresets(std::move(hours));
+}
+
+void CUIGameCustom::ClearSleepHourPresets()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearHourPresets();
+}
+
+bool CUIGameCustom::IsSleepDialogReady() const
+{
+	return SleepWnd != nullptr && SleepWnd->IsSleepDialogReady();
+}
+
+bool CUIGameCustom::IsSleepDialogShown() const
+{
+	return SleepWnd != nullptr && SleepWnd->IsSleepDialogShown();
+}
+
+void CUIGameCustom::HideSleepDialog()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->HideSleepDialog();
+}
+
+void CUIGameCustom::CancelSleepDialog()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->CancelSleepDialog();
+}
+
+bool CUIGameCustom::ConfirmSleep()
+{
+	return SleepWnd != nullptr && SleepWnd->ConfirmSleep();
+}
+
+void CUIGameCustom::ForceSleep(int hours)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ForceSleep(hours);
+}
+
+bool CUIGameCustom::AbortSleep()
+{
+	return SleepWnd != nullptr && SleepWnd->AbortSleep();
+}
+
+int CUIGameCustom::GetSleepSelectedHours() const
+{
+	return SleepWnd != nullptr ? SleepWnd->GetSleepSelectedHours() : 1;
+}
+
+void CUIGameCustom::SetSleepSelectedHours(int hours)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepSelectedHours(hours);
+}
+
+bool CUIGameCustom::IsActorSleeping() const
+{
+	return SleepWnd != nullptr && SleepWnd->IsActorSleeping();
+}
+
+u8 CUIGameCustom::GetSleepPhase() const
+{
+	return SleepWnd != nullptr ? SleepWnd->GetSleepPhase() : 0;
+}
+
+void CUIGameCustom::SetSleepHoursRange(int minHours, int maxHours)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepHoursRange(minHours, maxHours);
+}
+
+void CUIGameCustom::ClearSleepHoursRange()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearSleepHoursRange();
+}
+
+void CUIGameCustom::SetSleepAllowBleeding(bool allow)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepAllowBleeding(allow);
+}
+
+void CUIGameCustom::ClearSleepAllowBleeding()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearSleepAllowBleeding();
+}
+
+void CUIGameCustom::SetSleepRestorePower(float power)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepRestorePower(power);
+}
+
+void CUIGameCustom::ClearSleepRestorePower()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearSleepRestorePower();
+}
+
+void CUIGameCustom::SetSleepMute(bool muteMusic, bool muteEffects)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepMute(muteMusic, muteEffects);
+}
+
+void CUIGameCustom::ClearSleepMute()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearSleepMute();
+}
+
+void CUIGameCustom::ClearSleepSessionOverrides()
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->ClearSleepSessionOverrides();
+}
+
+void CUIGameCustom::SetSleepBlocked(bool blocked, LPCSTR warningText)
+{
+	if (SleepWnd != nullptr)
+		SleepWnd->SetSleepBlocked(blocked, warningText);
 }
 
 #include "ui/UIMessageBox.h"
@@ -724,7 +1166,7 @@ void CChangeLevelWnd::OnOk()
 	p.w_vec3(m_position);
 	p.w_vec3(m_angles);
 
-	Level().Send(p, net_flags(TRUE));
+	Level().Send(p, net_flags(true));
 }
 
 void CChangeLevelWnd::OnCancel()
@@ -738,11 +1180,53 @@ bool CChangeLevelWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 {
 	if (keyboard_action == WINDOW_KEY_PRESSED)
 	{
+		if (is_binded(kUI_ACCEPT, dik))
+		{
+			if (m_b_allow_change_level)
+			{
+				OnOk();
+			}
+			else
+			{
+				OnCancel();
+			}
+			return true;
+		}
 		if (is_binded(kQUIT, dik))
+		{
 			OnCancel();
-		return true;
+			return true;
+		}
 	}
 	return inherited::OnKeyboardAction(dik, keyboard_action);
+}
+
+bool CChangeLevelWnd::OnGamepadKeyAction(int id, EUIMessages gamepad_action)
+{
+	if (gamepad_action == WINDOW_KEY_PRESSED)
+	{
+		switch (get_binded_action(id, agUIGeneral))
+		{
+			case kUI_ACCEPT:
+			{
+				if (m_b_allow_change_level)
+				{
+					OnOk();
+				}
+				else
+				{
+					OnCancel();
+				}
+				return true;
+			}
+			case kUI_BACK:
+			{
+				OnCancel();
+				return true;
+			}
+		}
+	}
+	return inherited::OnGamepadKeyAction(id, gamepad_action);
 }
 
 bool g_block_pause = false;
@@ -760,11 +1244,11 @@ void CChangeLevelWnd::Show(bool status)
 		m_messageBox->SetText(m_message_str.c_str());
 
 		g_block_pause = true;
-		Device.Pause(TRUE, TRUE, TRUE, "CChangeLevelWnd_show");
-		bShowPauseString = FALSE;
+		Device.Pause(true, true, true, "CChangeLevelWnd_show");
+		bShowPauseString = false;
 	}
 	else {
 		g_block_pause = false;
-		Device.Pause(FALSE, TRUE, TRUE, "CChangeLevelWnd_hide");
+		Device.Pause(false, true, true, "CChangeLevelWnd_hide");
 	}
 }

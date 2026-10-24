@@ -26,7 +26,7 @@ private:
 
 struct SControlAnimationData : public ControlCom::IComData {
 	float				_speed;
-	IC void				set_speed	(float v)		{_speed=v; VERIFY2(_abs(_speed)<1000,"SControlAnimationData::set_speed too big");};
+	IC void				set_speed	(float v)		{_speed=v; VERIFY2(std::abs(_speed)<1000,"SControlAnimationData::set_speed too big");};
 	IC float			get_speed	()				{return _speed;};
 	SAnimationPart		global;
 	SAnimationPart		legs;
@@ -108,7 +108,7 @@ public:
 // get motion time, when just MotionID available
 IC float CControlAnimation::motion_time(MotionID motion_id, IRenderVisual *visual)
 {
-	IKinematicsAnimated	*skeleton_animated	= smart_cast<IKinematicsAnimated*>(visual);
+	IKinematicsAnimated	*skeleton_animated	= visual->dcast_PKinematicsAnimated();
 	VERIFY				(skeleton_animated);
 	CMotionDef			*motion_def			= skeleton_animated->LL_GetMotionDef(motion_id);
 	VERIFY				(motion_def);

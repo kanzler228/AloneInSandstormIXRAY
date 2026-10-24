@@ -5,23 +5,21 @@
 
 class CCameraFirstEye : public CCameraBase
 {
-	typedef CCameraBase inherited;
-	Fvector			lookat_point;
-	bool			lookat_active;
-	void			UpdateLookat	();
+	using inherited = CCameraBase;
 public:
 					CCameraFirstEye	( CObject* p, u32 flags=0);
 	virtual			~CCameraFirstEye( );
 
-	virtual void	Load			(LPCSTR section);
+	virtual void	Load			(const char* section);
 	virtual void	Move			( int cmd, float val=0, float factor=1.0f );
 
 	virtual	void	OnActivate		( CCameraBase* old_cam );
-	virtual void	Update			( Fvector& point, Fvector& noise_angle );
+	virtual void	Update			( Fvector& point, Fvector& noise_angle, bool force_update_pos );
 
 	virtual float	GetWorldYaw		( )	{ return -yaw;	};
 	virtual float	GetWorldPitch	( )	{ return pitch; };
-			void	LookAtPoint		(Fvector p){lookat_point=p;lookat_active=true;}
+
+
 
 			void save(NET_Packet& output_packet) override;
 			void load(IReader& input_packet) override;

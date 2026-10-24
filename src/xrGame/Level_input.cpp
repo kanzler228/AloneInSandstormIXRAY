@@ -5,7 +5,7 @@
 #include "alife_simulator.h"
 #include "alife_simulator_header.h"
 #include "level_graph.h"
-#include "../xrEngine/FDemoRecord.h"
+#include "FDemoRecord.h"
 #include "Level.h"
 #include "../xrEngine/xr_level_controller.h"
 #include "game_cl_base.h"
@@ -23,6 +23,8 @@
 
 #include "../Include/xrRender/DebugRender.h"
 #include "../xrScripts/script_callback_ex.h"
+#include "ui/UIPdaWnd.h"
+#include "HudPdaAnimator.h"
 
 //Alundaio
 #include "pch_script.h"
@@ -31,7 +33,7 @@ using namespace luabind;
 //-Alundaio
 
 #ifdef DEBUG
-#	include "ai/monsters/BaseMonster/base_monster.h"
+#	include "ai/monsters/basemonster/base_monster.h"
 
 // Lain: add
 #   include "level_debug.h"
@@ -43,6 +45,7 @@ using namespace luabind;
 #endif
 
 bool g_bDisableAllInput = false;
+bool g_bDisableMouseMove = false;
 extern	float	g_fTimeFactor;
 
 #define CURRENT_ENTITY()	(game?((IsGameTypeSingle()) ? CurrentEntity() : CurrentControlEntity()):nullptr)
@@ -80,7 +83,7 @@ void CLevel::IR_OnMouseHold(int btn)
 
 void CLevel::IR_OnMouseMove( int dx, int dy )
 {
-	if(g_bDisableAllInput)							return;
+	if(g_bDisableAllInput && g_bDisableMouseMove)							return;
 
 	/* avo: script callback */
 	if (g_actor) g_actor->callback(GameObject::eMouseMove)(dx, dy);
@@ -99,6 +102,66 @@ void CLevel::IR_OnMouseMove( int dx, int dy )
 	}
 }
 
+void CLevel::IR_OnGyroscopeMove( Fvector3 value )
+{
+	if (g_bDisableAllInput && g_bDisableMouseMove)
+	{
+		return;
+	}
+
+	/* avo: script callback */
+	if (g_actor)
+	{
+		g_actor->callback(GameObject::eMouseMove)(value.x, value.y);
+	}
+	/* avo: end */
+
+	if (CurrentGameUI()->IR_UIOnGyroscopeMove(value))
+	{
+		return;
+	}
+	if (Device.Paused() && !IsDemoPlay() 
+#ifdef DEBUG
+		&& !psActorFlags.test(AF_NO_CLIP) 
+#endif //DEBUG
+		)	return;
+	if (CURRENT_ENTITY())		
+	{
+		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR)				IR->IR_OnGyroscopeMove					(value);
+	}
+}
+
+void CLevel::IR_OnTouchpadMove( Fvector2 value )
+{
+	if (g_bDisableAllInput && g_bDisableMouseMove)
+	{
+		return;
+	}
+
+	/* avo: script callback */
+	if (g_actor)
+	{
+		g_actor->callback(GameObject::eMouseMove)(value.x, value.y);
+	}
+	/* avo: end */
+
+	if (CurrentGameUI()->IR_UIOnTouchpadMove(value))
+	{
+		return;
+	}
+	if (Device.Paused() && !IsDemoPlay() 
+#ifdef DEBUG
+		&& !psActorFlags.test(AF_NO_CLIP) 
+#endif //DEBUG
+		)	return;
+	if (CURRENT_ENTITY())		
+	{
+		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR)				IR->IR_OnTouchpadMove					(value);
+	}
+}
+
 // Обработка нажатия клавиш
 extern bool g_block_pause;
 
@@ -110,10 +173,11 @@ extern float g_separate_radius;
 #include "../xrScripts/script_engine.h"
 #include "ai_space.h"
 #include "../xrEngine/string_table.h"
+#include "HUDManager.h"
 
 void CLevel::IR_OnKeyboardPress	(int key)
 {
-	auto _curr = get_binded_action(key);
+	auto _curr = get_binded_action(key, agAny);
 	if (_curr != kNOTBINDED) {
 		if (is_block_action(static_cast<int>(_curr))) {
 			return;
@@ -125,22 +189,23 @@ void CLevel::IR_OnKeyboardPress	(int key)
 
 	bool b_ui_exist = (!!CurrentGameUI());
 
-	if(_curr==kPAUSE)
+	if (_curr == kPAUSE && !EngineExternal()[EEngineExternalSystem::DisablePause])
 	{
 		if (!g_block_pause && (IsGameTypeSingle() || IsDemoPlay()))
 		{
 #ifdef DEBUG
 			if(psActorFlags.test(AF_NO_CLIP))
-				Device.Pause(!Device.Paused(), TRUE, TRUE, "li_pause_key_no_clip");
+				Device.Pause(!Device.Paused(), true, true, "li_pause_key_no_clip");
 			else
 #endif //DEBUG
-				Device.Pause(!Device.Paused(), TRUE, TRUE, "li_pause_key");
+				Device.Pause(!Device.Paused(), true, true, "li_pause_key");
 		}
 		return;
 	}
 	if (g_bDisableAllInput)
 	{
-		if (_curr == kQUIT)
+		static bool enableMM = EngineExternal()[EEngineExternalGame::EnableMainMenuForDisabledControls];
+		if (enableMM && _curr == kQUIT)
 		{
 			Console->Execute("main_menu");
 		}
@@ -169,9 +234,13 @@ void CLevel::IR_OnKeyboardPress	(int key)
 	{
 
 	case kCONSOLE:
-		Console->Show				();
-		return;
-		break;
+		{
+			if (EngineExternal()[EEngineExternalSystem::DisableConsole])
+				break;
+		
+			Console->Show();
+		}
+	break;
 
 	case kQUIT: 
 		{
@@ -180,7 +249,7 @@ void CLevel::IR_OnKeyboardPress	(int key)
 				if(Device.Paused())
 				{
 					// Снимаем паузу, через Esc
-					Device.Pause(FALSE, TRUE, TRUE, "kQUIT");
+					Device.Pause(false, true, true, "kQUIT");
 					return;
 				}
 
@@ -193,6 +262,42 @@ void CLevel::IR_OnKeyboardPress	(int key)
 			}
 			return;
 		}break;
+	case kWPN_ZOOM_ALTER:
+	{
+		if (b_ui_exist && CurrentGameUI()->TopInputReceiver() == CurrentGameUI()->PdaMenu())
+		{
+			CObject* current_entity = CurrentEntity();
+			if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+			{
+				if (pActor->HudAnimator() != nullptr && pActor->HudAnimator()->PdaAnimator() != nullptr)
+				{
+					if (pActor->HudAnimator()->PdaAnimator()->InputKeyPress(kWPN_ZOOM_ALTER))
+					{
+						return;
+					}
+				}
+			}
+		}
+		break;
+	}
+	case kWPN_ZOOM:
+	{
+		if (b_ui_exist && CurrentGameUI()->TopInputReceiver() == CurrentGameUI()->PdaMenu())
+		{
+			CObject* current_entity = CurrentEntity();
+			if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+			{
+				if (pActor->HudAnimator() != nullptr && pActor->HudAnimator()->PdaAnimator() != nullptr)
+				{
+					if (pActor->HudAnimator()->PdaAnimator()->InputKeyPress(kWPN_ZOOM))
+					{
+						return;
+					}
+				}
+			}
+		}
+		break;
+	}
 	case kALIFE_CMD: {
 		if (m_isStartAttack)
 		{
@@ -233,11 +338,11 @@ void CLevel::IR_OnKeyboardPress	(int key)
 	if(_curr == kQUICK_LOAD && IsGameTypeSingle())
 	{
 #ifdef DEBUG
-		FS.get_path					("$game_config$")->m_Flags.set(FS_Path::flNeedRescan, TRUE);
-		FS.get_path					("$game_scripts$")->m_Flags.set(FS_Path::flNeedRescan, TRUE);
+		FS.get_path					(_game_config_)->m_Flags.set(FS_Path::flNeedRescan, true);
+		FS.get_path					("$game_scripts$")->m_Flags.set(FS_Path::flNeedRescan, true);
 		// FS.rescan_pathes();
 		FS.IsAddonPhase = true;
-		FS.get_path					("$arch_dir_addons$")->m_Flags.set(FS_Path::flNeedRescan, TRUE);
+		FS.get_path					("$arch_dir_addons$")->m_Flags.set(FS_Path::flNeedRescan, true);
 		// FS.rescan_pathes();
 		FS.IsAddonPhase = false;
 #endif // DEBUG
@@ -249,12 +354,12 @@ void CLevel::IR_OnKeyboardPress	(int key)
 	switch (key) {
 	case SDL_SCANCODE_F7: {
 		if (!IsGameTypeSingle()) return;
-		FS.get_path					("$game_config$")->m_Flags.set(FS_Path::flNeedRescan, TRUE);
-		FS.get_path					("$game_scripts$")->m_Flags.set(FS_Path::flNeedRescan, TRUE);
+		FS.get_path					(_game_config_)->m_Flags.set(FS_Path::flNeedRescan, true);
+		FS.get_path					("$game_scripts$")->m_Flags.set(FS_Path::flNeedRescan, true);
 		FS.rescan_pathes			();
 		NET_Packet					net_packet;
 		net_packet.w_begin			(M_RELOAD_GAME);
-		Send						(net_packet,net_flags(TRUE));
+		Send						(net_packet,net_flags(true));
 		return;
 	}
 	case SDL_SCANCODE_KP_DIVIDE: {
@@ -313,7 +418,6 @@ void CLevel::IR_OnKeyboardPress	(int key)
 			}
 		}
 		break;
-
 #ifdef DEBUG_DRAW
 	case SDL_SCANCODE_RETURN:
 	{
@@ -417,10 +521,10 @@ void CLevel::IR_OnKeyboardPress	(int key)
 				if (tpObject)
 				{
 					Engine.Sheduler.Unregister	(tpObject);
-					Engine.Sheduler.Register	(tpObject, TRUE);
+					Engine.Sheduler.Register	(tpObject, true);
 				};
 				Engine.Sheduler.Unregister	(*I);
-				Engine.Sheduler.Register	(*I, TRUE);
+				Engine.Sheduler.Register	(*I, true);
 
 				CActor* pActor = (*I) != nullptr ? (*I)->cast_actor() : nullptr;
 				if (pActor)
@@ -485,7 +589,7 @@ void CLevel::IR_OnKeyboardPress	(int key)
 	if (CURRENT_ENTITY())		
 	{
 		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
-		if (IR)				IR->IR_OnKeyboardPress(get_binded_action(key));
+		if (IR)				IR->IR_OnKeyboardPress(key);
 	}
 
 
@@ -500,11 +604,17 @@ void CLevel::IR_OnKeyboardPress	(int key)
 			}
 		}
 	#endif
+	
+	if (key == HUD().world_prims.zbuffer_key && HUD().world_prims.key_toggle_mode)
+		HUD().world_prims.zbuffer_enable = !HUD().world_prims.zbuffer_enable;
+	
+	if (key == HUD().world_prims.visible_currents_key && HUD().world_prims.key_toggle_mode)
+		HUD().world_prims.visible_currents = !HUD().world_prims.visible_currents;
 }
 
 void CLevel::IR_OnKeyboardRelease(int key)
 {
-	auto bind = get_binded_action(key);
+	auto bind = get_binded_action(key, agAny);
 	if (bind != kNOTBINDED) {
 		if (is_block_action(static_cast<int>(bind))) {
 			return;
@@ -527,14 +637,14 @@ void CLevel::IR_OnKeyboardRelease(int key)
 	{
 		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
 		if (IR != nullptr) {
-			IR->IR_OnKeyboardRelease(bind);
+			IR->IR_OnKeyboardRelease(key);
 		}
 	}
 }
 
 void CLevel::IR_OnKeyboardHold(int key)
 {
-	EGameActions bind = get_binded_action(key);
+	EGameActions bind = get_binded_action(key, agAny);
 	if (bind != kNOTBINDED)
 	{
 		if (is_block_action(static_cast<int>(bind)))
@@ -593,7 +703,7 @@ void CLevel::IR_OnKeyboardHold(int key)
 		IInputReceiver*	IR	= smart_cast<IInputReceiver*>(smart_cast<CGameObject*>(CURRENT_ENTITY()));
 		if (IR != nullptr)
 		{
-			IR->IR_OnKeyboardHold(bind);
+			IR->IR_OnKeyboardHold(key);
 		}
 	}
 }
@@ -642,26 +752,160 @@ void CLevel::IR_GamepadUpdateStick(int id, Fvector2 value)
 	if (Device.Paused())
 		return;
 
-	if (g_actor != nullptr && g_actor->g_Alive())
+	if (CurrentGameUI() && CurrentGameUI()->IR_UIOnGamepadUpdateStick(id, value)) return;
+
+	if (CURRENT_ENTITY())
 	{
-		g_actor->IR_GamepadUpdateStick(id, value);
+		IInputReceiver* IR = smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR)
+			IR->IR_GamepadUpdateStick(id, value);
 	}
 }
 
 void CLevel::IR_GamepadKeyPress(int id)
 {
-	if (g_bDisableAllInput)
+	auto _curr = get_binded_action(id, agAny);
+	if (_curr != kNOTBINDED) 
+	{
+		if (is_block_action(static_cast<int>(_curr))) 
+		{
+			return;
+		}
+	}
+
+	if (Device.dwPrecacheFrame)
 		return;
+
+	bool b_ui_exist = (!!CurrentGameUI());
+
+	if (g_bDisableAllInput)
+	{
+		static bool enableMM = EngineExternal()[EEngineExternalGame::EnableMainMenuForDisabledControls];
+		if (enableMM && _curr == kQUIT)
+		{
+			Console->Execute("main_menu");
+		}
+		return;
+	}
+
+	switch ( _curr ) 
+	{
+	case kQUIT: 
+		{
+			if(b_ui_exist && CurrentGameUI()->TopInputReceiver() )
+			{
+				if(Device.Paused())
+				{
+					// Снимаем паузу, через Esc
+					Device.Pause(false, true, true, "kQUIT");
+					return;
+				}
+
+				if(CurrentGameUI()->IR_UIOnGamepadKeyPress(id))	
+					return;//special case for mp and main_menu
+
+				CurrentGameUI()->TopInputReceiver()->HideDialog();
+			}
+			else
+			{
+				Console->Execute("main_menu");
+			}
+			return;
+		}break;
+	case kWPN_ZOOM:
+	{
+		if (b_ui_exist && CurrentGameUI()->TopInputReceiver() == CurrentGameUI()->PdaMenu())
+		{
+			CObject* current_entity = CurrentEntity();
+			if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+			{
+				if (pActor->HudAnimator() != nullptr && pActor->HudAnimator()->PdaAnimator() != nullptr)
+				{
+					if (pActor->HudAnimator()->PdaAnimator()->InputKeyPress(kWPN_ZOOM))
+					{
+						return;
+					}
+				}
+			}
+		}
+		break;
+	}
+	};
+
+	if ( !bReady || !b_ui_exist )			return;
+
+	if (b_ui_exist && CurrentGameUI()->IR_UIOnGamepadKeyPress(id)) return;
 
 	if (Device.Paused())
 		return;
 
-	// TODO
-	//if (CurrentGameUI() && CurrentGameUI()->IR_GamepadKeyPress(key)) return;
-
-	if (g_actor != nullptr && g_actor->g_Alive())
+	if (CURRENT_ENTITY())		
 	{
-		g_actor->IR_GamepadKeyPress(id);
+		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR)				IR->IR_GamepadKeyPress(id);
+	}
+}
+
+void CLevel::IR_GamepadKeyHold(int id)
+{
+	EGameActions bind = get_binded_action(id, agAny);
+	if (bind != kNOTBINDED)
+	{
+		if (is_block_action(static_cast<int>(bind)))
+		{
+			return;
+		}
+	}
+
+	if (g_bDisableAllInput)
+	{
+		return;
+	}
+
+	if (CurrentGameUI() && CurrentGameUI()->IR_UIOnGamepadKeyHold(id)) return;
+
+	if (Device.Paused() && !Level().IsDemoPlay()
+#ifdef DEBUG
+		&& !psActorFlags.test(AF_NO_CLIP)
+#endif //DEBUG
+		) return;
+	if (CURRENT_ENTITY())
+	{
+		IInputReceiver* IR = smart_cast<IInputReceiver*>(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR != nullptr)
+		{
+			IR->IR_GamepadKeyHold(id);
+		}
+	}
+}
+
+void CLevel::IR_GamepadKeyRelease(int id)
+{
+	auto bind = get_binded_action(id, agAny);
+	if (bind != kNOTBINDED) 
+	{
+		if (is_block_action(static_cast<int>(bind))) 
+		{
+			return;
+		}
+	}
+
+	if (!bReady || g_bDisableAllInput	)								return;
+//	if ( CurrentGameUI() && CurrentGameUI()->IR_GamepadKeyRelease(id)) return;
+//	if (game && game->OnKeyboardRelease(get_binded_action(id)) )		return;
+	if (Device.Paused() 
+#ifdef DEBUG
+		&& !psActorFlags.test(AF_NO_CLIP)
+#endif //DEBUG
+		)				return;
+
+	if (CURRENT_ENTITY())		
+	{
+		IInputReceiver*		IR	= smart_cast<IInputReceiver*>	(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if (IR != nullptr) 
+		{
+			IR->IR_GamepadKeyRelease(id);
+		}
 	}
 }
 

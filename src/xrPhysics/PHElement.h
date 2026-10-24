@@ -71,7 +71,7 @@ private:
 		m_body_interpolation.ResetPositions();
 		m_body_interpolation.ResetRotations();
 		//bUpdate=true;
-		m_flags.set(flUpdate,TRUE);
+		m_flags.set(flUpdate,true);
 	}
 IC	void					UpdateInterpolation				()																				//interpolation called from ph update visual influent
 	{
@@ -79,7 +79,7 @@ IC	void					UpdateInterpolation				()																				//interpolation called 
 		m_body_interpolation.UpdatePositions();
 		m_body_interpolation.UpdateRotations();
 		//bUpdate=true;
-		m_flags.set(flUpdate,TRUE);
+		m_flags.set(flUpdate,true);
 	}
 public:
 ////////////////////////////////////////////////Geometry/////////////////////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +105,7 @@ public:
 	virtual void						set_PhysicsRefObject					(IPhysicsShellHolder* ref_object);												//aux
 	virtual IPhysicsShellHolder*		PhysicsRefObject						(){return m_phys_ref_object;}													//aux
 	virtual void						SetMaterial								(u16 m);																		//aux
-	virtual void						SetMaterial								(LPCSTR m){CPHGeometryOwner::SetMaterial(m);}									//aux
+	virtual void						SetMaterial								(const char* m){CPHGeometryOwner::SetMaterial(m);}									//aux
 	virtual u16							numberOfGeoms							()const;																				//aux
 	virtual const Fvector&				local_mass_Center						()		{return CPHGeometryOwner::local_mass_Center();}							//aux
 	virtual float						getVolume								()		{return CPHGeometryOwner::get_volume();}								//aux

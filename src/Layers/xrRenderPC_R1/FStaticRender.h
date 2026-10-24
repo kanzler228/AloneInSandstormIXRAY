@@ -21,26 +21,31 @@
 class dxRender_Visual;
 
 // definition
-class CRender													:	public R_dsgraph_structure
+class CRender:
+	public R_dsgraph_structure
 {
 public:
-	enum	{
+	enum
+	{
 		PHASE_NORMAL,
 		PHASE_POINT,
 		PHASE_SPOT
 	};
-	struct		_options	{
-		u32		vis_intersect		: 1;	// config
-		u32		distortion			: 1;	// run-time modified
-		u32		color_mapping		: 1;	// true if SM 1.4 and higher
-		u32		disasm				: 1;	// config
-		u32		forceskinw			: 1;	// config
-		u32		no_detail_textures	: 1;	// config
-		u32		no_ram_textures		: 1;    // don't keep textures in RAM
-	}			o;
-	struct		_stats		{
+
+	struct _options
+	{
+		u32 vis_intersect		: 1;	// config
+		u32 distortion			: 1;	// run-time modified
+		u32 color_mapping		: 1;	// true if SM 1.4 and higher
+		u32 disasm				: 1;	// config
+		u32 forceskinw			: 1;	// config
+		u32 no_detail_textures	: 1;	// config
+	} o;
+
+	struct _stats
+	{
 		u32		o_queries,	o_culled;
-	}			stats;
+	} stats;
 public:
 	// Sector detection and visibility
 	CSector*													pLastSector;
@@ -49,18 +54,17 @@ public:
 	u32															uLastLTRACK;
 	xr_vector<IRender_Portal*>									Portals;
 	xr_vector<IRender_Sector*>									Sectors;
-	xrXRC														Sectors_xrc;
+	CDB::COLLIDER												Sectors_xrc;
 	CDB::MODEL*													rmPortals;
 	CHOM														HOM;
-//.	R_occlusion													HWOCC;
 	
 	// Global containers
 	xr_vector<FSlideWindowItem>									SWIs;
 	xr_vector<ref_shader>										Shaders;
-	typedef svector<D3DVERTEXELEMENT9,MAXD3DDECLLENGTH+1>		VertexDeclarator;
+	using VertexDeclarator = FixedVector<RHIInputElementDesc,65>;
 	xr_vector<VertexDeclarator>									DCL;
-	xr_vector<IDirect3DVertexBuffer9*>							VB;
-	xr_vector<IDirect3DIndexBuffer9*>							IB;
+	xr_vector<IRHIBuffer*>							VB;
+	xr_vector<IRHIBuffer*>							IB;
 	xr_vector<dxRender_Visual*>									Visuals;
 	CPSLibrary													PSLibrary;
 
@@ -89,23 +93,19 @@ public:
 	xr_list<light*>												v_all_lights_dque;
 private:
 	// Loading / Unloading
-	void								LoadBuffers				(CStreamReader	*fs);
 	void								LoadVisuals				(IReader *fs);
 	void								LoadLights				(IReader *fs);
 	void								LoadSectors				(IReader *fs);
-	void								LoadSWIs				(CStreamReader	*fs);
-
-	BOOL								add_Dynamic				(dxRender_Visual	*pVisual, u32 planes);		// normal processing
-	void								add_Static				(dxRender_Visual	*pVisual, u32 planes);
-	void								add_leafs_Dynamic		(dxRender_Visual	*pVisual); // if detected node's full visibility
-	void								add_leafs_Static		(dxRender_Visual	*pVisual);						// if detected node's full visibility
+	void								LoadVertexBuffers		(IReaderBase& fs);
+	void								LoadIndexBuffers		(IReaderBase& fs);
+	void								LoadSWIs				(IReaderBase& fs);
 
 public:
 	ShaderElement*						rimp_select_sh_static	(dxRender_Visual	*pVisual, float cdist_sq);
-	ShaderElement*						rimp_select_sh_dynamic	(dxRender_Visual	*pVisual, float cdist_sq);
-	D3DVERTEXELEMENT9*					getVB_Format			(int id);
-	IDirect3DVertexBuffer9*				getVB					(int id);
-	IDirect3DIndexBuffer9*				getIB					(int id);
+	ShaderElement*						rimp_select_sh_dynamic	(dxRender_Visual	*pVisual, float cdist_sq, bool is_hud);
+	RHIInputElementDesc*				getVB_Format(int id, size_t* Count);
+	IRHIBuffer*				getVB					(int id);
+	IRHIBuffer*				getIB					(int id);
 	FSlideWindowItem*					getSWI					(int id);
 	IRender_Portal*						getPortal				(int id);
 	IRender_Sector*						getSectorActive			();
@@ -129,6 +129,8 @@ public:
 	virtual	void					level_Load				(IReader*);
 	virtual void					level_Unload			();
 	
+	IRHISurface* load_texture(LPCSTR fname, u32& msize, bool bStaging = false) override;
+	bool get_texture_metadata(LPCSTR absolute_path, RHITextureMetadata* p_data) override;
 	virtual IDirect3DBaseTexture9*	texture_load			(LPCSTR	fname, u32& msize);
 
 	virtual HRESULT					shader_compile			(
@@ -158,7 +160,7 @@ public:
 	virtual void					flush					();
 	virtual void					set_Object				(IRenderable*		O	);
 	virtual	void					add_Occluder			(Fbox2&	bb_screenspace	);			// mask screen region as oclluded
-	virtual void					add_Visual				(IRenderVisual*	V);			// add visual leaf (no culling performed at all)
+	virtual void					add_Visual				(IRenderVisual*	V, bool Ignore);			// add visual leaf (no culling performed at all)
 	virtual void					add_Geometry			(IRenderVisual*	V	);			// add visual(s)	(all culling performed)
 
 	// wallmarks
@@ -166,13 +168,13 @@ public:
 	virtual void					add_StaticWallmark		(IWallMarkArray* pArray, const Fvector& P, float s, CDB::TRI* T, Fvector* V, bool UseCameraDirection = false) override;
 	virtual void					add_StaticWallmark		(const wm_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* V);
 	virtual void					clear_static_wallmarks	();
+	virtual StaticWallmarkHandle::WallmarkHandlePtr add_DynamicWallmark		(const wm_shader& S, const Fvector& P, float w, float h, float r, CDB::TRI* T, Fvector* V) override;
 	virtual void					add_SkeletonWallmark	(intrusive_ptr<CSkeletonWallmark> wm);
 	virtual void					add_SkeletonWallmark	(const Fmatrix* xf, CKinematics* obj, ref_shader& sh, const Fvector& start, const Fvector& dir, float size);
 	virtual void					add_SkeletonWallmark		(const Fmatrix* xf, IKinematics* obj, IWallMarkArray *pArray, const Fvector& start, const Fvector& dir, float size);
 	
 	//
 	virtual IBlender*				blender_create			(CLASS_ID cls);
-	virtual void					blender_destroy			(IBlender* &);
 
 	//
 	virtual IRender_ObjectSpecific*	ros_create				(IRenderable* parent);
@@ -191,20 +193,22 @@ public:
 	virtual IRenderVisual*			model_Create			(LPCSTR name, IReader*data=0);
 	virtual IRenderVisual*			model_CreateChild		(LPCSTR name, IReader*data);
 	virtual IRenderVisual*			model_Duplicate			(IRenderVisual*	V);
-	virtual void					model_Delete			(IRenderVisual* &	V, BOOL bDiscard);
+	virtual void					model_Delete			(IRenderVisual* &	V, bool bDiscard);
 	virtual void					model_Delete_Deffered	(IRenderVisual* &	V);
 	virtual void 					model_Delete			(IRender_DetailModel* & F);
 	virtual void					models_Prefetch			();
-	virtual void					models_Clear			(BOOL b_complete);
+	virtual void					models_Clear			(bool b_complete);
 	
 	// Occlusion culling
-	virtual BOOL					occ_visible				(vis_data&	V);
-	virtual BOOL					occ_visible				(Fbox&		B);
-	virtual BOOL					occ_visible				(sPoly&		P);
+	virtual bool					occ_visible				(vis_data&	V);
+	virtual bool					occ_visible				(Fbox&		B);
+	virtual bool					occ_visible				(sPoly&		P);
 	
 	// Main
 	virtual void					Calculate				();
 	virtual void					Render					();
+	virtual void					RenderUI				(Fcolor* = nullptr);
+
 	virtual void					Screenshot				(ScreenshotMode mode=SM_NORMAL, LPCSTR name = 0);
 	virtual void					Screenshot				(ScreenshotMode mode, CMemoryWriter& memory_writer);
 	virtual void					ScreenshotAsyncBegin	();
@@ -215,6 +219,8 @@ public:
 	virtual void					rmNear					();
 	virtual void					rmFar					();
 	virtual void					rmNormal				();
+
+	void ReadVBChunk(xr_vector<IRHIBuffer*>& OutBuffer, xr_vector<VertexDeclarator>& DeclBuffer, u32 Count, IReaderBase& fs);
 
 	// Constructor/destructor/loader
 	CRender													();
@@ -228,7 +234,7 @@ public:
 
 	auto							ShaderOptionsCount		() { return m_ShaderOptions.size(); }
 
-	virtual BOOL					InIndoor				() { return pLastSector!=pOutdoorSector; };
+	virtual bool					InIndoor				() { return pLastSector!=pOutdoorSector; };
 	virtual size_t					SectorsCount			() { return Sectors.size(); }
 
 private:

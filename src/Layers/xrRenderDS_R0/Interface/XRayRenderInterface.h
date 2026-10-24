@@ -30,9 +30,10 @@ public:
 	virtual IRender_Target* getTarget();
 
 	virtual void set_Transform(Fmatrix* M);
-	virtual void set_HUD(BOOL V);
-	virtual BOOL get_HUD();
-	virtual void set_Invisible(BOOL V);
+	virtual void set_HUD(bool V);
+	virtual void set_UI(bool V);
+	virtual bool get_HUD();
+	virtual void set_Invisible(bool V);
 	virtual void set_Object(IRenderable* O);
 	virtual	GenerationLevel			get_generation() { return GenerationLevel::GENERATION_R1; }
 
@@ -42,6 +43,7 @@ public:
 	virtual void add_StaticWallmark(const wm_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* V);
 	virtual void add_StaticWallmark(IWallMarkArray* pArray, const Fvector& P, float s, CDB::TRI* T, Fvector* V);
 	virtual void add_SkeletonWallmark(const Fmatrix* xf, IKinematics* obj, IWallMarkArray* pArray, const Fvector& start, const Fvector& dir, float size);
+	virtual StaticWallmarkHandle::WallmarkHandlePtr add_DynamicWallmark(const wm_shader& S, const Fvector& P, float w, float h, float r, CDB::TRI* T, Fvector* V);
 
 	virtual void clear_static_wallmarks();
 
@@ -61,13 +63,13 @@ public:
 
 	virtual IRenderVisual* model_Duplicate(IRenderVisual* V);
 
-	virtual void model_Delete(IRenderVisual*& V, BOOL bDiscard = FALSE);
+	virtual void model_Delete(IRenderVisual*& V, bool bDiscard = false);
 	virtual void models_Prefetch();
-	virtual void models_Clear(BOOL b_complete);
+	virtual void models_Clear(bool b_complete);
 
-	virtual BOOL occ_visible(vis_data& V);
-	virtual BOOL occ_visible(Fbox& B);
-	virtual BOOL occ_visible(sPoly& P);
+	virtual bool occ_visible(vis_data& V);
+	virtual bool occ_visible(Fbox& B);
+	virtual bool occ_visible(sPoly& P);
 
 	virtual void Screenshot(ScreenshotMode mode = SM_NORMAL, LPCSTR name = 0);
 	virtual void Screenshot(ScreenshotMode mode, CMemoryWriter& memory_writer);
@@ -79,17 +81,20 @@ public:
 	virtual void rmNormal();
 	virtual u32 memory_usage();
 
-	virtual void                    BeforeWorldRender() ; // ����� ����������� ����
-	virtual void                    AfterWorldRender() ; // ����� ���������� ���� (�� UI)
+	virtual void                    BeforeWorldRender() ; // Перед рендерингом мира
+	virtual void                    AfterWorldRender() ; // После рендеринга мира (до UI)
 
-	virtual void					ChangeMark(LPCSTR mark) ; // ������ ���� ��������� �� ���������� �� ��������
+	virtual void					ChangeMark(LPCSTR mark) ; // Каждый кадр проверяем не поменялась ли текстура
 	virtual u32                     active_phase();
 
 	virtual void Render();
 	virtual void OnFrame();
 	virtual void Calculate();
+	virtual void RenderUI(Fcolor* = nullptr);
 
 
+	IRHISurface* load_texture(LPCSTR fname, u32& msize, bool bStaging = false) override { return nullptr; };
+	bool get_texture_metadata(LPCSTR absolute_path, RHITextureMetadata* p_data) override { return false; }
 	virtual void ScreenshotImpl(ScreenshotMode mode, LPCSTR name, CMemoryWriter* memory_writer);
 
 	

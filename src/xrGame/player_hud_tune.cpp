@@ -7,7 +7,7 @@
 #include "HudItem.h"
 #include "../xrEngine/Effector.h"
 #include "../xrEngine/CameraManager.h"
-#include "../xrEngine/FDemoRecord.h"
+#include "../FDemoRecord.h"
 #include "../../xrUI/ui_base.h"
 
 u32 hud_adj_mode		= 0;
@@ -184,11 +184,12 @@ void attachable_hud_item::tune(Fvector values)
 bool forceFPDraw = false;
 bool forceFP2Draw = false;
 bool forceSPDraw = false;
+bool forceCBDraw = false;
 
 void attachable_hud_item::debug_draw_firedeps()
 {
 #ifdef DEBUG_DRAW
-	bool bForce = (hud_adj_mode==3||hud_adj_mode==4||forceFPDraw||forceFP2Draw||forceSPDraw);
+	bool bForce = (hud_adj_mode == 3 || hud_adj_mode == 4 || forceFPDraw || forceFP2Draw || forceSPDraw || forceCBDraw);
 
 	if(hud_adj_mode==5||hud_adj_mode==6||hud_adj_mode==7 ||bForce)
 	{
@@ -197,14 +198,46 @@ void attachable_hud_item::debug_draw_firedeps()
 		firedeps			fd;
 		setup_firedeps		(fd);
 		
-		if (hud_adj_mode == 5 || forceFPDraw)
-			render.draw_aabb(fd.vLastFP, 0.005f, 0.005f, 0.005f, color_xrgb(255, 0, 0));
+		Fobb obb;
+		Fmatrix trans = m_item_transform;
+		Device.transform_hud2world(trans);
+		obb.m_rotate.i.set(trans.i);
+		obb.m_rotate.j.set(trans.j);
+		obb.m_rotate.k.set(trans.k);
+		obb.m_halfsize.set(0.005f, 0.005f, 0.005f);
+		if (m_measures.m_prop_flags.test(hud_item_measures::e_fire_point) && (hud_adj_mode == 5 || forceFPDraw))
+		{
+			Fvector FP = fd.vLastFP;
+			Device.transform_hud2world(FP);
+			obb.m_translate.set(FP);
+			obb.xform_full(trans);
+			render.draw_obb(trans, color_xrgb(255, 0, 0));
+		}
 
-		if (hud_adj_mode == 6 || forceFP2Draw)
-			render.draw_aabb(fd.vLastFP2, 0.005f, 0.005f, 0.005f, color_xrgb(0, 0, 255));
+		if (m_measures.m_prop_flags.test(hud_item_measures::e_fire_point2) && (hud_adj_mode == 6 || forceFP2Draw))
+		{
+			Fvector FP2 = fd.vLastFP2;
+			Device.transform_hud2world(FP2);
+			obb.m_translate.set(FP2);
+			obb.xform_full(trans);
+			render.draw_obb(trans, color_xrgb(0, 0, 255));
+		}
 
-		if (hud_adj_mode == 7 || forceSPDraw)
-			render.draw_aabb(fd.vLastSP, 0.005f, 0.005f, 0.005f, color_xrgb(0, 255, 0));
+		if (m_measures.m_prop_flags.test(hud_item_measures::e_shell_point) && (hud_adj_mode == 7 || forceSPDraw))
+		{
+			Fvector SP = fd.vLastSP;
+			Device.transform_hud2world(SP);
+			obb.m_translate.set(SP);
+			obb.xform_full(trans);
+			render.draw_obb(trans, color_xrgb(0, 255, 0));
+		}
+
+		if (forceCBDraw)
+		{
+			obb = m_collision_box;
+			obb.xform_full(trans);
+			render.draw_obb(trans, color_rgba(0, 255, 0, 150));
+		}
 	}
 #endif // DEBUG
 }
@@ -230,9 +263,11 @@ void player_hud::tune(Fvector _values)
 		
 		float _curr_dr	= _delta_rot;
 
-		u8 idx			= m_attached_items[hud_adj_item_idx]->m_parent_hud_item->GetCurrentHudOffsetIdx();
-		if(idx)
-			_curr_dr	/= 20.0f;
+		EHudOffsetType idx = m_attached_items[hud_adj_item_idx]->m_parent_hud_item->GetCurrentHudOffsetIdx();
+		if (idx)
+		{
+			_curr_dr /= 20.0f;
+		}
 
 		Fvector& pos_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets_tune[0][idx];
 		Fvector& rot_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets_tune[1][idx];
@@ -258,29 +293,44 @@ void player_hud::tune(Fvector _values)
 		}
 		if( (values.x)||(values.y)||(values.z) )
 		{
-			if(idx==0)
+			if (idx == EHudOffsetType::eDefault)
 			{
 				Msg("[%s]", m_attached_items[hud_adj_item_idx]->m_sect_name.c_str());
 				Msg("hands_position%s				= %f,%f,%f",(is_16x9)?"_16x9":"", pos_.x, pos_.y, pos_.z);
 				Msg("hands_orientation%s			= %f,%f,%f",(is_16x9)?"_16x9":"", rot_.x, rot_.y, rot_.z);
 				Log("-----------");
 			}else
-			if(idx==1)
+			if (idx == EHudOffsetType::eAim)
 			{
 				Msg("[%s]", m_attached_items[hud_adj_item_idx]->m_sect_name.c_str());
 				Msg("aim_hud_offset_pos%s				= %f,%f,%f",(is_16x9)?"_16x9":"",  pos_.x, pos_.y, pos_.z);
 				Msg("aim_hud_offset_rot%s				= %f,%f,%f",(is_16x9)?"_16x9":"",  rot_.x, rot_.y, rot_.z);
 				Log("-----------");
 			}else
-			if(idx==2)
+			if (idx == EHudOffsetType::eAimGL)
 			{
 				Msg("[%s]", m_attached_items[hud_adj_item_idx]->m_sect_name.c_str());
 				Msg("gl_hud_offset_pos%s				= %f,%f,%f",(is_16x9)?"_16x9":"",  pos_.x, pos_.y, pos_.z);
 				Msg("gl_hud_offset_rot%s				= %f,%f,%f",(is_16x9)?"_16x9":"",  rot_.x, rot_.y, rot_.z);
 				Log("-----------");
 			}
+			else if (idx == EHudOffsetType::eAimAlt)
+			{
+				Msg("[%s]", m_attached_items[hud_adj_item_idx]->m_sect_name.c_str());
+				Msg("alter_aim_hud_offset_pos%s				= %f,%f,%f", (is_16x9) ? "_16x9" : "", pos_.x, pos_.y, pos_.z);
+				Msg("alter_aim_hud_offset_rot%s				= %f,%f,%f", (is_16x9) ? "_16x9" : "", rot_.x, rot_.y, rot_.z);
+				Log("-----------");
+			}
+			else if (idx == EHudOffsetType::eSafemode)
+			{
+				Msg("[%s]", m_attached_items[hud_adj_item_idx]->m_sect_name.c_str());
+				Msg("safemode_hud_offset_pos%s				= %f,%f,%f", (is_16x9) ? "_16x9" : "", pos_.x, pos_.y, pos_.z);
+				Msg("safemode_hud_offset_rot%s				= %f,%f,%f", (is_16x9) ? "_16x9" : "", rot_.x, rot_.y, rot_.z);
+				Log("-----------");
+			}
 		}
-	}else
+	}
+	else
 	if(hud_adj_mode==8 || hud_adj_mode==9)
 	{
 		if(hud_adj_mode==8 && (values.z) )
@@ -302,7 +352,7 @@ void hud_draw_adjust_mode()
 	if(!hud_adj_mode)
 		return;
 
-	LPCSTR _text = nullptr;
+	const char* _text = nullptr;
 	if(pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT) && hud_adj_mode)
 		_text = "press SHIFT+NUM 0-return 1-hud_pos 2-hud_rot 3-itm_pos 4-itm_rot 5-fire_point 6-fire_2_point 7-shell_point 8-pos_step 9-rot_step";
 

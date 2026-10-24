@@ -10,10 +10,10 @@
 #include "../xrPhysics/PhysicsShell.h"
 //#include "Hit.h"
 #include "Level.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 
 #ifdef DEBUG
-extern	BOOL death_anim_debug;
+extern	bool death_anim_debug;
 #endif // DEBUG
 
 character_shell_control::character_shell_control():
@@ -25,7 +25,7 @@ character_shell_control::character_shell_control():
 
 }
 
-void	character_shell_control::Load( LPCSTR section )
+void	character_shell_control::Load( const char* section )
 {
 
 	skel_airr_ang_factor			= pSettings->r_float(section,"ph_skeleton_airr_ang_factor");
@@ -94,7 +94,7 @@ void character_shell_control:: apply_start_velocity_factor	( CObject* who, Fvect
 	velocity.mul( 1.3f );
 	velocity.mul( 1.25f*m_after_death_velocity_factor );
 	//set shell params
-	if( !smart_cast<CCustomZone*>( who ) )
+	if( !smart_cast<CAnomalyZone*>( who ) )
 	{
 		velocity.mul(1.25f*m_after_death_velocity_factor);
 	}
@@ -114,7 +114,7 @@ void character_shell_control::TestForWounded(const Fmatrix& xform,  IKinematics*
 	Fmatrix position_matrix;
 	position_matrix.mul( xform, CBI.mTransform );
 	
-	xrXRC						xrc;
+	CDB::COLLIDER				xrc;
 	xrc.ray_options				(0);
 	xrc.ray_query(Level().ObjectSpace.GetStaticModel(),position_matrix.c,Fvector().set(0.0f,-1.0f,0.0f),pelvis_factor_low_pose_detect);
 		

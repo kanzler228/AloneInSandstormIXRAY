@@ -17,6 +17,7 @@
 #define OBJECT_CHUNK_DATA			0x0002
 #define GAME_TIME_CHUNK_DATA		0x0005
 #define REGISTRY_CHUNK_DATA			0x0009
+#define MARSHAL_CHUNK_DATA			0x000A
 #define SECTION_HEADER				"location_"
 
 #define IXRAY_DEF_SAVE_EXTENSION ".scop"
@@ -35,16 +36,20 @@ class CSE_ALifeItemWeapon;
 class CSE_ALifeSchedulable;
 class CGameGraph;
 
-namespace ALife {
-	typedef u64	_CLASS_ID;									// Class ID
-	typedef u16	_OBJECT_ID;									// Object ID
-	typedef u64	_TIME_ID;									// Time  ID
-	typedef u32	_EVENT_ID;									// Event ID
-	typedef u32	_TASK_ID;									// Event ID
-	typedef u16	_SPAWN_ID;									// Spawn ID
-	typedef u16	_TERRAIN_ID;								// Terrain ID
-	typedef u32 _STORY_ID;									// Story ID
-	typedef u32 _SPAWN_STORY_ID;							// Spawn Story ID
+namespace ALife
+{
+	using _CLASS_ID = u64;		 // Class ID
+	using _OBJECT_ID = u16;		 // Object ID
+	using _TIME_ID = u64;		 // Time  ID
+	using _EVENT_ID = u32;		 // Event ID
+	using _TASK_ID = u32;		 // Event ID
+	using _SPAWN_ID = u16;		 // Spawn ID
+	using _TERRAIN_ID = u16;	 // Terrain ID
+	using _STORY_ID = u32;		 // Story ID
+	using _SPAWN_STORY_ID = u32; // Spawn Story ID
+
+	constexpr _OBJECT_ID INVALID_OBJECT_ID = ALife::_OBJECT_ID(-1);
+	constexpr _OBJECT_ID _ACTOR_ID = 0; // Actor net id is always 0.
 
 	struct SSumStackCell {
 		int						i1;
@@ -96,7 +101,7 @@ namespace ALife {
 		eHitTypeStrike,
 		eHitTypeExplosion,
 		eHitTypeWound_2,		//knife's alternative fire
-//		eHitTypePhysicStrike,
+		eHitTypePhysicStrike,
 		eHitTypeLightBurn,
 		eHitTypeMax,
 	};
@@ -149,7 +154,7 @@ namespace ALife {
 		eAddonAttachable			= 2		//можно присоединять
 	};
 
-	IC EHitType	g_tfString2HitType(LPCSTR caHitType)
+	IC EHitType	g_tfString2HitType(const char* caHitType)
 	{
 		if (!_stricmp(caHitType,"burn"))
 			return(eHitTypeBurn);
@@ -173,15 +178,17 @@ namespace ALife {
 				return(eHitTypeExplosion);
 		else if (!_stricmp(caHitType,"wound_2"))
 				return(eHitTypeWound_2);
+		else if (!_stricmp(caHitType, "physic_strike"))
+			return eHitTypePhysicStrike;
 		else
 				FATAL	("Unsupported hit type!");
 		NODEFAULT;
 		return(eHitTypeMax);
 	}
 
-	ENGINE_API xr_token hit_types_token[ ];
+	extern ENGINE_API xr_token hit_types_token[ ];
 
-	IC LPCSTR g_cafHitType2String(EHitType tHitType)
+	IC const char* g_cafHitType2String(EHitType tHitType)
 	{
 		return get_token_name(hit_types_token, tHitType);
 	}

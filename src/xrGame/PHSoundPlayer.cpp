@@ -2,11 +2,6 @@
 
 #include "PHSoundPlayer.h"
 #include "PhysicsShellHolder.h"
-CPHSoundPlayer::CPHSoundPlayer(CPhysicsShellHolder* obj)
-{
-
-	m_object=obj;
-}
 
 CPHSoundPlayer::~CPHSoundPlayer()
 {
@@ -16,14 +11,14 @@ CPHSoundPlayer::~CPHSoundPlayer()
 
 void CPHSoundPlayer::Play(SGameMtlPair* mtl_pair,const Fvector& pos)
 {
-
-	if(!m_sound._feedback())
+	if (!m_sound.is_playing() && m_object && m_object->cast_physics_shell_holder())
 	{
-		Fvector vel;m_object->PHGetLinearVell(vel);
+		Fvector vel;
+		m_object->cast_physics_shell_holder()->PHGetLinearVell(vel);
 		if(vel.square_magnitude()>0.01f)
 		{
 			CLONE_MTL_SOUND(m_sound, mtl_pair, CollideSounds);
-			m_sound.play_at_pos(smart_cast<CPhysicsShellHolder*>(m_object),pos);
+			m_sound.play_at_pos(m_object, pos);
 		}
 	}
 }

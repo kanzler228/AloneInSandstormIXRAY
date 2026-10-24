@@ -37,15 +37,16 @@ set_target_properties(xrEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 target_compile_definitions(xrEngine PRIVATE "$<$<CONFIG:Debug>:DEBUG>")
 
 # Linker list
-target_link_libraries(xrEngine PUBLIC xrAbstractions)
+target_link_libraries(xrEngine PUBLIC xrEngineCore)
 target_link_libraries(xrEngine PUBLIC xrScripts)
+target_link_libraries(xrEngine PUBLIC Steamworks::Steamworks)
+
+if(IXRAY_USE_R1)
+    add_dependencies(xrEngine xrRender_R1)
+   endif()
 
 if (WIN32)
     add_dependencies(xrEngine xrGame xrRender_R4)
-    if(IXRAY_USE_R1)
-        add_dependencies(xrEngine xrRender_R1)
-    endif()
-
     if(IXRAY_USE_R2)
         add_dependencies(xrEngine xrRender_R2)
     endif()
@@ -54,10 +55,3 @@ endif()
 if(IXRAY_MP)
     add_dependencies(xrEngine xrGameSpy)
 endif()
-
-# AMD AGS SDK
-target_include_directories(xrEngine PUBLIC ${CMAKE_BINARY_DIR}/dep/amd_ags_sdk/inc/)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/dep/amd_ags_sdk/lib/amd_ags_${NUGET_PACKAGE_PLATFORM}.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-)

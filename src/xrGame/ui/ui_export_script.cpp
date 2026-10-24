@@ -16,10 +16,16 @@
 #include "ui/UIMMShniaga.h"
 #include "../xrUI/Widgets/UIComboBox.h"
 #include "../xrUI/Widgets/UIOptionsManagerScript.h"
+#include "../xrUI/Widgets/UIMultiTextStatic.h"
 #include "../xrUI/Widgets/UIListWnd.h"
+#include "../xrUI/Widgets/UIScrollBar.h"
 #include "ui/UIMapInfo.h"
 #include "map_manager.h"
 #include "ScriptXMLInit.h"
+#include "../xrUI/Widgets/UIArrow.h"
+#include "../xrEngine/xr_input.h"
+#include "../xrUI/Widgets/UIActionRepeaters.h"
+
 using namespace luabind;
 
 CMainMenu*	MainMenu();
@@ -29,11 +35,33 @@ int placeholder_func() // to keep game from crashing during menu init
 	return 0;
 }
 
+bool IsControllerMode()
+{
+	return pInput->GetControllerMode();
+}
+
+float get_current_kx()
+{
+	return UI().get_current_kx();
+}
+
+bool is_widescreen()
+{
+	return UI().is_widescreen();
+}
+
+const char* gamepad_prefix()
+{
+	return pInput->GamepadPrefix();
+}
 
 #pragma optimize("s",on)
 void UIRegistrator::script_register(lua_State *L)
 {
+	CUIActionRepeatersOwner::script_register(L);
+	CUIActionRepeatersManager::script_register(L);
 	CUIWindow::script_register(L);
+	CUIScrollBar::script_register(L);
 	CUIMMShniaga::script_register(L);
 	CUIStatic::script_register(L);
 	CUIButton::script_register(L);
@@ -51,6 +79,7 @@ void UIRegistrator::script_register(lua_State *L)
 	CUIMapInfo::script_register(L);
 	CScriptXmlInit::script_register(L);
 	CUIGameCustom::script_register(L);
+	CUIArrow::script_register(L);
 
 	module(L)
 	[
@@ -60,9 +89,13 @@ void UIRegistrator::script_register(lua_State *L)
 			[
 				value("alLeft",						int(CGameFont::alLeft)),
 				value("alRight",					int(CGameFont::alRight)),
-				value("alCenter",					int(CGameFont::alCenter))
+				value("alCenter",					int(CGameFont::alCenter)),
+				value("alJustify",					int(CGameFont::alJustify))
 			],
 
+		class_<CUICaption>("CUICaption")
+			.def("addCustomMessage",	&CUICaption::addCustomMessage)
+			.def("setCaption",			&CUICaption::setCaption),
 
 		class_<Patch_Dawnload_Progress>("Patch_Dawnload_Progress")
 			.def("GetInProgress",	&Patch_Dawnload_Progress::GetInProgress)
@@ -85,7 +118,15 @@ void UIRegistrator::script_register(lua_State *L)
 
 	module(L,"main_menu")
 	[
-		def("get_main_menu",				&MainMenu)
+		def("get_main_menu",				&MainMenu),
+		def("in_controller_mode",			&IsControllerMode)
+	];
+	module(L,"ui")
+	[
+		def("get_current_kx",				&get_current_kx),
+		def("is_widescreen",				&is_widescreen),
+		def("gamepad_prefix",				&gamepad_prefix),
+		def("QueryScrollBarProfileLayout",	&QueryScrollBarProfileLayout_script)
 	];
 
 	CMapManager::script_register(L);

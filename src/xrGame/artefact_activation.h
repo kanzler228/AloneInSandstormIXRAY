@@ -32,13 +32,13 @@ public:
 		shared_str	m_animation;
 		
 					SStateDef	():m_time(0.0f){};
-		void		Load		(LPCSTR section, LPCSTR name);
+		void		Load		(const char* section, const char* name);
 	};
 
 	SArtefactActivation			(CArtefact* af, u32 owner_id);
-	~SArtefactActivation		();
+	virtual ~SArtefactActivation		();
 	CArtefact*					m_af;
-	svector<SStateDef,eMax>		m_activation_states;
+	FixedVector<SStateDef,eMax>		m_activation_states;
 	EActivationStates			m_cur_activation_state;
 	float						m_cur_state_time;
 

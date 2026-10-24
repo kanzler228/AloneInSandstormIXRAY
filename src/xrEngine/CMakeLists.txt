@@ -1,4 +1,4 @@
-project(xrAbstractions)
+project(xrEngineCore)
 set(ENGINE_SRC_FILES)
 
 # Files import
@@ -85,54 +85,38 @@ list(APPEND ENGINE_SRC_FILES ${ENGINE_SOURCE_ALL_FILES})
 # Remove files
 list(FILTER ENGINE_SRC_FILES EXCLUDE REGEX "xrLoadSurface.cpp")
 
-# xrAbstractions project
-add_library(xrAbstractions SHARED ${ENGINE_SRC_FILES})
-set_property(TARGET xrAbstractions PROPERTY ENABLE_EXPORTS ON)
+# xrEngineCore project
+add_library(xrEngineCore SHARED ${ENGINE_SRC_FILES})
+set_property(TARGET xrEngineCore PROPERTY ENABLE_EXPORTS ON)
 
 # Include directories
-target_include_directories(xrAbstractions PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/AI")
-target_include_directories(xrAbstractions PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_include_directories(xrAbstractions PUBLIC "${IXRAY_SDK_INC}")
+target_include_directories(xrEngineCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/AI")
+target_include_directories(xrEngineCore PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(xrEngineCore PUBLIC "${IXRAY_SDK_INC}")
+target_include_directories(xrEngineCore PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../xrCore/")
 
 if(WIN32)
-    target_include_directories(xrAbstractions PUBLIC ${CORE_DXMATH}/include/)
+    target_include_directories(xrEngineCore PUBLIC ${CORE_DXMATH}/include/)
 endif()
 
 # Move precompiled header
-target_validate_pch(xrAbstractions ${CMAKE_CURRENT_SOURCE_DIR})
+target_validate_pch(xrEngineCore ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Project defines
-target_compile_definitions(xrAbstractions PRIVATE ENGINE_BUILD)
+target_compile_definitions(xrEngineCore PRIVATE ENGINE_BUILD)
 
 # Linker list
-target_link_libraries(xrAbstractions PUBLIC xrCore)
-target_link_libraries(xrAbstractions PUBLIC xrSound)
-target_link_libraries(xrAbstractions PUBLIC luabind)
-target_link_libraries(xrAbstractions PUBLIC xrNetServer)
-target_link_libraries(xrAbstractions PUBLIC imgui)
+target_link_libraries(xrEngineCore PUBLIC xrCore)
+target_link_libraries(xrEngineCore PUBLIC xrSound)
+target_link_libraries(xrEngineCore PUBLIC luabind)
+target_link_libraries(xrEngineCore PUBLIC xrNetServer)
+target_link_libraries(xrEngineCore PUBLIC imgui)
+target_link_libraries(xrEngineCore PUBLIC xrRHI)
+target_link_libraries(xrEngineCore PUBLIC FreeType::FreeType)
+target_link_libraries(xrEngineCore PUBLIC Ogg::ogg)
+target_link_libraries(xrEngineCore PUBLIC Theora::theora)
 
-target_link_libraries(xrAbstractions PRIVATE "Winmm.lib")
-target_link_libraries(xrAbstractions PRIVATE "Vfw32.lib")
-target_link_libraries(xrAbstractions PRIVATE "d3d9.lib")
-target_link_libraries(xrAbstractions PRIVATE "d3d11.lib")
-target_link_libraries(xrAbstractions PRIVATE "dxgi.lib")
-
-# Copy binaries
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ENGINE_THRA}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/libtheora.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ENGINE_FREETYPE}native/bin/${CMAKE_VS_PLATFORM_NAME}/Release/freetype.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-)
-
-## FreeType
-target_link_libraries(xrAbstractions PRIVATE ${ENGINE_FREETYPE}native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/freetype.lib)
-target_include_directories(xrAbstractions PRIVATE "${ENGINE_FREETYPE}native/include/")
-
-## Theora
-target_link_libraries(xrAbstractions PUBLIC ${ENGINE_THRA}native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libtheora.lib)
-target_include_directories(xrAbstractions PUBLIC "${ENGINE_THRA}/native/include/")
-
-## OGG
-target_link_libraries(xrAbstractions PUBLIC ${SND_OGG}/native/lib/${CMAKE_VS_PLATFORM_NAME}/Release/libogg.lib)
-target_include_directories(xrAbstractions PUBLIC "${SND_OGG}/native/include/")
-
-target_include_directories(xrAbstractions PUBLIC "${RENDERDOC_API}")
+if (WIN32)
+    target_link_libraries(xrEngineCore PRIVATE WindowsSDK::WinMM)
+    target_link_libraries(xrEngineCore PRIVATE WindowsSDK::VFW32)
+endif()

@@ -14,6 +14,8 @@
 
 #include "game_cl_mp.h"
 #include "WeaponRPG7.h"
+#include "ParticlesObject.h"
+#include "Weapons/Components/WeaponAmmoBones.h"
 
 #define FLAME_TIME 0.05f
 
@@ -40,8 +42,8 @@ void random_dir(Fvector& tgt_dir, const Fvector& src_dir, float dispersion)
 	float r 			= tan			(alpha);
 	Fvector 			U,V,T;
 	Fvector::generate_orthonormal_basis	(src_dir,U,V);
-	U.mul				(r*_sin(theta));
-	V.mul				(r*_cos(theta));
+	U.mul				(r*std::sin(theta));
+	V.mul				(r*std::cos(theta));
 	T.add				(U,V);
 	tgt_dir.add			(src_dir,T).normalize();
 }
@@ -71,7 +73,7 @@ void CWeapon::FireTrace		(const Fvector& P, const Fvector& D)
 //	float Deterioration = GetWeaponDeterioration();
 //	Msg("Deterioration = %f", Deterioration);
 
-	if (!psActorFlags.test(AF_INFINITEDURABILITY))
+	if (!psActorFlags.test(AF_INFINITE_DURABILITY))
 	{
 		ChangeCondition(-GetWeaponDeterioration() * l_cartridge.param_s.impair);
 	}
@@ -106,15 +108,22 @@ void CWeapon::FireTrace		(const Fvector& P, const Fvector& D)
 			fire_disp = GetFireDispersion(true);
 		}
 	}
-	
-	bool SendHit = SendHitAllowed(H_Parent());
-	//выстерлить пулю (с учетом возможной стрельбы дробью)
-	for(int i = 0; i < l_cartridge.param_s.buckShot; ++i) 
-	{
-		FireBullet(P, D, fire_disp, l_cartridge, H_Parent()->ID(), ID(), SendHit);
-	}
 
-	StartShotParticles		();
+	u16 weapon_id = ID();
+	u16 initiator_id = H_Parent() ? H_Parent()->ID() : Initiator();
+	bool SendHit = SendHitAllowed(H_Parent() ? H_Parent() : this);
+
+	//выстерлить пулю (с учетом возможной стрельбы дробью)
+	for (int i = 0; i < l_cartridge.param_s.buckShot; ++i)
+	{
+		FireBullet(P,
+		           D,
+		           fire_disp,
+		           l_cartridge,
+		           initiator_id,
+		           weapon_id,
+		           SendHit);
+	}
 	
 	if(m_bLightShotEnabled) 
 		Light_Start			();
@@ -126,18 +135,31 @@ void CWeapon::FireTrace		(const Fvector& P, const Fvector& D)
 		m_bJustAfterReload = false;
 		m_LastShotAmmoType = m_magazine.back().m_LocalAmmoType;
 		m_magazine.pop_back();
-		--iAmmoElapsed;
+		--AmmoElapsed.MagazineElapsed;
 
-		UpdateLiteAmmoBones(iAmmoElapsed + iAmmoChamberElapsed);
+		if (m_bIsPumpEnabled)
+		{
+			m_bNeedPumpState = true;
+			m_bHaveShell = true;
+		}
+
+		if (TLiteAmmoBones* LiteAmmoBones = GetComponent<TLiteAmmoBones>())
+		{
+			LiteAmmoBones->UpdateLiteAmmoBones(this, GetCurrentElapsed() + iAmmoChamberElapsed);
+		}
 
 		if (!m_bBlockUpdateAmmoBonesShooting)
 		{
 			u8 type_to_update = m_bUseLastAmmoType && m_LastShotAmmoType != undefined_ammo_type ? m_LastShotAmmoType : GetTargetAmmoType();
-			UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, type_to_update);
+
+			if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+			{
+				AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, type_to_update);
+			}
 		}
 	}
 
-	VERIFY((u32)iAmmoElapsed == m_magazine.size());
+	VERIFY((u32)AmmoElapsed.MagazineElapsed == m_magazine.size());
 }
 
 void CWeapon::FireTraceChamber(const Fvector& P, const Fvector& D)
@@ -156,7 +178,7 @@ void CWeapon::FireTraceChamber(const Fvector& P, const Fvector& D)
 		l_cartridge.param_s.u8ColorID = m_u8TracerColorID;
 	//-------------------------------------------------------------
 
-	if (!psActorFlags.test(AF_INFINITEDURABILITY))
+	if (!psActorFlags.test(AF_INFINITE_DURABILITY))
 	{
 		ChangeCondition(-GetWeaponDeterioration() * l_cartridge.param_s.impair);
 	}
@@ -192,15 +214,20 @@ void CWeapon::FireTraceChamber(const Fvector& P, const Fvector& D)
 		}
 	}
 
-
-	bool SendHit = SendHitAllowed(H_Parent());
-
+	u16 weapon_id = ID();
+	u16 initiator_id = H_Parent() ? H_Parent()->ID() : Initiator();
+	bool SendHit = SendHitAllowed(H_Parent() ? H_Parent() : this);
+	
 	for (int i = 0; i < l_cartridge.param_s.buckShot; ++i)
 	{
-		FireBullet(P, D, fire_disp, l_cartridge, H_Parent()->ID(), ID(), SendHit);
+		FireBullet(P,
+				   D,
+				   fire_disp,
+				   l_cartridge,
+				   initiator_id,
+				   weapon_id,
+				   SendHit);
 	}
-
-	StartShotParticles();
 
 	if (m_bLightShotEnabled)
 		Light_Start();
@@ -210,14 +237,30 @@ void CWeapon::FireTraceChamber(const Fvector& P, const Fvector& D)
 		m_bJustAfterReload = false;
 		m_LastShotAmmoType = m_chamber.back().m_LocalAmmoType;
 		DeleteAmmoInChamber();
-		GiveAmmoFromMagToChamber();
 
-		UpdateLiteAmmoBones(iAmmoElapsed + iAmmoChamberElapsed);
+		if (!m_bIsPumpEnabled)
+		{
+			GiveAmmoFromMagToChamber();
+		}
+		else
+		{
+			m_bNeedPumpState = true;
+			m_bHaveShell = true;
+		}
+
+		if (TLiteAmmoBones* LiteAmmoBones = GetComponent<TLiteAmmoBones>())
+		{
+			LiteAmmoBones->UpdateLiteAmmoBones(this, GetCurrentElapsed() + iAmmoChamberElapsed);
+		}
 
 		if (!m_bBlockUpdateAmmoBonesShooting)
 		{
 			u8 type_to_update = m_bUseLastAmmoType && m_LastShotAmmoType != undefined_ammo_type ? m_LastShotAmmoType : GetTargetAmmoType();
-			UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, type_to_update);
+
+			if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+			{
+				AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, type_to_update);
+			}
 		}
 	}
 
@@ -226,22 +269,21 @@ void CWeapon::FireTraceChamber(const Fvector& P, const Fvector& D)
 
 void CWeapon::StopShooting()
 {
-//	SetPending			(TRUE);
-
-	//принудительно останавливать зацикленные партиклы
-	if(m_pFlameParticles && m_pFlameParticles->IsLooped())
-		StopFlameParticles	();	
-
-	if (!ParentIsActor())
+	if (!ParentIsActor() && GetState() == eFire)
 	{
 		SwitchState(eIdle);
 	}
 
 	u8 type_to_update = m_bUseLastAmmoType && m_LastShotAmmoType != undefined_ammo_type ? m_LastShotAmmoType : GetTargetAmmoType();
-	UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, type_to_update);
+
+	if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+	{
+		AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, type_to_update);
+	}
 
 	StopShotEffector();
 	StopPattern();
+	StopLight();
 
 	bWorking = false;
 }
@@ -250,18 +292,4 @@ void CWeapon::FireEnd()
 {
 	CShootingObject::FireEnd();
 
-}
-
-
-void CWeapon::StartFlameParticles2	()
-{
-	CShootingObject::StartParticles (m_pFlameParticles2, *m_sFlameParticles2, get_LastFP2());
-}
-void CWeapon::StopFlameParticles2	()
-{
-	CShootingObject::StopParticles (m_pFlameParticles2);
-}
-void CWeapon::UpdateFlameParticles2	()
-{
-	if (m_pFlameParticles2)			CShootingObject::UpdateParticles (m_pFlameParticles2, get_LastFP2());
 }

@@ -1,15 +1,16 @@
 #pragma once
-
 #include "../xrServerEntities/gametype_chooser.h"
 #include "GameFont.h"
 #include "Environment.h"
 #include "IGame_ObjectPool.h"
+#include "Render.h"
+#include <luabind/class_info.hpp>
 
 class IRenderVisual;
 class IMainMenu;
-class ENGINE_API CPS_Instance;
-//-----------------------------------------------------------------------------------------------------------
-class ENGINE_API IGame_Persistent	: 
+extern ENGINE_API bool g_dedicated_server;
+
+class ENGINE_API IGame_Persistent : 
 	public DLL_Pure,
 	public pureAppStart, 
 	public pureAppEnd,
@@ -18,8 +19,10 @@ class ENGINE_API IGame_Persistent	:
 	public pureFrame
 {
 public:
-	union params {
-		struct {
+	union params
+	{
+		struct
+		{
 			string256	m_game_or_spawn;
 			string256	m_game_type;
 			string256	m_alife;
@@ -27,35 +30,40 @@ public:
 			EGameIDs	m_e_game_type;
 		};
 		string256		m_params[4];
-						params		()	{	reset();	}
-		void			reset		()
+
+		params() { reset(); }
+
+		void reset()
 		{
-			for (int i=0; i<4; ++i)
-				xr_strcpy	(m_params[i],"");
+			for (int i = 0; i < 4; ++i)
+				xr_strcpy(m_params[i], "");
 		}
-		void						parse_cmd_line		(LPCSTR cmd_line)
+
+		void parse_cmd_line(const char* cmd_line)
 		{
-			reset					();
-			int						n = _min(4,_GetItemCount(cmd_line,'/'));
-			for (int i=0; i<n; ++i) {
-				_GetItem			(cmd_line,i,m_params[i],'/');
-				_strlwr				(m_params[i]);
+			reset();
+			int n = std::min(4, _GetItemCount(cmd_line, '/'));
+			for (int i = 0; i < n; ++i)
+			{
+				_GetItem(cmd_line, i, m_params[i], '/');
+				_strlwr(m_params[i]);
 			}
 		}
 	};
-	params							m_game_params;
 
-public:
-	xr_vector<xr_shared_ptr<CPS_Instance>> ps_active;
-	xr_vector<xr_shared_ptr<CPS_Instance>> ps_active_deffer;
-	xr_vector<xr_shared_ptr<CPS_Instance>> ps_needtoplay;
+	struct ShaderParamsData
+	{
+		float HelmetCondition = 0;
+		bool ItemCfgHudGasMaskAvailable = true;
+		bool ItemCfgHudRainDropsAvailable = true;
+	};
 
+	params m_game_params;
+	ShaderParamsData ShaderParams;
+	luabind::functor<void> ixr_framework_onframe;
 public:
-			void					destroy_particles	(const bool &all_particles);
-
-public:
-	virtual void					PreStart			(LPCSTR op);
-	virtual void					Start				(LPCSTR op);
+	virtual void					PreStart			(const char* op);
+	virtual void					Start				(const char* op);
 	virtual void					Disconnect			();
 	IGame_ObjectPool				ObjectPool;
 	class CEnvironment*				pEnvironment;
@@ -63,9 +71,11 @@ public:
 	void							Prefetch			( );
 	IMainMenu*						m_pMainMenu;	
 
-			void					UpdateParticles();
+	virtual	void					UpdatePlayDestroyParticles() {};
+	virtual	void					UpdateParticles		() {};
+	virtual	void					destroy_particles	(bool all_particles) {};
 
-	virtual bool					OnRenderPPUI_query	() { return FALSE; };	// should return true if we want to have second function called
+	virtual bool					OnRenderPPUI_query	() { return false; };	// should return true if we want to have second function called
 	virtual void					OnRenderPPUI_main	() {};
 	virtual void					OnRenderPPUI_PP		() {};
 
@@ -74,6 +84,7 @@ public:
 	virtual	void					OnAppActivate		();
 	virtual void					OnAppDeactivate		();
 	virtual void		_BCL		OnFrame				();
+	virtual void					OnFrameMT			();
 
 	// вызывается только когда изменяется тип игры
 	virtual	void					OnGameStart			(); 
@@ -94,11 +105,12 @@ public:
 	ICF		u32						GameType			() {return m_game_params.m_e_game_type;};
 	virtual void					Statistics			(CGameFont* F) {}
 	virtual	void					LoadTitle			(bool change_tip=false, shared_str map_name=""){}
-	virtual void					SetLoadStageTitle	(pcstr /*ls_title*/) {}
+	virtual void					SetLoadStageTitle	(const char* /*ls_title*/) {}
 	virtual bool					CanBePaused			()		{ return true;}
+	virtual void					GetTextureParams	(shared_str tex, Frect& out_rect, shared_str& file_name) {}
+	virtual void					ChangeCursorPosition(Fvector2 value) {}
 };
 
-extern ENGINE_API	bool g_dedicated_server;
-extern ENGINE_API	IGame_Persistent*	g_pGamePersistent;
+extern ENGINE_API IGame_Persistent* g_pGamePersistent;
 
 #include "IGame_Menu.h"

@@ -7,7 +7,7 @@
 class XRCORE_API EFS_Utils
 {
 protected:
-	bool 		GetOpenNameInternal(LPCSTR initial, LPSTR buffer, int sz_buf, bool bMulti = false, LPCSTR offset = 0, int start_flt_ext = -1, const char* ext = nullptr);
+	bool 		GetOpenNameInternal(const char* initial, LPSTR buffer, int sz_buf, bool bMulti = false, const char* offset = nullptr, int start_flt_ext = -1, const char* ext = nullptr);
 
 public:
 	EFS_Utils() = default;
@@ -15,9 +15,9 @@ public:
 	void 		_initialize() {}
 	void 		_destroy() {}
 
-	LPCSTR		GenerateName(LPCSTR base_path, LPCSTR base_name, LPCSTR def_ext, LPSTR out_name, u32 const out_name_size);
+	const char*		GenerateName(const char* base_path, const char* base_name, const char* def_ext, LPSTR out_name, u32 const out_name_size);
 
-	bool 		GetOpenName(LPCSTR initial, xr_string& buf, bool bMulti = false, LPCSTR offset = 0, int start_flt_ext = -1, const char* ext = nullptr);
+	bool 		GetOpenName(const char* initial, xr_string& buf, bool bMulti = false, const char* offset = nullptr, int start_flt_ext = -1, const char* ext = nullptr);
 
 
 	template<xr_ssnt_t Size>
@@ -31,15 +31,15 @@ public:
 		ofn.lStructSize = sizeof(ofn);
 		ofn.hwndOwner = nullptr;
 		ofn.lpstrFile = path_to_file.data();
-		ofn.nMaxFile = sizeof(path_to_file);
+		ofn.nMaxFile = Size;
 		ofn.lpstrFilter = mask;
 		ofn.nFilterIndex = 1;
-		ofn.lpstrFileTitle = NULL;
+		ofn.lpstrFileTitle = nullptr;
 		ofn.nMaxFileTitle = 0;
-		ofn.lpstrInitialDir = NULL;
+		ofn.lpstrInitialDir = nullptr;
 		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-		bool result = GetOpenFileName(&ofn) == TRUE;
+		bool result = GetOpenFileName(&ofn) != FALSE;
 
 		return result;
 #else
@@ -48,70 +48,66 @@ public:
 	}
 
 	template<xr_ssnt_t Size>
-	IC bool CopyTextToClipboard(xr_stack_string<Size>& buffer)
+	IC bool GetSaveName(xr_stack_tstring<Size>& path_to_file, const xr_char_t* mask, bool multi_selection = false)
 	{
-		if (buffer.empty())
-			return false;
-
 #ifdef IXR_WINDOWS
-		HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, buffer.size());
 
-		std::memcpy(GlobalLock(hMem), buffer.c_str(), buffer.size());
-		GlobalUnlock(hMem);
+		OPENFILENAME ofn;
 
-		BOOL nStatus = OpenClipboard(NULL);
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		ofn.hwndOwner = nullptr;
+		ofn.lpstrFile = path_to_file.data();
+		ofn.nMaxFile = Size;
+		ofn.lpstrFilter = mask;
+		ofn.nFilterIndex = 1;
+		ofn.lpstrFileTitle = nullptr;
+		ofn.nMaxFileTitle = 0;
+		ofn.lpstrInitialDir = nullptr;
+		ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
 
-		if (!nStatus)
-		{
-			Msg("[win32]: Failed to OpenClipboard!");
-			return false;
-		}
-			
-		nStatus = EmptyClipboard();
-		if (!nStatus)
-		{
-			Msg("[win32]: Failed to EmptyClipboard!");
-			return false;
-		}
+		bool result = GetSaveFileName(&ofn) != FALSE;
 
-		HANDLE hStatus = SetClipboardData(CF_TEXT, hMem);
 
-		if (!hStatus)
-		{
-			Msg("[win32]: Failed to SetClipboardData");
-			return false;
-		}
-
-		nStatus = CloseClipboard();
-		if (!nStatus)
-		{
-			Msg("[win32]: Failed to CloseClipboard!");
-			return false;
-		}
-
-		return true;
+		return result;
 #else
+		R_ASSERT(false && "todo: provide implementation");
 		return false;
 #endif
 	}
 
-	bool 		GetSaveName(LPCSTR initial, string_path& buffer, LPCSTR offset = 0, int start_flt_ext = -1, const char* ext = nullptr);
-	bool 		GetSaveName(LPCSTR initial, xr_string& buf, LPCSTR offset = 0, int start_flt_ext = -1, const char* ext = nullptr);
+	template<xr_ssnt_t Size>
+	bool CopyTextToClipboard(xr_stack_string<Size>& buffer)
+	{
+		if (buffer.empty())
+			return false;
 
-	void 		MarkFile(LPCSTR fn, bool bDeleteSource);
+		if (SDL_SetClipboardText(buffer.c_str()) != 0)
+		{
+			Msg("! [SDL]: Failed to set clipboard text: %s", SDL_GetError());
+			return false;
+		}
 
-	xr_string 	AppendFolderToName(xr_string& tex_name, int depth, BOOL full_name);
+		return true;
+	}
 
-	LPCSTR		AppendFolderToName(LPSTR tex_name, u32 const tex_name_size, int depth, BOOL full_name);
-	LPCSTR		AppendFolderToName(LPCSTR src_name, LPSTR dest_name, u32 const dest_name_size, int depth, BOOL full_name);
+	bool 		GetSaveName(const char* initial, string_path& buffer, const char* offset = nullptr, int start_flt_ext = -1, const char* ext = nullptr);
+	bool 		GetSaveName(const char* initial, xr_string& buf, const char* offset = nullptr, int start_flt_ext = -1, const char* ext = nullptr);
 
-	xr_string	ChangeFileExt(LPCSTR src, LPCSTR ext);
-	xr_string	ChangeFileExt(const xr_string& src, LPCSTR ext);
+	void 		MarkFile(const char* fn, bool bDeleteSource);
 
-	xr_string	ExtractFileName(LPCSTR src);
-	xr_string	ExtractFilePath(LPCSTR src);
-	xr_string	ExtractFileExt(LPCSTR src);
-	xr_string	ExcludeBasePath(LPCSTR full_path, LPCSTR excl_path);
+	xr_string 	AppendFolderToName(xr_string& tex_name, int depth, bool full_name);
+
+	const char*		AppendFolderToName(LPSTR tex_name, u32 const tex_name_size, int depth, bool full_name);
+	const char*		AppendFolderToName(const char* src_name, LPSTR dest_name, u32 const dest_name_size, int depth, bool full_name);
+
+	xr_string	ChangeFileExt(const char* src, const char* ext);
+	xr_string	ChangeFileExt(const xr_string& src, const char* ext);
+
+	xr_string	ExtractFileName(const char* src);
+	xr_string	ExtractFilePath(const char* src);
+	xr_string	ExtractFileExt(const char* src);
+	xr_string	ExcludeBasePath(const char* full_path, const char* excl_path);
 };
 
 extern XRCORE_API EFS_Utils* xr_EFS;

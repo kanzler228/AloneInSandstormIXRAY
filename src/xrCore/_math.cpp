@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-
 #ifdef IXR_WINDOWS
 #include <process.h>
 #include <winver.h>
@@ -31,7 +30,11 @@ namespace CPU
 	XRCORE_API u64				qpc_overhead	= 0	;
 	XRCORE_API u32				qpc_counter		= 0	;
 	
-	XRCORE_API processor_info	ID;
+	XRCORE_API const processor_info& ID()
+	{
+		static processor_info SingletonID;
+		return SingletonID;
+	}
 
 	XRCORE_API u64				QPC	()
     {
@@ -86,8 +89,8 @@ void _initialize_cpu	(void)
 	Msg
 	(
 		"* Detected CPU: %s [%s], F%d/M%d/S%d",
-		CPU::ID.modelName, CPU::ID.vendor,
-		CPU::ID.family,CPU::ID.model,CPU::ID.stepping
+		CPU::ID().modelName, CPU::ID().vendor,
+		CPU::ID().family,CPU::ID().model,CPU::ID().stepping
     );
 #ifdef IXR_WINDOWS
 
@@ -103,36 +106,36 @@ void _initialize_cpu	(void)
 	string256 features;
 	xr_strcpy(features, sizeof(features), "RDTSC");
 
-    if (CPU::ID.hasFeature(CPUFeature::MMX))			
+    if (CPU::ID().hasFeature(CPUFeature::MMX))			
 		xr_strcat(features, ", MMX");
 
-    if (CPU::ID.hasFeature (CPUFeature::AMD_3DNowExt))	
+    if (CPU::ID().hasFeature (CPUFeature::AMD_3DNowExt))	
 		xr_strcat(features, ", 3DNow!");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE))	
 		xr_strcat(features, ", SSE");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE2))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE2))	
 		xr_strcat(features, ", SSE2");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE3))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE3))	
 		xr_strcat(features, ", SSE3");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE41))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE41))	
 		xr_strcat(features, ", SSE 4.1");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE42))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE42))	
 		xr_strcat(features, ", SSE 4.2");
 	
-    if (CPU::ID.hasFeature (CPUFeature::SSE4a))	
+    if (CPU::ID().hasFeature (CPUFeature::SSE4a))	
 		xr_strcat(features, ", SSE 4.a");
 	
-    if (CPU::ID.hasFeature (CPUFeature::HT))	
+    if (CPU::ID().hasFeature (CPUFeature::HT))	
 		xr_strcat(features, ", HT");
 
 	Msg("* CPU features: %s" , features );
 #endif
-	Msg("* CPU cores/threads: %d/%d\n" , CPU::ID.n_cores , CPU::ID.n_threads );
+	Msg("* CPU cores/threads: %d/%d\n" , CPU::ID().n_cores , CPU::ID().n_threads );
 
 	Fidentity.identity		();	// Identity matrix
 	Didentity.identity		();	// Identity matrix
@@ -154,7 +157,7 @@ void _initialize_cpu	(void)
 #	define _MM_SET_DENORMALS_ZERO_MODE(mode) _mm_setcsr((_mm_getcsr() & ~_MM_DENORMALS_ZERO_MASK) | (mode))
 #endif
 
-static	BOOL	_denormals_are_zero_supported	= TRUE;
+static	bool	_denormals_are_zero_supported	= true;
 extern void __cdecl _terminate		();
 void debug_on_thread_spawn	();
 
@@ -162,7 +165,7 @@ void _initialize_cpu_thread()
 {
 	debug_on_thread_spawn();
 
-	if (CPU::ID.hasFeature(CPUFeature::SSE2))
+	if (CPU::ID().hasFeature(CPUFeature::SSE2))
 	{
 		_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 #ifdef IXR_WINDOWS
@@ -174,7 +177,7 @@ void _initialize_cpu_thread()
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
-				_denormals_are_zero_supported = FALSE;
+				_denormals_are_zero_supported = false;
 			}
 		}
 #endif
@@ -209,7 +212,13 @@ void	__cdecl thread_entry	(void*	_params )	{
 	// call
 	entry				(arglist);
 }
-
+#ifndef IXR_WINDOWS
+void* pthread_entry(void* params)
+{
+	thread_entry(params);
+	return nullptr;
+}
+#endif
 
 ThreadID thread_spawn	(thread_t*	entry, const char*	name, unsigned	stack, void* arglist )
 {
@@ -221,11 +230,17 @@ ThreadID thread_spawn	(thread_t*	entry, const char*	name, unsigned	stack, void* 
 #ifdef IXR_WINDOWS
 	return (ThreadID)_beginthread		(thread_entry,stack,startup);
 #else
-    pthread_t handle;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_create(&handle, &attr, 0, arglist);
-    pthread_attr_destroy(&attr);
+	pthread_t handle;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+    
+	if (stack > 0)
+	{
+		pthread_attr_setstacksize(&attr, stack);
+	}
+
+	pthread_create(&handle, &attr, pthread_entry, startup);
+	pthread_attr_destroy(&attr);
 
 	return (ThreadID)handle;
 #endif

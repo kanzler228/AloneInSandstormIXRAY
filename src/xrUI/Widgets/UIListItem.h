@@ -2,7 +2,7 @@
 
 #include "UIButton.h"
 
-class UI_API CUIListItem : public CUIButton
+class UI_API CUIListItem : public CUIButton, public CUISelectable
 {
 protected:
     using inherited = CUIButton;
@@ -12,7 +12,7 @@ public:
     virtual ~CUIListItem();
 
     void InitListItem(Fvector2 pos, Fvector2 size);
-    virtual void InitTexture(pcstr tex_name);
+    virtual void InitTexture(const char* tex_name);
 
     void* GetData() { return m_pData; }
     void SetData(void* pData) { m_pData = pData; }
@@ -36,9 +36,12 @@ public:
     // переопределяем критерий подсвечивания текста
     virtual bool IsHighlightText();
     virtual void SetHighlightText(bool Highlight) { m_bHighlightText = Highlight; }
-
-    virtual CUIWindow* ui_cast_window() { return this; }
-    virtual CUIListItem* ui_cast_list_item() { return this; }
+    
+	virtual void SetSelected(bool b) override;
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
+	virtual CUIListItem* ui_cast_list_item() { return this; }
+    virtual CUISelectable* ui_cast_selectable() { return this; }
 
 protected:
     //указатель на произвольные данные, которые могут

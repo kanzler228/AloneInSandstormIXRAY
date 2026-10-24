@@ -3,71 +3,64 @@
 #include "Frustum.h"
 
 extern Fvector	c_spatial_offset[8];
-class _MM_ALIGN16 spatial_frustum_walker
+struct spatial_frustum_walker final
 {
-public:
-	u32				mask;
-	CFrustum*		F;
+	const CFrustum&	F;
+	ESPATIAL_TYPE	mask;
 	ISpatial_DB*	space;
-	Fbox BB;
-
-public:
-	spatial_frustum_walker(ISpatial_DB* _space, u32 _mask, const CFrustum* _F)
-	{
-		mask = _mask;
-		F = (CFrustum*)_F;
-		space = _space;
-	}
-
-	void walk(xr_vector<ISpatialShared>& R, ISpatial_NODE* N, Fvector& n_C, float n_R, u32 fmask)
+	xr_vector<ISpatialShared>& R;
+	void xr_vectorcall walk(ISpatial_NODE* N, const Fvector& n_C, float n_R, u32 fmask)
 	{
 		// box
-		float n_vR = 2 * n_R;
-		BB.set(n_C.x - n_vR, n_C.y - n_vR, n_C.z - n_vR, n_C.x + n_vR, n_C.y + n_vR, n_C.z + n_vR);
-
-		if (fcvNone == F->testAABB(BB.data(), fmask))
+		float n_vR = n_R * 2.f;
+		if (fcvNone == F.testAABB(Fbox(n_C-n_vR,n_C+n_vR).data(), fmask))
 			return;
 
 		// test items
 		for (ISpatialShared& S : N->items)
 		{
 			if (!S.get()) continue;
-			if (0 == (S->spatial.type & mask))
+			if (ESPATIAL_TYPE::NONE == (S->type & mask))
 				continue;
 
-			Fvector& sC = S->spatial.sphere.P;
-			float sR = S->spatial.sphere.R;
+			Fvector& sC = S->sphere.P;
+			float sR = S->sphere.R;
 			u32 tmask = fmask;
 
-			if (fcvNone == F->testSphere(sC, sR, tmask))
+			if (fcvNone == F.testSphere(sC, sR, tmask))
 				continue;
 
 			R.push_back(S);
 		}
 
 		// recurse
-		float c_R = n_R / 2;
+		float c_R = n_R * 0.5f;
 		for (u32 octant = 0; octant < 8; octant++)
 		{
-			if (0 == N->children[octant])
+			if (nullptr == N->children[octant])
 				continue;
 
-			Fvector c_C;
-			c_C.mad(n_C, c_spatial_offset[octant], c_R);
-			walk(R, N->children[octant], c_C, c_R, fmask);
+			walk(N->children[octant], Fvector().mad(n_C, c_spatial_offset[octant], c_R), c_R, fmask);
 		}
 	}
 };
 
-void ISpatial_DB::q_frustum(xr_vector<ISpatialShared>& R, u32 _o, u32 _mask, const CFrustum& _frustum)
+void ISpatial_DB::q_frustum(xr_vector<ISpatialShared>& R, u32 _o, ESPATIAL_TYPE _mask, const CFrustum& _frustum)
 {
 	PROF_EVENT("ISpatial_DB::q_frustum")
 	xrSRWLockGuard guard(&db_lock, true);
 	if (!m_root)
 		return;
 
-	R.resize(0);
+	R.clear();
+	R.reserve(16);
 
-	spatial_frustum_walker W(this,_mask,&_frustum);
-	W.walk(R,m_root,m_center,m_bounds,_frustum.getMask());
+	spatial_frustum_walker W
+	{
+		_frustum,
+		_mask,
+		this,
+		R
+	};
+	W.walk(m_root,m_center,m_bounds,_frustum.getMask());
 }

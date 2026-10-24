@@ -2,6 +2,7 @@
 #include "UIRenderForm.h"
 #include "ui_main.h"
 #include "../xrEUI/ImGuizmo.h"
+#include <imgui_internal.h>
 
 static int GlobalViewportIndex = 0;
 
@@ -41,6 +42,10 @@ UIRenderForm::~UIRenderForm()
 
 void UIRenderForm::DrawStatistics()
 {
+	const float ToolbarHeight = 0
+		+ XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ToolbarPadding) * 2.f
+		+ XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+	const float Gap = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::DockingGap);
 	if (!psDeviceFlags.is(rsStatistic))
 		return;
 
@@ -56,8 +61,8 @@ void UIRenderForm::DrawStatistics()
 			va_end(args);
 		};
 
-	ImGui::SetCursorPos(ImVec2(48, 48));
-	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4.0f, .5f));
+	ImGui::SetCursorPos(ImVec2(ToolbarHeight * 0.5f, ToolbarHeight * 1.5f));
+	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(Gap, Gap));
 
 	if (!ImGui::BeginTable("stats", 2))
 	{
@@ -108,19 +113,36 @@ void UIRenderForm::DrawStatistics()
 }
 void UIRenderForm::Draw()
 {
+	ImGuiWindowClass window_class;
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_HiddenTabBar | ImGuiDockNodeFlags_NoDockingOverMe | ImGuiDockNodeFlags_NoDockingOverOther;
+	ImGui::SetNextWindowClass(&window_class);
+
 	if (!ImGui::Begin(ViewportName, nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
 	{
 		ImGui::End();
+		ImGui::PopStyleVar();
 		return;
 	}
 
+	ImGui::PopStyleVar();
 	DrawVP();
-
 	ImGui::End();
 }
 
 void UIRenderForm::DrawVP()
 {
+	const float ToolbarHeight = 0
+		+ XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ToolbarPadding) * 2.f
+		+ XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+
+	float ScreenDPI = GUIManager->GetScaleDpi();
+
+	if (UI->Views[ViewportID].ViewGlobalIDX != ViewportID)
+	{
+		return;
+	}
+
 	if (ImGui::IsWindowFocused() || UI->ViewID == ViewportID)
 	{
 		if ((UI->IsPlayInEditor() && ViewportID == 0) || !UI->IsPlayInEditor())
@@ -136,7 +158,7 @@ void UIRenderForm::DrawVP()
 
 	if ((UI->IsPlayInEditor() && ViewportID == 0) || UI->ViewID == ViewportID)
 	{
-		RDevice->StretchRect(UI->RT->pRT, 0, UI->Views[ViewportID].RTFreez->pRT, 0, D3DTEXF_NONE);
+		GRHI->CopySurface(UI->Views[ViewportID].RTFreez->pRT, UI->RT->pRT);
 	}
 
 	m_render_pos.right = ImGui::GetWindowSize().x;
@@ -193,12 +215,12 @@ void UIRenderForm::DrawVP()
 		bool curent_shiftstate_down = UI->CurrentView().m_Camera.IsMoving();
 
 
-		if (canvas_size.x < 32.0f) canvas_size.x = 32.0f;
-		if (canvas_size.y < 32.0f) canvas_size.y = 32.0f;
+		if (canvas_size.x < 32.0f * ScreenDPI) canvas_size.x = 32.0f * ScreenDPI;
+		if (canvas_size.y < 32.0f * ScreenDPI) canvas_size.y = 32.0f * ScreenDPI;
 		UI->Views[ViewportID].RTSize.set(canvas_size.x, canvas_size.y);
 
 		ImGui::SetCursorScreenPos(canvas_pos);
-		draw_list->AddImage(UI->Views[ViewportID].RTFreez->pSurface, canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
+		draw_list->AddImage(UI->Views[ViewportID].RTFreez->pSurface->GetRawTexture(), canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
 
 		if (ViewportID != UI->ViewID && ImGui::IsWindowFocused())
 		{
@@ -222,7 +244,7 @@ void UIRenderForm::DrawVP()
 				float calcSide = (canvas_size.x > canvas_size.y) ? canvas_size.y : canvas_size.x;
 
 				ImVec2 size{ calcSide * 0.15f, calcSide * 0.15f };
-				ImVec2 pos{ canvas_pos.x + canvas_size.x - size.x, canvas_pos.y };
+				ImVec2 pos{ canvas_pos.x + canvas_size.x - size.x, canvas_pos.y + ToolbarHeight };
 
 				//Device.mView for only read
 				Fmatrix TempViewMatrix = Device.mView;
@@ -325,18 +347,6 @@ void UIRenderForm::DrawVP()
 	// MainViewport
 	if (ViewportID == 0)
 	{
-		if (UI->IsLoading)
-		{
-			ImGui::SetCursorPos({ 10, ImGui::GetWindowHeight() - 75 });
-			ImGui::SetNextWindowBgAlpha(0.6f);
-			if (ImGui::BeginChild("##renderloader", { 300, 65 }, true))
-			{
-				ImGui::Text(UI->ProgressStatusName.c_str());
-				ImGui::ProgressBar(UI->ProgressStatus / 100.f, { 280, 25 });
-			}
-			ImGui::EndChild();
-		}
-
 		if (cursor_in_zone && UseHint)
 		{
 			UI->ShowHint();

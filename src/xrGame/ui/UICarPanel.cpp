@@ -1,11 +1,11 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMainIngameWnd.h"
 #include "UICarPanel.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "../../xrUI/UIHelper.h"
 
-constexpr LPCSTR CAR_PANEL_XML = "car_panel.xml";
-constexpr LPCSTR POINTER_ARROW_TEX = "ui\\hud_map_arrow";
+constexpr const char* CAR_PANEL_XML = "car_panel.xml";
+constexpr const char* POINTER_ARROW_TEX = "ui\\hud_map_arrow";
 
 void CUICarPanel::Init()
 {
@@ -18,7 +18,7 @@ void CUICarPanel::Init()
     UIStaticCarHealth = UIHelper::CreateStatic(uiXml, "car_panel:car_static", this);
     UIStaticCarHealth->SetAutoDelete(true);
 
-    UIEngineSpeedMode = UIHelper::CreateTextWnd(uiXml, "car_panel:car_speed_mode", UIStaticCarHealth);
+    UIEngineSpeedMode = UIHelper::CreateStatic(uiXml, "car_panel:car_speed_mode", UIStaticCarHealth);
     UIEngineSpeedMode->SetAutoDelete(true);
 
     UIEngineLamp = UIHelper::CreateStatic(uiXml, "car_panel:car_engine_lamp:on", UIStaticCarHealth);

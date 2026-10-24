@@ -10,6 +10,48 @@ file(GLOB_RECURSE XGM_SOURCE_ALL_FILES CONFIGURE_DEPENDS
 	"../xrServerEntities/*.*"
 	"../xrGameSpy/gamespy/md5c.c"
 )
+
+file(GLOB_RECURSE XGM_SOURCE_AI_PLANNERS
+	"*_planner_*.*"
+	"planner_*.*"
+	"*_planner.*"
+	"planner.*"
+
+	"action_*.*"
+	"*_action.*"
+	"*_action_*.*"
+	"action.*"
+
+	"squad_hierarchy_holder.*"
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_SCRIPT
+	"*script*.*"
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Brains
+	"ai_*.*"
+	"aimers_*.*"
+	"agent_*.*"
+	"property*.*"
+	"stalker_*.*" 
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Pathes
+	"abstract_location_selector*.*"
+	"abstract_path_manager*.*"
+	"movement_manager*.*"
+	"moving*.*"
+	"patrol_*"
+	"path_manager_params.h"
+
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Controls
+	"control_*.*"
+	"monster_*.*"
+)
+ 
 file(GLOB_RECURSE XGM_SOURCE_AI_FILES
 	"ai/*.*"
 	"ai_*.*"
@@ -58,9 +100,12 @@ file(GLOB_RECURSE XGM_SOURCE_SERV_FILES
 	"xrServer*.*"
 	"game_*.*"
 )
+file(GLOB_RECURSE XGM_SOURCE_STORY_ID_FILES "ScriptsSubsystems/StoryID/*.*")
+file(GLOB_RECURSE XGM_SOURCE_CONDLIST_ID_FILES "ScriptsSubsystems/Condlist/*.*")
 
 file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_FILES "ai/stalker/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_TRADER_FILES "ai/trader/*.*")
+file(GLOB_RECURSE XGM_SOURCE_CONDLIST_ID_FILES "ScriptsSubsystems/Condlist/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_BASE_FILES "ai/monsters/base_monster/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_GS_FILES "ai/monsters/group_states/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_STATE_FILES "ai/monsters/states/*.*")
@@ -124,8 +169,17 @@ source_group("inventory" FILES ${XGM_SOURCE_INV_FILES})
 source_group("weapons" FILES ${XGM_SOURCE_WPN_FILES})
 source_group("ai/legacy_planner" FILES ${XGM_SOURCE_LEGACY_FILES})
 source_group("AnimNotify" FILES ${XGM_SOURCE_ANIM_NOTIFY_FILES})
+source_group("scripts/story_id" FILES ${XGM_SOURCE_STORY_ID_FILES})
+source_group("scripts/condlist" FILES ${XGM_SOURCE_CONDLIST_ID_FILES})
+source_group("scripts/others" FILES ${XGM_SOURCE_SCRIPT_FILES})
 
 source_group("imgui/utils" FILES ${XGM_SOURCE_IMGUI_INGAME_FILES})
+source_group("ai/scripting" FILES ${XGM_SOURCE_AI_SCRIPT})
+
+source_group("ai_brains/planners" FILES ${XGM_SOURCE_AI_PLANNERS} )
+source_group("ai_brains/stalker/brains" FILES ${XGM_SOURCE_AI_STALKER_AI_Brains} )
+source_group("ai_brains/stalker/pathes" FILES ${XGM_SOURCE_AI_STALKER_AI_Pathes})
+source_group("ai_brains/monsters" FILES ${XGM_SOURCE_AI_STALKER_AI_Controls} )
 
 # Apply list
 list(APPEND XGM_SRC_FILES ${XGM_SOURCE_ALL_FILES})
@@ -135,18 +189,23 @@ list(FILTER XGM_SRC_FILES EXCLUDE REGEX "DynamicHeightMap.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "WeaponMounted.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "LevelFogOfWar.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ai/monsters/rats/ai_rat_fsm.*")
-list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/IUWpnParams.*")
-#list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIRankFaction.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIRankFraction.*")
-list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIStalkersRankingWnd.*")
 
 # xrGame project
 add_library(xrGame SHARED ${XGM_SRC_FILES})
 
 if (IXRAY_UNITYBUILD)
-	set_target_properties(xrGame PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE 32)
-	target_compile_options(xrGame PRIVATE /bigobj)
+	set_target_properties(xrGame PROPERTIES UNITY_BUILD ON UNITY_BUILD_BATCH_SIZE ${IXRAY_BUILD_BATCH_SIZE})
+	if(MSVC)
+    	target_compile_options(xrGame PRIVATE /bigobj)
+	endif()
 	set_source_files_properties(../xrServerEntities/script_engine_export.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+endif()
+
+if (WIN32 AND IXRAY_UNITYBUILD AND IXRAY_CROSS_COMPILATION)
+	target_precompile_headers(xrGame PUBLIC "stdafx.h")
+	target_include_directories(xrGame PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/xrGame")
+	target_compile_options(xrGame PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_CURRENT_SOURCE_DIR}/stdafx.h>")
 endif()
 
 # Include directories
@@ -163,20 +222,25 @@ target_compile_definitions(xrGame PRIVATE dSINGLE)
 target_compile_definitions(xrGame PRIVATE "$<$<CONFIG:Debug>:DEBUG>")
 
 # Linker list
-target_link_libraries(xrGame PUBLIC xrAbstractions)
+target_link_libraries(xrGame PUBLIC xrEngineCore)
 target_link_libraries(xrGame PUBLIC xrPhysics)
 target_link_libraries(xrGame PUBLIC xrScripts)
 target_link_libraries(xrGame PUBLIC xrUI)
-target_link_libraries(xrGame PUBLIC xrParticles)
 target_link_libraries(xrGame PUBLIC luabind)
-target_link_libraries(xrGame PUBLIC crypto)
+target_link_libraries(xrGame PUBLIC IKAN)
 
-target_link_libraries(xrGame PRIVATE "shlwapi.lib")
+if (IXRAY_MP)
+	target_link_libraries(xrGame PUBLIC crypto)
+
+	if (WIN32)
+		target_link_libraries(xrGame PRIVATE "shlwapi.lib")
+	endif()
+endif()
 
 # Move precompiled header
 set_target_properties(xrGame PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
-if (NOT IXRAY_UNITYBUILD)
+if (NOT IXRAY_UNITYBUILD AND WIN32)
 	set_target_properties(xrGame PROPERTIES COMPILE_FLAGS "/Yustdafx.h")
 	set_source_files_properties(stdafx.cpp PROPERTIES COMPILE_FLAGS "/Ycstdafx.h")
 	target_precompile_headers(xrGame PUBLIC "stdafx.h")
@@ -190,12 +254,5 @@ source_group("pch" FILES ${GAME_SOURCE_PCH_FILES})
 
 # RedImage
 if(IXRAY_MP)
-	target_link_libraries(xrGame PUBLIC ${REDIMAGE_LIB})
-	target_include_directories(xrGame PUBLIC "${REDIMAGE_INCL}")
-
-	## Copy binaries
-	add_custom_command(TARGET ${PROJECT_NAME}
-	    POST_BUILD
-	    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${REDIMAGE_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-	)
+	target_link_libraries(xrGame PUBLIC RedImage::RedImage)
 endif()

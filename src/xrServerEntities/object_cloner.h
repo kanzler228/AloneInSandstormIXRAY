@@ -20,14 +20,14 @@ struct CCloner
 		}
 
 		template <>
-		IC	static void clone<true>(const T &_1, T &_2)
+		IC void clone<true>(const T &_1, T &_2)
 		{
 			_2 = new std::remove_pointer<T>::type(*_1);
 			CCloner::clone	(*_1,*_2);
 		}
 	};
 
-	IC	static void clone(LPCSTR source, LPCSTR &destination)
+	IC	static void clone(const char* source, const char* &destination)
 	{
 		destination = source;
 	}
@@ -50,12 +50,12 @@ struct CCloner
 	}
 
 	template <typename T, int size>
-	IC	static void clone(const svector<T,size> &_1, svector<T,size> &_2)
+	IC	static void clone(const FixedVector<T,size> &_1, FixedVector<T,size> &_2)
 	{
 		_2.resize						(_1.size());
-		typename svector<T,size>::iterator		J = _2.begin();
-		typename svector<T,size>::const_iterator	I = _1.begin(); 
-		typename svector<T,size>::const_iterator	E = _1.end();
+		typename FixedVector<T,size>::iterator		J = _2.begin();
+		typename FixedVector<T,size>::const_iterator	I = _1.begin(); 
+		typename FixedVector<T,size>::const_iterator	E = _1.end();
 		for ( ; I != E; ++I, ++J)
 			clone						(*I,*J);
 	}
@@ -138,7 +138,7 @@ struct CCloner
 		}
 
 		template <typename T1, typename T2>
-		IC	static void add(T1 &data, typename T2 &value)
+		IC	static void add(T1 &data, T2 &value)
 		{
 			data.insert			(value);
 		}
@@ -162,11 +162,11 @@ struct CCloner
 		template <bool a>
 		IC	static void clone(const T &_1, T &_2)
 		{
-			CHelper<T>::clone<std::is_pointer<T>::value>(_1,_2);
+			CHelper<T>::template clone<std::is_pointer<T>::value>(_1,_2);
 		}
 
 		template <>
-		IC	static void clone<true>(const T &_1, T &_2)
+		IC void clone<true>(const T &_1, T &_2)
 		{
 			CHelper3::clone(_1,_2);
 		}
@@ -175,13 +175,13 @@ struct CCloner
 	template <typename T>
 	IC	static void clone(const T &_1, T &_2)
 	{
-		CHelper4<T>::clone<object_type_traits::is_stl_container<T>::value>(_1,_2);
+		CHelper4<T>::template clone<object_type_traits::is_stl_container<T>::value>(_1,_2);
 	}
 };
 
-IC	void clone(LPCSTR p0, LPSTR &p1)
+IC	void clone(const char* p0, LPSTR &p1)
 {
-	p1				= xr_strdup(p0);
+	p1 = xr_strdup(p0);
 }
 
 template <typename T>

@@ -47,9 +47,12 @@ public:
     };
 
 public:
-    void Create(const ContextParameters& Parameters);
+    void Create();
     void Destroy();
 
+    bool GetRenderScale(float& RenderScale);
+    void Resize(const ContextParameters& Parameters);
+    u32 GetOptimalPresetForScale(float scale);
     bool Draw(const DrawParameters& params);
 
     const Ivector2& GetDisplaySize() const { return DisplaySize; }
@@ -59,8 +62,11 @@ public:
 private:
     NVSDK_NGX_Parameter* NgxParameters = nullptr;
     NVSDK_NGX_Handle* Handle = nullptr;
-    Ivector2 DisplaySize;
-    bool m_created = false;
+
+    Ivector2 DisplaySize{};
+
+    bool DLSSInited = false;
+    bool Created = false;
 };
 
 extern DLSSWrapper g_DLSSWrapper;

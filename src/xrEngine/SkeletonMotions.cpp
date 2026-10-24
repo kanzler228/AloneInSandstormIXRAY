@@ -21,7 +21,7 @@ u16 CPartition::part_id(const shared_str& name) const
 	return u16(-1);
 }
 
-void CPartition::load(IKinematics* V, LPCSTR model_name)
+void CPartition::load(IKinematics* V, const char* model_name)
 {
 	string_path fn = {}, fn_full = {};
 	xr_strcpy(fn, sizeof(fn), model_name);
@@ -32,9 +32,9 @@ void CPartition::load(IKinematics* V, LPCSTR model_name)
 
 	xr_strcat(fn, sizeof(fn), ".ltx");
 
-	FS.update_path(fn_full, "$game_meshes$", fn);
+	FS.update_path(fn_full, _game_meshes_, fn);
 
-	CInifile ini(fn_full, TRUE, TRUE, FALSE);
+	CInifile ini(fn_full, true, true, false);
 
 	if (ini.sections().empty())
 	{
@@ -79,7 +79,7 @@ u16 find_bone_id(vecBones* bones, shared_str nm)
 }
 
 //-----------------------------------------------------------------------
-BOOL motions_value::load(LPCSTR N, IReader* data, vecBones* bones)
+bool motions_value::load(const char* N, IReader* data, vecBones* bones)
 {
 	m_id = N;
 
@@ -326,9 +326,7 @@ MotionVec* motions_value::bone_motions(shared_str bone_name)
 }
 
 //-----------------------------------
-motions_container::motions_container()
-{
-}
+motions_container::motions_container() = default;
 
 //extern shared_str s_bones_array_const;
 motions_container::~motions_container()
@@ -357,7 +355,7 @@ motions_value* motions_container::dock(shared_str key, IReader* data, vecBones* 
 		VERIFY(data);
 		result = new motions_value();
 		result->m_dwReference = 0;
-		BOOL bres = result->load(key.c_str(), data, bones);
+		bool bres = result->load(key.c_str(), data, bones);
 		if (bres)
 			container.insert(std::make_pair(key, result));
 		else
@@ -411,7 +409,7 @@ void motions_container::dump()
 		sz += it->second->mem_usage();
 		Msg("#%3d: [%3d/%5d Kb] - %s", k, it->second->m_dwReference, it->second->mem_usage() / 1024, it->first.c_str());
 	}
-	Msg("--- items: %d, mem usage: %d Kb ", container.size(), sz / 1024);
+	Msg("--- items: %zu, mem usage: %d Kb ", container.size(), sz / 1024);
 	Log("--- motion container --- end.");
 }
 

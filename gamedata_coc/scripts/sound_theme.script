@@ -46,6 +46,8 @@ function npc_sound:__init(snd_ini, section)
 	self.point = snd_ini:r_string_ex(section,"point") or ""
 	self.msg = snd_ini:r_string_ex(section,"message") or ""
 	self.avail_communities = snd_ini:line_exist(section,"avail_communities") and alun_utils.parse_list(snd_ini,section,"avail_communities",true) or nil
+
+	SendScriptCallback("on_npc_sound_init", self, snd_ini, section)
 end
 
 function npc_sound:reset(npc_id)
@@ -200,14 +202,17 @@ function npc_sound:play(npc_id, faction, point, sound)
 	if self.played_id == -1 then
 		return false
 	end
+	if npc ~= nil then
+		-- play_sound (u32 internal_type, u32 max_start_time, u32 min_start_time, u32 max_stop_time, u32 min_stop_time, u32 id)
+		npc:play_sound(npc_data.id, self.delay_sound+0.06, self.delay_sound+0.05, 1, 0, self.played_id)
 
-	npc:play_sound(npc_data.id, self.delay_sound+0.06, self.delay_sound+0.05, 1, 0, self.played_id)
-
+		SendScriptCallback("on_npc_sound_play", self, npc_id, faction, point, msg)
+	end
 	local table_id = self.played_id + 1
 	local snd = self.sound_path[npc_id][table_id]
 	if not (snd) then 
 		printf("sound_theme.npc_sound:play() snd is nil! %s",sound)
-		return
+		return false
 	end
 
 	if snd and npc:position():distance_to_sqr(db.actor:position()) >= 100 and getFS():exist("$game_sounds$", snd.."_pda.ogg") ~= nil then
@@ -228,7 +233,7 @@ function npc_sound:play(npc_id, faction, point, sound)
 		self.can_play_sound[npc_id] = false
 	end
 
-	if not closecaption.sound(snd, sound_object(snd):length(), npc, faction, point, self.delay_sound) then
+--	if not closecaption.sound(snd, sound_object(snd):length(), npc, faction, point, self.delay_sound) then
 		if game.translate_string(snd_st) ~= snd_st then
 			faction = faction or character_community(npc)
 			if not point then
@@ -241,7 +246,7 @@ function npc_sound:play(npc_id, faction, point, sound)
 		else
 			news_manager.send_sound(npc, faction, point, snd, nil , self.delay_sound)
 		end
-	end
+--	end
 	return true
 end
 function npc_sound:select_next_sound(npc_id)
@@ -287,6 +292,8 @@ function npc_sound:select_next_sound(npc_id)
 		end
 		return 0
 	end
+
+    return 0
 end
 function npc_sound:stop(obj_id)
 	local npc = db.storage[obj_id] and db.storage[obj_id].object
@@ -426,6 +433,8 @@ function actor_sound:__init(snd_ini, section)
 	if #self.sound == 0 then
 		abort("There are no sound collection with path: %s", self.path)
 	end
+
+	SendScriptCallback("on_actor_sound_init", self, snd_ini, section)
 end
 function actor_sound:callback(npc_id)
 	self.played_time = time_global()
@@ -488,6 +497,8 @@ function actor_sound:play(npc, faction, point, sound)
 	self.snd_obj.volume = 0.8
 	self.can_play_sound = false
 
+	SendScriptCallback("on_actor_sound_play", self, npc, faction, point, msg)
+
 	local sender, sname
 	if type(npc) ~= "userdata" then
 		sender = db.actor
@@ -496,9 +507,9 @@ function actor_sound:play(npc, faction, point, sound)
 		sname = point
 	end
 	
-	if not closecaption.sound(snd, self.snd_obj:length(), sender, faction, sname, 0) then
+--	if not closecaption.sound(snd, self.snd_obj:length(), sender, faction, sname, 0) then
 		news_manager.send_sound(nil, faction, point, snd)
-	end
+--	end
 	return true
 end
 function actor_sound:reset(npc_id)
@@ -619,6 +630,8 @@ function object_sound:__init(snd_ini, section)
 	if #self.sound == 0 then
 		abort("There are no sound collection with path: %s", self.path)
 	end
+
+	SendScriptCallback("on_object_sound_init", self, snd_ini, section)
 end
 function object_sound:callback(npc_id)
 	if not (self.cooldown) then 
@@ -700,11 +713,13 @@ function object_sound:play(obj_id, faction, point,sound)
 	self.snd_obj = sound_object(snd)
 	self.snd_obj:play_at_pos(obj, obj:position(), 0, sound_object.s3d)
 
+	SendScriptCallback("on_object_sound_play", self, obj_id, faction, point, msg)
+
 	self.can_play_sound[obj_id] = false
 
-	if not closecaption.sound(snd, self.snd_obj:length(), obj, faction, point, 0) then
+--	if not closecaption.sound(snd, self.snd_obj:length(), obj, faction, point, 0) then
 		news_manager.send_sound(nil, faction, point, snd)
-	end
+--	end
 	
 	--printf("END object_sound:play() sound=%s %s[%s]",sound,obj:name(),obj_id)
 	return true
@@ -855,6 +870,8 @@ function load_sound()
 				theme[section] = theme[section] or looped_sound(snd_ini, section)
 			end
 		end
+
+        return false
 	end
 
 	snd_ini:section_for_each(itr)

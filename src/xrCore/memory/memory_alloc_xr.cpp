@@ -34,7 +34,7 @@ CMemAllocXRay::CMemAllocXRay() {
 
 void* CMemAllocXRay::alloc(size_t size) {
 	u32	_footer = 0;
-	void* _ptr = 0;
+	void* _ptr = nullptr;
 
 	if (!mem_initialized) {
 		// generic
@@ -99,7 +99,7 @@ void* CMemAllocXRay::realloc(void* p, size_t size) {
 
 		//	Igor: Reserve 1 byte for xrMemory header
 		//	Don't bother in this case?
-		Memory.mem_copy(p_new_, p_old, _min(s_current - 1, s_dest));
+		Memory.mem_copy(p_new_, p_old, std::min(s_current - 1, s_dest));
 		free(p_old);
 		_ptr = p_new_;
 	} else if (2 == p_mode) {

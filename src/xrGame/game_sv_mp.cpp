@@ -37,18 +37,18 @@
 
 u32		g_dwMaxCorpses = 10;
 //-----------------------------------------------------------------
-BOOL		g_sv_mp_bSpectator_FreeFly		= FALSE;
-BOOL		g_sv_mp_bSpectator_FirstEye		= TRUE;
-BOOL		g_sv_mp_bSpectator_LookAt		= TRUE;
-BOOL		g_sv_mp_bSpectator_FreeLook		= TRUE;
-BOOL		g_sv_mp_bSpectator_TeamCamera	= TRUE;
+bool		g_sv_mp_bSpectator_FreeFly		= false;
+bool		g_sv_mp_bSpectator_FirstEye		= true;
+bool		g_sv_mp_bSpectator_LookAt		= true;
+bool		g_sv_mp_bSpectator_FreeLook		= true;
+bool		g_sv_mp_bSpectator_TeamCamera	= true;
 int			g_sv_mp_iDumpStatsPeriod		= 0;
 int			g_sv_mp_iDumpStats_last			= 0;
-BOOL		g_sv_mp_bCountParticipants		= FALSE;
+bool		g_sv_mp_bCountParticipants		= false;
 float		g_sv_mp_fVoteQuota				= VOTE_QUOTA;
 float		g_sv_mp_fVoteTime				= VOTE_LENGTH_TIME;
-BOOL		g_sv_mp_save_proxy_screenshots	= FALSE;
-BOOL		g_sv_mp_save_proxy_configs		= FALSE;
+bool		g_sv_mp_save_proxy_screenshots	= false;
+bool		g_sv_mp_save_proxy_configs		= false;
 //-----------------------------------------------------------------
 u32			g_sv_adm_menu_ban_time			= 600;
 int			g_sv_adm_menu_ping_limit		= 25;
@@ -105,7 +105,7 @@ void	game_sv_mp::Update	()
 		//---------------------------------------------
 		NET_Packet			P;
 		u_EventGen			(P,GE_DESTROY,CorpseID);
-		Level().Send(P,net_flags(TRUE,TRUE));
+		Level().Send(P,net_flags(true,true));
 		m_CorpseList.erase(m_CorpseList.begin() + i);
 		Msg("corpse [%d] send destroy [%d]",CorpseID, Device.dwFrame);
 	}
@@ -183,7 +183,7 @@ void game_sv_mp::OnRoundStart()
 	signal_Syncronize();
 }
 
-bool game_sv_mp::SpawnItem(LPCSTR section, u16 parent)
+bool game_sv_mp::SpawnItem(const char* section, u16 parent)
 {
 	if (!pSettings->section_exist(section))
 	{
@@ -199,7 +199,7 @@ bool game_sv_mp::SpawnItem(LPCSTR section, u16 parent)
 };
 
 
-bool game_sv_mp::SpawnItemToPos(LPCSTR section, Fvector3 position)
+bool game_sv_mp::SpawnItemToPos(const char* section, Fvector3 position)
 {
 	if (!pSettings->section_exist(section))
 	{
@@ -320,7 +320,11 @@ struct real_sender
 void	game_sv_mp::KillPlayer				(ClientID id_who, u16 GameID)
 {
 	CObject* pObject =  Level().Objects.net_Find(GameID);
-	if (!pObject || !smart_cast<CActor*>(pObject)) return;
+	if (pObject == nullptr)
+	{
+		return;
+	}
+
 	// Remove everything	
 	xrClientData* xrCData	=	m_server->ID_to_client(id_who);
 #ifdef DEBUG
@@ -343,7 +347,7 @@ void	game_sv_mp::KillPlayer				(ClientID id_who, u16 GameID)
 			xrCData->ps->m_bClearRun = false;
 	};
 	//-------------------------------------------------------
-	CActor* pActor = smart_cast <CActor*>(pObject);
+	CActor* pActor = pObject->cast_actor();
 	if (pActor)
 	{
 		if (!pActor->g_Alive())
@@ -366,7 +370,7 @@ void	game_sv_mp::KillPlayer				(ClientID id_who, u16 GameID)
 	P.w_u16				(PlayerID);
 	P.w_clientID		(id_who);
 
-	u_EventSend(P, net_flags(TRUE, TRUE, FALSE, TRUE));
+	u_EventSend(P, net_flags(true, true, false, true));
 	
 	if (xrCData) SetPlayersDefItems		(xrCData->ps);
 	signal_Syncronize();
@@ -503,14 +507,14 @@ bool game_sv_mp::CheckPlayerMapName(ClientID const & clientID, NET_Packet & P)
 
 	if (xr_strcmp(Level().name().c_str(), temp_map_name))
 	{
-		Msg("! Player 0x%08x has incorrect map name", clientID, temp_map_name);
+		Msg("! Player 0x%08x has incorrect map name", clientID.value());
 		//ReconnectPlayer(clientID);
 		return false;
 	}
 	return true;
 }
 
-LPCSTR GameTypeToString(EGameIDs gt, bool bShort);
+const char* GameTypeToString(EGameIDs gt, bool bShort);
 
 void game_sv_mp::ReconnectPlayer(ClientID const & clientID)
 {
@@ -521,7 +525,7 @@ void game_sv_mp::ReconnectPlayer(ClientID const & clientID)
 	P.w_begin			(M_CHANGE_LEVEL_GAME);
 	P.w_stringZ			(Level().name().c_str());
 	P.w_stringZ			(GameTypeToString(Type(),true));
-	m_server->SendTo(clientID, P, net_flags(TRUE, TRUE));
+	m_server->SendTo(clientID, P, net_flags(true, true));
 }
 
 bool g_bConsoleCommandsCreated = false;
@@ -556,7 +560,7 @@ void game_sv_mp::Create (shared_str &options)
 	m_cdkey_ban_list.load();
 	if (strstr(Core.Params, SAVE_SCREENSHOTS_KEY))
 	{
-		g_sv_mp_save_proxy_screenshots = TRUE;
+		g_sv_mp_save_proxy_screenshots = true;
 	}
 };
 
@@ -633,7 +637,7 @@ void	game_sv_mp::RespawnPlayer			(ClientID id_who, bool NoSpectator)
 			NET_Packet			P;
 			u_EventGen			(P,GE_DESTROY,pS->ID);
 			//		pObject->u_EventSend		(P);
-			Level().Send(P,net_flags(TRUE,TRUE));
+			Level().Send(P,net_flags(true,true));
 		};
 		//------------------------------------------------------------
 		SpawnPlayer(id_who, "mp_actor");
@@ -644,11 +648,11 @@ void	game_sv_mp::RespawnPlayer			(ClientID id_who, bool NoSpectator)
 };
 
 
-void game_sv_mp::SpawnPlayer(ClientID id, LPCSTR N)
+void game_sv_mp::SpawnPlayer(ClientID id, const char* N)
 {
 	xrClientData* CL = m_server->ID_to_client(id);
 	//-------------------------------------------------
-	CL->net_PassUpdates = TRUE;
+	CL->net_PassUpdates = true;
 	//-------------------------------------------------
 	game_PlayerState* ps_who = CL->ps;
 	ps_who->setFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD);
@@ -711,12 +715,12 @@ void game_sv_mp::AllowDeadBodyRemove(ClientID id, u16 GameID)
 	CObject* pObject =  Level().Objects.net_Find(GameID);
 	
 
-	if (pObject && smart_cast<CActor*>(pObject))
+	if (pObject != nullptr)
 	{
-		CActor* pActor = smart_cast <CActor*>(pObject);
+		CActor* pActor = pObject->cast_actor();
 		if (pActor)
 		{
-			pActor->set_death_time		();
+			pActor->set_death_time();
 			pActor->m_bAllowDeathRemove = true;
 		};
 	};	
@@ -790,12 +794,17 @@ bool	game_sv_mp::GetPosAngleFromActor				(ClientID id, Fvector& Pos, Fvector &An
 	if (!xrCData || !xrCData->owner) return false;
 	
 	CObject* pObject =  Level().Objects.net_Find(xrCData->owner->ID);
-	///	R_ASSERT2	((pObject && smart_cast<CActor*>(pObject)),"Dead Player is not Actor");
 
-	if (!pObject || !smart_cast<CActor*>(pObject)) return false;
+	if (pObject == nullptr)
+	{
+		return false;
+	}
 
-	CActor* pActor = smart_cast <CActor*>(pObject);
-	if (!pActor) return false;
+	CActor* pActor = pObject->cast_actor();
+	if (!pActor)
+	{
+		return false;
+	}
 
 	Angle.set(-pActor->cam_Active()->pitch, -pActor->cam_Active()->yaw, -pActor->cam_Active()->roll);
 	Pos.set(pActor->cam_Active()->vPosition);
@@ -814,7 +823,7 @@ TeamStruct* game_sv_mp::GetTeamData				(u32 Team)
 	return &(TeamList[Team]);
 };
 
-/*void	game_sv_mp::SpawnWeaponForActor		(u16 actorId,  LPCSTR N, bool isScope, bool isGrenadeLauncher, bool isSilencer)
+/*void	game_sv_mp::SpawnWeaponForActor		(u16 actorId,  const char* N, bool isScope, bool isGrenadeLauncher, bool isSilencer)
 {
 		u8 addon_flags = 0;
 		if(isScope)
@@ -828,16 +837,13 @@ TeamStruct* game_sv_mp::GetTeamData				(u32 Team)
 
 		SpawnWeapon4Actor(actorId, N, addon_flags);
 }*/
-void game_sv_mp::ChargeAmmo(CSE_ALifeItemWeapon* weapon,
-							LPCSTR ammo_string,
-							game_PlayerState::PLAYER_ITEMS_LIST & playerItems,
-							ammo_diff_t & ammo_diff)
+void game_sv_mp::ChargeAmmo(CSE_ALifeItemWeapon* weapon, const char* ammo_string, game_PlayerState::PLAYER_ITEMS_LIST& playerItems, ammo_diff_t& ammo_diff)
 {
-	int ammoc_count		= _GetItemCount(ammo_string);
-	u16 ammo_magsize	= weapon->get_ammo_magsize();
-	weapon->a_elapsed	= 0;
+	int ammoc_count = _GetItemCount(ammo_string);
+	u16 ammo_magsize = weapon->get_ammo_magsize();
+	weapon->a_elapsed.MagazineElapsed = 0;
 
-	string512	temp_ammo_class;
+	string512 temp_ammo_class;
 	for (int i = 0; i < ammoc_count; ++i)
 	{
 		_GetItem(ammo_string, i, temp_ammo_class);
@@ -846,66 +852,72 @@ void game_sv_mp::ChargeAmmo(CSE_ALifeItemWeapon* weapon,
 		);
 		u16 box_size = 0;
 		if (pSettings->line_exist(temp_ammo_class, "box_size"))
+		{
 			box_size = pSettings->r_u16(temp_ammo_class, "box_size");
-				
+		}
+
 		game_PlayerState::PLAYER_ITEMS_LIST::iterator temp_iter = std::find(
-			playerItems.begin(), playerItems.end(), ammo_id);
-		
+			playerItems.begin(), playerItems.end(), ammo_id
+		);
+
 		while (temp_iter != playerItems.end())
 		{
-			weapon->ammo_type = static_cast<u8>(i);
+			weapon->a_ammo_type.MagazinedType = static_cast<u8>(i);
 			playerItems.erase(temp_iter);
-			if ((ammo_magsize - weapon->a_elapsed) <= box_size)
+			if ((ammo_magsize - weapon->a_elapsed.MagazineElapsed) <= box_size)
 			{
 				ammo_diff.first = shared_str(temp_ammo_class);
-				ammo_diff.second = box_size - (ammo_magsize - weapon->a_elapsed);
-				weapon->a_elapsed = ammo_magsize;
+				ammo_diff.second = box_size - (ammo_magsize - weapon->a_elapsed.MagazineElapsed);
+				weapon->a_elapsed.MagazineElapsed = ammo_magsize;
 				break;
-			} else
+			}
+			else
 			{
-				weapon->a_elapsed = weapon->a_elapsed + box_size;
+				weapon->a_elapsed.MagazineElapsed = weapon->a_elapsed.MagazineElapsed + box_size;
 			}
 			temp_iter = std::find(playerItems.begin(), playerItems.end(), ammo_id);
 		}
-		if (weapon->a_elapsed)
+		if (weapon->a_elapsed.MagazineElapsed)
+		{
 			break;
+		}
 	}
-	if (!weapon->a_elapsed)
+
+	if (!weapon->a_elapsed.MagazineElapsed)
 	{
 		_GetItem(ammo_string, 0, temp_ammo_class);
-		weapon->ammo_type = 0;
+		weapon->a_ammo_type.MagazinedType = 0;
 		if (CanChargeFreeAmmo(temp_ammo_class))
 		{
-			weapon->a_elapsed = ammo_magsize;
+			weapon->a_elapsed.MagazineElapsed = ammo_magsize;
 		}
 	}
 }
 
-void game_sv_mp::ChargeGrenades(CSE_ALifeItemWeapon* weapon, LPCSTR grenade_string, game_PlayerState::PLAYER_ITEMS_LIST & playerItems)
+void game_sv_mp::ChargeGrenades(CSE_ALifeItemWeapon* weapon, const char* grenade_string, game_PlayerState::PLAYER_ITEMS_LIST& playerItems)
 {
-	int grenades_count		= _GetItemCount(grenade_string);
-	R_ASSERT2(grenades_count <= 4,
-		make_string<const char*>("weapon [%s] has greater than 4 types of grenade [%s]",
-			weapon->s_name.c_str(),
-			grenade_string
-		)
-	);
-	weapon->a_elapsed_grenades.unpack_from_byte(0);
-	string512	temp_ammo_class;
+	int grenades_count = _GetItemCount(grenade_string);
+	R_ASSERT2(grenades_count <= 4, make_string<const char*>("weapon [%s] has greater than 4 types of grenade [%s]", weapon->s_name.c_str(), grenade_string));
+
+	weapon->a_elapsed.GrenadesElapsed = 0;
+	weapon->a_ammo_type.GrenadeType = 0;
+
+	string512 temp_ammo_class;
 	for (int i = 0; i < grenades_count; ++i)
 	{
 		_GetItem(grenade_string, i, temp_ammo_class);
 		u32 const ammo_id = static_cast<u16>(
 			m_strWeaponsData->GetItemIdx(shared_str(temp_ammo_class))
 		);
-				
+
 		game_PlayerState::PLAYER_ITEMS_LIST::iterator temp_iter = std::find(
-			playerItems.begin(), playerItems.end(), ammo_id);
+			playerItems.begin(), playerItems.end(), ammo_id
+		);
 		if (temp_iter != playerItems.end())
 		{
 			playerItems.erase(temp_iter);
-			weapon->a_elapsed_grenades.grenades_count	=	1;
-			weapon->a_elapsed_grenades.grenades_type	=	i;
+			weapon->a_elapsed.GrenadesElapsed = 1;
+			weapon->a_ammo_type.GrenadeType = i;
 			break;
 		}
 	}
@@ -929,7 +941,7 @@ void	game_sv_mp::SetAmmoForWeapon(CSE_ALifeItemWeapon* weapon,
 #ifdef DEBUG
 		Msg("! WARNING: not found ammo_class for [%s]", weapon->s_name.c_str());
 #endif
-		weapon->a_elapsed	= 0;
+		weapon->a_elapsed.MagazineElapsed = 0;
 	} else
 	{
 		ChargeAmmo(weapon, ammo_classes.c_str(), playerItems, ammo_diff);
@@ -948,7 +960,8 @@ void	game_sv_mp::SetAmmoForWeapon(CSE_ALifeItemWeapon* weapon,
 #ifdef DEBUG
 		Msg("! WARNING: not found grenade_class for [%s]", weapon->s_name.c_str());
 #endif
-			weapon->a_elapsed_grenades.unpack_from_byte(0);
+			weapon->a_elapsed.GrenadesElapsed = 0;
+			weapon->a_ammo_type.GrenadeType = 0;
 			return;
 		} else
 		{
@@ -964,13 +977,13 @@ void	game_sv_mp::SpawnAmmoDifference(u16 actorId, ammo_diff_t const & ammo_diff)
 	
 	CSE_Abstract *ammo_entity = spawn_begin(ammo_diff.first.c_str());
 	ammo_entity->ID_Parent = actorId;
-	CSE_ALifeItemAmmo *temp_ammo = smart_cast<CSE_ALifeItemAmmo*>(ammo_entity);
+	CSE_ALifeItemAmmo* temp_ammo = ammo_entity->cast_item_ammo();
 	R_ASSERT2(temp_ammo, "ammo difference tries to spawn not an ammo");
 	temp_ammo->a_elapsed = ammo_diff.second;
 	spawn_end(ammo_entity,m_server->GetServerClient()->ID);
 }
 
-void	game_sv_mp::SpawnWeapon4Actor(u16 actorId,  LPCSTR N, u8 Addons, game_PlayerState::PLAYER_ITEMS_LIST & playerItems)
+void	game_sv_mp::SpawnWeapon4Actor(u16 actorId,  const char* N, u8 Addons, game_PlayerState::PLAYER_ITEMS_LIST & playerItems)
 {
 	if (!N) return;
 	
@@ -980,7 +993,7 @@ void	game_sv_mp::SpawnWeapon4Actor(u16 actorId,  LPCSTR N, u8 Addons, game_Playe
 	ammo_diff_t	ammo_diff;
 	E->s_flags.assign		(M_SPAWN_OBJECT_LOCAL);	// flags
 	/////////////////////////////////////////////////////////////////////////////////
-	CSE_ALifeItemWeapon		*pWeapon	=	smart_cast<CSE_ALifeItemWeapon*>(E);
+	CSE_ALifeItemWeapon* pWeapon = E->cast_item_weapon();
 	if (pWeapon)
 	{
 		pWeapon->m_addon_flags.assign(Addons);
@@ -1088,7 +1101,7 @@ s32 game_sv_mp::ExcludeBanTimeFromVoteStr(char const * vote_string, char* new_vo
 struct SearcherClientByName
 {
 	string128 player_name;
-	SearcherClientByName(LPCSTR name)
+	SearcherClientByName(const char* name)
 	{
 		strncpy_s(player_name, name, sizeof(player_name) - 1);
 		xr_strlwr(player_name);
@@ -1106,7 +1119,7 @@ struct SearcherClientByName
 	}
 };
 
-void game_sv_mp::OnVoteStart				(LPCSTR VoteCommand, ClientID sender)
+void game_sv_mp::OnVoteStart				(const char* VoteCommand, ClientID sender)
 {
 	if (!IsVotingEnabled()) return;
 	char	CommandName[256];	CommandName[0]=0;
@@ -1275,7 +1288,7 @@ void game_sv_mp::SendActiveVotingTo(ClientID const & receiver)
 	if (EndVoteTime <= CurTime)
 		return;
 	P.w_u32(EndVoteTime - CurTime);
-	m_server->SendTo(receiver, P, net_flags(TRUE, TRUE));
+	m_server->SendTo(receiver, P, net_flags(true, true));
 }
 
 void		game_sv_mp::UpdateVote				()
@@ -1508,7 +1521,8 @@ void game_sv_mp::OnPlayerKilled(NET_Packet P)
 
 	if (!ps_killed)
 	{
-		CEntity *entity = smart_cast<CEntity*>(Level().Objects.net_Find(KilledID));
+		CObject* finded_object = Level().Objects.net_Find(KilledID);
+		CEntity *entity = finded_object != nullptr ? finded_object->cast_entity() : nullptr;
 
 #ifndef MASTER_GOLD
 		Msg("! ERROR:  killed entity is null ! (entitty [%d][%s]), killer id [%d][%s], Frame [%d]",
@@ -1603,7 +1617,7 @@ void		game_sv_mp::OnPlayerSpeechMessage	(NET_Packet& P, ClientID sender)
 		NP.w_u8(P.r_u8());
 		NP.w_u8(P.r_u8());
 		NP.w_u8(P.r_u8());
-		real_sender tmp_sender(m_server, &NP, net_flags(TRUE, TRUE, TRUE));
+		real_sender tmp_sender(m_server, &NP, net_flags(true, true, true));
 		m_server->ForEachClientDoSender(tmp_sender);
 	};
 };
@@ -1790,7 +1804,7 @@ bool	game_sv_mp::GetTeamItem_ByID		(WeaponDataStruct** pRes, TEAM_WPN_LIST* pWpn
 	return true;
 };
 
-bool	game_sv_mp::GetTeamItem_ByName		(WeaponDataStruct** pRes,TEAM_WPN_LIST* pWpnList, LPCSTR ItemName)
+bool	game_sv_mp::GetTeamItem_ByName		(WeaponDataStruct** pRes,TEAM_WPN_LIST* pWpnList, const char* ItemName)
 {
 	if (!pWpnList) return false;
 	TEAM_WPN_LIST_it pWpnI	= std::find(pWpnList->begin(), pWpnList->end(), ItemName);
@@ -1846,7 +1860,7 @@ void game_sv_mp::ReadOptions(shared_str &options)
 	xr_strcpy(TimeFactor,get_option_s		(*options,"etimef","1"));
 
 	u32 hours = 0, mins = 0;
-	sscanf									(StartTime,"%d:%d",&hours,&mins);
+	sscanf									(StartTime,"%u:%u",&hours,&mins);
 	u64 StartEnvGameTime					= generate_time	(1,1,1,hours,mins,0,0);
 	float EnvTimeFactor						= float(atof(TimeFactor))*GetEnvironmentGameTimeFactor();
 
@@ -1883,7 +1897,8 @@ void game_sv_mp::RenewAllActorsHealth	()
 				return;
 			}
 			// this hack (client objects on server) must be deleted !!!
-			CActor *pActor = smart_cast<CActor*>(Level().Objects.net_Find(l_pC->ps->GameID));
+			CObject* finded_object = Level().Objects.net_Find(l_pC->ps->GameID);
+			CActor *pActor = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
 			if (!pActor)	//if player is spectator
 				return;
 
@@ -1921,8 +1936,8 @@ void game_sv_mp::DestroyGameItem(CSE_Abstract* entity)
 	P.w_u32(Device.dwTimeGlobal - 2*NET_Latency);
 	P.w_u16(GE_DESTROY);
 	P.w_u16(entity->ID);
-	Level().Send(P, net_flags(TRUE,TRUE));
-	//m_server->Perform_destroy(entity, net_flags(TRUE,TRUE));
+	Level().Send(P, net_flags(true,true));
+	//m_server->Perform_destroy(entity, net_flags(true,true));
 }
 
 void game_sv_mp::RejectGameItem(CSE_Abstract* entity)
@@ -1935,7 +1950,8 @@ void game_sv_mp::RejectGameItem(CSE_Abstract* entity)
 
 	if (smart_cast<CSE_ALifeItemGrenade*>(entity))
 	{
-		CGrenade* grenade = smart_cast<CGrenade*>(Level().Objects.net_Find(entity->ID));
+		CObject* finded_object = Level().Objects.net_Find(entity->ID);
+		CGrenade* grenade = finded_object != nullptr ? finded_object->cast_grenade() : nullptr;
 		if (grenade && grenade->DropGrenade())
 			return;
 	}
@@ -1950,7 +1966,7 @@ void game_sv_mp::RejectGameItem(CSE_Abstract* entity)
 	NET_Packet P;
 	u_EventGen(P, GE_OWNERSHIP_REJECT, e_parent->ID);
 	P.w_u16(entity->ID);
-	Level().Send(P, net_flags(TRUE, TRUE));
+	Level().Send(P, net_flags(true, true));
 }
 
 #include "../xrEngine/string_table.h"
@@ -1966,7 +1982,7 @@ void game_sv_mp::DumpOnlineStatistic()
 	string64					t_stamp;
 	timestamp					(t_stamp);
 
-	CInifile					ini(fn, FALSE, FALSE, TRUE);
+	CInifile					ini(fn, false, false, true);
 	shared_str					current_section = "global";
 	string256					str_buff;
 
@@ -2026,7 +2042,7 @@ void game_sv_mp::DumpOnlineStatistic()
 	WriteGameState				(ini, current_section.c_str(), false);
 }
 
-void game_sv_mp::WritePlayerStats(CInifile& ini, LPCSTR sect, xrClientData* pCl)
+void game_sv_mp::WritePlayerStats(CInifile& ini, const char* sect, xrClientData* pCl)
 {
 	ini.w_string(sect,"player_name",	pCl->ps->getName());
 	if (pCl->ps->m_account.is_online())
@@ -2063,7 +2079,7 @@ void game_sv_mp::WritePlayerStats(CInifile& ini, LPCSTR sect, xrClientData* pCl)
 	}
 }
 
-void game_sv_mp::WriteGameState(CInifile& ini, LPCSTR sect, bool bRoundResult)
+void game_sv_mp::WriteGameState(CInifile& ini, const char* sect, bool bRoundResult)
 {
 	if(!bRoundResult)
 		ini.w_u32						(sect, "online_time_sec", Device.dwTimeGlobal/1000);
@@ -2099,7 +2115,7 @@ void game_sv_mp::AskAllToUpdateStatistics()
 	NET_Packet P;
 	P.w_begin	(M_STATISTIC_UPDATE);
 	P.w_u32		(m_async_stats_request_time);
-	m_server->SendBroadcast(BroadcastCID,P,net_flags(TRUE,TRUE));
+	m_server->SendBroadcast(BroadcastCID,P,net_flags(true,true));
 }
 
 void game_sv_mp::DumpRoundStatisticsAsync()
@@ -2170,7 +2186,7 @@ void game_sv_mp::DumpRoundStatistics()
 	if ( !g_sv_mp_iDumpStatsPeriod ) return;
 	if ( !xr_strlen(round_statistics_dump_fn) ) return;
 
-	CInifile					ini(round_statistics_dump_fn, FALSE, FALSE, TRUE);
+	CInifile					ini(round_statistics_dump_fn, false, false, true);
 	shared_str					current_section = "global";
 	string256					str_buff;
 
@@ -2239,41 +2255,46 @@ void game_sv_mp::DestroyAllPlayerItems(ClientID id_who)	//except rukzak
 	Msg("---Destroying player [%s] items before spawning new bought items.", ps->getName());
 #endif // #ifndef MASTER_GOLD
 	
-	CActor* pActor = smart_cast<CActor*>(Level().Objects.net_Find(ps->GameID));
-	if (!pActor)
+	CObject* finded_object = Level().Objects.net_Find(ps->GameID);
+
+	CActor* pActor = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
+	if (pActor == nullptr)
 		return;
 	
-	TIItemContainer::const_iterator iie = pActor->inventory().m_all.end();
-	for (TIItemContainer::const_iterator ii = pActor->inventory().m_all.begin();
-		ii != iie; ++ii)
+	for (const PIItem& item : pActor->inventory().m_all)
 	{
-//		VERIFY(*ii);
-		R_ASSERT2(*ii, make_string<const char*>("PIItem in player`s inventory not found. Destroy all items of actor[%d]", ps->GameID));
+		R_ASSERT2(item, make_string<const char*>("PIItem in player`s inventory not found. Destroy all items of actor[%d]", ps->GameID));
 
-		u16 object_id = (*ii)->object().ID();
+		u16 object_id = item->object().ID();
 		CSE_Abstract* tempEntity = m_server->ID_to_entity(object_id);
 
-//		R_ASSERT2( tempEntity, make_string<const char*>("entity not found [%d]. Destroy all items of actor[%d]", object_id, ps->GameID).c_str() );
-		VERIFY2  ( tempEntity, make_string<const char*>("entity not found [%d]. Destroy all items of actor[%d]", object_id, ps->GameID) );
-		if (!tempEntity) {
-			Msg                 ( "! ERROR: entity not found [%d]. Destroy all items of actor[%d]", object_id, ps->GameID );
+		VERIFY2(tempEntity, make_string<const char*>("entity not found [%d]. Destroy all items of actor[%d]", object_id, ps->GameID));
+		if (tempEntity == nullptr)
+		{
+			Msg("! ERROR: entity not found [%d]. Destroy all items of actor[%d]", object_id, ps->GameID);
 			continue;
 		}
-		
-		if (smart_cast<CMPPlayersBag*>(*ii))
+
+		if (smart_cast<CMPPlayersBag*>(item))
+		{
 			continue;
-		
-		if (smart_cast<CWeaponKnife*>(*ii))
+		}
+
+		if (item->cast_weapon_knife() != nullptr)
+		{
 			continue;
-		
-		if (smart_cast<CArtefact*>(*ii))
+		}
+
+		if (item->cast_artefact() != nullptr)
+		{
 			continue;
-		
+		}
+
 		DestroyGameItem(tempEntity);
 	}
 }
 
-void game_sv_mp::SvSendChatMessage(LPCSTR str)
+void game_sv_mp::SvSendChatMessage(const char* str)
 {
 	NET_Packet			P;	
 	P.w_begin			(M_CHAT_MESSAGE);
@@ -2334,7 +2355,7 @@ void game_sv_mp::SetCanOpenBuyMenu(ClientID id)
 	NET_Packet bm_ready;
 	bm_ready.w_begin	( M_GAMEMESSAGE ); 
 	bm_ready.w_u32		( GAME_EVENT_PLAYER_BUYMENU_CLOSE );
-	m_server->SendTo	(id, bm_ready, net_flags(TRUE, TRUE));
+	m_server->SendTo	(id, bm_ready, net_flags(true, true));
 }
 
 void	game_sv_mp::OnPlayerChangeName		(NET_Packet& P, ClientID sender)

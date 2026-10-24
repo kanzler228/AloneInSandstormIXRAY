@@ -10,8 +10,8 @@
 #include "object_broker.h"
 #include "../../xrUI/UITextureMaster.h"
 #include "../../xrUI/UIHelper.h"
+#include "../../xrUI/UIVectorBinding.h"
 
-#include "../Include/xrRender/UIShader.h"
 #include "GametaskManager.h"
 #include "GameTask.h"
 
@@ -28,12 +28,12 @@ CMapSpot::~CMapSpot()
 {
 }
 
-void CMapSpot::Load(CUIXml* xml, LPCSTR path)
+void CMapSpot::Load(CUIXml* xml, const char* path, float kx)
 {
 	CUIXmlInit::InitStatic(*xml,path,0,this);
 	if(!Heading())
 	{
-		SetWidth			(GetWidth()*UI().get_current_kx());
+		SetWidth			(GetWidth()*kx);
 		SetStretchTexture	(true);
 	}
 
@@ -43,7 +43,6 @@ void CMapSpot::Load(CUIXml* xml, LPCSTR path)
 	if ( m_bScale )
 	{
 		m_scale_bounds.y = xml->ReadAttribFlt(path, 0, "scale_max", -1.0f);
-		R_ASSERT2(m_scale_bounds.x>0 && m_scale_bounds.y>0, path);
 	}
 	m_location_level	= xml->ReadAttribInt(path, 0, "location_level", 0);
 
@@ -55,11 +54,15 @@ void CMapSpot::Load(CUIXml* xml, LPCSTR path)
 	{
 		m_border_static			= UIHelper::CreateStatic( *xml, str, this );
 		m_border_static->Show	( false );
-		if (!Heading()) {
-			m_border_static->SetWidth(m_border_static->GetWidth() * UI().get_current_kx());
-			if (!UI().is_widescreen()) {
-				m_border_static->SetHeight(m_border_static->GetHeight() * UI().get_current_kx());
-			} else {
+		if (!Heading()) 
+		{
+			m_border_static->SetWidth(m_border_static->GetWidth() * kx);
+			if (!UI().is_widescreen()) 
+			{
+				m_border_static->SetHeight(m_border_static->GetHeight() * kx);
+			} 
+			else 
+			{
 				m_border_static->SetTextureOffset(1, 0);
 			}
 			m_border_static->SetStretchTexture(true);
@@ -68,7 +71,7 @@ void CMapSpot::Load(CUIXml* xml, LPCSTR path)
 	m_mark_focused = false;
 }
 
-LPCSTR CMapSpot::GetHint() 
+const char* CMapSpot::GetHint() 
 {
 	return MapLocation()->GetHint();
 };
@@ -139,7 +142,7 @@ CMapSpotPointer::~CMapSpotPointer()
 {
 }
 
-LPCSTR CMapSpotPointer::GetHint()
+const char* CMapSpotPointer::GetHint()
 {
 	return nullptr;
 }
@@ -154,9 +157,9 @@ CMiniMapSpot::~CMiniMapSpot()
 {
 }
 
-void CMiniMapSpot::Load(CUIXml* xml, LPCSTR path)
+void CMiniMapSpot::Load(CUIXml* xml, const char* path, float kx)
 {
-	inherited::Load(xml,path);
+	inherited::Load(xml,path,kx);
 
 	string256 buf;
 	XML_NODE* n = nullptr;
@@ -172,7 +175,7 @@ void CMiniMapSpot::Load(CUIXml* xml, LPCSTR path)
 	xr_strconcat(buf, path, ":texture_above");
 	n = xml->NavigateToNode(buf,0);
 	if(n){
-		LPCSTR texture  = xml->Read(buf, 0, nullptr);
+		const char* texture  = xml->Read(buf, 0, nullptr);
 		CUITextureMaster::InitTexture	(texture, &m_UIStaticItem);
 		if(strchr(texture,'\\'))
 		{
@@ -190,7 +193,7 @@ void CMiniMapSpot::Load(CUIXml* xml, LPCSTR path)
 	xr_strconcat(buf, path, ":texture_below");
 	n = xml->NavigateToNode(buf,0);
 	if(n){
-		LPCSTR texture  = xml->Read(buf, 0, nullptr);
+		const char* texture  = xml->Read(buf, 0, nullptr);
 		CUITextureMaster::InitTexture	(texture, &m_UIStaticItem);
 		if(strchr(texture,'\\'))
 		{
@@ -204,25 +207,34 @@ void CMiniMapSpot::Load(CUIXml* xml, LPCSTR path)
 
 		m_icon_below				= m_UIStaticItem.GetShader		();
 	}
-	xr_strconcat(buf, path, ":texture");
-	n = xml->NavigateToNode(buf,0);
-	if(n){
-		LPCSTR texture  = xml->Read(buf, 0, nullptr);
-		CUITextureMaster::InitTexture	(texture, &m_UIStaticItem);
-		if(strchr(texture,'\\'))
-		{
-			float x					= xml->ReadAttribFlt(buf, 0, "x", base_rect.x1);
-			float y					= xml->ReadAttribFlt(buf, 0, "y", base_rect.y1);
-			float width				= xml->ReadAttribFlt(buf, 0, "width", base_rect.width());
-			float height			= xml->ReadAttribFlt(buf, 0, "height", base_rect.height());
-			m_tex_rect_normal.set	(x,y,x+width,y+height);
-		}else
-			m_tex_rect_normal		= m_UIStaticItem.GetTextureRect();
 
-		m_icon_normal				= m_UIStaticItem.GetShader		();
+	if (!isSVGPresented())
+	{
+		xr_strconcat(buf, path, ":texture");
+		n = xml->NavigateToNode(buf, 0);
+		if (n) {
+			const char* texture = xml->Read(buf, 0, nullptr);
+			CUITextureMaster::InitTexture(texture, &m_UIStaticItem);
+			if (strchr(texture, '\\'))
+			{
+				float x = xml->ReadAttribFlt(buf, 0, "x", base_rect.x1);
+				float y = xml->ReadAttribFlt(buf, 0, "y", base_rect.y1);
+				float width = xml->ReadAttribFlt(buf, 0, "width", base_rect.width());
+				float height = xml->ReadAttribFlt(buf, 0, "height", base_rect.height());
+				m_tex_rect_normal.set(x, y, x + width, y + height);
+			}
+			else
+				m_tex_rect_normal = m_UIStaticItem.GetTextureRect();
+
+			m_icon_normal = m_UIStaticItem.GetShader();
+		}
+
+		m_UIStaticItem.SetTextureRect(_stored_rect);
 	}
-
-	m_UIStaticItem.SetTextureRect	(_stored_rect);
+	else
+	{
+		CUIVectorBinding::CaptureMiniMapSpotNormalVectorIcon(*this, *xml, path, 0, m_icon_normal, m_tex_rect_normal, _stored_rect);
+	}
 }
 
 void CMiniMapSpot::Draw()
@@ -277,7 +289,7 @@ CComplexMapSpot::~CComplexMapSpot()
 {
 }
 
-CUIStaticOrig* CComplexMapSpot::CreateStaticOrig(CUIXml& xml, LPCSTR ui_path)
+CUIStaticOrig* CComplexMapSpot::CreateStaticOrig(CUIXml& xml, const char* ui_path)
 {
 	CUIStaticOrig* ui		= new CUIStaticOrig();
 	AttachChild				(ui);
@@ -287,9 +299,9 @@ CUIStaticOrig* CComplexMapSpot::CreateStaticOrig(CUIXml& xml, LPCSTR ui_path)
 	return					ui;
 }
 
-void CComplexMapSpot::Load( CUIXml* xml, LPCSTR path ) // complex_spot_template
+void CComplexMapSpot::Load( CUIXml* xml, const char* path, float kx ) // complex_spot_template
 {
-	inherited::Load			(xml, path);
+	inherited::Load			(xml, path, kx);
 
 	XML_NODE* stored_root	= xml->GetLocalRoot();
 	XML_NODE* node			= xml->NavigateToNode( path, 0 );
@@ -299,9 +311,10 @@ void CComplexMapSpot::Load( CUIXml* xml, LPCSTR path ) // complex_spot_template
 	m_right_icon			= CreateStaticOrig(*xml, "right_icon");
 	m_top_icon				= CreateStaticOrig(*xml, "top_icon");
 	m_top_icon->SetStretchTexture(true);
-	m_top_icon->SetWidth(m_top_icon->GetWidth() * UI().get_current_kx());
-	if (!UI().is_widescreen()) {
-		m_top_icon->SetHeight(m_top_icon->GetHeight() * UI().get_current_kx());
+	m_top_icon->SetWidth(m_top_icon->GetWidth() * kx);
+	if (!UI().is_widescreen()) 
+	{
+		m_top_icon->SetHeight(m_top_icon->GetHeight() * kx);
 	}
 	m_timer					= CreateStaticOrig(*xml, "timer");
 

@@ -25,16 +25,16 @@ using xr_atomic_float = std::atomic<float>;
 #ifdef IXR_WINDOWS
 using xr_task_group = concurrency::task_group;
 
-template <typename T, typename U>
-using xr_concurrent_unordered_map = concurrency::concurrent_unordered_map<T, U>;
+template <typename T, typename U, typename H = ::std::hash<T>>
+using xr_concurrent_unordered_map = concurrency::concurrent_unordered_map<T, U, H>;
 
 template <typename T>
 using xr_concurrent_vector = concurrency::concurrent_vector<T>;
 #else
 using xr_task_group = tbb::task_group;
 
-template <typename T, typename U>
-using xr_concurrent_unordered_map = tbb::concurrent_unordered_map<T, U>;
+template <typename T, typename U, typename H = std::hash<T>>
+using xr_concurrent_unordered_map = tbb::concurrent_unordered_map<T, U, H>;
 template <typename T>
 using xr_concurrent_vector = tbb::concurrent_vector<T>;
 #endif
@@ -98,4 +98,19 @@ inline void xr_parallel_foreach(Index Begin, Index End, Body Functor)
 #else
 	tbb::parallel_for_each(Begin, End, Functor);
 #endif
+}
+
+// Run Threads
+inline void xr_std_parallel_for(std::function<void()>&& function_to_call, u32 ThreadsMax)
+{
+ 	xr_vector<std::thread> threads;
+	for (auto i = 0; i < ThreadsMax; i++)
+	{
+		threads.emplace_back(std::thread(function_to_call));
+	}
+	for (auto i = 0; i < ThreadsMax; i++)
+	{
+		threads[i].join();
+ 	}
+ 	threads.clear();
 }

@@ -9,11 +9,13 @@
 #pragma once
 
 #include "alife_simulator_base.h"
-#include "xrserver_space.h"
+#include "../xrServerEntities/xrServer_Space.h"
 
 class CSE_ALifeTrader;
 
-class CALifeSurgeManager : public virtual CALifeSimulatorBase {
+class CALifeSurgeManager :
+	public virtual CALifeSimulatorBase
+{
 protected:
 	typedef CALifeSimulatorBase inherited;
 
@@ -29,7 +31,7 @@ protected:
 			void			spawn_new_objects			();
 
 public:
-	IC						CALifeSurgeManager			(xrServer *server, LPCSTR section);
+	IC						CALifeSurgeManager			(xrServer *server, const char* section);
 	virtual					~CALifeSurgeManager			();
 };
 

@@ -1,8 +1,7 @@
 #include "StdAfx.h"
-
-
 #include "Level.h"
 #include "level_sounds.h"
+#include "../xrSound/ai_sounds.h"
 
 //-----------------------------------------------------------------------------
 // static level sounds
@@ -12,7 +11,7 @@ void SStaticSound::Load(IReader& F)
 	R_ASSERT				(F.find_chunk(0));
 	xr_string				wav_name;
 	F.r_stringZ				(wav_name);
-	m_Source.create			(wav_name.c_str(),st_Effect,sg_SourceType);
+	m_Source.create			(wav_name.c_str(),st_Effect, ESoundTypes::SOUND_TYPE_WORLD_AMBIENT);
 	F.r_fvector3			(m_Position);
 	m_Volume				= F.r_float();
 	m_Freq					= F.r_float();
@@ -29,7 +28,7 @@ void SStaticSound::Load(IReader& F)
 void SStaticSound::Update(u32 game_time, u32 global_time)
 {
 	if ((0==m_ActiveTime.x)&&(0==m_ActiveTime.y)||((int(game_time)>=m_ActiveTime.x)&&(int(game_time)<m_ActiveTime.y))){
-		if (0==m_Source._feedback()){
+		if (!m_Source.is_playing()){
 			if ((0==m_PauseTime.x)&&(0==m_PauseTime.y)){    
 				m_Source.play_at_pos	(0,m_Position,sm_Looped);
 				m_Source.set_volume		(m_Volume);
@@ -55,19 +54,29 @@ void SStaticSound::Update(u32 game_time, u32 global_time)
 				m_Source.stop_deffered();
 		}
 	}else{
-		if (0!=m_Source._feedback())
+		if (!m_Source.is_playing())
 			m_Source.stop_deffered();
 	}
 }
 //-----------------------------------------------------------------------------
 // music tracks
 //-----------------------------------------------------------------------------
-void SMusicTrack::Load(LPCSTR fn, LPCSTR params)
+void SMusicTrack::Load(const char* fn, const char* params)
 {
 #ifdef DEBUG
 	m_DbgName			= fn;
 #endif
-	m_SourceStereo.create(fn,st_Music,sg_Undefined);
+	string_path _path;
+	if (FS.exist(_path, "$game_sounds$", fn, ".ogg"))
+		m_SourceStereo.create(fn,st_Music,sg_Undefined);
+	else
+	{
+		string_path			_l, _r;
+		xr_strconcat(_l, fn, "_l");
+		xr_strconcat(_r, fn, "_r");
+		m_SourceLeft.create(_l, st_Music, sg_Undefined);
+		m_SourceRight.create(_r, st_Music, sg_Undefined);
+	}
 
 	// parse params
 	int cnt				= _GetItemCount(params); 
@@ -84,14 +93,14 @@ void SMusicTrack::Load(LPCSTR fn, LPCSTR params)
 	m_PauseTime.mul		(1000);			// convert sec to ms
 }
 
-BOOL SMusicTrack::in(u32 game_time)
+bool SMusicTrack::in(u32 game_time)
 {
 	// game_time -ms 
 	if(m_ActiveTime.x==0 && m_ActiveTime.y)
-		return TRUE;
+		return true;
 	
 	bool b_cross_midnight	= (m_ActiveTime.y < m_ActiveTime.x);
-	BOOL res				= FALSE;
+	bool res				= false;
 
 	if(!b_cross_midnight)
 	{
@@ -105,23 +114,43 @@ BOOL SMusicTrack::in(u32 game_time)
 
 void SMusicTrack::Play()
 {
-	m_SourceStereo.play_at_pos	(0,Fvector().set(0.0f,0.0f,0.0f), sm_Intro);
+	if (m_SourceStereo.handle())
+		m_SourceStereo.play	(0, sm_Intro);
+	else
+	{
+#ifdef IXR_HYPESOUND
+		m_SourceLeft.play(0, sm_Intro);
+		//m_SourceLeft.set_panning(1.0f, 0.f);
+		m_SourceRight.play(0, sm_Intro);
+		//m_SourceRight.set_panning(0.f, 1.0f);
+#else
+		m_SourceLeft.play_at_pos(nullptr, Fvector().set(-0.5f, 0.f, 0.3f), sm_Intro);
+		m_SourceRight.play_at_pos(nullptr, Fvector().set(+0.5f, 0.f, 0.3f), sm_Intro);
+#endif
+	}
 	SetVolume					(1.0f);
 }
 
-BOOL SMusicTrack::IsPlaying()
+bool SMusicTrack::IsPlaying()
 {
-	BOOL  ret = (nullptr!=m_SourceStereo._feedback());
-	return ret;
+	return (m_SourceStereo.is_playing() || m_SourceLeft.is_playing());
 }
 
 void SMusicTrack::SetVolume(float volume)
 {
-	m_SourceStereo.set_volume	(volume*m_Volume);
+	if (m_SourceStereo.handle())
+		m_SourceStereo.set_volume	(volume*m_Volume);
+	else
+	{
+		m_SourceLeft.set_volume(volume * m_Volume);
+		m_SourceRight.set_volume(volume * m_Volume);
+	}
 }
 
 void SMusicTrack::Stop()
 {
+	m_SourceLeft.stop_deffered();
+	m_SourceRight.stop_deffered();
 	m_SourceStereo.stop_deffered();
 }
 
@@ -155,7 +184,7 @@ void CLevelSoundManager::Load()
 
 	if (gameLtx.section_exist(Level().name())){
 		if (gameLtx.line_exist(Level().name(),"music_tracks")){
-			LPCSTR music_sect		= gameLtx.r_string(Level().name(),"music_tracks");
+			const char* music_sect		= gameLtx.r_string(Level().name(),"music_tracks");
 			if (music_sect && music_sect[0]){
 #ifdef DEBUG
 				Msg("- Loading music tracks from '%s'...",music_sect);
@@ -209,18 +238,14 @@ void CLevelSoundManager::Update()
 				
 				if( T.in(game_time) )
 					indices.push_back	(k);
-/*
-				if ((0==T.m_ActiveTime.x) && (0==T.m_ActiveTime.y)||
-					((int(game_time)>=T.m_ActiveTime.x)&&(int(game_time)<T.m_ActiveTime.y)))
-					indices.push_back	(k);
-*/
 			}
 			if (!indices.empty())
 			{
 				u32 idx			= Random.randI((u32) indices.size());
 				m_CurrentTrack	= indices[idx];
 				SMusicTrack& T	= m_MusicTracks[m_CurrentTrack];
-				T.Play			();
+				if (!T.IsPlaying())
+					T.Play();
 #ifdef DEBUG
 				Msg("- Play music track: %s", T.m_DbgName.c_str());
 #endif

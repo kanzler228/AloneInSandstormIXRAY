@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "Dosimeter.h"
 #include "DosimeterUI.h"
 
@@ -43,5 +43,5 @@ void CDosimeter::render_item_3d_ui()
 	CCustomDetector::render_item_3d_ui();
 	ui().Draw();
 	//	Restore cull mode
-	UIRender->CacheSetCullMode(IUIRender::cmCCW);
+	UIRender->CacheSetCullMode(ERHI_CULLMODE::BACK);
 }

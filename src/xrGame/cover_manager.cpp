@@ -100,10 +100,13 @@ void CCoverManager::compute_static_cover	()
 			return;
 		}
 
-		if (vertex.low_cover(0) + vertex.low_cover(1) + vertex.low_cover(2) + vertex.low_cover(3))
+		if (Graph.header().version() != XRAI_SOC_VERSION) // If using SoC spawn, ignore low covers.
 		{
-			m_temp[range] = edge_vertex(range);
-			return;
+			if (vertex.low_cover(0) + vertex.low_cover(1) + vertex.low_cover(2) + vertex.low_cover(3))
+			{
+				m_temp[range] = edge_vertex(range);
+				return;
+			}
 		}
 
 		m_temp[range] = false;
@@ -144,6 +147,10 @@ void CCoverManager::clear					()
 	m_covers->clear			();
 	xr_delete				(m_smart_covers_storage);
 	m_smart_covers.clear	();
+	if (m_covers)
+	{
+		xr_delete(m_covers);
+	}
 }
 
 namespace smart_cover {
@@ -194,7 +201,7 @@ void CCoverManager::remove_nearby_covers	(smart_cover::cover const &cover, smart
 	}
 }
 
-CCoverManager::Cover const *CCoverManager::add_smart_cover	(LPCSTR table_name, smart_cover::object const &object, bool const &is_combat_cover, bool const &can_fire, luabind::object const &loopholes) const
+CCoverManager::Cover const *CCoverManager::add_smart_cover	(const char* table_name, smart_cover::object const &object, bool const &is_combat_cover, bool const &can_fire, luabind::object const &loopholes) const
 {
 	Cover					*smart_cover = 
 		new Cover(

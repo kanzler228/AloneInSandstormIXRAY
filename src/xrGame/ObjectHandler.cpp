@@ -27,7 +27,7 @@ CObjectHandler::~CObjectHandler		()
 	xr_delete					(m_planner);
 }
 
-void CObjectHandler::Load			(LPCSTR section)
+void CObjectHandler::Load			(const char* section)
 {
 	inherited::Load				(section);
 }
@@ -42,27 +42,25 @@ void CObjectHandler::reinit			(CAI_Stalker *object)
 	m_l_finger1					= kinematics->LL_BoneID(pSettings->r_string(*m_planner->GetOwner()->cNameSect(),"weapon_bone1"));
 	m_r_finger2					= kinematics->LL_BoneID(pSettings->r_string(*m_planner->GetOwner()->cNameSect(),"weapon_bone2"));
 	m_strap_object_id			= ALife::_OBJECT_ID(-1);
-	m_strap_bone0				= -1;
-	m_strap_bone1				= -1;
 	m_clutched_hammer_enabled	= false;
 }
 
-void CObjectHandler::reload			(LPCSTR section)
+void CObjectHandler::reload			(const char* section)
 {
 	inherited::reload			(section);
 }
 
-BOOL CObjectHandler::net_Spawn		(CSE_Abstract* DC)
+bool CObjectHandler::net_Spawn		(CSE_Abstract* DC)
 {
 	if (!inherited::net_Spawn(DC))
-		return					(FALSE);
+		return					(false);
 
 	CSE_Abstract				*abstract = static_cast<CSE_Abstract*>(DC);
 	CSE_ALifeTraderAbstract		*trader = smart_cast<CSE_ALifeTraderAbstract*>(abstract);
 	VERIFY						(trader);
 
 	m_infinite_ammo				= !!trader->m_trader_flags.test(CSE_ALifeTraderAbstract::eTraderFlagInfiniteAmmo);
-	return						(TRUE);
+	return						(true);
 }
 
 void CObjectHandler::OnItemTake		(CInventoryItem *inventory_item)
@@ -91,24 +89,26 @@ void CObjectHandler::OnItemTake		(CInventoryItem *inventory_item)
 	}
 }
 
-void CObjectHandler::OnItemDrop		(CInventoryItem *inventory_item, bool just_before_destroy)
+void CObjectHandler::OnItemDrop(CInventoryItem* inventory_item, bool just_before_destroy)
 {
-	inherited::OnItemDrop	(inventory_item, just_before_destroy);
+	inherited::OnItemDrop(inventory_item, just_before_destroy);
 
-	m_inventory_actual		= false;
-	
-	if (m_infinite_ammo && m_planner->GetOwner()->g_Alive() && !inventory_item->useful_for_NPC()) {
-		CWeaponAmmo				*weapon_ammo = smart_cast<CWeaponAmmo*>(inventory_item);
-		if (weapon_ammo) {
-			Level().spawn_item		(*weapon_ammo->cNameSect(),m_planner->GetOwner()->Position(),m_planner->GetOwner()->ai_location().level_vertex_id(),m_planner->GetOwner()->ID());
-			m_item_to_spawn			= weapon_ammo->cNameSect();
-			m_ammo_in_box_to_spawn	= weapon_ammo->m_boxSize;
+	m_inventory_actual = false;
+
+	if (m_infinite_ammo && m_planner->GetOwner()->g_Alive() && !inventory_item->useful_for_NPC())
+	{
+		CWeaponAmmo* weapon_ammo = inventory_item->cast_weapon_ammo();
+		if (weapon_ammo)
+		{
+			Level().spawn_item(*weapon_ammo->cNameSect(), m_planner->GetOwner()->Position(), m_planner->GetOwner()->ai_location().level_vertex_id(), m_planner->GetOwner()->ID());
+			m_item_to_spawn = weapon_ammo->cNameSect();
+			m_ammo_in_box_to_spawn = weapon_ammo->m_boxSize;
 		}
 	}
 
-	m_planner->RemoveObject		(inventory_item->cast_game_object());
+	m_planner->RemoveObject(inventory_item->cast_game_object());
 
-	switch_torch				(inventory_item,false);
+	switch_torch(inventory_item, false);
 }
 
 CInventoryItem *CObjectHandler::best_weapon() const
@@ -141,7 +141,7 @@ bool CObjectHandler::goal_reached	()
 	return					(m_planner->GoapPlanner.IsReached());
 }
 
-void CObjectHandler::weapon_bones	(int &b0, int &b1, int &b2) const
+void CObjectHandler::weapon_bones	(u16 &b0, u16 &b1, u16 &b2) const
 {
 	CWeapon						*weapon = inventory().ActiveItem() ? inventory().ActiveItem()->cast_weapon() : NULL;
 	if (!weapon || !m_planner->bStrapped) {
@@ -271,11 +271,13 @@ bool CObjectHandler::weapon_unstrapped	(CWeapon *weapon) const
 	return						(!weapon->strapped_mode());
 }
 
-IC	void CObjectHandler::switch_torch	(CInventoryItem *inventory_item, bool value)
+IC	void CObjectHandler::switch_torch(CInventoryItem* inventory_item, bool value)
 {
-	CTorch						*torch = smart_cast<CTorch*>(inventory_item);
-	if (torch && attached(torch) && m_planner->GetOwner()->g_Alive())
-		torch->Switch			(value);
+	CTorch* torch = inventory_item->cast_torch();
+	if (torch != nullptr && attached(torch) && m_planner->GetOwner()->g_Alive())
+	{
+		torch->Switch(value);
+	}
 }
 
 void CObjectHandler::attach				(CInventoryItem *inventory_item)

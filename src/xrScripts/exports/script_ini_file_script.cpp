@@ -17,11 +17,31 @@ CScriptIniFile *get_system_ini()
 	return	((CScriptIniFile*)pSettings);
 }
 
+CScriptIniFile* get_external_ini()
+{
+	return	((CScriptIniFile*)EngineExternal().GetIniFile());
+}
+
+bool is_cop()
+{
+	return EngineExternal().CallOfPripyatMode();
+}
+
+bool is_cs()
+{
+	return EngineExternal().ClearSkyMode();
+}
+
+bool is_soc()
+{
+	return EngineExternal().ShadowOfChernobylMode();
+}
+
 CScriptIniFile* reload_system_ini()
 {
 	pSettings->Destroy(const_cast<CInifile*>(pSettings));
 	string_path fname;
-	FS.update_path(fname, "$game_config$", "system.ltx");
+	FS.update_path(fname, _game_config_, "system.ltx");
 	pSettings = new CInifile(fname);
 	return	((CScriptIniFile*)pSettings);
 }
@@ -33,28 +53,28 @@ CScriptIniFile *get_game_ini()
 }
 #endif // XRGAME_EXPORTS
 
-bool r_line(CScriptIniFile *self_, LPCSTR S, int L,	luabind::internal_string &N, luabind::internal_string&V)
+bool r_line(CScriptIniFile* self_, const char* S, int L, luabind::internal_string& N, luabind::internal_string& V)
 {
-	VERIFY3			(self_->section_exist(S),"Cannot find section",S);
-	VERIFY2			((int)self_->line_count(S) > L,"Invalid line number");
-	
-	N				= "";
-	V				= "";
-	
-	LPCSTR			n,v;
-	bool			result_ = !!self_->r_line(S,L,&n,&v);
+	VERIFY3(self_->section_exist(S), "Cannot find section", S);
+	VERIFY2((int)self_->line_count(S) > L, "Invalid line number");
+
+	N = "";
+	V = "";
+
+	const char* n, * v;
+	bool			result_ = !!self_->r_line(S, L, &n, &v);
 	if (!result_)
 		return		(false);
 
-	N				= n;
+	N = n;
 	if (v)
-		V			= v;
+		V = v;
 	return			(true);
 }
 
 #pragma warning(push)
 #pragma warning(disable:4238)
-CScriptIniFile *create_ini_file	(LPCSTR ini_string)
+SCRIPTS_API CScriptIniFile *create_ini_file	(const char* ini_string)
 {
 	IReader temp(
 		(void*)ini_string,
@@ -65,7 +85,7 @@ CScriptIniFile *create_ini_file	(LPCSTR ini_string)
 		(CScriptIniFile*)
 		new CInifile(
 			&temp,
-			FS.get_path("$game_config$")->m_Path
+			FS.get_path(_game_config_)->m_Path
 		)
 	);
 }
@@ -73,25 +93,21 @@ CScriptIniFile *create_ini_file	(LPCSTR ini_string)
 
 void section_for_each(CScriptIniFile* self, luabind::functor<bool> functor)
 {
-	typedef CInifile::Root sections_type;
-	sections_type& sections = self->sections();
-
-	sections_type::const_iterator i = sections.begin();
-	sections_type::const_iterator e = sections.end();
-	for (; i != e; ++i)
+	CInifile::Root& sections = self->sections();
+	for (CInifile::Sect& sect : sections)
 	{
-		if (functor((LPCSTR)(*i)->Name.c_str()))
+		if (functor((const char*)sect.Name.c_str()))
 			return;
 	}
 }
 
-CScriptIniFile* create_ini(LPCSTR path, LPCSTR ini_file)
+CScriptIniFile* create_ini(const char* path, const char* ini_file)
 {
 	return new CScriptIniFile(false, ini_file, path, false);
 }
 
 
-CScriptIniFile* read_ini(LPCSTR path, LPCSTR ini_file)
+CScriptIniFile* read_ini(const char* path, const char* ini_file)
 {
 	return new CScriptIniFile(true, ini_file, path, true);
 }
@@ -103,7 +119,7 @@ void CScriptIniFile::script_register(lua_State *L)
 	[
 		class_<CScriptIniFile>("ini_file")
 
-            .def(constructor<LPCSTR,BOOL,BOOL,BOOL,LPCSTR>())
+            .def(constructor<const char*,bool,bool,bool,const char*>())
 			.def("w_bool",&CScriptIniFile::w_bool)
 			.def("w_color", &CScriptIniFile::w_color)
 			.def("w_fcolor", &CScriptIniFile::w_fcolor)
@@ -128,7 +144,7 @@ void CScriptIniFile::script_register(lua_State *L)
 			.def("section_for_each", &::section_for_each)
 			.def("set_readonly", &CScriptIniFile::set_readonly)
 
-			.def(					constructor<LPCSTR>())
+			.def(					constructor<const char*>())
 			.def("section_exist",	&CScriptIniFile::section_exist	)
 			.def("line_exist",		&CScriptIniFile::line_exist		)
 			.def("r_clsid",			&CScriptIniFile::r_clsid		)
@@ -143,7 +159,12 @@ void CScriptIniFile::script_register(lua_State *L)
 			.def("r_vector",		&CScriptIniFile::r_fvector3)
 			.def("r_line", &::r_line, out_value<4>() + out_value<5>()),
 
+		def("is_cop",				&is_cop),
+		def("is_cs",				&is_cs),
+		def("is_soc",				&is_soc),
+
 		def("system_ini",			&get_system_ini),
+		def("external_ini",			&get_external_ini),
 		def("reload_system_ini",	&reload_system_ini),
 		def("create_ini",			&create_ini),
 		def("read_ini",				&read_ini),

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "UIGameTutorial.h"
 #include "../../xrUI/Widgets/UIWindow.h"
@@ -13,8 +13,22 @@
 #include "UIActorMenu.h"
 #include "UIPdaWnd.h"
 #include "Actor.h"
+#include "UIInventoryWnd.h"
+#include "../../xrEngine/string_table.h"
+#include "UIRadialMenuWeapon.h"
 
-extern ENGINE_API BOOL bShowPauseString;
+extern ENGINE_API bool bShowPauseString;
+
+CUISequenceItem::CUISequenceItem(CUISequencer* owner) :
+	m_owner(owner) 
+{ 
+	m_compatibility_mode = eCompatibilityDefault;
+	if (EngineExternal().ClearSkyMode())
+		m_compatibility_mode = eCompatibilityCS;
+	else if (EngineExternal().ShadowOfChernobylMode())
+		m_compatibility_mode = eCompatibilitySoC;
+	m_flags.zero(); 
+}
 
 void CallFunction(shared_str const& func)
 {
@@ -40,7 +54,7 @@ void CUISequenceItem::Load(CUIXml* xml, int idx)
 	
 	for(int i=0; i<disabled_cnt; ++i)
 	{
-		LPCSTR str					= xml->Read			("disabled_key", i, nullptr);
+		const char* str					= xml->Read			("disabled_key", i, nullptr);
 		m_disabled_actions.push_back( action_name_to_id(str) );
 	}
 
@@ -98,7 +112,7 @@ CUISequencer::CUISequencer()
 	m_name = "invalid";
 }
 
-void CUISequencer::Start(LPCSTR tutor_name)
+void CUISequencer::Start(const char* tutor_name)
 {
 	VERIFY						(m_sequencer_items.size()==0);
 	Device.seqFrame.Add			(this, REG_PRIORITY_LOW-10000);
@@ -133,16 +147,15 @@ void CUISequencer::Start(LPCSTR tutor_name)
 	XML_NODE* bk				= uiXml.GetLocalRoot();
 	uiXml.SetLocalRoot			(uiXml.NavigateToNode("global_wnd", 0));
 	{	
-		LPCSTR str				= uiXml.Read		("pause_state", 0, "ignore");
+		const char* str				= uiXml.Read		("pause_state", 0, "ignore");
 		m_flags.set				(etsNeedPauseOn,	0==_stricmp(str, "on"));
 		m_flags.set				(etsNeedPauseOff,	0==_stricmp(str, "off"));
 	}
 
-	LPCSTR snd_name				= uiXml.Read("sound", 0, "");
+	const char* snd_name				= uiXml.Read("sound", 0, "");
 	if (snd_name && snd_name[0])
 	{
-		m_global_sound.create	(snd_name, st_Effect,sg_Undefined);	
-		VERIFY					(m_global_sound._handle() || Core.ParamsData.test(ECoreParams::nosound));
+		m_global_sound.create(snd_name, st_Effect, sg_Undefined);
 	}
 	m_start_lua_function		= uiXml.Read("function_on_start", 0, "");
 	m_stop_lua_function			= uiXml.Read("function_on_stop", 0, "");
@@ -151,7 +164,7 @@ void CUISequencer::Start(LPCSTR tutor_name)
 
 	for(int i=0;i<items_count;++i)
 	{
-		LPCSTR	_tp				= uiXml.ReadAttrib("item",i,"type","");
+		const char*	_tp				= uiXml.ReadAttrib("item",i,"type","");
 		bool bVideo				= 0==_stricmp(_tp,"video");
 		CUISequenceItem* pItem	= 0;
 		if (bVideo)	pItem		= new CUISequenceVideoItem(this);
@@ -169,19 +182,19 @@ void CUISequencer::Start(LPCSTR tutor_name)
 	IR_Capture					();
 
 
-	m_flags.set					(etsActive, TRUE);
+	m_flags.set					(etsActive, true);
 	m_flags.set					(etsStoredPauseState, Device.Paused());
 	
 	if(m_flags.test(etsNeedPauseOn) && !m_flags.test(etsStoredPauseState))
 	{
-		Device.Pause			(TRUE, TRUE, TRUE, "tutorial_start");
-		bShowPauseString		= FALSE;
+		Device.Pause			(true, true, true, "tutorial_start");
+		bShowPauseString		= false;
 	}
 
 	if(m_flags.test(etsNeedPauseOff) && m_flags.test(etsStoredPauseState))
-		Device.Pause			(FALSE, TRUE, FALSE, "tutorial_start");
+		Device.Pause			(false, true, false, "tutorial_start");
 
-	if (m_global_sound._handle())		
+	if (m_global_sound.handle())
 		m_global_sound.play(nullptr, sm_2D);
 
 	if(m_start_lua_function.size())
@@ -234,7 +247,7 @@ void CUISequencer::Destroy()
 	delete_data					(m_sequencer_items);
 	delete_data					(m_UIWindow);
 	IR_Release					();
-	m_flags.set					(etsActive, FALSE);
+	m_flags.set					(etsActive, false);
 	m_pStoredInputReceiver		= nullptr;
 	
 	if(!m_on_destroy_event.empty())
@@ -258,19 +271,36 @@ void CUISequencer::Stop()
 		{
 			Next				();
 			return;
-		}else
+		}
+		else
 		{
 			CUISequenceItem* pCurrItem	= m_sequencer_items.front();
 			pCurrItem->Stop				(true);
 		}
 	}
-	{
-	if(m_flags.test(etsNeedPauseOn) && !m_flags.test(etsStoredPauseState))
-		Device.Pause			(FALSE, TRUE, TRUE, "tutorial_stop");
 
-	if(m_flags.test(etsNeedPauseOff) && m_flags.test(etsStoredPauseState))
-		Device.Pause			(TRUE, TRUE, FALSE, "tutorial_stop");
+	if (m_flags.test(etsNeedPauseOn) && !m_flags.test(etsStoredPauseState))
+	{
+		Device.Pause(false, true, true, "tutorial_stop");
 	}
+
+	if (m_flags.test(etsNeedPauseOff) && m_flags.test(etsStoredPauseState))
+	{
+		Device.Pause(true, true, false, "tutorial_stop");
+	}
+
+	if (Need3DRender())
+	{
+		CObject* current_entity = Level().CurrentEntity();
+
+		CActor* pActor = current_entity ? current_entity->cast_actor() : nullptr;
+
+		if (pActor && pActor->HudAnimator()->PdaAnimator() && pActor->HudAnimator()->PdaAnimator()->IsActive())
+		{
+			CurrentGameUI()->PdaMenu()->HideDialog();
+		}
+	}
+
 	Destroy			();
 }
 
@@ -301,10 +331,20 @@ void CUISequencer::OnFrame()
 	m_UIWindow->Update			();
 }
 
+static u32 g_tutorial_render_frame = 0;
 void CUISequencer::OnRender	()
 {
-	if (m_UIWindow->IsShown())	
+	if (g_tutorial_render_frame == Device.dwFrame)
+	{
+		return;
+	}
+
+	g_tutorial_render_frame = Device.dwFrame;
+
+	if (m_UIWindow->IsShown())
+	{
 		m_UIWindow->Draw();
+	}
 
 	VERIFY(m_sequencer_items.size());
 	m_sequencer_items.front()->OnRender	();
@@ -358,6 +398,14 @@ void CUISequencer::IR_OnMouseHold		(int btn)
 		m_pStoredInputReceiver->IR_OnMouseHold(btn);
 }
 
+void CUISequencer::IR_OnGyroscopeMove		(Fvector3 value)
+{
+	if (!GrabInput() && m_pStoredInputReceiver)
+	{
+		m_pStoredInputReceiver->IR_OnGyroscopeMove(value);
+	}
+}
+
 void CUISequencer::IR_OnMouseMove		(int x, int y)
 {
 	if(!GrabInput()&&m_pStoredInputReceiver)
@@ -383,19 +431,95 @@ void CUISequencer::IR_OnKeyboardHold		(int dik)
 		m_pStoredInputReceiver->IR_OnKeyboardHold(dik);
 }
 
+void CUISequencer::IR_GamepadUpdateStick(int id, Fvector2 value)
+{
+	if (!GrabInput() && m_pStoredInputReceiver)
+		m_pStoredInputReceiver->IR_GamepadUpdateStick(id, value);
+}
+
 void CUISequencer::IR_GamepadKeyPress(int id)
 {
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN)
-		IR_OnKeyboardPress(SDL_SCANCODE_DOWN);
+	if(ButtonPress(id) && !GrabInput() && m_pStoredInputReceiver)
+		m_pStoredInputReceiver->IR_GamepadKeyPress	(id);
+}
 
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP)
-		IR_OnKeyboardPress(SDL_SCANCODE_UP);
+void CUISequencer::IR_GamepadKeyHold		(int id)
+{
+	if(!GrabInput()&&m_pStoredInputReceiver)
+		m_pStoredInputReceiver->IR_GamepadKeyHold(id);
+}
 
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_SOUTH)
-		IR_OnKeyboardPress(SDL_SCANCODE_RETURN);
+void CUISequencer::IR_GamepadKeyRelease(int id)
+{
+	if (!GrabInput() && m_pStoredInputReceiver)
+		m_pStoredInputReceiver->IR_GamepadKeyRelease(id);
+}
 
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_EAST)
-		IR_OnKeyboardPress(SDL_SCANCODE_ESCAPE);
+bool CUISequencer::ButtonPress(int id)
+{
+	CActor* actor = nullptr;
+
+	if (g_pGameLevel)
+	{
+		actor = Level().CurrentControlEntity() ? Level().CurrentControlEntity()->cast_actor() : nullptr;
+		if (actor != nullptr)
+		{
+			if (actor->HudAnimator()->ItemAnimator() != nullptr && actor->HudAnimator()->ItemAnimator()->IsActive())
+			{
+				return false;
+			}
+		}
+	}
+
+	if (m_sequencer_items.size())
+		m_sequencer_items.front()->OnKeyboardPress(id);
+
+	bool b = true;
+	if (m_sequencer_items.size()) b &= m_sequencer_items.front()->AllowKey(id);
+
+	bool binded = is_binded(kQUIT, id);
+	bool secondaryQuit = pInput->GetControllerMode() ? is_binded(kUI_BACK, id) : false;
+	if (b && (binded || secondaryQuit))
+	{
+		Stop();
+		return false;
+	}
+
+	if (binded && CurrentGameUI())
+	{
+		if (actor != nullptr)
+		{
+			CHudAnimatorBase* current_animator = actor->HudAnimator()->CurrentAnimator();
+			CHudStateAnimator* state_animator = current_animator != nullptr ? current_animator->cast_hud_state_animator() : nullptr;
+
+			if (state_animator != nullptr &&
+				state_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHidden &&
+				state_animator->GetState() != CHudStateAnimator::EAnimatorStates::eHiding)
+			{
+				state_animator->SetState(CHudStateAnimator::EAnimatorStates::eHiding);
+			}
+		}
+
+		if (CurrentGameUI()->GetActiveInventoryWindow())
+		{
+			CurrentGameUI()->HideActorMenu();
+			return false;
+		}
+
+		if (CurrentGameUI()->RadialMenuWeapon() && CurrentGameUI()->RadialMenuWeapon()->IsShown())
+		{
+			CurrentGameUI()->HideRadialMenuWeapon();
+			return false;
+		}
+		if (CurrentGameUI()->PdaMenu()->IsShown())
+		{
+			CurrentGameUI()->HidePdaMenu();
+			return false;
+		}
+		Console->Execute("main_menu");
+		return false;
+	}
+	return b;
 }
 
 void CUISequencer::IR_OnMouseWheel		(int direction)
@@ -406,46 +530,8 @@ void CUISequencer::IR_OnMouseWheel		(int direction)
 
 void CUISequencer::IR_OnKeyboardPress	(int dik)
 {
-	if (g_pGameLevel)
-	{
-		CActor* actor = Level().CurrentControlEntity() ? Level().CurrentControlEntity()->cast_actor() : nullptr;
-		if (actor && actor->HudAnimator() && actor->HudAnimator()->IsActive())
-		{
-			return;
-		}
-	}
-
-	if(m_sequencer_items.size())	
-		m_sequencer_items.front()->OnKeyboardPress			(dik);
-	
-	bool b = true;
-	if(m_sequencer_items.size()) b &= m_sequencer_items.front()->AllowKey(dik);
-
-	bool binded = is_binded(kQUIT, dik);
-	if(b && binded )
-	{
-		Stop		();
-		return;
-	}
-
-	if(binded && CurrentGameUI())
-	{
-		if(CurrentGameUI()->ActorMenu().IsShown())
-		{
-			CurrentGameUI()->HideActorMenu();
-			return;
-		}
-		if(CurrentGameUI()->PdaMenu().IsShown())
-		{
-			CurrentGameUI()->HidePdaMenu();
-			return;
-		}
-		Console->Execute("main_menu");
-		return;
-	}
-
-	if(b && !GrabInput() && m_pStoredInputReceiver)	
-		m_pStoredInputReceiver->IR_OnKeyboardPress	(dik);
+	if (ButtonPress(dik) && !GrabInput() && m_pStoredInputReceiver)
+		m_pStoredInputReceiver->IR_OnKeyboardPress(dik);
 }
 
 void CUISequencer::IR_OnActivate()
@@ -476,5 +562,19 @@ void CUISequencer::IR_OnActivate()
 				}break;
 			};
 		};
+	}
+}
+
+
+bool CUISequencer::Need3DRender()
+{
+	if (m_sequencer_items.size())
+	{
+		static const bool Use3DPDA = EngineExternal()[EEngineExternalGame::Enable3DPDA];
+		return xr_strlen(m_sequencer_items.front()->m_pda_section) != 0 && Use3DPDA;
+	}
+	else
+	{
+		return false;
 	}
 }

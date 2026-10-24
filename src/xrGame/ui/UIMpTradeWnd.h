@@ -9,7 +9,6 @@
 class CUIDragDropListEx;
 class CUI3tButton;
 class CUIStatic;
-class CUITextWnd;
 class CUIMpItemsStoreWnd;
 class CUITabControl;
 class CUICellItem;
@@ -28,7 +27,7 @@ struct SBuyItemInfo
 	
 	const EItmState&	GetState			() const				{return m_item_state;}
 	void				SetState			(const EItmState& s);
-	LPCSTR				GetStateAsText		() const;
+	const char*				GetStateAsText		() const;
 private:
 	EItmState			m_item_state;
 
@@ -38,7 +37,7 @@ using ITEMS_vec = xr_vector<SBuyItemInfo*>;
 using ITEMS_vec_it = ITEMS_vec::iterator;
 using ITEMS_vec_cit = ITEMS_vec::const_iterator;
 
-class CUIMpTradeWnd :	public IBuyWnd, 
+class CUIMpTradeWnd final :	public IBuyWnd,
 						public CUIWndCallback
 {
 		typedef CUIDialogWnd	inherited;
@@ -139,12 +138,12 @@ private:
 	bool				m_bIgnoreMoneyAndRank;
 //controls
 	CUIWindow*			m_shop_wnd;
-	CUITextWnd*			m_static_curr_items_money;
-	CUITextWnd*			m_static_player_money;
-	CUITextWnd*			m_static_preset_money[5];
+	CUIStatic*			m_static_curr_items_money;
+	CUIStatic*			m_static_player_money;
+	CUIStatic*			m_static_preset_money[5];
 	CUIStatic*			m_static_player_rank;
-	CUITextWnd*			m_static_information;
-	CUITextWnd*			m_static_money_change;
+	CUIStatic*			m_static_information;
+	CUIStatic*			m_static_money_change;
 	CUI3tButton* 		m_btn_shop_back;
 	CUI3tButton* 		m_btn_ok;
 	CUI3tButton* 		m_btn_cancel;
@@ -259,12 +258,12 @@ private:
 	void				SellAll						();
 	void				ResetToOrigin				();
 	void				DumpPreset					(ETradePreset idx);
-	void				DumpAllItems				(LPCSTR reason);
+	void				DumpAllItems				(const char* reason);
 	dd_list_type		GetListType					(CUIDragDropListEx* l);
 	CUIDragDropListEx*	GetMatchedListForItem		(const shared_str& sect_name);
 	void				UpdateCorrespondingItemsForList(CUIDragDropListEx* _list);
 	const u32			GetRank						() const;
-	void				SetInfoString				(LPCSTR str);
+	void				SetInfoString				(const char* str);
 	void				SetMoneyChangeString		(int diff);
 	void				CleanUserItems				();
 
@@ -279,7 +278,7 @@ u8		GetItemAddonsState_ext		(SBuyItemInfo* item);
 void	SetItemAddonsState_ext		(SBuyItemInfo* item, u8 addons);
 
 #include "UICellItem.h"
-class CUICellItemTradeMenuDraw :public ICustomDrawCellItem
+class CUICellItemTradeMenuDraw final :public ICustomDrawCellItem
 {
 	CUIMpTradeWnd*			m_trade_wnd;
 	SBuyItemInfo*			m_info_item;

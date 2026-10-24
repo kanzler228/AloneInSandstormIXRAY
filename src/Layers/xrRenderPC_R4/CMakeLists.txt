@@ -3,29 +3,34 @@ set(XRR4_SRC_FILES)
 
 # Files import
 file(GLOB_RECURSE XRR4_SOURCE_ALL_FILES CONFIGURE_DEPENDS
-    "*.cpp"
-    "*.h"
+	"*.cpp"
+	"*.h"
 )
 file(GLOB_RECURSE XRR4_SOURCE_COMP_FILES CONFIGURE_DEPENDS
-    "../xrRender/*.cpp"
-    "../xrRender/*.h"
+	"../xrRender/*.cpp"
+	"../xrRender/*.h"
 )
 file(GLOB XRR4_SOURCE_BLEND_FILES
-    "../xrRender/Blender_*.cpp"
-    "../xrRender/Blender_*.h"
-    "Blender_*.cpp"
-    "Blender_*.h"
+	"../xrRender/Blender_*.cpp"
+	"../xrRender/Blender_*.h"
+	"Blender_*.cpp"
+	"Blender_*.h"
 )
 file(GLOB_RECURSE XRR4_SOURCE_DX11_FILES CONFIGURE_DEPENDS
-    "../xrRenderDX10/*.cpp"
-    "../xrRenderDX10/*.h"
+	"../xrRenderDX10/*.cpp"
+	"../xrRenderDX10/*.h"
 )
 file(GLOB XRR4_SOURCE_LUA_FILES CONFIGURE_DEPENDS
-    "../../xrEngine/ai_script_lua*.cpp"
-    "../../xrEngine/ai_script_lua*.h"
+	"../../xrEngine/ai_script_lua*.cpp"
+	"../../xrEngine/ai_script_lua*.h"
 )
 file(GLOB XRR4_SOURCE_OVERLAY_FILES "OverlayAPI/*.*")
 file(GLOB_RECURSE XRR4_SOURCE_INCL_FILES CONFIGURE_DEPENDS "../../Include/*.h")
+
+file(GLOB_RECURSE XRR4_SOURCE_PARTICLE_CORE CONFIGURE_DEPENDS
+	"../xrRender/particle_core/*.cpp"
+	"../xrRender/particle_core/*.h"
+)
 
 # Source groups
 source_group("render/overlay" FILES ${XRR4_SOURCE_OVERLAY_FILES})
@@ -35,6 +40,7 @@ source_group("layers" FILES ${XRR4_SOURCE_COMP_FILES})
 source_group("general_dx11" FILES ${XRR4_SOURCE_DX11_FILES})
 source_group("lua_ext" FILES ${XRR4_SOURCE_LUA_FILES})
 source_group("blend" FILES ${XRR4_SOURCE_BLEND_FILES})
+source_group("particle_core" FILES ${XRR4_SOURCE_PARTICLE_CORE})
 
 # Apply list
 list(APPEND XRR4_SRC_FILES ${XRR4_SOURCE_ALL_FILES})
@@ -43,9 +49,6 @@ list(APPEND XRR4_SRC_FILES ${XRR4_SOURCE_DX11_FILES})
 list(APPEND XRR4_SRC_FILES ${XRR4_SOURCE_LUA_FILES})
 list(APPEND XRR4_SRC_FILES ${XRR4_SOURCE_INCL_FILES})
 
-# Remove unused files
-#list(FILTER XRR4_SRC_FILES EXCLUDE REGEX "../xrRender/HW.cpp")
-
 # xrRender_R4 project
 add_library(xrRender_R4 SHARED ${XRR4_SRC_FILES})
 target_precompile_headers(xrRender_R4 PRIVATE "stdafx.h")
@@ -53,8 +56,6 @@ target_precompile_headers(xrRender_R4 PRIVATE "stdafx.h")
 # Include directories
 target_include_directories(xrRender_R4 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(xrRender_R4 PUBLIC "${IXRAY_SDK_INC}")
-target_include_directories(xrRender_R4 PUBLIC "${AMD_FSR2}/build/native/include/")
-target_include_directories(xrRender_R4 PUBLIC "${NVIDIA_DLSS}/include/")
 
 # Project defines
 target_compile_definitions(xrRender_R4 PRIVATE XRRENDER_R4_EXPORTS)
@@ -63,41 +64,24 @@ target_compile_definitions(xrRender_R4 PRIVATE _USRDLL)
 target_compile_definitions(xrRender_R4 PRIVATE "$<$<CONFIG:Debug>:DEBUG>")
 
 # Linker list
-target_link_libraries(xrRender_R4 PUBLIC xrAbstractions)
-target_link_libraries(xrRender_R4 PUBLIC xrParticles)
-target_link_libraries(xrRender_R4 PUBLIC "dxgi.lib")
-target_link_libraries(xrRender_R4 PUBLIC "d3d11.lib")
-target_link_libraries(xrRender_R4 PUBLIC "d3dcompiler.lib")
-target_link_libraries(xrRender_R4 PUBLIC "dxguid.lib")
-target_link_libraries(xrRender_R4 PUBLIC "ffx_fsr2_api_${NUGET_PACKAGE_PLATFORM}.lib")
-target_link_libraries(xrRender_R4 PUBLIC "ffx_fsr2_api_dx11_${NUGET_PACKAGE_PLATFORM}.lib")
+target_link_libraries(xrRender_R4 PUBLIC xrEngineCore)
+target_link_libraries(xrRender_R4 PUBLIC NvTriStrip)
+target_link_libraries(xrRender_R4 PUBLIC lunasvg)
 
-## AMD FidelityFX FSR 2
-target_link_directories(xrRender_R4 PUBLIC "${AMD_FSR2}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/")
-target_link_libraries(xrRender_R4 PUBLIC "ffx_fsr2_api_${NUGET_PACKAGE_PLATFORM}.lib")
-target_link_libraries(xrRender_R4 PUBLIC "ffx_fsr2_api_dx11_${NUGET_PACKAGE_PLATFORM}.lib")
+if (WIN32)
+	target_link_libraries(xrRender_R4 PUBLIC AMD::FSR3_DX11)
+	target_link_libraries(xrRender_R4 PUBLIC AMD::FSR3)
 
-add_custom_command(TARGET ${PROJECT_NAME}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${AMD_FSR2}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/ffx_fsr2_api_${NUGET_PACKAGE_PLATFORM}.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${AMD_FSR2}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/ffx_fsr2_api_dx11_${NUGET_PACKAGE_PLATFORM}.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-)
-
-if (WIN32 AND "${CMAKE_VS_PLATFORM_NAME}" MATCHES "(x64)")
-    target_link_directories(xrRender_R4 PUBLIC "${NVIDIA_DLSS}/lib/")
-    target_link_libraries(xrRender_R4 PUBLIC "nvsdk_ngx_d.lib")
-
-    # Copy binaries
-    add_custom_command(TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${NVIDIA_DLSS}/bin/nvngx_dlss.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-    )
+	target_link_libraries(xrRender_R4 PUBLIC NVIDIA::DLSS)
+	target_link_libraries(xrRender_R4 PUBLIC DirectX::Tex)
+	target_link_libraries(xrRender_R4 PUBLIC DirectX::Mesh)
+	target_link_libraries(xrRender_R4 PRIVATE WindowsSDK::D3D11)
+	target_link_libraries(xrRender_R4 PRIVATE WindowsSDK::DXGI)
+	target_link_libraries(xrRender_R4 PRIVATE WindowsSDK::DXGUID)
+	target_link_libraries(xrRender_R4 PRIVATE WindowsSDK::D3DCompiler)
+else()
+    target_compile_definitions(xrRender_R4 PRIVATE XR_USE_DXVK_NATIVE=1 DXVK_WSI_DRIVER_SDL3=1)
 endif()
-
-## DirectX SDK
-target_include_directories(xrRender_R4 PUBLIC "${CMAKE_BINARY_DIR}/packages/directxmesh_desktop_2019.2024.6.5.1/include/")
-target_include_directories(xrRender_R4 PUBLIC "${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/include/")
-target_link_libraries(xrRender_R4 PUBLIC ${CMAKE_BINARY_DIR}/packages/directxtex_desktop_2019.2024.6.5.1/native/lib/${NUGET_PACKAGE_PLATFORM}/release/DirectXTex.lib)
 
 ## RenderDoc
 target_include_directories(xrRender_R4 PUBLIC "${RENDERDOC_API}")
@@ -108,7 +92,7 @@ target_include_directories(xrRender_R4 PUBLIC "${RENDERDOC_API}")
 #target_link_libraries(xrRender_R4 PUBLIC "${INTEL_XESS_DX11_LIB}")
 #
 #add_custom_command(TARGET ${PROJECT_NAME}
-#    POST_BUILD
-#    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTEL_XESS_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
-#    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTEL_XESS_DX11_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+#	POST_BUILD
+#	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTEL_XESS_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+#	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INTEL_XESS_DX11_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
 #)

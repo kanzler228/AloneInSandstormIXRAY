@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_animation_base.h"
 #include "control_direction_base.h"
 #include "control_movement_base.h"
@@ -153,8 +153,8 @@ bool CControlAnimationBase::get_animation_info (EMotionAnim anim, u32 index, Mot
 	else {
 		xr_strconcat(animation_name_buffer, anim_it->target_name.c_str());
 	}
-		
-	IKinematicsAnimated*	animated	=	smart_cast<IKinematicsAnimated*>(m_object->Visual());
+
+	IKinematicsAnimated*	animated	= m_object->Visual()->dcast_PKinematicsAnimated();
 	if ( !animated )
 	{
 		return								false;
@@ -241,7 +241,7 @@ void CControlAnimationBase::select_animation(bool anim_end)
 
 	// установить анимацию	
 	string128	s1,s2;
-	LPCSTR animation_name_buffer;
+	const char* animation_name_buffer;
 	if (anim_it->target_name[anim_it->target_name.size() - 1] == '_') {
 		animation_name_buffer = xr_strconcat(s2, *anim_it->target_name, itoa(index, s1, 10));
 	}
@@ -329,16 +329,16 @@ void CControlAnimationBase::CheckReplacedAnim()
 		}
 }
 
-SAAParam &CControlAnimationBase::AA_GetParams(LPCSTR anim_name)
+SAAParam &CControlAnimationBase::AA_GetParams(const char* anim_name)
 {
 	// искать текущую анимацию в AA_VECTOR
-	MotionID motion = smart_cast<IKinematicsAnimated*>(m_object->Visual())->LL_MotionID(anim_name);
+	MotionID motion = m_object->Visual()->dcast_PKinematicsAnimated()->LL_MotionID(anim_name);
 
 	for (AA_VECTOR_IT it = m_attack_anims.begin(); it != m_attack_anims.end(); it++) {
 		if (it->motion == motion) return (*it);
 	}
 	
-	VERIFY3(FALSE, "Error! No animation in AA_VECTOR! Animation = ", anim_name);
+	VERIFY3(false, "Error! No animation in AA_VECTOR! Animation = ", anim_name);
 	return (*(m_attack_anims.begin()));
 }
 
@@ -349,7 +349,7 @@ SAAParam &CControlAnimationBase::AA_GetParams(MotionID motion, float time_perc)
 		if ((it->motion == motion) && (it->time == time_perc)) return (*it);
 	}
 
-	VERIFY2(FALSE, "Error! No animation in AA_VECTOR! Animation = [UNKNOWN]");
+	VERIFY2(false, "Error! No animation in AA_VECTOR! Animation = [UNKNOWN]");
 	return (*(m_attack_anims.begin()));
 }
 
@@ -384,9 +384,9 @@ void CControlAnimationBase::FX_Play(EHitSide side, float amount)
 	if (p_str && p_str->size()) 
 	{
 		if (anim_it->fxs.may_not_exist[side])
-			smart_cast<IKinematicsAnimated*>(m_object->Visual())->PlayFX_Safe(*(*p_str), amount);
+			m_object->Visual()->dcast_PKinematicsAnimated()->PlayFX_Safe(*(*p_str), amount);
 		else
-			smart_cast<IKinematicsAnimated*>(m_object->Visual())->PlayFX(*(*p_str), amount);
+			m_object->Visual()->dcast_PKinematicsAnimated()->PlayFX(*(*p_str), amount);
 	}
 
 	fx_time_last_play = m_object->m_dwCurrentTime;
@@ -466,7 +466,7 @@ EAction CControlAnimationBase::GetActionFromPath()
 //////////////////////////////////////////////////////////////////////////
 // Debug
 
-LPCSTR CControlAnimationBase::GetAnimationName(EMotionAnim anim)
+const char* CControlAnimationBase::GetAnimationName(EMotionAnim anim)
 {
 	SAnimItem *item_it = m_anim_storage[anim];
 	VERIFY2(item_it, make_string<const char*>("animation not found in m_anim_storage!"));;
@@ -474,7 +474,7 @@ LPCSTR CControlAnimationBase::GetAnimationName(EMotionAnim anim)
 	return *item_it->target_name;
 }
 
-LPCSTR CControlAnimationBase::GetActionName(EAction action)
+const char* CControlAnimationBase::GetActionName(EAction action)
 {
 	return dbg_action_name_table[action];
 }
@@ -515,7 +515,7 @@ void CControlAnimationBase::ValidateAnimation()
 ///////////////////////////////////////////////////////////////////////////////////////
 void CControlAnimationBase::UpdateAnimCount()
 {
-	IKinematicsAnimated *skel = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	IKinematicsAnimated *skel = m_object->Visual()->dcast_PKinematicsAnimated();
 	xr_vector<u32> subjectsToDelete;
 
 	for (ANIM_ITEM_VECTOR_IT it = m_anim_storage.begin(); it != m_anim_storage.end(); it++)	{
@@ -527,7 +527,7 @@ void CControlAnimationBase::UpdateAnimCount()
 		// проверить, были ли уже загружены данные
 		if ((*it)->count != 0)
 		{
-			return;
+			continue;
 		}
 
 		string128	s, s_temp; 
@@ -535,7 +535,7 @@ void CControlAnimationBase::UpdateAnimCount()
 
 		for (int i=0; ; ++i) {
 			xr_strconcat(s_temp, *((*it)->target_name),_itoa(i,s,10));
-			LPCSTR		name	= s_temp;
+			const char*		name	= s_temp;
 			MotionID	id		= skel->ID_Cycle_Safe(name);
 
 			if (id.valid())  {
@@ -589,12 +589,12 @@ void   CControlAnimationBase::SetCurAnim (EMotionAnim a)
 CMotionDef *CControlAnimationBase::get_motion_def(SAnimItem *it, u32 index)
 {
 	string128			s1,s2;
-	IKinematicsAnimated	*skeleton_animated = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	IKinematicsAnimated	*skeleton_animated = m_object->Visual()->dcast_PKinematicsAnimated();
 	const MotionID		&motion_id = skeleton_animated->ID_Cycle_Safe(xr_strconcat(s2,*it->target_name,_itoa(index,s1,10)));
 	return				(skeleton_animated->LL_GetMotionDef(motion_id));
 }
 
-void CControlAnimationBase::AddAnimTranslation(const MotionID &motion, LPCSTR str)
+void CControlAnimationBase::AddAnimTranslation(const MotionID &motion, const char* str)
 {
 	m_anim_motion_map.insert(std::make_pair(motion, str));	
 }
@@ -624,7 +624,7 @@ MotionID CControlAnimationBase::get_motion_id(EMotionAnim a, u32 index)
 	}
 
 	string128			s1,s2;
-	return				(smart_cast<IKinematicsAnimated*>(m_object->Visual())->ID_Cycle_Safe(xr_strconcat(s2,*anim_it->target_name,_itoa(index,s1,10))));
+	return				(m_object->Visual()->dcast_PKinematicsAnimated()->ID_Cycle_Safe(xr_strconcat(s2,*anim_it->target_name,_itoa(index,s1,10))));
 }
 
 void CControlAnimationBase::stop_now()
@@ -654,22 +654,32 @@ public:
 	}
 };
 
-ICF static BOOL check_hit_trace_callback(collide::rq_result& result, LPVOID params) {
+ICF static bool check_hit_trace_callback(collide::rq_result& result, LPVOID params)
+{
 	ray_query_param* param = (ray_query_param*)params;
-	if (result.O) {
-		const CBaseMonster* monster = smart_cast<const CBaseMonster*>(result.O);
-		const CEntityAlive* entity_alive = smart_cast<const CEntityAlive*>(result.O);
+	if (result.O != nullptr)
+	{
+		const CBaseMonster* monster = result.O->cast_base_monster();
+		const CEntityAlive* entity_alive = result.O->cast_entity_alive();
 		if (monster == param->m_holder)
-			return TRUE;
+		{
+			return true;
+		}
 		else if (entity_alive == param->m_enemy)
+		{
 			param->m_can_hit_enemy = true;
+		}
 	}
-	else {
-		CDB::TRI* T = Level().ObjectSpace.GetStaticTris() + result.element;
-		if (GMLib.GetMaterialByIdx(T->material)->Flags.is(SGameMtl::flPassable))
-			return TRUE;
+	else
+	{
+		CDB::TRI& T = Level().ObjectSpace.GetStaticTris()[result.element];
+		if (GMLib.GetMaterialByIdx(T.material)->Flags.is(SGameMtl::flPassable))
+		{
+			return true;
+		}
 	}
-	return FALSE;
+
+	return false;
 }
 
 void CControlAnimationBase::check_hit(MotionID motion, float time_perc)
@@ -707,7 +717,8 @@ void CControlAnimationBase::check_hit(MotionID motion, float time_perc)
 	if (!is_angle_between(p, from, to)) 
 		should_hit = false;
 
-	const CActor* pA = smart_cast<const CActor*>(enemy);
+	CEntityAlive* not_const_enemy = const_cast<CEntityAlive*>(enemy);
+	const CActor* pA = not_const_enemy != nullptr ? not_const_enemy->cast_actor() : nullptr;
 	if (should_hit && pA) {
 		Fvector C, enemy_center;
 		m_object->Center(C);
@@ -728,7 +739,7 @@ void CControlAnimationBase::check_hit(MotionID motion, float time_perc)
 	m_object->MeleeChecker.on_hit_attempt(should_hit);
 }
 
-void parse_anim_params(LPCSTR val, SAAParam &anim) 
+void parse_anim_params(const char* val, SAAParam &anim) 
 {
 	auto ParseFloatLambda = [](const char* str, float& out)
 	{
@@ -760,37 +771,40 @@ void parse_anim_params(LPCSTR val, SAAParam &anim)
 
 }
 
-void CControlAnimationBase::AA_reload(LPCSTR section)
+void CControlAnimationBase::AA_reload(const char* section)
 {
 	if (!pSettings->section_exist(section)) return;
 
 	m_attack_anims.clear();
-	
-	SAAParam			anim;
-	LPCSTR				anim_name,val;
 
-	IKinematicsAnimated	*skel_animated = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	SAAParam anim;
+	const char* anim_name, * val;
 
-	for (u32 i=0; pSettings->r_line(section,i,&anim_name,&val); ++i) {
-		
+	IKinematicsAnimated* skel_animated = m_object->Visual()->dcast_PKinematicsAnimated();
 
-		anim.motion				= skel_animated->LL_MotionID(anim_name);
+	for (u32 i = 0; pSettings->r_line(section, i, &anim_name, &val); ++i)
+	{
+		anim.motion = skel_animated->LL_MotionID(anim_name);
 		if (!anim.motion.valid())	continue;
 
 		// check if it is compound (if there is one item, mean it as a section)
-		if (_GetItemCount(val) == 1) {
-			LPCSTR compound_section = val;
-			LPCSTR unused_line_name;
+		if (_GetItemCount(val) == 1) 
+		{
+			const char* compound_section = val;
+			const char* unused_line_name;
 
-			for (u32 k=0; pSettings->r_line(compound_section,k,&unused_line_name,&val); ++k) {
-				parse_anim_params	(val, anim);
-				
+			for (u32 k = 0; pSettings->r_line(compound_section, k, &unused_line_name, &val); ++k)
+			{
+				parse_anim_params(val, anim);
+
 				m_attack_anims.push_back(anim);
 				m_man->animation().add_anim_event(anim.motion, anim.time, CControlAnimation::eAnimationHit);
 			}
-		} else {
+		}
+		else
+		{
 			parse_anim_params(val, anim);
-			
+
 			m_attack_anims.push_back(anim);
 			m_man->animation().add_anim_event(anim.motion, anim.time, CControlAnimation::eAnimationHit);
 		}

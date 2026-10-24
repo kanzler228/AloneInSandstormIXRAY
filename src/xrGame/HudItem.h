@@ -34,10 +34,12 @@ class motion_marks;
 
 //class HudLightTorch;
 
+ENGINE_API extern float psHUD_FOV_def;
+
 class CHUDState
 {
 public:
-enum EHudStates
+enum EHudStates : u8
 {
 		eIdle = 0,
 		eShowing,
@@ -53,52 +55,52 @@ enum EHudStates
 };
 
 private:
-	u32						m_hud_item_state;
-	u32						m_nextState;
+	u8						m_hud_item_state = EHudStates::eHidden;
 	u32						m_dw_curr_state_time;
 protected:
 	u32						m_dw_curr_substate_time;
+	u8 m_nextState = EHudStates::eHidden;
 public:
 							CHUDState			()					{SetState(eHidden);}
-	IC		u32				GetNextState		() const			{return		m_nextState;}
-	IC		u32				GetState			() const			{return		m_hud_item_state;}
+	IC		u8				GetNextState		() const			{return		m_nextState;}
+	IC		u8				GetState			() const			{return		m_hud_item_state;}
 
-	IC		void			SetState			(u32 v)				{m_hud_item_state = v; m_dw_curr_state_time=Device.dwTimeGlobal;ResetSubStateTime();}
-	IC		void			SetNextState		(u32 v)				{m_nextState = v;}
+	IC		void			SetState			(u8 v)				{m_hud_item_state = v; m_dw_curr_state_time=Device.dwTimeGlobal;ResetSubStateTime();}
+	IC		virtual void	SetNextState		(u8 v)				{m_nextState = v;}
 	IC		u32				CurrStateTime		() const			{return Device.dwTimeGlobal-m_dw_curr_state_time;}
 	IC		void			ResetSubStateTime	()					{m_dw_curr_substate_time=Device.dwTimeGlobal;}
-	virtual void			SwitchState			(u32 S)				= 0;
-	virtual void			OnStateSwitch		(u32 S)				= 0;
+	virtual void			SwitchState			(u8 S)				= 0;
+	virtual void			OnStateSwitch		(u8 S)				= 0;
 };
 
-class CHudItem :public CHUDState
+class CHudItem : public CHUDState
 {
 public:
-							CHudItem			();
-	virtual					~CHudItem			();
-	virtual DLL_Pure*		_construct			();
-protected:
-	
-	Flags16					m_huditem_flags;
-	enum{
-		fl_pending			= (1<<0),
-		fl_renderhud		= (1<<1),
+	CHudItem();
+	virtual	~CHudItem() = default;
+	virtual DLL_Pure* _construct();
+
+	struct
+	{
+		const CMotionDef* m_current_motion_def = nullptr;
+		shared_str m_current_motion;
+		u32 m_dwMotionCurrTm;
+		u32 m_dwMotionStartTm;
+		u32 m_dwMotionEndTm;
+		u8 m_startedMotionState;
+		u8 m_started_rnd_anim_idx = u8(-1);
+		bool m_bStopAtEndAnimIsRunning = false;
 	};
 
-	struct{
-		const CMotionDef*		m_current_motion_def;
-		shared_str				m_current_motion;
-		u32						m_dwMotionCurrTm;
-		u32						m_dwMotionStartTm;
-		u32						m_dwMotionEndTm;
-		u32						m_startedMotionState;
-		u8						m_started_rnd_anim_idx;
-		bool					m_bStopAtEndAnimIsRunning;
-	};
+protected:
+
+	bool Pending = false;
+	virtual void switch2_Bore();
+
 public:
-	virtual void				Load				(LPCSTR section);
-	virtual void				LoadSounds			(LPCSTR section);
-	virtual	BOOL				net_Spawn			(CSE_Abstract* DC)				{return TRUE;};
+	virtual void				Load				(const char* section);
+	virtual void				LoadSounds			(const char* section);
+	virtual	bool				net_Spawn			(CSE_Abstract* DC)				{return true;};
 	virtual void				net_Destroy			()								{};
 	virtual void				OnEvent				(NET_Packet& P, u16 type);
 
@@ -107,15 +109,18 @@ public:
 	virtual void				OnH_B_Independent	(bool just_before_destroy);
 	virtual void				OnH_A_Independent	();
 	
-	virtual void				PlaySound			(LPCSTR alias, const Fvector& position, bool allowOverlap = false);
+	virtual void				PlaySound			(const char* alias, const Fvector& position, bool allowOverlap = false);
 
 	virtual bool				Action				(u16 cmd, u32 flags)			{return false;}
 			void				OnMovementChanged	(ACTOR_DEFS::EMoveCommand cmd)	;
 	
-	virtual	u8					GetCurrentHudOffsetIdx () const {return 0;}
+	virtual	EHudOffsetType		GetCurrentHudOffsetIdx () const {return EHudOffsetType::eDefault;}
 
-	BOOL						GetHUDmode			();
-	IC BOOL						IsPending			()		const					{ return !!m_huditem_flags.test(fl_pending);}
+	bool						GetHUDmode			();
+	bool						GetHUDSoundMode		();
+	IC bool IsPending() const { return Pending; }
+
+	IC virtual bool IsZoomed() const { return false; }
 
 	virtual bool				ActivateItem		();
 	virtual void				DeactivateItem		();
@@ -129,11 +134,11 @@ public:
 	bool						IsHiding			()	const		{	return GetState() == eHiding;}
 	bool						IsShowing			()	const		{	return GetState() == eShowing;}
 
-	virtual void				SwitchState			(u32 S);
-	virtual void				OnStateSwitch		(u32 S);
+	virtual void				SwitchState			(u8 S);
+	virtual void				OnStateSwitch		(u8 S);
 
-	virtual void				OnAnimationEnd		(u32 state);
-	virtual void				OnMotionMark		(u32 state, const motion_marks&);
+	virtual void				OnAnimationEnd		(u8 state);
+	virtual void				OnMotionMark		(u8 state, const motion_marks&);
 
 	virtual void				PlayAnimIdle		();
 	virtual void				PlayAnimBore		();
@@ -156,29 +161,29 @@ public:
 
 	virtual	void				UpdateXForm			()						= 0;
 
-	u32							PlayHUDMotion		(const shared_str& M, EHudMixType bMixIn, u32 state);
-	u32							PlayHUDMotion_noCB	(const shared_str& M, EHudMixType bMixIn);
+	u32							PlayHUDMotion		(const shared_str& M, EHudMixType bMixIn, u8 state, bool disableRandom = false);
+	u32							PlayHUDMotion		(const shared_str& M, const shared_str& M2, EHudMixType bMixIn, u8 state, bool disableRandom = false);
+	u32							PlayHUDMotion_noCB	(const shared_str& M, EHudMixType bMixIn, bool disableRandom);
 	void						StopCurrentAnimWithoutCallback();
-	bool						AddSuffixName		(shared_str& anim, LPCSTR suffix, LPCSTR test_suffix = "");
-	shared_str					SetCurrentIdleAnimation();
+	bool						AddSuffixName		(shared_str& anim, const char* suffix, const char* test_suffix = "");
+	virtual shared_str			SetCurrentIdleAnimation();
 	virtual shared_str			SetCurrentStateAnimation(const shared_str& first_name) { return first_name; }
 
-	IC void						RenderHud				(BOOL B)	{ m_huditem_flags.set(fl_renderhud, B);}
-	IC BOOL						RenderHud				()			{ return m_huditem_flags.test(fl_renderhud);}
 	attachable_hud_item*		HudItemData				();
 	virtual void				on_a_hud_attach			();
-	virtual bool				HudAnimationExist		(const shared_str& anim_name);
+	virtual bool				HudAnimationExist		(const shared_str& anim_name, bool only_for_actor = true);
 	virtual void				on_b_hud_detach			();
 	virtual void				render_hud_mode			()					{};
 	virtual bool				need_renderable			()					{return true;};
-	virtual void				render_item_3d_ui		()					{}
-	virtual bool				render_item_3d_ui_query	()					{return false;}
+	virtual void render_item_3d_ui();
+	virtual bool render_item_3d_ui_query();
 
 	virtual bool				CheckCompatibility		(CHudItem*)			{return true;}
 
-	void PlayBonePartAnim(const shared_str& anim, BOOL bMixIn);
+	void PlayBonePartAnim(const shared_str& anim, bool bMixIn);
 
 	virtual float GetHudFov();
+	void PlaySoundIfExist(const char* alias, const Fvector& position, bool allowOverlap);
 	virtual bool AllowBore() { return !m_bDisableBore && m_eAnimationsFlags.test(EAnimationsFlags::af_bore); }
 
 	float getLookOutSpeedKoef() const { return m_fLookOutSpeedKoef; }
@@ -187,6 +192,20 @@ public:
 
 	bool CanStartAction(CActor* pActor);
 	bool SetKeyRepeatFlag(u32 kfACTTYPE);
+
+	virtual bool NeedMovementBlend() const;
+
+	script_layer* PlayBlendAnm(const shared_str& name, float speed, float power, Fvector2 blend_factors, bool looped, bool mix, bool restart, u8 part, u8 item, u8 state);
+	void StopBlendAnm(const shared_str& name, bool Force = false);
+	void StopAllBlendAnms(bool Force = false, u8 part = 2);
+	bool IsBlendAnmActive(const shared_str& name);
+
+	virtual void OnBlendEnd(u8 state) {}
+	virtual void OnBlendStart(u8 state) {}
+
+	bool UseBlendMovement() const { return m_bBlendMovement; }
+
+	SBlendParams m_sMovementBlendParams[EMovementLayers::eLayersCount];
 
 	enum EDevicesFlags
 	{
@@ -197,7 +216,7 @@ public:
 		df_laser = (1 << 4),
 	};
 
-	enum EAnimationsFlags
+	enum EAnimationsFlags : u64
 	{
 		af_torch = (1 << 0),
 		af_nvg = (1 << 1),
@@ -219,11 +238,18 @@ public:
 		af_kick = (1 << 17),
 		af_mag_check = (1 << 18),
 		af_firemode_check = (1 << 19),
-
+		af_chamber_load = (1 << 20),
+		af_chamber_unload = (1 << 21),
+		af_chamber_check = (1 << 22),
 		af_det_hand_shoot = (1 << 23),
 		af_det_hand_dry = (1 << 24),
 		af_det_hand_jammed = (1 << 25),
 		af_det_hand_lightmis = (1 << 26),
+		af_det_hand_firemode = (1 << 27),
+		af_safemode_in_out = (1 << 28),
+		af_sprint = (1 << 29),
+		af_moving = (1 << 30),
+		af_alt_kick = (1u << 31),
 	};
 
 	enum EBPAnimsFlags : u64
@@ -249,25 +275,19 @@ public:
 		sf_reload_jam_det = (1 << 10),
 		sf_reload_jam_last = (1 << 11),
 		sf_reload_jam_last_det = (1 << 12),
-		sf_shoot_actor = (1 << 13),
-		sf_shoot_actor_last = (1 << 14),
-		sf_shoot_last = (1 << 15),
-		sf_shoot_actor_sil = (1 << 16),
-		sf_shoot_last_sil = (1 << 17),
-		sf_shoot_actor_last_sil = (1 << 18),
-		sf_draw = (1 << 19),
-		sf_holster = (1 << 20),
-		sf_throw_begin = (1 << 21),
-		sf_throw = (1 << 22),
-		sf_kick = (1 << 23),
-		sf_grenade_change = (1 << 24),
-		sf_shoot_grenade_actor = (1 << 25),
-		sf_switch_g = (1 << 26),
-		sf_reload_change = (1 << 27),
-		sf_tacticaltorch = (1 << 28),
-		sf_laser = (1 << 29),
-		sf_breechblock = (1 << 30),
-		sf_jam = (1 << 31),
+		sf_draw = (1 << 13),
+		sf_holster = (1 << 14),
+		sf_throw_begin = (1 << 15),
+		sf_throw = (1 << 16),
+		sf_kick = (1 << 17),
+		sf_grenade_change = (1 << 18),
+		sf_switch_g = (1 << 19),
+		sf_reload_change = (1 << 20),
+		sf_tacticaltorch = (1 << 21),
+		sf_laser = (1 << 22),
+		sf_breechblock = (1 << 23),
+		sf_jam = (1 << 24),
+		sf_throw_cancel = (1ull << 25),
 	};
 
 	enum ESoundsFlags2 : u64
@@ -288,10 +308,22 @@ public:
 		sf_holster_jam_w_gl = (1 << 13),
 		sf_draw_jam_g = (1 << 14),
 		sf_holster_jam_g = (1 << 15),
+		sf_chamber_check_empty = (1 << 16),
+		sf_pump_aim = (1 << 17),
+		sf_pump_last = (1 << 18),
+		sf_pump_aim_last = (1 << 19),
+		sf_pump_empty = (1 << 20),
+		sf_pump_aim_empty = (1 << 21),
+		sf_bore_empty = (1 << 22),
+		sf_bore_jammed = (1 << 23),
+		sf_sprint_start = (1 << 24),
+		sf_sprint_end = (1 << 25),
+		sf_safemode_in_out = (1 << 26),
+		sf_mag_shot = (1u << 27),
 	};
 
 	Flags32 m_eDevicesFlags;
-	Flags32 m_eAnimationsFlags;
+	Flags64 m_eAnimationsFlags;
 	Flags32 m_eBonePartAnimationsFlags;
 	Flags64 m_eSoundsFlags;
 	Flags64 m_eSoundsFlags2;
@@ -299,7 +331,7 @@ public:
 	bool bDisablePrepareAnimation = false;
 
 	virtual bool WpnCanShoot() const { return false; }
-	bool SoundExist(LPCSTR section, LPCSTR sound_name);
+	bool SoundExist(const char* section, const char* sound_name);
 
 	struct jitter_params
 	{
@@ -309,10 +341,23 @@ public:
 	} m_jitter_params;
 
 	jitter_params& GetCurJitterParams() { return m_jitter_params; }
+	THudLightTorch* GetHudLight();
+
+	float ControllerTime = 0.0f;
+	bool ProhibitSuicide = true;
+
+	bool m_disable_random_animations = false;
+
+	Fmatrix ScriptUIMatrix = Fidentity;
+	shared_str ScriptUIBone;
+	shared_str ScriptUIFunctor;
+	CUIWindow* ScriptWindow = nullptr;
+
+	bool m_bSwitchSprint = false;
 
 protected:
 
-	IC		void				SetPending			(BOOL H)			{ m_huditem_flags.set(fl_pending, H);}
+	IC void SetPending(bool H) { Pending = H; }
 	shared_str					hud_sect;
 	shared_str					hud_sect_cache;
 
@@ -325,23 +370,29 @@ protected:
 	HUD_SOUND_COLLECTION		m_sounds;
 	HUD_SOUND_COLLECTION_LAYERED m_layered_sounds;
 	InertionData				m_current_inertion;
-	HudLightTorch				m_HudLight;
-	float						m_nearwall_dist_max;
-	float						m_nearwall_dist_min;
-	float						m_nearwall_last_hud_fov;
-	float						m_nearwall_target_hud_fov;
-	float						m_nearwall_speed_mod;
 	float						m_fHudFov;
 	float						m_fHudFovFactor;
 	float						m_fLookOutSpeedKoef = 1.0f;
 	float						m_fLookOutAmplK = 1.0f;
 	float						m_fActorCamSpeedFactor = 1.0f;
 
-	bool						m_bDisableBore;
-	bool						m_bSwitchSprint = false;
+	struct SHudYPRParams
+	{
+		float m_fHudYawInertiaK = 0.0f;
+		float m_fHudPitchInertiaK = 0.0f;
+		float m_fHudRollInertiaK = 0.0f;
+		float m_fHudInertiaSpeed = 10.0f;
+	} BaseYPRParams, ZoomYPRParams;
 
-	virtual void				SetModelBoneStatus(const char* bone, BOOL show);
-	virtual void				SetMultipleBonesStatus(const char* section, const char* line, BOOL show);
+	float						m_fHudYawInertia = 0.0f;
+	float						m_fHudPitchInertia = 0.0f;
+	float						m_fHudRollInertia = 0.0f;
+
+	bool						m_bDisableBore;
+	bool						m_bBlendMovement = false;
+
+	virtual void				SetModelBoneStatus(const char* bone, bool show);
+	virtual void				SetMultipleBonesStatus(const char* section, const char* line, bool show);
 
 private:
 	CPhysicItem					*m_object;
@@ -374,6 +425,8 @@ public:
 	virtual CInventoryItem* cast_inventory_item() { return nullptr; }
 	virtual CPhysicsShellHolder* cast_physics_shell_holder() { return nullptr; }
 	virtual CPhysicItem* cast_physics_item() { return nullptr; }
+	virtual CWeaponShotgun* cast_weapon_shotgun() { return nullptr; }
+	virtual float GetAimFactor() const { return 0.0f; }
 
 protected:
 	DECLARE_SCRIPT_REGISTER_FUNCTION

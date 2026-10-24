@@ -14,6 +14,7 @@
 using namespace luabind;
 
 #pragma optimize("s",on)
+template<>
 void CActionPlannerAction<CScriptGameObject>::script_register(lua_State *L)
 {
 	module(L)
@@ -21,7 +22,7 @@ void CActionPlannerAction<CScriptGameObject>::script_register(lua_State *L)
 		class_<CScriptActionPlannerAction, bases<CScriptActionPlanner, CScriptActionBase>, CScriptActionPlannerActionWrapper>("planner_action")
 			.def(								constructor<>())
 			.def(								constructor<CScriptGameObject*>())
-			.def(								constructor<CScriptGameObject*,LPCSTR>())
+			.def(								constructor<CScriptGameObject*,const char*>())
 			.def("setup",						&CScriptActionPlannerAction::setup,			&CScriptActionPlannerActionWrapper::setup_static)
 			.def("initialize",					&CScriptActionPlannerAction::initialize,	&CScriptActionPlannerActionWrapper::initialize_static)
 			.def("execute",						&CScriptActionPlannerAction::execute,		&CScriptActionPlannerActionWrapper::execute_static)

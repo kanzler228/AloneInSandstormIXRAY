@@ -2,7 +2,7 @@
 #include "game_sv_item_respawner.h"
 #include "game_sv_base.h"
 #include "Level.h"
-#include "xrServer_Objects_Alife_Items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include <functional>
 
 item_respawn_manager::spawn_item::spawn_item()
@@ -114,14 +114,16 @@ CSE_Abstract* item_respawn_manager::make_respawn_entity(shared_str const & secti
 	temp_entity->ID_Parent			=	0xffff;								// no-parent
 	temp_entity->ID_Phantom			=	0xffff;								// no-phantom
 	temp_entity->RespawnTime		=	0;									// no-respawn
-	CSE_ALifeItemWeapon*	pWeapon	=	smart_cast<CSE_ALifeItemWeapon*>(temp_entity);
+	CSE_ALifeItemWeapon* pWeapon = temp_entity->cast_item_weapon();
 	
 	if (pWeapon)
 	{
-		pWeapon->a_elapsed	= pWeapon->get_ammo_magsize();
+		pWeapon->a_elapsed.MagazineElapsed = pWeapon->get_ammo_magsize();
 		
-		if (count_of_ammo < pWeapon->a_elapsed)
-			pWeapon->a_elapsed = count_of_ammo;
+		if (count_of_ammo < pWeapon->a_elapsed.MagazineElapsed)
+		{
+			pWeapon->a_elapsed.MagazineElapsed = count_of_ammo;
+		}
 
 		pWeapon->m_addon_flags.assign(addons);
 	};
@@ -203,7 +205,7 @@ item_respawn_manager::respawn_section_iter
 	item_respawn_manager::load_respawn_section(shared_str const & section_name)
 {
 	string_path				fn;
-	FS.update_path			(fn,"$game_config$", "mp\\respawn_items.ltx");
+	FS.update_path			(fn,_game_config_, "mp\\respawn_items.ltx");
 	CInifile				ini(fn);
 
 	u32 sections_count = _GetItemCount(section_name.c_str());
@@ -358,7 +360,7 @@ void item_respawn_manager::clear_level_items()
 #ifndef MASTER_GOLD
 		Msg("---Destroying level item [%d] before respawn...", *i);
 #endif // #ifndef MASTER_GOLD
-		m_server->Perform_destroy(entity, net_flags(TRUE,TRUE));
+		m_server->Perform_destroy(entity, net_flags(true,true));
 	}
 	level_items_respawn.clear();
 }

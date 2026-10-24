@@ -18,11 +18,13 @@
 #include "CaptureBoneCallback.h"
 #include "Level.h"
 #include "PhysicsShellHolder.h"
+#include "Actor.h"
 #ifdef DEBUG
 #include "PHDebug.h"
 #endif
 
 #include "../Include/xrRender/Kinematics.h"
+#include "../xrScripts/script_callback_ex.h"
 
 #define GROUND_FRICTION	10.0f
 #define AIR_FRICTION	0.01f
@@ -64,7 +66,7 @@ CPHMovementControl::CPHMovementControl(CObject* parent)
 	fLastMotionMag = 1.f;
 	SetPathDir(Fvector().set(0, 0, 1));
 
-	bIsAffectedByGravity = TRUE;
+	bIsAffectedByGravity = true;
 	fActualVelocity = 0;
 	m_fGroundDelayFactor = 1.f;
 	gcontact_HealthLost = 0;
@@ -73,6 +75,7 @@ CPHMovementControl::CPHMovementControl(CObject* parent)
 	fAirControlParam = 0.f;
 	m_character = nullptr;
 	m_dwCurBox = 0xffffffff;
+	m_lastSpeedCrashDamageTime = 0;
 	fCollisionDamageFactor = 1.f;
 	in_dead_area_count = 0;
 	bNonInteractiveMode = false;
@@ -158,7 +161,10 @@ void CPHMovementControl::Calculate(Fvector& vAccel, const Fvector& camDir, float
 	m_character->SetAcceleration(vAccel);
 
 	if (!fis_zero(jump))
+	{
+		m_character->SetJupmUpVelocity(jump);
 		m_character->Jump(vAccel);
+	}
 
 	m_character->GetSavedVelocity(vVelocity);
 	fActualVelocity = vVelocity.magnitude();
@@ -199,12 +205,55 @@ void CPHMovementControl::UpdateCollisionDamage( )
 
 // calc new
 	gcontact_Power				= fContactSpeed/fMaxCrashSpeed;
-	if (fContactSpeed>fMinCrashSpeed) 
+	if (fContactSpeed > fMinCrashSpeed) 
 	{
-			gcontact_HealthLost = 
-			((fContactSpeed-fMinCrashSpeed))/(fMaxCrashSpeed-fMinCrashSpeed);
+			bool applyHighSpeedProtection = false;
+			bool isFallSequence = true;
+			if (CActor* actor = smart_cast<CActor*>(m_character->PhysicsRefObject()))
+			{
+				applyHighSpeedProtection = !fis_zero(actor->GetArtefactMovementSpeedModifier());
+				if (applyHighSpeedProtection)
+				{
+					const u32 moveState = actor->GetMovementState(ACTOR_DEFS::EMovementStates::eReal);
+					isFallSequence = !!(moveState & (ACTOR_DEFS::mcJump | ACTOR_DEFS::mcFall | ACTOR_DEFS::mcLanding | ACTOR_DEFS::mcLanding2));
+				}
+			}
+
+			if (applyHighSpeedProtection)
+			{
+				Fvector currentVelocity = {};
+				m_character->GetVelocity(currentVelocity);
+
+				const bool isStrongDownwardVelocity = currentVelocity.y < -2.0f;
+				if (!isFallSequence && !isStrongDownwardVelocity)
+				{
+					gcontact_HealthLost = 0.0f;
+					gcontact_Power = 0.0f;
+					return;
+				}
+
+				if (Device.dwTimeGlobal < (m_lastSpeedCrashDamageTime + 250))
+				{
+					gcontact_HealthLost = 0.0f;
+					gcontact_Power = 0.0f;
+					return;
+				}
+
+				m_lastSpeedCrashDamageTime = Device.dwTimeGlobal;
+			}
+
+			gcontact_HealthLost = ((fContactSpeed - fMinCrashSpeed)) / (fMaxCrashSpeed - fMinCrashSpeed);
+
 			VERIFY( m_character );
 			m_character->SetHitType( DefineCollisionHitType( m_character->LastMaterialIDX() ) );
+
+			if (m_character->PhysicsRefObject() == Actor())
+			{
+				Actor()->callback(GameObject::eFallHit)(
+					gcontact_HealthLost,
+					gcontact_Power
+				);
+			}
 	}
 }
 
@@ -219,7 +268,7 @@ bool CPHMovementControl::MakeJumpPath(xr_vector<DetailPathManager::STravelPathPo
 	if ( !m_character->JumpState() )
 		return					false;
 
-	CBaseMonster * monster	=	smart_cast<CBaseMonster *>(pObject);
+	CBaseMonster* monster = pObject != nullptr ? pObject->cast_base_monster() : nullptr;
 	if ( !monster )
 		return					false;
 
@@ -802,7 +851,7 @@ void CPHMovementControl::SetActorRestrictorRadius(ERestrictionType rt, float r)
 		(m_character)->SetRestrictorRadius(rt, r);
 }
 
-void CPHMovementControl::Load(LPCSTR section)
+void CPHMovementControl::Load(const char* section)
 {
 	Fbox	bb;
 
@@ -1053,7 +1102,7 @@ void CPHMovementControl::GetJumpParam(Fvector& velocity, JumpType& type, const F
 		return;
 	}
 	float rise_time = velosity.y / physics_world()->Gravity();
-	if (_abs(rise_time - time) < EPS_L)
+	if (std::abs(rise_time - time) < EPS_L)
 	{
 		type = jtHigh;
 	}
@@ -1117,7 +1166,7 @@ void CPHMovementControl::UnFreeze()
 		m_character->UnFreeze();
 }
 
-void CPHMovementControl::ActivateBox(DWORD id, BOOL Check/*false*/)
+void CPHMovementControl::ActivateBox(DWORD id, bool Check/*false*/)
 {
 	if (Check && (m_dwCurBox == id))
 		return;
@@ -1155,18 +1204,18 @@ void CPHMovementControl::ApplyHit(const Fvector& dir,const float P,ALife::EHitTy
 	{
 		switch(hit_type)
 		{
-			case ALife::eHitTypeBurn  :												;//stop
 			case ALife::eHitTypeShock :												;//stop
 			case ALife::eHitTypeStrike:												;//stop
 			case ALife::eHitTypeWound:			SetVelocity(Fvector().set(0,0,0))	; break; // stop							;
 			case ALife::eHitTypeLightBurn  :										;//not stop
+			case ALife::eHitTypeBurn:												;//not stop
 			case ALife::eHitTypeRadiation:											;//not stop
 			case ALife::eHitTypeTelepatic:											;//not stop
 			case ALife::eHitTypeChemicalBurn:										;break;//not stop
 			case ALife::eHitTypeExplosion:											;//stop
 			case ALife::eHitTypeFireWound:											;//stop
 			case ALife::eHitTypeWound_2:											;break;//stop		//knife's alternative fire
-//			case ALife::eHitTypePhysicStrike:	SetVelocity(Fvector().set(0,0,0))	;break;//stop
+			case ALife::eHitTypePhysicStrike:	SetVelocity(Fvector().set(0,0,0))	;break;//stop
 			default:																NODEFAULT	;
 		}
 	}
@@ -1206,10 +1255,10 @@ struct STraceBorderQParams
 	{
 		m_movement = movement;
 	}
-	STraceBorderQParams& operator = (STraceBorderQParams& p) { VERIFY(FALSE); return p; }
+	STraceBorderQParams& operator = (STraceBorderQParams& p) { VERIFY(false); return p; }
 };
 
-BOOL CPHMovementControl::BorderTraceCallback(collide::rq_result& result, LPVOID params)
+bool CPHMovementControl::BorderTraceCallback(collide::rq_result& result, LPVOID params)
 {
 	STraceBorderQParams& p = *(STraceBorderQParams*)params;
 	u16 mtl_idx = GAMEMTL_NONE_IDX;
@@ -1222,7 +1271,7 @@ BOOL CPHMovementControl::BorderTraceCallback(collide::rq_result& result, LPVOID 
 	else
 	{
 		//получить треугольник и узнать его материал
-		T = Level().ObjectSpace.GetStaticTris() + result.element;
+		T = &Level().ObjectSpace.GetStaticTris()[result.element];
 		mtl_idx = T->material;
 	}
 
@@ -1232,7 +1281,7 @@ BOOL CPHMovementControl::BorderTraceCallback(collide::rq_result& result, LPVOID 
 	if (mtl->Flags.test(SGameMtl::flInjurious))
 	{
 		Fvector tri_norm;
-		GetNormal(T, tri_norm, Level().ObjectSpace.GetStaticVerts());
+		GetNormal(T, tri_norm, Level().ObjectSpace.GetStaticVerts().data());
 
 		if (p.m_dir.dotproduct(tri_norm) < 0.f)
 			p.m_movement->in_dead_area_count++;
@@ -1283,7 +1332,7 @@ void CPHMovementControl::UpdateObjectBox(CPHCharacter* ach)
 	Fvector2 plane_cam; plane_cam.set(Device.vCameraDirection.x, Device.vCameraDirection.z); plane_cam.normalize_safe();
 	Fvector2 plane_i; plane_i.set(pObject->XFORM().i.x, pObject->XFORM().i.z);
 	Fvector2 plane_k; plane_k.set(pObject->XFORM().k.x, pObject->XFORM().k.z);
-	float R = _abs(poses_dir.dotproduct(plane_i) * cbox.x) + _abs(poses_dir.dotproduct(plane_k) * cbox.z);
+	float R = std::abs(poses_dir.dotproduct(plane_i) * cbox.x) + std::abs(poses_dir.dotproduct(plane_k) * cbox.z);
 
 	R *= poses_dir.dotproduct(plane_cam);
 	Calculate(Fvector().set(0, 0, 0), Fvector().set(1, 0, 0), 0, 0, 0, 0);
@@ -1296,11 +1345,11 @@ void CPHMovementControl::SetPathDir(const Fvector& v)
 {
 	_vPathDir = v;
 
-	if (_abs(_vPathDir.x) > 1000 || _abs(_vPathDir.y) > 1000 || _abs(_vPathDir.z) > 1000)
+	if (std::abs(_vPathDir.x) > 1000 || std::abs(_vPathDir.y) > 1000 || std::abs(_vPathDir.z) > 1000)
 	{
 		Log("_vPathDir", _vPathDir);
 	}
-	VERIFY2(_abs(_vPathDir.x) < 1000, " incorrect SetPathDir ");
+	VERIFY2(std::abs(_vPathDir.x) < 1000, " incorrect SetPathDir ");
 
 }
 
@@ -1330,14 +1379,14 @@ void CPHMovementControl::VirtualMoveTo( const Fvector	&in_pos, Fvector &out_pos 
 			character_->SetObjectContactCallback(virtual_move_collide_callback);
 			character_->SetObjectContactCallbackData( static_cast<CPHObject*> (character) );
 			character_->SwitchOFFInitContact();
-			character_->SetApplyGravity( FALSE );
+			character_->SetApplyGravity( false );
 		}
 
 		~ph_character_state_save()
 		{
 			character_->SetObjectContactCallback(saved_callback_);
 			character_->SwitchInInitContact();
-			character_->SetApplyGravity( TRUE );
+			character_->SetApplyGravity( true );
 			character_->SetObjectContactCallbackData( 0 );
 			character_->set_State( sv_state );
 		}
@@ -1475,7 +1524,7 @@ u16	CPHMovementControl::injurious_material_idx()
 	return m_character->InjuriousMaterialIDX();
 }
 
-void	CPHMovementControl::SetApplyGravity(BOOL flag)
+void	CPHMovementControl::SetApplyGravity(bool flag)
 {
 	bIsAffectedByGravity = flag;
 	if (m_character && m_character->b_exist)
@@ -1520,7 +1569,7 @@ float		CPHMovementControl::FootRadius()
 	else
 		return 0.f;
 }
-void		CPHMovementControl::CollisionEnable(BOOL enable)
+void		CPHMovementControl::CollisionEnable(bool enable)
 {
 	if (!m_character || !m_character->b_exist)
 		return;
@@ -1531,7 +1580,7 @@ void		CPHMovementControl::CollisionEnable(BOOL enable)
 
 }
 
-void CPHMovementControl::CollisionDynamicEnable(BOOL enable)
+void CPHMovementControl::CollisionDynamicEnable(bool enable)
 {
 	if (!m_character || !m_character->b_exist)
 		return;

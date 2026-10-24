@@ -7,44 +7,50 @@
 #include "xrDeflectorDefs.h"
 #include "embree_raytracing/EmbreeRayTrace.h"
 
-class  base_lighting;
- 
-class CDeflector;
+// se7kills: Packed Task pool
+#include "cuda/xrCuda_PackedLights.h"
 
-extern EmbreeData EmbreeMain;
-  
-class execute_statistics;
+class  base_lighting;
+extern EmbreeRayTraceModel EmbreeMain;
+class  execute_statistics;
+
 class XRLC_LIGHT_API CDeflector
 {
-
 public:
- 	xr_vector<UVtri>			UVpolys;
-	Fvector						normal;
-	lm_layer					layer;
-	Fsphere						Sphere;
-	
-	BOOL						bMerged;
-public:
-
-						CDeflector					();
+   	bool bMerged			= false;
  
- 						~CDeflector					();
-static	CDeflector*		read_create					();	
+	Fvector				normal;
+ 	xr_vector<UVtri>	UVpolys;
+
+	lm_layer			layer;
+	Fsphere				Sphere;
+
+public:
+
+	CDeflector					();
+  	~CDeflector					();
+ 
+	void clear_memory() 
+	{
+		UVpolys.clear();
+		UVpolys.shrink_to_fit();
+
+		layer.clear_memory();
+	};
 
 	void	OA_SetNormal		(Fvector &_N )	{ normal.set(_N); normal.normalize(); VERIFY(_valid(normal)); }
-	BOOL	OA_Place			(Face *owner);
+	bool	OA_Place			(Face *owner);
 	void	OA_Place			(vecFace& lst);
 	void	OA_Export			();
 		
 	void	GetRect				(Fvector2 &min, Fvector2 &max);
 	u32		GetFaceCount()		{ return (u32)UVpolys.size();	};
 		
-	void	Light				(CDB::COLLIDER* DB, base_lighting* LightsSelected, HASH& H	);
-	void	L_Direct			(CDB::COLLIDER* DB, base_lighting* LightsSelected, HASH& H  );
-	void	L_Direct_Edge		(CDB::COLLIDER* DB, base_lighting* LightsSelected, Fvector2& p1, Fvector2& p2, Fvector& v1, Fvector& v2, Fvector& N, float texel_size, Face* skip);
-	void	L_Calculate			(CDB::COLLIDER* DB, base_lighting* LightsSelected, HASH& H  );
+	void	Light				(  base_lighting* LightsSelected);
+	void	L_Direct			(  base_lighting* LightsSelected);
+ 
 	u32		weight				() { return layer.Area(); }	
-	u16	GetBaseMaterial		() ;
+	u16		GetBaseMaterial		() ;
 
 	void	Bounds				(u32 ID, Fbox2& dest)
 	{
@@ -54,6 +60,7 @@ static	CDeflector*		read_create					();
 		dest.modify		(TC.uv[1]);
 		dest.modify		(TC.uv[2]);
 	}
+	
 	void	Bounds_Summary		(Fbox2& bounds)
 	{
 		bounds.invalidate();
@@ -64,8 +71,9 @@ static	CDeflector*		read_create					();
 			bounds.merge(B);
 		}
 	}
-	void	RemapUV				(xr_vector<UVtri>& dest, u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, BOOL bRotate);
-	void	RemapUV				(u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, BOOL bRotate);
+
+	void	RemapUV				(xr_vector<UVtri>& dest, u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, bool bRotate);
+	void	RemapUV				(u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, bool bRotate);
  	
 	bool	similar				( const CDeflector &D, float eps =EPS ) const;
 
@@ -77,6 +85,34 @@ static	CDeflector*		read_create					();
 
 		return sizeof(*this) + STri + SLMLayer;
 	}
+
+	size_t size_of_lm()
+	{
+		size_t SLMLayer = layer.memory_lmap();
+		return SLMLayer;
+	}
+
+	size_t size_of_tris()
+	{
+		size_t STri = UVpolys.capacity() * sizeof(UVtri);
+		return STri;
+	}
+ 
+	// Stage 1
+	void LightGPU();
+	void L_DirectGPU();
+
+	// cuda recvest color reciver
+	u32 ProcessedUVColors;
+	bool ApplyColors();
+ 	void ApplyColor(size_t INDEX, base_color_c& C);
+ 
+	// Stage 2
+ 	void ApplyExpandBordersGPU();
+
+
+	// Clearing Memory
+	void DealocateMemory() { layer.clear_memory(); };
 };
 
 
@@ -88,21 +124,10 @@ extern XRLC_LIGHT_API void		blit			(lm_layer& dst, u32 ds_x, u32 ds_y, lm_layer&
 extern void		blit_r			(u32* dest,		u32 ds_x, u32 ds_y, u32* src,		u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF);
 extern XRLC_LIGHT_API void		blit_r			(lm_layer& dst, u32 ds_x, u32 ds_y, lm_layer& src,	u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF);
 extern void		lblit			(lm_layer& dst, lm_layer& src, u32 px, u32 py, u32 aREF);
-extern XRLC_LIGHT_API void		LightPoint		(CDB::COLLIDER* DB, CDB::MODEL* MDL, base_color_c &C, Fvector &P, Fvector &N, base_lighting& lights, u32 flags, Face* skip);
-extern XRLC_LIGHT_API BOOL		ApplyBorders	(lm_layer &lm, u32 ref);
-extern XRLC_LIGHT_API void		DumpDeflctor	( u32 id );
-extern XRLC_LIGHT_API void		DumpDeflctor	( const CDeflector &d );
-extern XRLC_LIGHT_API void		DeflectorsStats ();
-extern XRLC_LIGHT_API void		DumpDeflctor	( u32 id );
 
 
-extern XRLC_LIGHT_API u32 c_LMAP_size;			// pixels
+extern void UpdateCurrentPhase(LPCSTR text);
 
-
-extern XRLC_LIGHT_API void setLMSIZE(int size);
-
-extern XRLC_LIGHT_API u32 getLMSIZE();
-
-#define rms_zero	((4+g_params().m_lm_rms_zero)/2)
-#define rms_shrink	((8+g_params().m_lm_rms)/2)
- 
+extern XRLC_LIGHT_API void		LightPoint	(EmbreeRayTraceModel& MDL, base_color_c& C, Fvector& P, Fvector& N, base_lighting& lights, u32 flags, Face* skip);
+void LightPoint_Jitters(xr_vector<JiterPixel>& world_pos, base_lighting& lights, u32 flags);
+void LightPoint_Details(xr_vector<DetailsTask>& world_pos, base_lighting& lights, u32 flags);

@@ -3,12 +3,16 @@
 #include "xr_level_controller.h"
 #include "../xrCore/FormatParsers/XML/xrXMLParser.h"
 #include "XR_IOConsole.h"
+#include "IGame_UICustom.h"
+#include "IGame_Menu.h"
+#include "IGame_Persistent.h"
+#include "xr_input.h"
 
 ENGINE_API CStringTable* g_pStringTable = nullptr;
 
 STRING_TABLE_DATA* CStringTable::pData = nullptr;
 xr_vector<xr_token> CStringTable::languages_token;
-BOOL CStringTable::m_bWriteErrorsToLog = FALSE;
+bool CStringTable::m_bWriteErrorsToLog = false;
 
 CStringTable::CStringTable	()
 {
@@ -42,7 +46,7 @@ inline static shared_str FillLanguages()
 {
 	FS_FileSet langSet = {};
 	string_path path = {};
-	FS.update_path(path, "$game_config$", "");
+	FS.update_path(path, _game_config_, "");
 	xr_sprintf(path, "%s%s", path, "text\\");
 	FS.file_list(langSet, path, FS_ListFolders | FS_RootOnly);
 
@@ -130,10 +134,10 @@ void CStringTable::Init		()
 	string_path exclude_files_mask = {};
 
 	xr_sprintf(files_mask, "text\\%s\\*.xml", pData->m_sLanguage.c_str());
-	FS.file_list(fset, "$game_config$", FS_ListFiles, files_mask);
+	FS.file_list(fset, _game_config_, FS_ListFiles, files_mask);
 
 	xr_sprintf(exclude_files_mask, "text\\%s\\mod_*.xml", pData->m_sLanguage.c_str());
-	FS.file_list(efset, "$game_config$", FS_ListFiles, exclude_files_mask);
+	FS.file_list(efset, _game_config_, FS_ListFiles, exclude_files_mask);
 
 	for (const FS_File& File : fset)
 	{
@@ -155,10 +159,10 @@ void CStringTable::Init		()
 		FS_FileSet fallback_efset;
 
 		xr_sprintf(files_mask, "text\\%s\\*.xml", pData->m_sFallbackLanguage.c_str());
-		FS.file_list(fallback_fset, "$game_config$", FS_ListFiles, files_mask);
+		FS.file_list(fallback_fset, _game_config_, FS_ListFiles, files_mask);
 
 		xr_sprintf(exclude_files_mask, "text\\%s\\mod_*.xml", pData->m_sFallbackLanguage.c_str());
-		FS.file_list(fallback_efset, "$game_config$", FS_ListFiles, exclude_files_mask);
+		FS.file_list(fallback_efset, _game_config_, FS_ListFiles, exclude_files_mask);
 
 		for (const FS_File& File : fallback_fset)
 		{
@@ -176,7 +180,7 @@ void CStringTable::Init		()
 	ReparseKeyBindings();
 }
 
-void CStringTable::Load	(LPCSTR xml_file_full)
+void CStringTable::Load	(const char* xml_file_full)
 {
 	CXml						uiXml;
 	string_path					_s;
@@ -189,7 +193,7 @@ void CStringTable::Load	(LPCSTR xml_file_full)
 
 	for(int i=0; i<string_num; ++i)
 	{
-		LPCSTR string_name = uiXml.ReadAttrib(uiXml.GetRoot(), "string", i, "id", nullptr);
+		const char* string_name = uiXml.ReadAttrib(uiXml.GetRoot(), "string", i, "id", nullptr);
 
 		bool isDublicate = pData->m_StringTable.find(string_name) != pData->m_StringTable.end();
 		if (isDublicate)
@@ -198,7 +202,7 @@ void CStringTable::Load	(LPCSTR xml_file_full)
 			Msg("! duplicate string table id: %s", string_name);
 		}
 
-		LPCSTR string_text		= uiXml.Read(uiXml.GetRoot(), "string:text", i,  nullptr);
+		const char* string_text		= uiXml.Read(uiXml.GetRoot(), "string:text", i,  nullptr);
 
 		if(m_bWriteErrorsToLog && string_text)
 			Msg("[string table] '%s' no translation in '%s'", string_name, pData->m_sLanguage.c_str() );
@@ -208,10 +212,16 @@ void CStringTable::Load	(LPCSTR xml_file_full)
 		STRING_VALUE str_val		= ParseLine(string_text, string_name, true);
 		
 		pData->m_StringTable[string_name] = str_val;
+		const char* gamepad_text = uiXml.Read(uiXml.GetRoot(), "string:text_gamepad", i, nullptr);
+		if (gamepad_text)
+		{
+			STRING_VALUE str_val = ParseLine(gamepad_text, string_name, true, true);
+			pData->m_StringTableGamepad[string_name] = str_val;
+		}
 	}
 }
 
-void CStringTable::LoadFallback	(LPCSTR xml_file_full)
+void CStringTable::LoadFallback	(const char* xml_file_full)
 {
 	CXml						uiXml;
 	string_path					_s;
@@ -224,7 +234,7 @@ void CStringTable::LoadFallback	(LPCSTR xml_file_full)
 
 	for(int i=0; i<string_num; ++i)
 	{
-		LPCSTR string_name = uiXml.ReadAttrib(uiXml.GetRoot(), "string", i, "id", nullptr);
+		const char* string_name = uiXml.ReadAttrib(uiXml.GetRoot(), "string", i, "id", nullptr);
 
 		bool isDublicate = pData->m_FallbackStringTable.find(string_name) != pData->m_FallbackStringTable.end();
 		if (isDublicate)
@@ -233,7 +243,7 @@ void CStringTable::LoadFallback	(LPCSTR xml_file_full)
 			Msg("! duplicate fallback string table id: %s", string_name);
 		}
 
-		LPCSTR string_text		= uiXml.Read(uiXml.GetRoot(), "string:text", i,  nullptr);
+		const char* string_text		= uiXml.Read(uiXml.GetRoot(), "string:text", i,  nullptr);
 
 		if(m_bWriteErrorsToLog && string_text)
 			Msg("[fallback string table] '%s' no translation in '%s'", string_name, pData->m_sFallbackLanguage.c_str() );
@@ -256,6 +266,18 @@ void CStringTable::ReparseKeyBindings()
 	{
 		pData->m_StringTable[key.first] = ParseLine(*key.second, *key.first, false);
 	}
+	for (auto& key : pData->m_string_key_binding_gamepad)
+	{
+		pData->m_StringTableGamepad[key.first] = ParseLine(*key.second, *key.first, false);
+	}
+	if (g_pGameCustom)
+	{
+		g_pGameCustom->ReloadGamepadLegends();
+	}
+	if (g_pGamePersistent && g_pGamePersistent->m_pMainMenu && g_pGamePersistent->m_pMainMenu->IsActive())
+	{
+		g_pGamePersistent->m_pMainMenu->ReloadLegend();
+	}
 }
 
 void CStringTable::ReloadLanguage(const char* lang)
@@ -276,10 +298,10 @@ void CStringTable::ReloadLanguage(const char* lang)
 	string_path exclude_files_mask = {};
 
 	xr_sprintf(files_mask, "text\\%s\\*.xml", pData->m_sLanguage.c_str());
-	FS.file_list(fset, "$game_config$", FS_ListFiles, files_mask);
+	FS.file_list(fset, _game_config_, FS_ListFiles, files_mask);
 
 	xr_sprintf(exclude_files_mask, "text\\%s\\mod_*.xml", pData->m_sLanguage.c_str());
-	FS.file_list(efset, "$game_config$", FS_ListFiles, exclude_files_mask);
+	FS.file_list(efset, _game_config_, FS_ListFiles, exclude_files_mask);
 
 	for (const FS_File& File : fset)
 	{
@@ -301,10 +323,10 @@ void CStringTable::ReloadLanguage(const char* lang)
 		FS_FileSet fallback_efset;
 
 		xr_sprintf(files_mask, "text\\%s\\*.xml", pData->m_sFallbackLanguage.c_str());
-		FS.file_list(fallback_fset, "$game_config$", FS_ListFiles, files_mask);
+		FS.file_list(fallback_fset, _game_config_, FS_ListFiles, files_mask);
 
 		xr_sprintf(exclude_files_mask, "text\\%s\\mod_*.xml", pData->m_sFallbackLanguage.c_str());
-		FS.file_list(fallback_efset, "$game_config$", FS_ListFiles, exclude_files_mask);
+		FS.file_list(fallback_efset, _game_config_, FS_ListFiles, exclude_files_mask);
 
 		for (const FS_File& File : fallback_fset)
 		{
@@ -331,9 +353,9 @@ xr_string CStringTable::LangName()
 	return pData->m_sLanguage.c_str();
 }
 
-STRING_VALUE CStringTable::ParseLine(LPCSTR str, LPCSTR skey, bool bFirst)
+STRING_VALUE CStringTable::ParseLine(const char* str, const char* skey, bool bFirst, bool isGamepad)
 {
-//	LPCSTR str = "1 $$action_left$$ 2 $$action_right$$ 3 $$action_left$$ 4";
+//	const char* str = "1 $$action_left$$ 2 $$action_right$$ 3 $$action_left$$ 4";
 	xr_string			res;
 	int k = 0;
 	const char*			b;
@@ -371,7 +393,17 @@ STRING_VALUE CStringTable::ParseLine(LPCSTR str, LPCSTR skey, bool bFirst)
 		res.append(str+k);
 	}
 
-	if(b_hit&&bFirst) pData->m_string_key_binding[skey] = str;
+	if (b_hit && bFirst)
+	{
+		if (isGamepad)
+		{
+			pData->m_string_key_binding_gamepad[skey] = str;
+		}
+		else
+		{
+			pData->m_string_key_binding[skey] = str;
+		}
+	}
 
 	return STRING_VALUE(res.c_str());
 }
@@ -381,9 +413,17 @@ STRING_VALUE CStringTable::translate (const STRING_ID& str_id) const
 	if(pData != nullptr)
 	{
 		// First try to find in main language
-		if(pData->m_StringTable.find(str_id)!=pData->m_StringTable.end())
-			return  pData->m_StringTable[str_id];
-			
+		if (pData->m_StringTable.find(str_id) != pData->m_StringTable.end())
+		{
+			if (pInput->GetControllerMode() && pData->m_StringTableGamepad.contains(str_id))
+			{
+				return pData->m_StringTableGamepad[str_id];
+			}
+			else
+			{
+				return pData->m_StringTable[str_id];
+			}
+		}
 		// If not found and fallback table exists, try fallback language
 		if(pData->m_FallbackStringTable.find(str_id)!=pData->m_FallbackStringTable.end())
 			return  pData->m_FallbackStringTable[str_id];
@@ -391,4 +431,29 @@ STRING_VALUE CStringTable::translate (const STRING_ID& str_id) const
 	
 	// If not found in either table, return the original string ID
 	return str_id;
+}
+
+// St4lker0k765: Enhanced Edition-style parsing for tasks, etc
+STRING_VALUE CStringTable::ParseStringFromScript(STRING_ID input)
+{
+	xr_string out = "";
+	if (!input.size())
+	{
+		return STRING_VALUE(out.c_str());
+	}
+	std::stringstream stringStream(input.c_str());
+	xr_string line;
+	while (std::getline(stringStream, line))
+	{
+		size_t prev = 0, pos;
+		while ((pos = line.find_first_of("#", prev)) != xr_string::npos)
+		{
+			if (pos > prev)
+				out += translate(line.substr(prev, pos - prev).c_str()).c_str();
+			prev = pos + 1;
+		}
+		if (prev < line.length())
+			out += translate(line.substr(prev, xr_string::npos).c_str()).c_str();
+	}
+	return STRING_VALUE(out.c_str());
 }

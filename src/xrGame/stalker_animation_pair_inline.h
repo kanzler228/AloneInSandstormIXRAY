@@ -12,7 +12,6 @@ IC	CStalkerAnimationPair::CStalkerAnimationPair	(CAI_Stalker* object) :
 	m_object					(object),
 	m_step_dependence			(false),
 	m_global_animation			(false),
-	m_callback_on_collision		(false),
 	m_target_matrix				(0)
 #ifdef DEBUG
 	,m_object_name				("unassigned"),
@@ -57,7 +56,7 @@ IC	bool CStalkerAnimationPair::step_dependence		() const
 }
 
 #ifdef DEBUG
-IC	void CStalkerAnimationPair::set_dbg_info		(LPCSTR object_name, LPCSTR animation_type_name)
+IC	void CStalkerAnimationPair::set_dbg_info		(const char* object_name, const char* animation_type_name)
 {
 	m_object_name				= object_name;
 	m_animation_type_name		= animation_type_name;
@@ -104,16 +103,6 @@ IC	void CStalkerAnimationPair::remove_callback		(const CALLBACK_ID &callback)
 IC	bool CStalkerAnimationPair::need_update			() const
 {
 	return						(!m_callbacks.empty());
-}
-
-IC	void CStalkerAnimationPair::callback_on_collision	(bool const &value)
-{
-	m_callback_on_collision		= value;
-}
-
-IC	bool CStalkerAnimationPair::callback_on_collision	() const
-{
-	return						(m_callback_on_collision);
 }
 
 IC	void CStalkerAnimationPair::target_matrix			()

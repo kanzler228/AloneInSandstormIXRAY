@@ -5,10 +5,8 @@
 //	Author		: Dmitriy Iassenev
 //	Description : ALife Simulator
 ////////////////////////////////////////////////////////////////////////////
-
 #pragma once
-
-#include "alife_interaction_manager.h"
+#include "alife_combat_manager.h"
 #include "alife_update_manager.h"
 #include "../xrScripts/script_export_space.h"
 
@@ -17,21 +15,17 @@
 
 class CALifeSimulator : 
 	public CALifeUpdateManager,
-	public CALifeInteractionManager
+	public CALifeCombatManager
 {
 protected:
 	virtual void	setup_simulator		(CSE_ALifeObject *object);
-	virtual void	reload				(LPCSTR section);
+	virtual void	reload				(const char* section);
 
 public:
 					CALifeSimulator		(xrServer *server, shared_str* command_line);
 	virtual			~CALifeSimulator	();
 	virtual	void	destroy				();
 	IReader const* get_config			( shared_str config ) const;
-
-#if 0//def DEBUG
-			void	validate			();
-#endif //DEBUG
 
 private:
 	typedef xr_list< std::pair<shared_str,IReader*> >	configs_type;
@@ -40,6 +34,3 @@ private:
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
 #pragma warning(pop)
-
-
-#include "alife_simulator_inline.h"

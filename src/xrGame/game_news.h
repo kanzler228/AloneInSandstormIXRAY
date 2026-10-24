@@ -8,11 +8,13 @@
 
 struct GAME_NEWS_DATA : public IPureSerializeObject<IReader,IWriter>
 {	
-	enum eNewsType
+	enum ENewsKind : u8
 	{
 		eNews = 0,
 		eTalk = 1
-	} m_type;
+	};
+
+	ENewsKind m_type;
 						GAME_NEWS_DATA		();
 
 	virtual void		load				(IReader&);
@@ -26,6 +28,7 @@ struct GAME_NEWS_DATA : public IPureSerializeObject<IReader,IWriter>
 	ALife::_TIME_ID		receive_time;
 
 	shared_str			texture_name;
+	Frect				tex_rect;
 private:
 };
 

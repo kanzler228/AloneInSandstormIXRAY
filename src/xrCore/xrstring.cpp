@@ -4,11 +4,10 @@
 #include "xrstring.h"
 
 #include "FS_impl.h"
-
-xr_vector<xr_string> xr_string::Split(char splitCh) const
+void xr_string::Split(xr_vector<xr_string>& splitted_vec, char splitCh) const
 {
-	xr_vector<xr_string> Result;
-
+	splitted_vec.clear();
+	splitted_vec.reserve(32);
 	u32 SubStrBeginCursor = 0;
 	u32 Len = 0;
 
@@ -20,12 +19,12 @@ xr_vector<xr_string> xr_string::Split(char splitCh) const
 			if ((StrCursor - SubStrBeginCursor) > 0)
 			{
 				Len = StrCursor - SubStrBeginCursor;
-				Result.emplace_back(&at(SubStrBeginCursor), Len);
+				splitted_vec.emplace_back(&at(SubStrBeginCursor), Len);
 				SubStrBeginCursor = StrCursor + 1;
 			}
 			else
 			{
-				Result.emplace_back("");
+				splitted_vec.emplace_back("");
 				SubStrBeginCursor = StrCursor + 1;
 			}
 		}
@@ -34,12 +33,18 @@ xr_vector<xr_string> xr_string::Split(char splitCh) const
 	if (StrCursor > SubStrBeginCursor)
 	{
 		Len = StrCursor - SubStrBeginCursor;
-		Result.emplace_back(xr_string(&at(SubStrBeginCursor), Len));
+		splitted_vec.emplace_back(&at(SubStrBeginCursor), Len);
 	}
+}
+
+xr_vector<xr_string> xr_string::Split(char splitCh) const
+{
+	xr_vector<xr_string> Result;
+	Split(Result, splitCh);
 	return Result;
 }
 
-xr_string::xr_string(LPCSTR Str, u32 Size)
+xr_string::xr_string(const char* Str, u32 Size)
 	: Super(Str, Size)
 {
 }
@@ -49,12 +54,12 @@ xr_string::xr_string(Super&& other)
 {
 }
 
-xr_string::xr_string(LPCSTR Str)
+xr_string::xr_string(const char* Str)
 	: Super(Str)
 {
 }
 
-xr_string& xr_string::operator=(LPCSTR Str) 
+xr_string& xr_string::operator=(const char* Str) 
 {
 	Super::operator=(Str);
 	return *this;
@@ -131,13 +136,13 @@ bool xr_string::StartWith(const xr_string& Other) const
 }
 
 
-bool xr_string::StartWith(LPCSTR Str) const 
+bool xr_string::StartWith(const char* Str) const 
 {
 	u32 StrLen = xr_strlen(Str);
 	return StartWith(Str, (int)StrLen);
 }
 
-bool xr_string::StartWith(LPCSTR Str, size_t Size) const 
+bool xr_string::StartWith(const char* Str, size_t Size) const 
 {
 	size_t OurSize = size();
 
@@ -178,7 +183,7 @@ xr_string xr_string::ToString(int Value)
 	string64 buf = { 0 };
 	itoa(Value, &buf[0], 10);
 
-	return std::move(xr_string(buf));
+	return xr_string(buf);
 }
 
 xr_string xr_string::ToString(unsigned int Value)
@@ -186,7 +191,7 @@ xr_string xr_string::ToString(unsigned int Value)
 	string64 buf = { 0 };
 	sprintf(buf, "%u", Value);
 
-	return std::move(xr_string(buf));
+	return xr_string(buf);
 }
 
 xr_string xr_string::ToString(float Value) 

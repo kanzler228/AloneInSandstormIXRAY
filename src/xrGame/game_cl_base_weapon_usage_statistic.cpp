@@ -63,7 +63,7 @@ void			HitData::net_load	(NET_Packet* P, victims_table const & vt, bone_table co
 	Completed = true;
 };
 
-Weapon_Statistic::Weapon_Statistic(LPCSTR Name)
+Weapon_Statistic::Weapon_Statistic(const char* Name)
 {
 	WName = Name;
 	InvName = nullptr;
@@ -79,8 +79,7 @@ Weapon_Statistic::Weapon_Statistic(LPCSTR Name)
 	ZeroMemory(m_Basket, sizeof(m_Basket));
 };
 
-Weapon_Statistic::~Weapon_Statistic()
-{};
+Weapon_Statistic::~Weapon_Statistic() = default;
 
 u32 const Weapon_Statistic::net_packet_size = 5*sizeof(u32);
 void Weapon_Statistic::net_save(NET_Packet* P, victims_table const & vt, bone_table const & bt)
@@ -294,7 +293,7 @@ void bone_table::net_load(NET_Packet* P)
 
 
 
-Player_Statistic::Player_Statistic(LPCSTR Name)
+Player_Statistic::Player_Statistic(const char* Name)
 {
 	PName					= Name;
 	PID						= 0;
@@ -433,7 +432,7 @@ WeaponUsageStatistic::~WeaponUsageStatistic()
 	m_dwLastRequestSenderID			= 0;
 };
 
-bool WeaponUsageStatistic::GetPlayer(LPCSTR PlayerName, PLAYERS_STATS_it& pPlayerI)
+bool WeaponUsageStatistic::GetPlayer(const char* PlayerName, PLAYERS_STATS_it& pPlayerI)
 {
 	statistic_sync_quard syncg(m_mutex);
 	pPlayerI	= std::find(aPlayersStatistic.begin(), aPlayersStatistic.end(), PlayerName);
@@ -442,7 +441,7 @@ bool WeaponUsageStatistic::GetPlayer(LPCSTR PlayerName, PLAYERS_STATS_it& pPlaye
 	return true;
 }
 
-PLAYERS_STATS_it WeaponUsageStatistic::FindPlayer(LPCSTR PlayerName)
+PLAYERS_STATS_it WeaponUsageStatistic::FindPlayer(const char* PlayerName)
 {
 	statistic_sync_quard syncg(m_mutex);
 	PLAYERS_STATS_it pPlayerI;
@@ -457,7 +456,7 @@ PLAYERS_STATS_it WeaponUsageStatistic::FindPlayer(LPCSTR PlayerName)
 	return pPlayerI;
 };
 
-void WeaponUsageStatistic::ChangePlayerName( LPCSTR from, LPCSTR to )
+void WeaponUsageStatistic::ChangePlayerName( const char* from, const char* to )
 {
 	statistic_sync_quard syncg(m_mutex);
 	if ( !CollectData() ) return;
@@ -465,7 +464,7 @@ void WeaponUsageStatistic::ChangePlayerName( LPCSTR from, LPCSTR to )
 	pPlayerI->PName = to;
 }
 
-WEAPON_STATS_it	Player_Statistic::FindPlayersWeapon	(LPCSTR WeaponName)
+WEAPON_STATS_it	Player_Statistic::FindPlayersWeapon	(const char* WeaponName)
 {
 	R_ASSERT(WeaponName);
 	WEAPON_STATS_it pWeaponI = std::find(aWeaponStats.begin(), aWeaponStats.end(), WeaponName);
@@ -512,7 +511,7 @@ void WeaponUsageStatistic::RemoveBullet(ABULLETS_it& Bullet_it)
 	ActiveBullets.pop_back();
 }
 
-void WeaponUsageStatistic::OnWeaponBought(game_PlayerState* ps, LPCSTR WeaponName)
+void WeaponUsageStatistic::OnWeaponBought(game_PlayerState* ps, const char* WeaponName)
 {
 	statistic_sync_quard syncg(m_mutex);
 	if (!CollectData()) return;
@@ -546,7 +545,7 @@ void WeaponUsageStatistic::OnBullet_Fire(SBullet* pBullet, const CCartridge& car
 	if (!object_weapon) return;
 	CObject					*object_parent = Level().Objects.net_Find(pBullet->parent_id);
 	if (!object_parent) return;
-	CActor* pActor = smart_cast<CActor*>(object_parent);
+	CActor* pActor = object_parent->cast_actor();
 	if (!pActor) return;
 	//-----------------------------------------------------------------------------------
 	PLAYERS_STATS_it PlayerIt = FindPlayer(*object_parent->cName());
@@ -578,7 +577,7 @@ void WeaponUsageStatistic::OnBullet_Hit(SBullet* pBullet, u16 TargetID, s16 elem
 		//---------------------------
 		CObject					*pTarget = Level().Objects.net_Find(TargetID);
 		if (!pTarget) return;
-		CActor* pActor = smart_cast<CActor*>(pTarget);
+		CActor* pActor = pTarget->cast_actor();
 		if (!pActor) return;
 		//---------------------------
 		BulletData& BD = *BulletIt;
@@ -592,7 +591,7 @@ void WeaponUsageStatistic::OnBullet_Hit(SBullet* pBullet, u16 TargetID, s16 elem
 		NewHit.Pos0 = BD.Bullet.bullet_pos;
 		NewHit.Pos1 = HitLocation;
 		NewHit.TargetName = pTarget->cName();
-		NewHit.BoneName = smart_cast<IKinematics*>(pTarget->Visual())->LL_BoneName_dbg(element);
+		NewHit.BoneName = PKinematics(pTarget->Visual())->LL_BoneName_dbg(element);
 		NewHit.count = 1;
 		//---------------------------
 		WeaponIt->add_hit(NewHit);
@@ -657,17 +656,16 @@ void WeaponUsageStatistic::Send_Check_Respond()
 	if (!OnServer()) return;
 	NET_Packet P;
 	string1024 STrue, SFalse;
-	for (u32 i=0; i<m_Requests.size(); i++)
+
+	for (u32 i = 0; i < m_Requests.size(); i++)
 	{
 		Bullet_Check_Array& BChA_Request = m_Requests[i];
 		if (BChA_Request.Requests.empty()) continue;
-		Bullet_Check_Respond_True* pSTrue = (Bullet_Check_Respond_True*) STrue;
-		u32* pSFalse = (u32*) SFalse;
-		//-----------------------------------------------------
-		u32 NumFalse = 0;
-		u32 NumTrue = 0;
-		u32 j=0;
-		while (j<BChA_Request.Requests.size())
+		Bullet_Check_Respond_True* pSTrue = (Bullet_Check_Respond_True*)STrue;
+		u32* pSFalse = (u32*)SFalse;
+		u32 j = 0;
+
+		while (j < BChA_Request.Requests.size())
 		{
 			Bullet_Check_Request& curBChR = BChA_Request.Requests[j];
 			if (!curBChR.Processed)
@@ -677,38 +675,32 @@ void WeaponUsageStatistic::Send_Check_Respond()
 			}
 			else
 			{
-				if (curBChR.Result) 
+				if (curBChR.Result)
 				{
 					pSTrue->BulletID = curBChR.BulletID;
 					pSTrue->BoneID = curBChR.BoneID;
-					pSTrue++;				
-//					HitChecksRespondedTrue++;
-					NumTrue++;
+					pSTrue++;
 				}
-				else 
+				else
 				{
 					*(pSFalse++) = curBChR.BulletID;
-//					HitChecksRespondedFalse++;
-					NumFalse++;
 				};
-//				HitChecksResponded++;
-				//-----------------------------------------------------
-				*(BChA_Request.Requests.begin()+j) = BChA_Request.Requests.back();
+				*(BChA_Request.Requests.begin() + j) = BChA_Request.Requests.back();
 				BChA_Request.Requests.pop_back();
 			}
 		}
 		//-----------------------------------------------------
-		P.w_begin(M_BULLET_CHECK_RESPOND);		
-//		Msg("%d-%d || %d-%d", NumFalse, BChA_Request.NumFalse, NumTrue, BChA_Request.NumTrue);
+		P.w_begin(M_BULLET_CHECK_RESPOND);
+
 		P.w_u8(BChA_Request.NumFalse);		BChA_Request.NumFalse = 0;
 		P.w_u8(BChA_Request.NumTrue);		BChA_Request.NumTrue = 0;
 
-		if ((char*)pSFalse != (char*)SFalse) P.w(SFalse, u32((char*)pSFalse-(char*)SFalse));
-		if ((char*)pSTrue != (char*)STrue) P.w(STrue, u32((char*)pSTrue-(char*)STrue));
+		if ((char*)pSFalse != (char*)SFalse) P.w(SFalse, u32((char*)pSFalse - (char*)SFalse));
+		if ((char*)pSTrue != (char*)STrue) P.w(STrue, u32((char*)pSTrue - (char*)STrue));
 		//-----------------------------------------------------
 		ClientID ClID; ClID.set(BChA_Request.SenderID);
-		if(Level().Server) Level().Server->SendTo(ClID, P);
-	};
+		if (Level().Server) Level().Server->SendTo(ClID, P);
+	}
 }
 
 void WeaponUsageStatistic::On_Check_Respond(NET_Packet* P)
@@ -758,7 +750,7 @@ void WeaponUsageStatistic::On_Check_Respond(NET_Packet* P)
 			CObject* pObj				= Level().Objects.net_Find(HData.TargetID);
 			
 			if (pObj)
-				HData.BoneName			= smart_cast<IKinematics*>(pObj->Visual())->LL_BoneName_dbg(BoneID);
+				HData.BoneName			= PKinematics(pObj->Visual())->LL_BoneName_dbg(BoneID);
 		}
 		//---------------------------------------------------------------
 		RemoveBullet(BulletIt);

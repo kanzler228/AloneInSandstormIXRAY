@@ -55,7 +55,6 @@ public:
 
 	CMatrix			()
 	{
-		Memory.mem_fill	(this,0,sizeof(CMatrix));
 	}
 
 	IC void			tc_trans	(Fmatrix& T, float u, float v)
@@ -66,16 +65,16 @@ public:
 	}
 	void			Calculate	();
 
-	IC	BOOL		Similar		(CMatrix& M)		// comare by modes and params
+	IC	bool		Similar		(CMatrix& M)		// comare by modes and params
 	{
-		if (dwMode!=M.dwMode)				return FALSE;
-		if (tcm!=M.tcm)						return FALSE;
-		if (!scaleU.Similar(M.scaleU))		return FALSE;
-		if (!scaleV.Similar(M.scaleV))		return FALSE;
-		if (!rotate.Similar(M.rotate))		return FALSE;
-		if (!scrollU.Similar(M.scrollU))	return FALSE;
-		if (!scrollV.Similar(M.scrollV))	return FALSE;
-		return TRUE;
+		if (dwMode!=M.dwMode)				return false;
+		if (tcm!=M.tcm)						return false;
+		if (!scaleU.Similar(M.scaleU))		return false;
+		if (!scaleV.Similar(M.scaleV))		return false;
+		if (!rotate.Similar(M.rotate))		return false;
+		if (!scrollU.Similar(M.scrollU))	return false;
+		if (!scrollV.Similar(M.scrollV))	return false;
+		return true;
 	}
 
 	void			Load		(IReader* fs);

@@ -36,7 +36,7 @@ DLL_Pure* CAttachableItem::_construct()
 CAttachableItem::~CAttachableItem()
 {}
 
-void CAttachableItem::reload(LPCSTR section)
+void CAttachableItem::reload(const char* section)
 {
 #ifdef DEBUG
 	m_valid = true;
@@ -48,17 +48,19 @@ void CAttachableItem::reload(LPCSTR section)
 	}
 }
 
-bool CAttachableItem::load_attach_position(LPCSTR section)
+bool CAttachableItem::load_attach_position(const char* section)
 {
 	if (!pSettings->line_exist(section, "attach_angle_offset"))
 	{
 		return false;
 	}
 
-	Fvector angle_offset = pSettings->r_fvector3(section, "attach_angle_offset");
-	Fvector position_offset = pSettings->r_fvector3(section, "attach_position_offset");
-	m_offset.setHPB(VPUSH(angle_offset));
-	m_offset.c.set(position_offset);
+	m_offset_rotation = pSettings->r_fvector3(section, "attach_angle_offset");
+	m_offset_position = pSettings->r_fvector3(section, "attach_position_offset");
+
+	m_offset.setHPB(VPUSH(m_offset_rotation));
+	m_offset.translate_over(m_offset_position);
+
 	m_bone_name = pSettings->r_string(section, "attach_bone_name");
 	return true;
 }
@@ -147,13 +149,13 @@ void CAttachableItem::afterDetach()
 	object().processing_deactivate();
 }
 
-#ifndef MASTER_GOLD
 float ATT_ITEM_MOVE_CURR = 0.01f;
 float ATT_ITEM_ROT_CURR = 0.1f;
 
 float ATT_ITEM_MOVE_STEP = 0.001f;
 float ATT_ITEM_ROT_STEP = 0.01f;
 
+#ifndef MASTER_GOLD
 void attach_adjust_mode_keyb(int dik)
 {
 	if (!CAttachableItem::m_dbgItem)

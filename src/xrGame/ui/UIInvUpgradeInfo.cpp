@@ -6,7 +6,7 @@
 //	Description : inventory upgrade UI info window class implementation
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "UIInvUpgradeInfo.h"
 #include "../../xrEngine/string_table.h"
@@ -29,7 +29,7 @@ UIInvUpgradeInfo::UIInvUpgradeInfo()
 	m_legacy_mode = isLegacyUpgrade;
 }
 
-void UIInvUpgradeInfo::init_from_xml(LPCSTR xml_name)
+void UIInvUpgradeInfo::init_from_xml(const char* xml_name)
 {
 	CUIXml ui_xml;
 	ui_xml.Load(CONFIG_PATH, UI_PATH, xml_name);
@@ -42,13 +42,13 @@ void UIInvUpgradeInfo::init_from_xml(LPCSTR xml_name)
 	xml_init.InitWindow(ui_xml, "main_frame", 0, this);
 
 	m_background = UIHelper::CreateFrameWindow(ui_xml, "background_frame", this);
-	m_name = UIHelper::CreateTextWnd(ui_xml, "info_name", this);
+	m_name = UIHelper::CreateStatic(ui_xml, "info_name", this);
 
 	if (ui_xml.NavigateToNode("info_cost"))
-		m_cost = UIHelper::CreateTextWnd(ui_xml, "info_cost", this);
+		m_cost = UIHelper::CreateStatic(ui_xml, "info_cost", this);
 
-	m_desc = UIHelper::CreateTextWnd(ui_xml, "info_desc", this);
-	m_prereq = UIHelper::CreateTextWnd(ui_xml, "info_prerequisites", this);
+	m_desc = UIHelper::CreateStatic(ui_xml, "info_desc", this);
+	m_prereq = UIHelper::CreateStatic(ui_xml, "info_prerequisites", this);
 
 	m_properties_wnd = new UIInvUpgPropertiesWnd();
 	AttachChild(m_properties_wnd);
@@ -88,8 +88,8 @@ bool UIInvUpgradeInfo::init_upgrade(Upgrade_type* upgr, CInventoryItem* inv_item
 		m_properties_wnd->Show(true);
 		if (m_cost)
 		{
-			luabind::functor<LPCSTR> cost_func;
-			pcstr cost_func_str = "inventory_upgrades.get_upgrade_cost";
+			luabind::functor<const char*> cost_func;
+			const char* cost_func_str = "inventory_upgrades.get_upgrade_cost";
 			R_ASSERT2(ai().script_engine().functor(cost_func_str, cost_func), "Failed to get cost");
 			m_cost->SetText(cost_func(m_upgrade->section()));
 			m_cost->Show(true);
@@ -102,7 +102,7 @@ bool UIInvUpgradeInfo::init_upgrade(Upgrade_type* upgr, CInventoryItem* inv_item
 		}
 
 		string512 str_res{};
-		auto set_result_string = [&](pcstr desc, bool add = false)
+		auto set_result_string = [&](const char* desc, bool add = false)
 			{
 				if (m_legacy_mode)
 				{
@@ -230,8 +230,9 @@ bool UIInvUpgradeInfo::init_upgrade(Upgrade_type* upgr, CInventoryItem* inv_item
 	Fvector2 new_size;
 	new_size.x = GetWndSize().x;
 	new_size.y = m_properties_wnd->GetWndPos().y + m_properties_wnd->GetWndSize().y + 10.0f;
-	SetWndSize(new_size);
 	m_background->SetWndSize(new_size);
+
+	SetWndSize(new_size);
 
 	return true;
 }

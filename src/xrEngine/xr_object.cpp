@@ -23,6 +23,11 @@ inline void CObjectList::o_crow		(CObject*	O)
 	O->dwFrame_AsCrow			= Device.dwFrame;
 }
 
+void CObject::OnRainCollide(Fvector rainCollisionPosition)
+{
+	return;
+}
+
 void CObject::MakeMeCrow			()
 {
 	if ( Props.crow )
@@ -48,6 +53,21 @@ void CObject::MakeMeCrow			()
 	g_pGameLevel->Objects.o_crow	(this);
 }
 
+bool CObject::IsFocused() const
+{
+	return g_pGameLevel->CurrentEntity() == this;
+}
+
+bool CObject::IsMyCamera() const
+{
+	return g_pGameLevel->CurrentViewEntity() == this;
+}
+
+bool CObject::isLocalPlayer() const
+{
+	return g_pGameLevel->CurrentControlEntity() == this;
+}
+
 void CObject::cName_set			(shared_str N)
 { 
 	NameObject	=	N; 
@@ -64,86 +84,96 @@ void CObject::cNameVisual_set	(shared_str N)
 		if (N==NameVisual)		return;
 
 	// replace model
-	if (*N && N[0]) 
+	if (*N && N[0])
 	{
-		IRenderVisual			*old_v = renderable.visual;
-		
-		NameVisual				= N;
-		renderable.visual		= Render->model_Create	(*N);
-		
-		IKinematics* old_k	= old_v?old_v->dcast_PKinematics():nullptr;
-		IKinematics* new_k	= renderable.visual->dcast_PKinematics();
+		IRenderVisual* old_v = renderable.visual;
+		NameVisual = N;
+		renderable.visual = Render->model_Create(*N);
 
-		/*
-		if(old_k && new_k){
-			new_k->Update_Callback			= old_k->Update_Callback;
-			new_k->Update_Callback_Param	= old_k->Update_Callback_Param;
-		}
-		*/
-		if(old_k && new_k)
+		if (IKinematics* new_k = renderable.visual->dcast_PKinematics())
 		{
-			new_k->SetUpdateCallback(old_k->GetUpdateCallback());
-			new_k->SetUpdateCallbackParam(old_k->GetUpdateCallbackParam());
+			new_k->SetParentObjectId(ID());
+
+			if (IKinematics* old_k = old_v ? old_v->dcast_PKinematics() : nullptr)
+			{
+				new_k->SetUpdateCallback(old_k->GetUpdateCallback());
+				new_k->SetUpdateCallbackParam(old_k->GetUpdateCallbackParam());
+				old_k->SetParentObjectId(ALife::_OBJECT_ID(-1));
+			}
 		}
 
-		::Render->model_Delete	(old_v);
+		if (old_v)
+		{
+			::Render->model_Delete(old_v);
+		}
 	} 
 	else 
 	{
-		::Render->model_Delete	(renderable.visual);
+		::Render->model_Delete(renderable.visual);
 		NameVisual				= 0;
 	}
-	OnChangeVisual				();
+	OnChangeVisual();
 }
 
 // flagging
-void CObject::processing_activate	()
+void CObject::processing_activate()
 {
-	VERIFY3	(255!= Props.bActiveCounter, "Invalid sequence of processing enable/disable calls: overflow",*cName());
-	Props.bActiveCounter			++;
-	if (0==(Props.bActiveCounter-1))	g_pGameLevel->Objects.o_activate	(this);
-}
-void CObject::processing_deactivate	()
-{
-	VERIFY3	(0	!= Props.bActiveCounter, "Invalid sequence of processing enable/disable calls: underflow",*cName());
-	Props.bActiveCounter			--;
-	if (0==Props.bActiveCounter)		g_pGameLevel->Objects.o_sleep		(this);
+	Props.bActiveCounter++;
+	if (0 == (Props.bActiveCounter - 1))
+	{
+		g_pGameLevel->Objects.o_activate(this);
+	}
 }
 
-void CObject::setEnabled(BOOL _enabled)
+void CObject::processing_deactivate()
+{
+	if (Props.bActiveCounter == 0)
+	{
+		return;
+	}
+
+	Props.bActiveCounter--;
+
+	if (0 == Props.bActiveCounter)
+	{
+		g_pGameLevel->Objects.o_sleep(this);
+	}
+}
+
+void CObject::setEnabled(bool _enabled)
 {
 	if (Props.bDestroy) return;
 	if (_enabled)
 	{
 		Props.bEnabled = 1;	
 		if (collidable.model)
-			SpatialComponent->spatial.type |= STYPE_COLLIDEABLE;
+			SpatialComponent->type |= ESPATIAL_TYPE::COLLIDEABLE;
 	}
 	else
 	{
 		Props.bEnabled = 0;
-		SpatialComponent->spatial.type &= ~STYPE_COLLIDEABLE;
+		SpatialComponent->type &= ~ESPATIAL_TYPE::COLLIDEABLE;
 	}
 }
 
-void CObject::setVisible(BOOL _visible, BOOL _visibleshadow)
+void CObject::setVisible(bool _visible, bool _visibleshadow)
 {
 	if (Props.bDestroy) return;
 	if (_visible)
 	{ // Parent should control object visibility itself (??????)
 		Props.bVisible = 1;
 		if (renderable.visual)
-			SpatialComponent->spatial.type |= STYPE_RENDERABLE;
+			SpatialComponent->type |= ESPATIAL_TYPE::RENDERABLE;
 	}
 	else
 	{
 		Props.bVisible = 0;
-		SpatialComponent->spatial.type &= ~STYPE_RENDERABLE;
+		SpatialComponent->type &= ~ESPATIAL_TYPE::RENDERABLE;
 	}
 	if (_visibleshadow)
-		SpatialComponent->spatial.type |= STYPE_RENDERABLESHADOW;
+		SpatialComponent->type |= ESPATIAL_TYPE::RENDERABLESHADOW;
 	else
-		SpatialComponent->spatial.type &= ~STYPE_RENDERABLESHADOW;
+		SpatialComponent->type &= ~ESPATIAL_TYPE::RENDERABLESHADOW;
 }
 
 //void	CObject::Center					(Fvector& C)	const	{ VERIFY2(renderable.visual,*cName()); renderable.xform.transform_tiny(C,renderable.visual->vis.sphere.P);	}
@@ -182,7 +212,7 @@ CObject::~CObject				( )
 	cNameSect_set				( 0 );
 }
 
-void CObject::Load				(LPCSTR section )
+void CObject::Load				(const char* section )
 {
 	// Name
 	R_ASSERT					(section);
@@ -201,11 +231,11 @@ void CObject::Load				(LPCSTR section )
 	}
 	setVisible					(false);
 
-	SpatialComponent->spatial.ssa_dyn_factor = READ_IF_EXISTS(pSettings, r_float, section, "ssa_dyn_factor", 0.002f);// минимальный размер на экране при котором объект еще будет виден
-	SpatialComponent->spatial.ssa_d_cam = READ_IF_EXISTS(pSettings, r_float, section, "ssa_d_cam", 220.f);//дистанция в совокупности с fov на которой еще видно объект
+	SpatialComponent->ssa_dyn_factor = READ_IF_EXISTS(pSettings, r_float, section, "ssa_dyn_factor", 0.002f);// минимальный размер на экране при котором объект еще будет виден
+	SpatialComponent->ssa_d_cam = READ_IF_EXISTS(pSettings, r_float, section, "ssa_d_cam", 220.f);//дистанция в совокупности с fov на которой еще видно объект
 }
 
-BOOL CObject::net_Spawn			(CSE_Abstract* data)
+bool CObject::net_Spawn			(CSE_Abstract* data)
 {
 	PositionStack.clear			();
 
@@ -221,7 +251,7 @@ BOOL CObject::net_Spawn			(CSE_Abstract* data)
 		}
 	}
 
-	VERIFY(SpatialComponent->spatial.space);
+	VERIFY(SpatialComponent->space);
 
 	spatial_register			();
 
@@ -234,20 +264,29 @@ BOOL CObject::net_Spawn			(CSE_Abstract* data)
 
 	MakeMeCrow					();
 
-	return TRUE					;
+	return true					;
 }
 
-void CObject::net_Destroy		()
+void CObject::net_Destroy()
 {
-	VERIFY						(getDestroy());
-	xr_delete					(collidable.model);
-	if (register_schedule())
-		shedule_unregister		();
+	VERIFY(getDestroy());
 
-	spatial_unregister			();
-//	setDestroy					(true);
-	// remove visual
-	cNameVisual_set				( 0 );
+	std::erase_if(g_pGameLevel->scheduled_tasks, [&](const IGame_Level::ScheduledCallbackItem& item)
+	{
+		return item.item_ptr == this;
+	});
+
+	PositionStack.clear();
+	xr_delete(collidable.model);
+
+	if (register_schedule())
+	{
+		shedule_unregister();
+	}
+
+	spatial_unregister();
+	processing_deactivate();
+	cNameVisual_set(0);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -257,11 +296,11 @@ void	CObject::spatial_update		(float eps_P, float eps_R)
 {
 	if (Props.bDestroy) return;
 	//
-	BOOL	bUpdate=FALSE;
+	bool	bUpdate=false;
 	if (PositionStack.empty())
 	{
 		// Empty
-		bUpdate							= TRUE;
+		bUpdate							= true;
 		PositionStack.push_back			(SavedPosition());
 		PositionStack.back().dwTime		= Device.dwTimeGlobal;
 		PositionStack.back().vPosition	= Position();
@@ -272,7 +311,7 @@ void	CObject::spatial_update		(float eps_P, float eps_R)
 			PositionStack.back().dwTime		= Device.dwTimeGlobal;
 		} else {
 			// Register _new_ record
-			bUpdate							= TRUE;
+			bUpdate							= true;
 			if (PositionStack.size()<4)		{
 				PositionStack.push_back			(SavedPosition());
 			} else {
@@ -291,15 +330,15 @@ void	CObject::spatial_update		(float eps_P, float eps_R)
 	} 
 	else
 	{
-		if (SpatialComponent->spatial.node_ptr)
+		if (SpatialComponent->node_ptr)
 		{	// Object registered!
-			if (!fsimilar(Radius(), SpatialComponent->spatial.sphere.R,eps_R))
+			if (!fsimilar(Radius(), SpatialComponent->sphere.R,eps_R))
 				spatial_move();
 			else
 			{
 				Fvector C;
 				Center(C);
-				if (!C.similar(SpatialComponent->spatial.sphere.P,eps_P))
+				if (!C.similar(SpatialComponent->sphere.P,eps_P))
 					spatial_move();
 			}
 			// else nothing to do :_)
@@ -319,10 +358,10 @@ void CObject::UpdateCL			()
 
 	dbg_update_cl	= Device.dwFrame;
 
-	if (Parent && SpatialComponent->spatial.node_ptr)
+	if (Parent && SpatialComponent->node_ptr)
 		Debug.fatal	(DEBUG_INFO,"Object %s has parent but is still registered inside spatial DB",*cName());
 
-	if ((0==collidable.model)&&(SpatialComponent->spatial.type&STYPE_COLLIDEABLE))
+	if ((0==collidable.model)&&(SpatialComponent->type&ESPATIAL_TYPE::COLLIDEABLE)!=ESPATIAL_TYPE::NONE)
 		Debug.fatal	(DEBUG_INFO,"Object %s registered as 'collidable' but has no collidable model",*cName());
 #endif
 
@@ -365,8 +404,8 @@ void CObject::shedule_Update	( u32 T )
 
 void CObject::spatial_register()
 {
-	Center(SpatialComponent->spatial.sphere.P);
-	SpatialComponent->spatial.sphere.R = Radius();
+	Center(SpatialComponent->sphere.P);
+	SpatialComponent->sphere.R = Radius();
 	ISpatialOwner::spatial_register();
 }
 
@@ -378,8 +417,8 @@ void CObject::spatial_unregister()
 void CObject::spatial_move()
 {
 	if (Props.bDestroy) return;
-	Center(SpatialComponent->spatial.sphere.P);
-	SpatialComponent->spatial.sphere.R = Radius();
+	Center(SpatialComponent->sphere.P);
+	SpatialComponent->sphere.R = Radius();
 	ISpatialOwner::spatial_move();
 }
 
@@ -433,9 +472,9 @@ void CObject::OnH_B_Independent	(bool just_before_destroy)
 {
 }
 
-void CObject::setDestroy			(BOOL _destroy)
+void CObject::setDestroy			(bool _destroy)
 {
-	if (_destroy == (BOOL)Props.bDestroy)
+	if (_destroy == (bool)Props.bDestroy)
 		return;
 
 	Props.bDestroy	= _destroy?1:0;
@@ -443,7 +482,7 @@ void CObject::setDestroy			(BOOL _destroy)
 	{
 		g_pGameLevel->Objects.register_object_to_destroy	(this);
 #ifdef DEBUG
-		extern BOOL debug_destroy;
+		extern bool debug_destroy;
 		if(debug_destroy)
 			Msg("cl setDestroy [%d][%d]",ID(),Device.dwFrame);
 #endif
@@ -494,7 +533,7 @@ float CObject::shedule_Scale_Base()
 	if (Device.dwTimeGlobal > u_optimize_time)
 	{
 		u_optimize_time = Device.dwTimeGlobal + Random.randI(66, 120);
-		return _max(0.0f, Position().distance_to(Device.vCameraPosition) - Radius());
+		return std::max(0.0f, Position().distance_to(Device.vCameraPosition) - Radius());
 	}
 
 	return f_optimize_dist;

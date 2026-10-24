@@ -47,6 +47,7 @@ add_library(xrPhysics SHARED ${XPH_SRC_FILES})
 
 # Include directories
 target_include_directories(xrPhysics PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(xrPhysics PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../xrCore/")
 target_include_directories(xrPhysics PUBLIC "${IXRAY_SDK_INC}")
 
 # Project defines
@@ -57,7 +58,7 @@ target_compile_definitions(xrPhysics PRIVATE _USRDLL)
 # Linker list
 target_link_libraries(xrPhysics PUBLIC xrCore)
 target_link_libraries(xrPhysics PUBLIC ODE)
-target_link_libraries(xrPhysics PUBLIC xrAbstractions)
+target_link_libraries(xrPhysics PUBLIC xrEngineCore)
 
 # Move precompiled header
 target_validate_pch(xrPhysics ${CMAKE_CURRENT_SOURCE_DIR})

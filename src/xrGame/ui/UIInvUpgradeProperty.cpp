@@ -6,7 +6,7 @@
 //	Description : inventory upgrade property UIWindow class implementation
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "UIInvUpgradeProperty.h"
 #include "UIInvUpgradeInfo.h"
@@ -26,7 +26,7 @@
 void UIProperty::init_from_xml(CUIXml& ui_xml)
 {
 	m_ui_icon = new CUIStatic();
-	m_ui_text = new CUITextWnd();
+	m_ui_text = new CUIStatic();
 	AttachChild(m_ui_icon);
 	AttachChild(m_ui_text);
 	m_ui_icon->SetAutoDelete(true);
@@ -35,7 +35,7 @@ void UIProperty::init_from_xml(CUIXml& ui_xml)
 	CUIXmlInit::InitWindow(ui_xml, "properties", 0, this);
 	SetWndPos(Fvector2().set(0, 0));
 	CUIXmlInit::InitStatic(ui_xml, "properties:icon", 0, m_ui_icon);
-	CUIXmlInit::InitTextWnd(ui_xml, "properties:text", 0, m_ui_text);
+	CUIXmlInit::InitStatic(ui_xml, "properties:text", 0, m_ui_text);
 }
 
 bool UIProperty::init_property(shared_str const& property_id)
@@ -61,7 +61,7 @@ UIProperty::Property_type* UIProperty::get_property()
 	return proper;
 }
 
-bool UIProperty::read_value_from_section(LPCSTR section, LPCSTR param, float& result)
+bool UIProperty::read_value_from_section(const char* section, const char* param, float& result)
 {
 	result = 0.0f;
 	if (!section || !pSettings->section_exist(section))
@@ -96,7 +96,7 @@ bool UIProperty::compute_value(ItemUpgrades_type const& item_upgrades)
 		{
 			if (upgr->get_property_name(i)._get() == m_property_id._get())
 			{
-				LPCSTR upgr_section = upgr->section();
+				const char* upgr_section = upgr->section();
 				if (prop_count > 0)
 				{
 					xr_strcat(buf, sizeof(buf), ", ");
@@ -113,7 +113,7 @@ bool UIProperty::compute_value(ItemUpgrades_type const& item_upgrades)
 	return false;
 }
 
-bool UIProperty::show_result(LPCSTR values)
+bool UIProperty::show_result(const char* values)
 {
 	if (get_property() && get_property()->run_functor(values, m_text))
 	{
@@ -167,14 +167,15 @@ UIInvUpgPropertiesWnd::~UIInvUpgPropertiesWnd()
 	delete_data(m_properties_ui);
 }
 
-void UIInvUpgPropertiesWnd::init_from_xml(LPCSTR xml_name)
+void UIInvUpgPropertiesWnd::init_from_xml(const char* xml_name)
 {
 	CUIXml ui_xml;
-	ui_xml.Load(CONFIG_PATH, UI_PATH, xml_name);
-
+	if (!ui_xml.Load( CONFIG_PATH, UI_PATH, xml_name ))
+		return;
+	
 	XML_NODE* stored_root = ui_xml.GetLocalRoot();
-	XML_NODE* node = ui_xml.NavigateToNode("upgrade_info", 0);
-	ui_xml.SetLocalRoot(node);
+	XML_NODE* node = ui_xml.NavigateToNode( "upgrade_info", 0 );
+	ui_xml.SetLocalRoot( node );
 
 	CUIXmlInit::InitWindow(ui_xml, "properties", 0, this);
 
@@ -186,7 +187,7 @@ void UIInvUpgPropertiesWnd::init_from_xml(LPCSTR xml_name)
 	m_fsec_col_pos = ui_xml.ReadAttribFlt("properties", 0, "sec_col_pos", UI().is_widescreen() ? 105.f : 130.f);
 	m_fnext_line_pos = ui_xml.ReadAttribFlt("properties", 0, "next_line_pos", 20.f);
 
-	LPCSTR properties_section = "upgrades_properties";
+	const char* properties_section = "upgrades_properties";
 
 	shared_str property_id;
 

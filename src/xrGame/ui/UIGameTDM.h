@@ -13,7 +13,6 @@ class CUITDMPlayerList;
 class CUISkinSelectorWnd;
 class game_cl_TeamDeathmatch;
 class CUIStatic;
-class CUITextWnd;
 class CUISpawnWnd;
 
 class CUIGameTDM: public CUIGameDM
@@ -30,7 +29,8 @@ protected:
 	CUIStatic*			m_team2_icon;
 	CUIStatic*			m_team1_score;
 	CUIStatic*			m_team2_score;
-	CUITextWnd*			m_buy_msg_caption;
+	CUIStatic*			m_buy_msg_caption;
+	shared_str			m_buy_msg_caption_legacy = "tdm_buy";
 public:
 	CUIGameTDM			();
 	virtual 			~CUIGameTDM				();
@@ -38,7 +38,7 @@ public:
 	virtual	void		UnLoad					();
 	virtual	void		Init					(int stage);
 			void		SetScoreCaption			(int t1, int t2);			
-			void		SetBuyMsgCaption		(LPCSTR str);
+			void		SetBuyMsgCaption		(const char* str);
 	virtual void		SetFraglimit			(int local_frags, int fraglimit);
 	virtual void		Render					();
 	virtual void _BCL	OnFrame					();

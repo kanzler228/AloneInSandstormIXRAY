@@ -2,13 +2,13 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#ifndef fsH
-#define fsH
+#pragma once
 
 #define CFS_CompressMark	(1ul << 31ul)
 #define CFS_HeaderChunkID	(666)
+#include "Concepts.h"
 
-XRCORE_API void VerifyPath	(LPCSTR path);
+XRCORE_API void VerifyPath	(const char* path);
 
 #include "Concepts.h"
 
@@ -37,6 +37,7 @@ public:
 	virtual void	w		(const void* ptr, u32 count)	= 0;
 
 	// generalized writing functions
+	IC void			w_buff	(xr_span<const u8> buff)		{	w(buff.data(), buff.size());	}
 	IC void			w_u64	(u64 d)					{	w(&d,sizeof(u64));	}
 	IC void			w_u32	(u32 d)					{	w(&d,sizeof(u32));	}
 	IC void			w_u16	(u16 d)					{	w(&d,sizeof(u16));	}
@@ -58,6 +59,9 @@ public:
 	IC void			w_ivector4(const Ivector4 &v)	{	w(&v,sizeof(Ivector4));	}
 	IC void			w_ivector3(const Ivector3 &v)	{	w(&v,sizeof(Ivector3));	}
 	IC void			w_ivector2(const Ivector2 &v)	{	w(&v,sizeof(Ivector2));	}
+
+	template<typename EnumT>
+	IC void w_enum(EnumT v){ w(&v,sizeof(EnumT));	}
 
     // quant writing functions
 	IC void 		w_float_q16	(float a, float min, float max)
@@ -81,10 +85,24 @@ public:
 	// generalized chunking
 	u32				align		();
 	void			open_chunk	(u32 type);
+
+	template<XRay::Concepts::Enum EnumT>
+	void open_chunk(EnumT type)
+	{
+		open_chunk(u32(type));
+	}
+	
 	void			close_chunk	();
 	u32				chunk_size	();					// returns size of currently opened chunk, 0 otherwise
 	void			w_compressed(void* ptr, u32 count);
 	void			w_chunk		(u32 type, void* data, u32 size);
+
+	template<XRay::Concepts::Enum EnumT>
+	void w_chunk(EnumT type, void* data, u32 size)
+	{
+		w_chunk(u32(type), data, size);
+	}
+	
 	virtual bool	valid		()									{return true;}
 	virtual	void	flush		() = 0;
 };
@@ -97,7 +115,7 @@ class XRCORE_API CMemoryWriter : public IWriter
 	u32				file_size;
 public:
 	CMemoryWriter() {
-		data		= 0;
+		data		= nullptr;
 		position	= 0;
 		mem_size	= 0;
 		file_size	= 0;
@@ -105,21 +123,47 @@ public:
 	virtual	~CMemoryWriter();
 
 	// kernel
-	virtual void	w			(const void* ptr, u32 count);
+	virtual void w(const void* ptr, u32 count);
 
-	virtual void		seek		(size_t pos)	{	position = pos;				}
-	virtual size_t		tell		() 			{	return position;			}
+	virtual void seek(size_t pos) {position = pos;}
+	virtual size_t tell() {return position;}
 
 	// specific
-	IC u8*			pointer		()			{	return data;				}
-	IC u32			size		() const 	{	return file_size;			}
-	IC void			clear		()			{	file_size=0; position=0;	}
+	IC u8* pointer() {return data;}
+	IC u32 size() const {return file_size;}
+	IC void clear() {file_size=0; position=0;}
 #pragma warning(push)
 #pragma warning(disable:4995)
-	IC void			free		()			{	file_size=0; position=0; mem_size=0; xr_free(data);	}
+	IC void free() {file_size=0; position=0; mem_size=0; xr_free(data);}
 #pragma warning(pop)
-	bool			save_to		(LPCSTR fn);
-	virtual	void	flush		()			{ };
+	bool save_to(const char* fn);
+	virtual	void flush(){}
+};
+
+/* IWriter wrapper to write some data in u8 vector like it's for file
+ * Designed to be used when we know max amount of data we want to write
+ */
+class XRCORE_API CBufferMemoryWriter : public IWriter
+{
+	xr_vector<u8>* BufferPtr = nullptr;
+	size_t position = 0;
+
+	IC xr_vector<u8>& GetBuffer()
+	{
+		VERIFY(BufferPtr);
+		return *BufferPtr;
+	}
+	
+public:
+	CBufferMemoryWriter(xr_vector<u8>& buffer)
+	{
+		BufferPtr = &buffer;
+	}
+	
+	void seek(size_t pos) override {position = pos;}
+	size_t tell() override {return position;}
+	void w(const void* ptr, u32 count) override;
+	void flush() override {VERIFY(false);}
 };
 
 //------------------------------------------------------------------------------------
@@ -140,7 +184,7 @@ public:
 	virtual IReader* cast_reader() { return nullptr; }
 
 	virtual intptr_t		elapsed()	const = 0;
-	IC		BOOL			eof		()	const		{return elapsed() <= 0;	};
+	IC		bool			eof		()	const		{return elapsed() <= 0;	};
 
 	virtual intptr_t		tell() const = 0;
 	virtual intptr_t		length() const = 0;
@@ -166,6 +210,9 @@ public:
 	IC void			r_ivector4	(Ivector3 &v){	r(&v,sizeof(Ivector3));	}
 	IC void			r_ivector4	(Ivector2 &v){	r(&v,sizeof(Ivector2));	}
 	IC void			r_fcolor	(Fcolor &v)	{	r(&v,sizeof(Fcolor));	}
+
+	template<typename EnumT>
+	IC EnumT r_enum(){ EnumT tmp;	r(&tmp,sizeof(EnumT)); return tmp;	}
 	
 	IC float		r_float_q16	(float min, float max)
 	{
@@ -196,25 +243,38 @@ public:
 	// Set file pointer to start of chunk data (0 for root chunk)
 	IC	void		rewind		()			{	seek(0); }
 
-	virtual intptr_t find_chunk  (u32 ID, BOOL* bCompressed = 0);
+	virtual intptr_t find_chunk  (u32 ID, bool* bCompressed = nullptr);
+	virtual IReaderBase* open_chunk_base(u32 chunk_id) = 0;
 	
-	IC	BOOL		r_chunk		(u32 ID, void *dest)	// чтение XR Chunk'ов (4b-ID,4b-size,??b-data)
+	IC	bool		r_chunk		(u32 ID, void *dest)	// чтение XR Chunk'ов (4b-ID,4b-size,??b-data)
 	{
 		u32	dwSize = this->find_chunk(ID);
 		if (dwSize!=0) {
 			r(dest,dwSize);
-			return TRUE;
-		} else return FALSE;
+			return true;
+		} else return false;
 	}
 	
-	IC	BOOL		r_chunk_safe(u32 ID, void *dest, u32 dest_size)	// чтение XR Chunk'ов (4b-ID,4b-size,??b-data)
+	IC	bool		r_chunk_safe(u32 ID, void *dest, u32 dest_size)	// чтение XR Chunk'ов (4b-ID,4b-size,??b-data)
 	{
 		u32	dwSize = this->find_chunk(ID);
 		if (dwSize!=0) {
 			R_ASSERT(dwSize==dest_size);
 			r(dest,dwSize);
-			return TRUE;
-		} else return FALSE;
+			return true;
+		} else return false;
+	}
+
+	template<XRay::Concepts::Enum EnumT>
+	IC bool r_chunk(EnumT ID, void* dest)
+	{
+		return r_chunk(u32(ID),dest);
+	}
+
+	template<XRay::Concepts::Enum EnumT>
+	IC bool r_chunk_safe(EnumT ID, void* dest, u32 dest_size)
+	{
+		return r_chunk_safe(u32(ID),dest,dest_size);
 	}
 
 	u32 m_last_pos;
@@ -322,11 +382,36 @@ public:
 
 public:
 	// поиск XR Chunk'ов - возврат - размер или 0
-	IReader*		open_chunk	(u32 ID);
+	IReader* open_chunk(u32 ID);
+
+	template<XRay::Concepts::Enum EnumT>
+	IReader* open_chunk(EnumT ID)
+	{
+		return open_chunk(u32(ID));
+	}
+
+	// Use separate open_chunk with IReaderBase return to not break whole engine. But should be changed...
+	virtual IReaderBase* open_chunk_base(u32 chunk_id) override {return open_chunk(chunk_id);}
 
 	// iterators
-	IReader*		open_chunk_iterator		(u32& ID, IReader* previous=NULL);	// NULL=first
-	intptr_t 		find_chunk	(u32 ID, BOOL* bCompressed = 0) override;
+	IReader* open_chunk_iterator(u32& ID, IReader* previous= nullptr);	// NULL=first
+
+	template<XRay::Concepts::Enum EnumT>
+	IReader* open_chunk_iterator(EnumT& ID, IReader* previous= nullptr)
+	{
+		u32 Iter = u32(ID);
+		IReader* Reader = open_chunk_iterator(Iter, previous);
+		ID = (EnumT)Iter;
+		return Reader;
+	}
+
+	intptr_t find_chunk(u32 ID, bool* bCompressed = nullptr) override;
+
+	template<XRay::Concepts::Enum EnumT>
+	intptr_t find_chunk(EnumT ID, bool* bCompressed = nullptr)
+	{
+		return find_chunk(u32(ID), bCompressed);
+	}
 
 private:
 	typedef IReaderBase inherited;
@@ -342,4 +427,22 @@ public:
 	virtual ~CVirtualFileRW		();
 };
 
-#endif // fsH
+// in case we need to read several readers like it's a single reader
+class XRCORE_API CMultiReader : public IReaderBase
+{
+	xr_vector<xr_pair<intptr_t, IReader*>> readers = {};
+	size_t reader_index = 0;
+	intptr_t Pos = 0;
+	intptr_t FullSize = 0;
+	
+public:
+	void AppendReader(IReader& reader);
+
+	virtual intptr_t elapsed() const override {return FullSize - Pos;}
+	virtual intptr_t tell() const override {return Pos;}
+	virtual intptr_t length() const override {return FullSize;}
+	virtual void advance(intptr_t cnt) override;
+	virtual void r(void* p, intptr_t cnt) override;
+	virtual void seek(intptr_t ptr) override;
+	virtual IReaderBase* open_chunk_base(u32 chunk_id) override {R_ASSERT(false); return nullptr;} // Not implemented yet
+};

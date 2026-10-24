@@ -1,32 +1,31 @@
 #pragma once
 
-#include "WeaponCustomPistol.h"
+#include "WeaponMagazined.h"
 #include "../xrScripts/script_export_space.h"
 
 class CUIFrameWindow;
 class CUIStatic;
-class CBinocularsVision;
 
-class CWeaponBinoculars: public CWeaponCustomPistol
+class CWeaponBinoculars final : public CWeaponMagazined
 {
-private:
-	typedef CWeaponCustomPistol inherited;
-protected:
-	bool			m_bVision;
-public:
-					CWeaponBinoculars	(); 
-	virtual			~CWeaponBinoculars	();
+	using inherited = CWeaponMagazined;
 
-	virtual void	Load				(LPCSTR section) override;
-	virtual void	LoadSounds			(LPCSTR section) override;
+	bool m_bVision = false;
+
+public:
+	CWeaponBinoculars() = default;
+	virtual	~CWeaponBinoculars() = default;
+
+	virtual void	Load				(const char* section) override;
+	virtual void	LoadSounds			(const char* section) override;
 
 	virtual void	OnZoomIn			();
 	virtual void	OnZoomOut			();
 	virtual	void	ZoomInc				();
 	virtual	void	ZoomDec				();
 	virtual void	net_Destroy			();
-	virtual BOOL	net_Spawn			(CSE_Abstract* DC);
-	bool			can_kill			() const;
+	virtual bool	net_Spawn			(CSE_Abstract* DC);
+	bool			can_kill() const { return false; }
 	virtual void	save				(NET_Packet &output_packet);
 	virtual void	load				(IReader &input_packet);
 
@@ -34,7 +33,7 @@ public:
 	virtual void	UpdateCL			();
 	virtual void	render_item_ui		();
 	virtual bool	render_item_ui_query();
-	virtual bool	use_crosshair		()	const {return false;}
+	virtual bool	use_crosshair()	const override { return false; }
 	virtual bool	GetBriefInfo		(II_BriefInfo& info);
 	virtual void	net_Relcase			(CObject *object);
 
@@ -43,7 +42,6 @@ public:
 	virtual CWeaponBinoculars* cast_weapon_binoculars() { return this; }
 
 protected:
-	CBinocularsVision*					m_binoc_vision;
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

@@ -6,42 +6,78 @@
 #include "../xrAI/game_spawn_constructor.h"
 #include "../xrAI/xrCrossTable.h"
 #include "../xrAI/game_graph_builder.h"
-#include "../xrAI/spawn_patcher.h"
 
 #include "../xrAI/factory_api.h"
 #include "../../xrGame/quadtree.h"
-
-static const char* h_str =
-"The following keys are supported / required:\n"
-"-? or -h   == this help\n"
-"-f<NAME>   == compile level in gamedata/levels/<NAME>/\n"
-"-o         == modify build options\n"
-"-s         == build game spawn data\n"
-"\n"
-"NOTE: The last key is required for any functionality\n";
-
-void Help(const char* h_str);
-
-string_path INI_FILE;
-
-extern LPCSTR LEVEL_GRAPH_NAME;
-
-extern LPCSTR GAME_CONFIG;
-
-extern void clear_temp_folder();
-extern void	xrCompiler(LPCSTR name, bool draft_mode, bool pure_covers, LPCSTR out_name);
-extern void	verify_level_graph(LPCSTR name, bool verbose);
-
+#include <luabind/luabind.hpp>
 #include "CompilersUI.h"
 extern CompilersMode gCompilerMode;
 
+string_path INI_FILE;
+extern const char* LEVEL_GRAPH_NAME;
+extern const char* GAME_CONFIG;
+
+extern void clear_temp_folder();
+extern void	xrCompiler(const char* name, bool draft_mode, bool pure_covers, bool skipThm, const char* out_name);
+extern void	verify_level_graph(const char* name, bool verbose);
+ 
+static LPVOID __cdecl luabind_allocator(luabind::memory_allocation_function_parameter const, void const* const pointer, size_t const size)
+{
+	if (!size)
+	{
+		LPVOID	non_const_pointer = const_cast<LPVOID>(pointer);
+		xr_free(non_const_pointer);
+		return	(0);
+	}
+
+	if (!pointer)
+	{
+		return	(Memory.mem_alloc(size));
+	}
+
+	LPVOID non_const_pointer = const_cast<LPVOID>(pointer);
+	return (Memory.mem_realloc(non_const_pointer, size));
+}
+
+void setup_luabind_allocator()
+{
+	luabind::allocator = &luabind_allocator;
+	luabind::allocator_parameter = 0;
+}
+
+SEFactory_Create* create_entity = 0;
+SEFactory_Destroy* destroy_entity = 0;
+
+static HMODULE hFactory;
+
+void InitialFactory() {
+	const char* g_name = "xrSE_Factory.dll";
+	Msg("Loading DLL: %s", g_name);
+	hFactory = LoadLibraryA(g_name);
+
+	if (0 == hFactory)		
+		R_CHK(GetLastError());
+
+	R_ASSERT2(hFactory, "Factory DLL raised exception during loading or there is no factory DLL at all");
+
+	create_entity = (SEFactory_Create*)GetProcAddress(hFactory, "create_entity");	R_ASSERT(create_entity);
+	destroy_entity = (SEFactory_Destroy*)GetProcAddress(hFactory, "destroy_entity");	R_ASSERT(destroy_entity);
+}
+
+void DestroyFactory()
+{
+	FreeLibrary(hFactory);
+}
+ 
 void StartupAI()
 {
+	setup_luabind_allocator();
+	InitialFactory();
+
 	// Load project
 	FS.update_path(INI_FILE, "$game_config$", GAME_CONFIG);
 
-
-	for (auto& [Name, Selected] : gCompilerMode.Files)
+	for (const auto& [Name, Selected] : gCompilerMode.Files)
 	{
 		if (!Selected)
 			continue;
@@ -66,9 +102,9 @@ void StartupAI()
 		{
 			R_ASSERT3(can_use_name, "Too big level name", name);
 
-			char* output = (pstr)LEVEL_GRAPH_NAME;
+			char* output = (char*)LEVEL_GRAPH_NAME;
 
-			xrCompiler(prjName, gCompilerMode.AI_Draft, gCompilerMode.AI_PureCovers, output);
+			xrCompiler(prjName, gCompilerMode.AI_Draft, gCompilerMode.AI_PureCovers, gCompilerMode.SkipTHM, output);
 		}
 
 		if (gCompilerMode.AI_Verify)
@@ -82,7 +118,7 @@ void StartupAI()
 	{
 		xr_string Levels;
 
-		for (auto& [Name, Selected] : gCompilerMode.Files)
+		for (const auto& [Name, Selected] : gCompilerMode.Files)
 		{
 			if (!Selected)
 				continue;
@@ -96,11 +132,17 @@ void StartupAI()
 		string512 name = {};
 		strcpy(name, Levels.data());
 		if (xr_strlen(name))
+		{
 			name[xr_strlen(name)] = 0;
+		}
 
 		xr_string output = gCompilerMode.AI_spawn_name;
 
-		if (output.empty())
+		if (gCompilerMode.AI_FreeMPBuild)
+		{
+			output = "alife";
+		}
+		else if (output.empty())
 		{
 			output = "new";
 		}
@@ -112,36 +154,8 @@ void StartupAI()
 		}
 
 		clear_temp_folder();
-		CGameSpawnConstructor* BuilderSpawn = new CGameSpawnConstructor(name, output.data(), start_level, gCompilerMode.AI_NoSeparatorCheck);
+		xr_unique_ptr<CGameSpawnConstructor> BuilderSpawn = xr_make_unique<CGameSpawnConstructor>(name, output.data(), start_level, gCompilerMode.AI_NoSeparatorCheck);
 	}
-	
+
+	DestroyFactory();
 }
-
-SEFactory_Create* create_entity = 0;
-SEFactory_Destroy* destroy_entity = 0;
-
-static HMODULE hFactory;
-
-void InitialFactory() {
-	LPCSTR g_name = "xrSE_Factory.dll";
-	Msg("Loading DLL: %s", g_name);
-	hFactory = LoadLibraryA(g_name);
-
-	if (0 == hFactory)		
-		R_CHK(GetLastError());
-
-	R_ASSERT2(hFactory, "Factory DLL raised exception during loading or there is no factory DLL at all");
-
-#ifdef _M_X64
-	create_entity = (SEFactory_Create*)GetProcAddress(hFactory, "create_entity");	R_ASSERT(create_entity);
-	destroy_entity = (SEFactory_Destroy*)GetProcAddress(hFactory, "destroy_entity");	R_ASSERT(destroy_entity);
-#else
-	create_entity = (Factory_Create*)GetProcAddress(hFactory, "_create_entity@4");	R_ASSERT(create_entity);
-	destroy_entity = (Factory_Destroy*)GetProcAddress(hFactory, "_destroy_entity@4");	R_ASSERT(destroy_entity);
-#endif
-}
-
-void DestroyFactory() {
-	FreeLibrary(hFactory);
-}
- 

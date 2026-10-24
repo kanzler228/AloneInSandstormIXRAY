@@ -1,13 +1,19 @@
 #include "stdafx.h"
-
+#include "SVGStorage.h"
 
 #include "ResourceManager.h"
 #include "blenders/Blender.h"
 
-
-void	CResourceManager::OnDeviceDestroy(BOOL )
+void CResourceManager::OnDeviceDestroy(bool )
 {
 	if (RDEVICE.b_is_Ready)				return;
+
+	if (m_pStorageSVG)
+	{
+		m_pStorageSVG->uninit();
+		xr_delete(m_pStorageSVG);
+	}
+
 	m_textures_description.UnLoad		();
 
 	// Matrices
@@ -26,10 +32,10 @@ void	CResourceManager::OnDeviceDestroy(BOOL )
 	m_constants.clear	();
 
    	// Release blenders
-	for (map_BlenderIt b=m_blenders.begin(); b!=m_blenders.end(); b++)
+	for (map_BlenderIt b = m_blenders.begin(); b != m_blenders.end(); b++)
 	{
-		xr_free				((char*&)b->first);
-		IBlender::Destroy	(b->second);
+		xr_free((char*&)b->first);
+		xr_delete(b->second);
 	}
 	m_blenders.clear	();
 
@@ -58,7 +64,7 @@ void	CResourceManager::OnDeviceCreate	(IReader* F)
 	// scripting
 	LS_Load					();
 //#endif
-	IReader*	fs			= 0;
+	IReader*	fs			= nullptr;
 	// Load constants
  	fs	 		  			= F->open_chunk	(0);
 	if (fs){
@@ -91,7 +97,7 @@ void	CResourceManager::OnDeviceCreate	(IReader* F)
 			CBlender_DESC	desc;
 			chunk->r		(&desc,sizeof(desc));
 			IBlender*		B = IBlender::Create(desc.CLS);
-			if	(0==B)
+			if	(nullptr==B)
 			{
 				Msg				("! Renderer doesn't support blender '%s'",desc.cName);
 			}
@@ -117,7 +123,7 @@ void	CResourceManager::OnDeviceCreate	(IReader* F)
 	m_textures_description.Load				();
 }
 
-void	CResourceManager::OnDeviceCreate	(LPCSTR shName)
+void	CResourceManager::OnDeviceCreate	(const char* shName)
 {
 #ifdef _EDITOR
 	if (!FS.exist(shName)) return;
@@ -147,7 +153,7 @@ void CResourceManager::StoreNecessaryTextures()
 
 	for (;it!=it_e;++it)
 	{
-		LPCSTR texture_name		= it->first;
+		const char* texture_name		= it->first;
 		if(strstr(texture_name,"\\levels\\"))	continue;
 		if(!strchr(texture_name,'\\'))			continue;
 

@@ -36,13 +36,13 @@ void simplify_texture(string_path &fn)
 
 
 template <class T>
-BOOL	reclaim		(xr_vector<T*>& vec, const T* ptr)
+bool	reclaim		(xr_vector<T*>& vec, const T* ptr)
 {
 	typename xr_vector<T*>::iterator it	= vec.begin	();
 	typename xr_vector<T*>::iterator end	= vec.end	();
 	for (; it!=end; it++)
-		if (*it == ptr)	{ vec.erase	(it); return TRUE; }
-		return FALSE;
+		if (*it == ptr)	{ vec.erase	(it); return true; }
+		return false;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -105,12 +105,12 @@ void		CResourceManager::_DeletePass			(const SPass* P)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-static BOOL	dcl_equal			(D3DVERTEXELEMENT9* a, D3DVERTEXELEMENT9* b)
+static bool	dcl_equal			(D3DVERTEXELEMENT9* a, D3DVERTEXELEMENT9* b)
 {
 	// check sizes
 	u32 a_size = (u32)GetDeclLength(a);
 	u32 b_size = (u32)GetDeclLength(b);
-	if (a_size!=b_size)	return FALSE;
+	if (a_size!=b_size)	return false;
 	return 0==memcmp	(a,b,a_size*sizeof(D3DVERTEXELEMENT9));
 }
 
@@ -142,18 +142,18 @@ void		CResourceManager::_DeleteDecl		(const SDeclaration* dcl)
 	Msg	("! ERROR: Failed to find compiled vertex-declarator");
 }
 
-SVS* CResourceManager::_CreateVS(LPCSTR _name)
+SVS* CResourceManager::_CreateVS(const char* _name)
 {
 	xr_string res_name = _name;
 
 	const int m_skinning = Engine.External.GetSkinningMode();
-	if(m_skinning > 0) 
+	if(m_skinning >= 0) 
 	{
-		res_name += "_" + std::to_string(m_skinning);
+		res_name += "_"+xr_string::ToString(m_skinning);
 	}
 
 	res_name += RImplementation.getShaderParams();
-	LPCSTR name = res_name.c_str();
+	const char* name = res_name.c_str();
 
 	LPSTR N = LPSTR (name);
 	xrCriticalSectionGuard guard(creationGuard);
@@ -171,8 +171,8 @@ SVS* CResourceManager::_CreateVS(LPCSTR _name)
 
 		string_path					cname;
 		xr_strconcat(cname,::Render->getShaderPath(),_name,".vs.hlsl");
-		FS.update_path				(cname,	"$game_shaders$", cname);
-//		LPCSTR						target		= nullptr;
+		FS.update_path				(cname,	_game_shaders_, cname);
+//		const char*						target		= nullptr;
 
 		IReader*					fs			= FS.r_open(cname);
 		R_ASSERT3					(fs, "shader file doesnt exist", cname);
@@ -187,8 +187,8 @@ SVS* CResourceManager::_CreateVS(LPCSTR _name)
 		FS.r_close				( file );
 
 		// Select target
-		LPCSTR c_target = "vs_3_0";
-		LPCSTR c_entry = "main";
+		const char* c_target = "vs_3_0";
+		const char* c_entry = "main";
 
 		HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)data, size, c_entry, c_target, D3DCOMPILE_DEBUG | D3DCOMPILE_PACK_MATRIX_ROW_MAJOR, (void*&)_vs);
 
@@ -212,12 +212,12 @@ void	CResourceManager::_DeleteVS			(const SVS* vs)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-SPS*	CResourceManager::_CreatePS			(LPCSTR _name)
+SPS*	CResourceManager::_CreatePS			(const char* _name)
 {
 	xr_string res_name = _name;
 
 	res_name += RImplementation.getShaderParams();
-	LPCSTR name = res_name.c_str();
+	const char* name = res_name.c_str();
 
 	LPSTR N = LPSTR(name);
 	xrCriticalSectionGuard guard(creationGuard);
@@ -235,9 +235,9 @@ SPS*	CResourceManager::_CreatePS			(LPCSTR _name)
 
 		// Open file
 		string_path					cname;
-        LPCSTR						shader_path = ::Render->getShaderPath();
+        const char*						shader_path = ::Render->getShaderPath();
 		xr_strconcat(cname,shader_path, _name,".ps.hlsl");
-		FS.update_path				(cname,	"$game_shaders$", cname);
+		FS.update_path				(cname,	_game_shaders_, cname);
 
 		// duplicate and zero-terminate
 		IReader* file			= FS.r_open(cname);
@@ -249,8 +249,8 @@ SPS*	CResourceManager::_CreatePS			(LPCSTR _name)
 		FS.r_close				( file );
 
 		// Select target
-		LPCSTR c_target = "ps_3_0";
-		LPCSTR c_entry = "main";
+		const char* c_target = "ps_3_0";
+		const char* c_entry = "main";
 
 		HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)data, size, c_entry, c_target, D3DCOMPILE_DEBUG | D3DCOMPILE_PACK_MATRIX_ROW_MAJOR, (void*&)_ps);
 
@@ -294,7 +294,7 @@ void				CResourceManager::_DeleteConstantTable	(const R_constant_table* C)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-CRT*	CResourceManager::_CreateRT		(LPCSTR Name, u32 w, u32 h,	D3DFORMAT f, u32 SampleCount )
+CRT* CResourceManager::_CreateRT(const char* Name, u32 w, u32 h, ERHI_FORMAT f, u32 SampleCount, CRT::CRTCreationFlags CreationFlags)
 {
 	R_ASSERT(Name && Name[0] && w && h);
 
@@ -325,25 +325,7 @@ void	CResourceManager::_DeleteRT		(const CRT* RT)
 	Msg	("! ERROR: Failed to find render-target '%s'",*RT->cName);
 }
 
-//--------------------------------------------------------------------------------------------------------------
-void	CResourceManager::DBG_VerifyGeoms	()
-{
-	/*
-	for (u32 it=0; it<v_geoms.size(); it++)
-	{
-	SGeometry* G					= v_geoms[it];
-
-	D3DVERTEXELEMENT9		test	[MAXD3DDECLLENGTH + 1];
-	u32						size	= 0;
-	G->dcl->GetDeclaration			(test,(unsigned int*)&size);
-	u32 vb_stride = ComputeVertexSize(test, 0);
-	u32 vb_stride_cached			= G->vb_stride;
-	R_ASSERT						(vb_stride == vb_stride_cached);
-	}
-	*/
-}
-
-SGeometry*	CResourceManager::CreateGeom	(D3DVERTEXELEMENT9* decl, IDirect3DVertexBuffer9* vb, IDirect3DIndexBuffer9* ib)
+SGeometry*	CResourceManager::CreateGeom	(D3DVERTEXELEMENT9* decl, IRHIBuffer* vb, IRHIBuffer* ib)
 {
 	xrCriticalSectionGuard guard(creationGuard);
 	R_ASSERT			(decl && vb);
@@ -367,7 +349,73 @@ SGeometry*	CResourceManager::CreateGeom	(D3DVERTEXELEMENT9* decl, IDirect3DVerte
 	v_geoms.push_back	(Geom);
 	return	Geom;
 }
-SGeometry*	CResourceManager::CreateGeom		(u32 FVF, IDirect3DVertexBuffer9* vb, IDirect3DIndexBuffer9* ib)
+
+static D3DDECLTYPE ConvertFormat(ERHI_FORMAT fmt)
+{
+	switch (fmt)
+	{
+	case ERHI_FORMAT::R32G32B32A32_FLOAT: return D3DDECLTYPE_FLOAT4;
+	case ERHI_FORMAT::R32G32B32_FLOAT: return D3DDECLTYPE_FLOAT3;
+	case ERHI_FORMAT::R32G32_FLOAT:    return D3DDECLTYPE_FLOAT2;
+	case ERHI_FORMAT::R32_FLOAT:       return D3DDECLTYPE_FLOAT1;
+	case ERHI_FORMAT::R8G8B8A8_UNORM:  return D3DDECLTYPE_D3DCOLOR;
+	case ERHI_FORMAT::R16G16_FLOAT:       return D3DDECLTYPE_SHORT2;
+	case ERHI_FORMAT::R16G16B16A16_FLOAT: return D3DDECLTYPE_SHORT4;
+	case ERHI_FORMAT::R16G16_SINT:       return D3DDECLTYPE_SHORT2;
+	case ERHI_FORMAT::R16G16B16A16_SINT:  return D3DDECLTYPE_SHORT4;
+	case ERHI_FORMAT::B8G8R8A8_UNORM:  return D3DDECLTYPE_D3DCOLOR;
+
+
+	default: NODEFAULT;
+	}
+	return D3DDECLTYPE_UNUSED;
+}
+
+static BYTE ConvertInputSlotClass(ERHI_INPUT_CLASSIFICATION cls)
+{
+	return (cls == ERHI_INPUT_CLASSIFICATION::VERTEX_DATA)
+		? D3DDECLMETHOD_DEFAULT
+		: D3DDECLMETHOD_DEFAULT;
+}
+
+static BYTE ConvertSemantic(const char* name)
+{
+	if (stricmp(name, "POSITION") == 0) return D3DDECLUSAGE_POSITION;
+	if (stricmp(name, "NORMAL") == 0) return D3DDECLUSAGE_NORMAL;
+	if (stricmp(name, "TEXCOORD") == 0) return D3DDECLUSAGE_TEXCOORD;
+	if (stricmp(name, "COLOR") == 0) return D3DDECLUSAGE_COLOR;
+	if (stricmp(name, "TANGENT") == 0) return D3DDECLUSAGE_TANGENT;
+	if (stricmp(name, "BINORMAL") == 0) return D3DDECLUSAGE_BINORMAL;
+	return D3DDECLUSAGE_POSITION;
+}
+
+
+SGeometry* CResourceManager::CreateGeom(RHIInputElementDesc* DescList, size_t DeclSize, IRHIBuffer* vb, IRHIBuffer* ib)
+{
+	xrCriticalSectionGuard guard(creationGuard);
+
+	xr_vector<D3DVERTEXELEMENT9> dcl;
+	dcl.resize(DeclSize + 1); // + END
+
+	for (size_t i = 0; i < DeclSize; ++i)
+	{
+		const RHIInputElementDesc& in = DescList[i];
+		D3DVERTEXELEMENT9& out = dcl[i];
+
+		out.Stream = (WORD)in.InputSlot;
+		out.Offset = (WORD)in.AlignedByteOffset;
+		out.Type = ConvertFormat(in.Format);
+		out.Method = ConvertInputSlotClass(in.InputSlotClass);
+		out.Usage = ConvertSemantic(in.SemanticName);
+		out.UsageIndex = (BYTE)in.SemanticIndex;
+	}
+
+	dcl[DeclSize] = D3DDECL_END();
+
+	return CreateGeom(dcl.data(), vb, ib);
+}
+
+SGeometry*	CResourceManager::CreateGeom		(u32 FVF, IRHIBuffer* vb, IRHIBuffer* ib)
 {
 	auto dcl = std::vector<D3DVERTEXELEMENT9>(MAXD3DDECLLENGTH + 1);
 	xrCriticalSectionGuard guard(creationGuard);
@@ -386,10 +434,10 @@ void		CResourceManager::DeleteGeom		(const SGeometry* Geom)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-CTexture* CResourceManager::_CreateTexture	(LPCSTR _Name)
+CTexture* CResourceManager::_CreateTexture	(const char* _Name)
 {
 	// DBG_VerifyTextures	();
-	if (0==xr_strcmp(_Name,"null"))	return 0;
+	if (0==xr_strcmp(_Name,"null"))	return nullptr;
 	R_ASSERT		(_Name && _Name[0]);
 
 	xrCriticalSectionGuard guard(creationGuard);
@@ -416,6 +464,42 @@ CTexture* CResourceManager::_CreateTexture	(LPCSTR _Name)
 		return		T;
 	}
 }
+
+CTexture* CResourceManager::_CreateEmptyTexture(const char* _Name, u32 w, u32 h)
+{
+	// DBG_VerifyTextures	();
+
+	R_ASSERT(_Name && _Name[0]);
+	R_ASSERT(w > 0 && "must be valid width!");
+	R_ASSERT(h > 0 && &"must be valid height!");
+
+	if (0 == xr_strcmp(_Name, "null") || w == 0 || h == 0)
+		return nullptr;
+
+	string_path		Name;
+	xr_strcpy(Name, _Name); //. andy if (strext(Name)) *strext(Name)=0;
+
+	xrCriticalSectionGuard guard(creationGuard);
+
+	fix_texture_name(Name);
+	// ***** first pass - search already loaded texture
+	LPSTR N = LPSTR(Name);
+	map_TextureIt I = m_textures.find(N);
+	if (I != m_textures.end())	return	I->second;
+	else
+	{
+		CTexture* T = new CTexture();
+		T->dwFlags |= xr_resource_flagged::RF_REGISTERED;
+		m_textures.insert(std::make_pair(T->set_name(Name), T));
+		T->Preload();
+
+		if (Device.b_is_Ready)
+			T->CreateEmpty(w, h);
+
+		return		T;
+	}
+}
+
 void	CResourceManager::_DeleteTexture		(const CTexture* T)
 {
 	// DBG_VerifyTextures	();
@@ -431,23 +515,8 @@ void	CResourceManager::_DeleteTexture		(const CTexture* T)
 	Msg	("! ERROR: Failed to find texture surface '%s'",*T->cName);
 }
 
-#ifdef DEBUG
-void	CResourceManager::DBG_VerifyTextures	()
-{
-	map_Texture::iterator I		= m_textures.begin	();
-	map_Texture::iterator E		= m_textures.end	();
-	for (; I!=E; I++) 
-	{
-		R_ASSERT(I->first);
-		R_ASSERT(I->second);
-		R_ASSERT(I->second->cName);
-		R_ASSERT(0==xr_strcmp(I->first,*I->second->cName));
-	}
-}
-#endif
-
 //--------------------------------------------------------------------------------------------------------------
-CMatrix*	CResourceManager::_CreateMatrix	(LPCSTR Name)
+CMatrix*	CResourceManager::_CreateMatrix	(const char* Name)
 {
 	R_ASSERT(Name && Name[0]);
 	if (0==_stricmp(Name,"$null"))	return nullptr;
@@ -479,7 +548,7 @@ void	CResourceManager::_DeleteMatrix		(const CMatrix* M)
 }
 
 //--------------------------------------------------------------------------------------------------------------
-CConstant*	CResourceManager::_CreateConstant	(LPCSTR Name)
+CConstant*	CResourceManager::_CreateConstant	(const char* Name)
 {
 	R_ASSERT(Name && Name[0]);
 	if (0==_stricmp(Name,"$null"))	return nullptr;
@@ -540,8 +609,8 @@ void			CResourceManager::_DeleteTextureList(const STextureList* L)
 //--------------------------------------------------------------------------------------------------------------
 SMatrixList*	CResourceManager::_CreateMatrixList(SMatrixList& L)
 {
-	BOOL bEmpty = TRUE;
-	for (u32 i=0; i<L.size(); i++)	if (L[i]) { bEmpty=FALSE; break; }
+	bool bEmpty = true;
+	for (u32 i=0; i<L.size(); i++)	if (L[i]) { bEmpty=false; break; }
 	if (bEmpty)	return nullptr;
 	xrCriticalSectionGuard guard(creationGuard);
 
@@ -566,8 +635,8 @@ void			CResourceManager::_DeleteMatrixList ( const SMatrixList* L )
 //--------------------------------------------------------------------------------------------------------------
 SConstantList*	CResourceManager::_CreateConstantList(SConstantList& L)
 {
-	BOOL bEmpty = TRUE;
-	for (u32 i=0; i<L.size(); i++)	if (L[i]) { bEmpty=FALSE; break; }
+	bool bEmpty = true;
+	for (u32 i=0; i<L.size(); i++)	if (L[i]) { bEmpty=false; break; }
 	if (bEmpty)	return nullptr;
 	xrCriticalSectionGuard guard(creationGuard);
 

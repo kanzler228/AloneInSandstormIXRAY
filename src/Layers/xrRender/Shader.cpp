@@ -21,94 +21,101 @@ SGeometry::~SGeometry					()			{	if (DEV) DEV->DeleteGeom			(this);			}
 Shader::~Shader							()			{	if (DEV) DEV->Delete				(this);			}
 																							 
 //////////////////////////////////////////////////////////////////////////					 
-void	resptrcode_shader::create		(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_constants, LPCSTR s_matrices)
+void	resptrcode_shader::create		(const char* s_shader, const char* s_textures, const char* s_constants, const char* s_matrices)
 {
 	_set(DEV->Create		(s_shader,s_textures,s_constants,s_matrices));
 }
-void	resptrcode_shader::create		(IBlender* B, LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_constants, LPCSTR s_matrices)
+void	resptrcode_shader::create		(IBlender* B, const char* s_shader, const char* s_textures, const char* s_constants, const char* s_matrices)
 {
 	_set(DEV->Create		(B,s_shader,s_textures,s_constants,s_matrices));
 }
 
 //////////////////////////////////////////////////////////////////////////
-void	resptrcode_geom::create			(u32 FVF , ID3DVertexBuffer* vb, ID3DIndexBuffer* ib)
+void resptrcode_geom::create(u32 FVF, IRHIBuffer* vb, IRHIBuffer* ib)
 {
-	_set(DEV->CreateGeom		(FVF,vb,ib));
+	_set(DEV->CreateGeom(FVF, vb, ib));
 }
-void	resptrcode_geom::create			(D3DVERTEXELEMENT9* decl, ID3DVertexBuffer* vb, ID3DIndexBuffer* ib)
+
+void resptrcode_geom::create(RHIInputElementDesc* DescList, size_t DeclSize, IRHIBuffer* vb, IRHIBuffer* ib)
 {
-	_set(DEV->CreateGeom		(decl,vb,ib));
+	_set(DEV->CreateGeom(DescList, DeclSize, vb, ib));
+}
+
+void resptrcode_geom::create(D3DVERTEXELEMENT9* decl, IRHIBuffer* vb, IRHIBuffer* ib)
+{
+	_set(DEV->CreateGeom(decl, vb, ib));
 }
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-BOOL SPass::equal(const SPass& other)
+bool SPass::equal(const SPass& other)
 {
-	if (state		!= other.state)		return FALSE;
-	if (ps			!= other.ps)			return FALSE;
-	if (vs			!= other.vs)			return FALSE;
+	if (state		!= other.state)		return false;
+	if (ps			!= other.ps)			return false;
+	if (vs			!= other.vs)			return false;
 #ifdef USE_DX11
-	if (gs			!= other.gs)			return FALSE;
-	if (hs			!= other.hs)			return FALSE;
-	if (ds			!= other.ds)			return FALSE;
-	if (cs			!= other.cs)			return FALSE;
+	if (gs			!= other.gs)			return false;
+	if (hs			!= other.hs)			return false;
+	if (ds			!= other.ds)			return false;
+	if (cs			!= other.cs)			return false;
+	if (iPriority != other.iPriority)		return false;
 #endif //USE_DX11
-	if (constants	!= other.constants)		return FALSE;	// is this nessesary??? (ps+vs already combines)
+	if (constants	!= other.constants)		return false;	// is this nessesary??? (ps+vs already combines)
 
-	if (T != other.T)					return FALSE;
-	if (C != other.C)					return FALSE;
+	if (T != other.T)					return false;
+	if (C != other.C)					return false;
 #ifdef _EDITOR
-	if (M != other.M)					return FALSE;
+	if (M != other.M)					return false;
 #endif
-	return TRUE;
+	return true;
 }
 
 //
 ShaderElement::ShaderElement()
 {
 	flags.iPriority		= 1;
-	flags.bStrictB2F	= FALSE;
-	flags.bEmissive		= FALSE;
-	flags.bScopeMask	= FALSE;
-	flags.bDistort		= FALSE;
-	flags.bWmark		= FALSE;
-	flags.bLandscape	= FALSE;
+	flags.bStrictB2F	= false;
+	flags.bEmissive		= false;
+	flags.bScopeMask	= false;
+	flags.bDistort		= false;
+	flags.bWmark		= false;
+	flags.bLandscape	= false;
 }
 
-BOOL ShaderElement::equal	(ShaderElement& S)
+bool ShaderElement::equal	(ShaderElement& S)
 {
-	if (flags.iPriority		!= S.flags.iPriority)	return FALSE;
-	if (flags.bStrictB2F	!= S.flags.bStrictB2F)	return FALSE;
-	if (flags.bEmissive		!= S.flags.bEmissive)	return FALSE;
-	if (flags.bScopeMask	!= S.flags.bScopeMask)	return FALSE;
-	if (flags.bWmark		!= S.flags.bWmark)		return FALSE;
-	if (flags.bLandscape	!= S.flags.bLandscape)	return FALSE;
-	if (flags.bDistort		!= S.flags.bDistort)	return FALSE;
-	if (passes.size() != S.passes.size())			return FALSE;
+	if (flags.iPriority		!= S.flags.iPriority)	return false;
+	if (flags.bStrictB2F	!= S.flags.bStrictB2F)	return false;
+	if (flags.bEmissive		!= S.flags.bEmissive)	return false;
+	if (flags.bScopeMask	!= S.flags.bScopeMask)	return false;
+	if (flags.bWmark		!= S.flags.bWmark)		return false;
+	if (flags.bLandscape	!= S.flags.bLandscape)	return false;
+	if (flags.bDistort		!= S.flags.bDistort)	return false;
+	if (passes.size() != S.passes.size())			return false;
 	for (u32 p=0; p<passes.size(); p++)
-		if (passes[p] != S.passes[p])				return FALSE;
-	return TRUE;
+		if (passes[p] != S.passes[p])				return false;
+	return true;
 }
 
-BOOL ShaderElement::equal	(ShaderElement* S)
+bool ShaderElement::equal	(ShaderElement* S)
 {	
-	if (0==S && 0==this)	return TRUE;
-	if (0==S || 0==this)	return FALSE;
+	if (nullptr==S && nullptr==this)	return true;
+	if (nullptr==S || nullptr==this)	return false;
 	return	equal	(*S);	
 }
 
 //
-BOOL Shader::equal	(Shader& S)
+bool Shader::equal	(Shader& S)
 {
 	return
-		E[0]->equal(&*S.E[0]) &&
-		E[1]->equal(&*S.E[1]) &&
-		E[2]->equal(&*S.E[2]) &&
-		E[3]->equal(&*S.E[3]) &&
-		E[4]->equal(&*S.E[4]);
+		E[0] && E[0]->equal(&*S.E[0]) &&
+		E[1] && E[1]->equal(&*S.E[1]) &&
+		E[2] && E[2]->equal(&*S.E[2]) &&
+		E[3] && E[3]->equal(&*S.E[3]) &&
+		E[4] && E[4]->equal(&*S.E[4]);
 }
-BOOL Shader::equal	(Shader* S)
+bool Shader::equal	(Shader* S)
 {	return	equal(*S);	}
 
 void STextureList::clear()

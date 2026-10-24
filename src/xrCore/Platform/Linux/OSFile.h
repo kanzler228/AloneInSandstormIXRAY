@@ -17,7 +17,7 @@ using errno_t = int;
 #define _lseeki64 lseek64
 #define _lseek lseek
 #define _wsopen_s _sopen_s
-
+#define _filelengthi64 _filelength
 #define _O_WRONLY O_WRONLY
 #define _O_RDONLY O_RDONLY
 #define _O_TRUNC O_TRUNC
@@ -29,6 +29,9 @@ using errno_t = int;
 #define O_SEQUENTIAL 0
 #define SH_DENYWR 0
 #define _SH_DENYNO 0
+
+#define PLATFORM_SLASH '/'
+#define PLATFORM_SLASH_STR "/"
 
 #define xr_fseek fseeko
 #define xr_ftell ftello
@@ -131,12 +134,40 @@ using FileHandle = int;
 class FS_Path;
 namespace Platform
 {
+    constexpr const char* kPreferredSeparator = "/";
+
     IC const char* ValidPath(const char* In)
     {
         static std::string NewPath;
-        NewPath = In;
+        NewPath.clear();
 
-        std::replace(NewPath.begin(), NewPath.end(), '\\', '/');
+        bool LastWasSlash = false;
+        int pos = 0;
+
+        for (const char* p = In; *p; ++p)
+        {
+            char c = *p;
+
+            if (c == '\\')
+                c = '/';
+            
+            if (c == '/')
+            {
+                if (!LastWasSlash || pos < 2)
+                {
+                    NewPath += c;
+                    LastWasSlash = true;
+                    pos++;
+                }
+            }
+            else
+            {
+                NewPath += c;
+                LastWasSlash = false;
+                pos++;
+            }
+        }
+
         return NewPath.c_str();
     }
 
@@ -276,7 +307,7 @@ namespace Platform
         return result;
     }
 
-    size_t Stat(const char* path, time_t& Time);
+    XRCORE_API size_t Stat(const char* path, time_t& Time);
 
     static constexpr size_t INVALID_READ_SIZE = (size_t)-1;
     IC std::uint32_t SetFilePointer(FileHandle hFile, std::uint32_t lDistanceToMove, std::uint32_t dwMoveMethod)
@@ -304,6 +335,13 @@ namespace Platform
             return INVALID_READ_SIZE;
 
         return (size_t)bytesRead;
+    }
+
+    IC void GetAbsolutePath(char* in_path, char* out_buffer, [[maybe_unused]] size_t BufferSize)
+    {
+        char* tmp_path = realpath(out_buffer, 0);
+        strcpy(in_path, tmp_path);
+        free(tmp_path);
     }
 }
 

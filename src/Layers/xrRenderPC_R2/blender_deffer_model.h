@@ -6,9 +6,9 @@ public:
 	xrP_Integer	oAREF;
 	xrP_BOOL	oBlend;
 public:
-	virtual		LPCSTR		getComment()	{ return "LEVEL: deffer-model-flat";	}
-	virtual		BOOL		canBeDetailed()	{ return TRUE;	}
-	virtual		BOOL		canBeLMAPped()	{ return FALSE;	}
+	virtual		const char* getComment()	{ return "LEVEL: deffer-model-flat";	}
+	virtual		bool		canBeDetailed()	{ return true;	}
+	virtual		bool		canBeLMAPped()	{ return false;	}
 
 	virtual		void		Save			(IWriter&	fs);
 	virtual		void		Load			(IReader&	fs, u16 version);

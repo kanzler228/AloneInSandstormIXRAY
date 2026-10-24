@@ -2,29 +2,31 @@
 #include "stdafx.h"
 #include "UIImageEditorForm.h"
 #include "EThumbnail.h"
+
+#include <RedImage/RedImage.hpp>
+
 UIImageEditorForm* UIImageEditorForm::Form = nullptr;
+
 UIImageEditorForm::UIImageEditorForm()
 {
 	m_ItemProps = new UIPropertiesForm();
 	m_ItemList = new UIItemListForm();
 	m_ItemList->m_Flags.set(UIItemListForm::fMultiSelect, true);
 
-	m_ItemList->SetOnItemsFocusedEvent(TOnILItemsFocused(this,&UIImageEditorForm::OnItemsFocused));
-	m_ItemList->SetOnItemRemoveEvent(TOnItemRemove(&ImageLib, &CImageManager::RemoveTexture));
-	m_Texture = nullptr;
+	m_ItemList->SetOnItemsFocusedEvent({this,&UIImageEditorForm::OnItemsFocused});
+	m_ItemList->SetOnItemRemoveEvent({&ImageLib, &CImageManager::RemoveTexture});
+
 	m_bFilterImage = true;
 	m_bFilterCube = true;
 	m_bFilterBump = true;
 	m_bFilterNormal = true;
 	m_bFilterTerrain = true;
 	m_bUpdateProperties = false;
-	m_TextureRemove = nullptr;
 }
 
 UIImageEditorForm::~UIImageEditorForm()
 {
-	if (m_Texture)
-		IM_TEXTURE_RELEASE(m_Texture);
+	m_Texture.destroy();;
 
 	xr_delete(m_ItemList);
 	xr_delete(m_ItemProps);
@@ -43,7 +45,7 @@ void UIImageEditorForm::Draw()
 
 	if (m_TextureRemove)
 	{
-		IM_TEXTURE_RELEASE(m_TextureRemove);
+		m_TextureRemove.destroy();
 		m_TextureRemove = nullptr;
 	}
 
@@ -110,9 +112,16 @@ void UIImageEditorForm::Draw()
 			if (m_Texture == nullptr)
 			{
 				u32 mem = 0;
-				m_Texture = RImplementation.texture_load("ed\\ed_nodata", mem);
+
+				auto* baseTexture = ::RImplementation.texture_load("ed\\ed_nodata", mem);
+				if (baseTexture)
+				{
+					m_Texture = new CTexture;
+					m_Texture->surface_set(GRHI->CreateTextureFromMemory(baseTexture, 0, {}));
+					baseTexture->Release();
+				}
 			}
-			ImGui::Image(m_Texture, ImVec2(128, 128));
+			ImGui::Image(m_Texture->get_SRView()->GetRawSRV(), ImVec2(128, 128));
 			m_ItemProps->Draw();
 
 			if (!IsDocked)
@@ -164,7 +173,7 @@ void UIImageEditorForm::Show(bool bImport)
 	if (Form->bReadonlyMode)
 	{
 		Log("#!You don't have permisions to modify textures.");
-		Form->m_ItemProps->SetReadOnly(TRUE);
+		Form->m_ItemProps->SetReadOnly(true);
 	}
 	Form->modif_map.clear();
 	Form->InitItemList();
@@ -238,6 +247,42 @@ ETextureThumbnail* UIImageEditorForm::FindUsedTHM(const shared_str& name)
 	else
 	{
 		thm->Load();
+
+		if (!thm->Valid())
+		{
+			string_path RawFileName = {};
+			FS.update_path(RawFileName, _textures_, name.c_str());
+			RedImageTool::RedImage Image;
+
+			xr_string FullFileName = RawFileName;
+			FullFileName += ".tga";
+
+			if (Image.LoadFromFile(FullFileName.c_str()))
+			{
+				Image.SwapRB();
+
+				u8* SizedPixels = new u8[THUMB_SIZE * 4];
+				RedImageTool::RedTextureUtils::Scale(SizedPixels, THUMB_WIDTH, THUMB_HEIGHT, (u8*)*Image, Image.GetWidth(), Image.GetHeight(), Image.GetFormat(), RedImageTool::RedResizeFilter::Box);
+
+				thm->m_Pixels.resize(THUMB_SIZE * 4);
+
+				const int RowSize = THUMB_WIDTH * 4;
+				u8* InvertedPixels = new u8[THUMB_SIZE * 4];
+
+				for (int y = 0; y < THUMB_HEIGHT; y++)
+				{
+					int SrcY = THUMB_HEIGHT - 1 - y;
+					memcpy(InvertedPixels + y * RowSize, SizedPixels + SrcY * RowSize, RowSize);
+				}
+
+				memcpy(thm->m_Pixels.data(), InvertedPixels, THUMB_SIZE * 4);
+
+				xr_delete(SizedPixels);
+				xr_delete(InvertedPixels);
+
+				thm->HasPreview = true;
+			}
+		}
 	}
 	return thm;
 }
@@ -413,7 +458,12 @@ void UIImageEditorForm::OnItemsFocused(ListItemsVec& item)
 			B->OnBtnClickEvent.bind(this, &UIImageEditorForm::OnCubeMapBtnClick);
 		}
 
-		thm->Update((ID3DBaseTexture*&)m_Texture);
+		IRHISurface* Surf = nullptr;
+		thm->Update(Surf);
+
+		m_Texture = new CTexture;
+		m_Texture->surface_set(Surf);
+		Surf->Release();
 	}
 
 	m_ItemProps->AssignItems(props);
@@ -439,18 +489,18 @@ void UIImageEditorForm::FilterUpdate()
 
 		ETextureThumbnail* thm = (ETextureThumbnail*)I->m_Object;
 
-		BOOL bVis = FALSE;
+		bool bVis = false;
 		int type = thm->_Format().type;
 		if (STextureParams::ttImage == type&&m_bFilterImage)
-			bVis = TRUE;
+			bVis = true;
 		else if (STextureParams::ttCubeMap == type && m_bFilterCube)
-			bVis = TRUE;
+			bVis = true;
 		else if (STextureParams::ttBumpMap== type && m_bFilterBump)
-			bVis = TRUE;
+			bVis = true;
 		else if (STextureParams::ttNormalMap == type && m_bFilterNormal)
-			bVis = TRUE;
+			bVis = true;
 		else if (STextureParams::ttTerrain == type && m_bFilterTerrain)
-			bVis = TRUE;
+			bVis = true;
 
 		I->Visible(bVis);
 		

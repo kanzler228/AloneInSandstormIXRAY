@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-int EDetailManager::RaySelect(int flag, float& dist, const Fvector& start, const Fvector& direction, BOOL bDistanceOnly)
+int EDetailManager::RaySelect(int flag, float& dist, const Fvector& start, const Fvector& direction, bool bDistanceOnly)
 {
 // box selected only
 
@@ -78,6 +78,9 @@ int EDetailManager::FrustumSelect(int flag, const CFrustum& frustum)
 
 void EDetailManager::SelectObjects(bool flag)
 {
+    if (!IsLoaded)
+        return;
+
 //	for (int i=0; i<m_Selected.size(); i++)
 //    	m_Selected[i] = flag;
 	for (U8It it=m_Selected.begin(); it!=m_Selected.end(); it++)

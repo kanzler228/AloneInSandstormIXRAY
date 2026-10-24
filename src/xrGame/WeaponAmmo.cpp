@@ -21,17 +21,27 @@ CCartridge::CCartridge()
 	bullet_material_idx = u16(-1);
 }
 
-void CCartridge::Load(LPCSTR section, u8 LocalAmmoType) 
+void CCartridge::Load(const char* section, u8 LocalAmmoType) 
 {
 	m_ammoSect				= section;
 	m_LocalAmmoType			= LocalAmmoType;
 	param_s.kDist				= pSettings->r_float(section, "k_dist");
 	param_s.kDisp				= pSettings->r_float(section, "k_disp");
 	param_s.kHit				= pSettings->r_float(section, "k_hit");
-//.	param_s.kCritical			= pSettings->r_float(section, "k_hit_critical");
 	param_s.kImpulse			= pSettings->r_float(section, "k_impulse");
-	//m_kPierce				= pSettings->r_float(section, "k_pierce");
-	param_s.kAP					= pSettings->r_float(section, "k_ap");
+
+	if (pSettings->line_exist(section, "k_ap"))
+	{
+		param_s.kAP = pSettings->r_float(section, "k_ap");
+	}
+	else
+	{
+		param_s.kAP = pSettings->r_float(section, "k_pierce");
+		param_s.kAP -= 1.0f;
+
+		if (param_s.kAP < 0.f)
+			param_s.kAP = 0.f;
+	}
 	param_s.u8ColorID			= READ_IF_EXISTS(pSettings, r_u8, section, "tracer_color_ID", 0);
 	
 	if (pSettings->line_exist(section, "k_air_resistance"))
@@ -44,18 +54,18 @@ void CCartridge::Load(LPCSTR section, u8 LocalAmmoType)
 	param_s.impair				= pSettings->r_float(section, "impair");
 	param_s.fWallmarkSize		= pSettings->r_float(section, "wm_size");
 	
-	m_flags.set					(cfCanBeUnlimited | cfRicochet, TRUE);
-	m_flags.set					(cfMagneticBeam, FALSE);
+	m_flags.set					(cfCanBeUnlimited | cfRicochet, true);
+	m_flags.set					(cfMagneticBeam, false);
 
 	if (pSettings->line_exist(section, "allow_ricochet"))
 	{
 		if (!pSettings->r_bool(section, "allow_ricochet"))
-			m_flags.set(cfRicochet, FALSE);
+			m_flags.set(cfRicochet, false);
 	}
 	if (pSettings->line_exist(section, "magnetic_beam_shot"))
 	{
 		if (pSettings->r_bool(section, "magnetic_beam_shot"))
-			m_flags.set(cfMagneticBeam, TRUE);
+			m_flags.set(cfMagneticBeam, true);
 	}
 
 	if (pSettings->line_exist(section, "4to1_tracer"))
@@ -64,7 +74,7 @@ void CCartridge::Load(LPCSTR section, u8 LocalAmmoType)
 	if(pSettings->line_exist(section,"can_be_unlimited"))
 		m_flags.set(cfCanBeUnlimited, pSettings->r_bool(section, "can_be_unlimited"));
 
-	m_flags.set			(cfExplosive, pSettings->r_bool(section, "explosive"));
+	m_flags.set			(cfExplosive, READ_IF_EXISTS(pSettings, r_bool, section, "explosive", false));
 
 	bullet_material_idx		=  GMLib.GetMaterialIdx(WEAPON_MATERIAL_NAME);
 	VERIFY	(u16(-1)!=bullet_material_idx);
@@ -86,25 +96,28 @@ float CCartridge::Weight() const {
 	return res;
 }
 
-CWeaponAmmo::CWeaponAmmo(void) 
-{
-}
-
-CWeaponAmmo::~CWeaponAmmo(void)
-{
-}
-
-void CWeaponAmmo::Load(LPCSTR section) 
+void CWeaponAmmo::Load(const char* section) 
 {
 	inherited::Load			(section);
 
 	cartridge_param.kDist		= pSettings->r_float(section, "k_dist");
 	cartridge_param.kDisp		= pSettings->r_float(section, "k_disp");
 	cartridge_param.kHit		= pSettings->r_float(section, "k_hit");
-//.	cartridge_param.kCritical	= pSettings->r_float(section, "k_hit_critical");
 	cartridge_param.kImpulse	= pSettings->r_float(section, "k_impulse");
-	//m_kPierce				= pSettings->r_float(section, "k_pierce");
-	cartridge_param.kAP			= pSettings->r_float(section, "k_ap");
+
+	if (pSettings->line_exist(section, "k_ap"))
+	{
+		cartridge_param.kAP = pSettings->r_float(section, "k_ap");
+	}
+	else
+	{
+		cartridge_param.kAP = pSettings->r_float(section, "k_pierce");
+		cartridge_param.kAP -= 1.0f;
+
+		if (cartridge_param.kAP < 0.f)
+			cartridge_param.kAP = 0.f;
+	}
+
 	cartridge_param.u8ColorID	= READ_IF_EXISTS(pSettings, r_u8, section, "tracer_color_ID", 0);
 
 	if (pSettings->line_exist(section, "k_air_resistance"))
@@ -125,9 +138,9 @@ void CWeaponAmmo::Load(LPCSTR section)
 	m_boxCurr				= m_boxSize;	
 }
 
-BOOL CWeaponAmmo::net_Spawn(CSE_Abstract* DC) 
+bool CWeaponAmmo::net_Spawn(CSE_Abstract* DC) 
 {
-	BOOL bResult			= inherited::net_Spawn	(DC);
+	bool bResult			= inherited::net_Spawn	(DC);
 	CSE_Abstract	*e		= (CSE_Abstract*)(DC);
 	CSE_ALifeItemAmmo* l_pW	= smart_cast<CSE_ALifeItemAmmo*>(e);
 	m_boxCurr				= l_pW->a_elapsed;
@@ -166,18 +179,7 @@ bool CWeaponAmmo::Useful() const
 	// Если IItem еще не полностью использованый, вернуть true
 	return !!m_boxCurr;
 }
-/*
-s32 CWeaponAmmo::Sort(PIItem pIItem) 
-{
-	// Если нужно разместить IItem после this - вернуть 1, если
-	// перед - -1. Если пофиг то 0.
-	CWeaponAmmo *l_pA = smart_cast<CWeaponAmmo*>(pIItem);
-	if(!l_pA) return 0;
-	if(xr_strcmp(cNameSect(), l_pA->cNameSect())) return 0;
-	if(m_boxCurr <= l_pA->m_boxCurr) return 1;
-	else return -1;
-}
-*/
+
 bool CWeaponAmmo::Get(CCartridge &cartridge) 
 {
 	if(!m_boxCurr) return false;

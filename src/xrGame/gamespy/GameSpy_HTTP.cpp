@@ -17,7 +17,7 @@ CGameSpy_HTTP::~CGameSpy_HTTP()
 
 void CGameSpy_HTTP::LoadGameSpy()
 {
-	//-----------------------------------------------------
+#ifdef XR_MP_BUILD
 	GAMESPY_LOAD_FN(xrGS_ghttpStartup);
 	GAMESPY_LOAD_FN(xrGS_ghttpCleanup);
 	GAMESPY_LOAD_FN(xrGS_ghttpThink);
@@ -27,7 +27,7 @@ void CGameSpy_HTTP::LoadGameSpy()
 	GAMESPY_LOAD_FN(xrGS_ghttpCancelRequest);
 
 	GAMESPY_LOAD_FN(xrGS_GetGameID);
-
+#endif
 }
 
 void CGameSpy_HTTP::StartUp		()
@@ -92,7 +92,7 @@ GHTTPBool	__cdecl	CompletedCallBack	(GHTTPRequest request, GHTTPResult result, c
 	return GHTTPTrue;
 }
 
-void		CGameSpy_HTTP::DownloadFile(LPCSTR URL, LPCSTR FileName)
+void		CGameSpy_HTTP::DownloadFile(const char* URL, const char* FileName)
 {	
 
 //	GHTTPRequest res = xrGS_ghttpSaveA(URL, FileName, GHTTPFalse, CompletedCallBack, this);

@@ -1,4 +1,4 @@
-﻿#include "../xrEngine/stdafx.h"
+#include "../xrEngine/stdafx.h"
 #include "../xrEngine/Environment.h"
 #include "../xrEngine/IGame_Persistent.h"
 #include "../xrEngine/IGame_Level.h"
@@ -36,6 +36,13 @@ bool enumWeather(void* data, int idx, const char** item)
 	return true;
 }
 
+bool enumShared(void* data, int idx, const char** item)
+{
+	shared_str* vec = (shared_str*)data;
+	*item = vec[idx].c_str();
+	return true;
+}
+
 const char* empty = "";
 bool enumIniWithEmpty(void* data, int idx, const char** item)
 {
@@ -43,7 +50,7 @@ bool enumIniWithEmpty(void* data, int idx, const char** item)
 		*item = empty;
 	else {
 		CInifile* ini = (CInifile*)data;
-		*item = ini->sections()[idx - 1]->Name.c_str();
+		*item = ini->sections()[idx - 1].Name.c_str();
 	}
 	return true;
 }
@@ -51,7 +58,7 @@ bool enumIniWithEmpty(void* data, int idx, const char** item)
 bool enumIni(void* data, int idx, const char** item)
 {
 	CInifile* ini = (CInifile*)data;
-	*item = ini->sections()[idx]->Name.c_str();
+	*item = ini->sections()[idx].Name.c_str();
 	return true;
 }
 
@@ -73,7 +80,7 @@ xr_set<shared_str> modifiedWeathers;
 
 void saveWeather(shared_str name, const xr_vector<CEnvDescriptor*>& env)
 {
-	CInifile f(nullptr, FALSE, FALSE, FALSE);
+	CInifile f(nullptr, false, false, false);
 	for (auto el : env) {
 		if (el->env_ambient) {
 			f.w_string(el->m_identifier.c_str(), "ambient", el->env_ambient->name().c_str());
@@ -123,7 +130,7 @@ void nextTexture(char* tex, int texSize, int offset)
 	string_path dir, fn;
 	_splitpath(tex, nullptr, dir, fn, nullptr);
 	xr_strconcat(fn, fn, ".dds");
-	xr_vector<LPSTR>* files = FS.file_list_open("$game_textures$", dir, FS_ListFiles);
+	xr_vector<LPSTR>* files = FS.file_list_open(_game_textures_, dir, FS_ListFiles);
 	if (!files)
 		return;
 	size_t index = 0;
@@ -254,7 +261,7 @@ bool editTexture(const char* label, shared_str& texName)
 
 		if (!initialized) {
 
-			xr_vector<LPSTR>* files = FS.file_list_open("$game_textures$", FS_ListFiles);
+			xr_vector<LPSTR>* files = FS.file_list_open(_game_textures_, FS_ListFiles);
 			xr_vector<xr_string> filtered;
 
 			if (files)
@@ -305,7 +312,7 @@ void RenderUIWeather() {
 		return;
 	}
 
-	if (g_pIGameActor == nullptr) {
+	if (GActorInterface == nullptr) {
 		return;
 	}
 
@@ -446,14 +453,18 @@ void RenderUIWeather() {
 	ImGui::Separator();
 	bool changed = false;
 	sel = -1;
-	for (int i = 0; i != env.m_ambients_config->sections().size(); i++) {
-		if (cur->env_ambient->name() == env.m_ambients_config->sections()[i]->Name) {
+
+	for (int i = 0; i != env.m_ambients_sections.size(); i++)
+	{
+		if (cur->env_ambient && cur->env_ambient->name() == env.m_ambients_sections[i]) 
+		{
 			sel = i;
 		}
 	}
 
-	if (ImGui::Combo("ambient", &sel, enumIni, env.m_ambients_config, (int)env.m_ambients_config->sections().size())) {
-		cur->env_ambient = env.AppendEnvAmb(env.m_ambients_config->sections()[sel]->Name);
+	if (ImGui::Combo("ambient", &sel, enumShared, env.m_ambients_sections.data(), (int)env.m_ambients_sections.size())) 
+	{
+		cur->env_ambient = env.AppendEnvAmb(env.m_ambients_sections[sel], env.m_ambients_config ? nullptr : pSettings);
 		changed = true;
 	}
 
@@ -466,7 +477,7 @@ void RenderUIWeather() {
 
 	char buf[100];
 
-	if (editTexture("clouds_texture", cur->clouds_texture_name)) {
+	if (cur->clouds_texture_name && editTexture("clouds_texture", cur->clouds_texture_name)) {
 		cur->on_device_create();
 		changed = true;
 	}
@@ -487,39 +498,30 @@ void RenderUIWeather() {
 		changed = true;
 	}
 
-	static std::unordered_set<xr_string> validRainTypes =
+	static xr_vector<const char*> rain_types =
 	{
 		"default", 
 		"drizzle",
 		"dense", 
 		"spherical" 
 	};
+	
+	static int curr_idx = 0;
 
-	static xr_string previousRainType;
-	previousRainType = cur->rain_type.c_str();
-
-	static char rainTypeBuffer[100];
-	strcpy_s(rainTypeBuffer, previousRainType.c_str());
-
-	if (ImGui::InputText("rain_type", rainTypeBuffer, sizeof(rainTypeBuffer))) 
+	if (ImGui::Combo("rain_type", &curr_idx, &rain_types[0], rain_types.size()))
 	{
-		static xr_string newRainType;
-		newRainType = rainTypeBuffer;
-		if (validRainTypes.find(newRainType) != validRainTypes.end()) 
-		{
-			if (newRainType != previousRainType) 
-			{
-				cur->rain_type = newRainType.c_str();
-				changed = true;
-			}
-		}
-		else 
-		{
-			ImGui::TextColored(ImVec4(1, 0, 0, 1), "Invalid rain_type. Allowed values: default, drizzle, dense, spherical");
-		}
+		if(env.CurrentEnv)
+			env.CurrentEnv->rain_type = rain_types[curr_idx];
+		cur->rain_type = rain_types[curr_idx];
+	}
+	else
+	{
+		auto it = std::find_if(rain_types.begin(), rain_types.end(), [cur](const char* type) { return xr_strcmp(cur->rain_type, type) == 0; });
+		if (it != rain_types.end())
+			curr_idx = it - rain_types.begin();
 	}
 
-	if (ImGui::SliderFloat("rain_density", &cur->rain_density, 0.0f, 1.0f)) {
+	if (ImGui::SliderFloat("rain_density", &cur->rain_density, 0.0f, 5.0f)) {
 		changed = true;
 	}
 	if (ImGui::ColorEdit3("rain_color", (float*)&cur->rain_color)) {
@@ -552,7 +554,7 @@ void RenderUIWeather() {
 		changed = true;
 	}
 
-	if (editTexture("sky_texture", cur->sky_texture_name))
+	if (cur->sky_texture_name && editTexture("sky_texture", cur->sky_texture_name))
 	{
 		cur->sky_texture_name = xr_string(cur->sky_texture_name.c_str(), 
 			cur->sky_texture_name.size() - 4).c_str(); // .dds
@@ -565,21 +567,27 @@ void RenderUIWeather() {
 
 	sel = -1;
 
-	for (int i = 0; i != env.m_suns_config->sections().size(); i++) {
-		if (cur->lens_flare_id == env.m_suns_config->sections()[i]->Name) {
+	CInifile* sunsConfig = env.m_suns_config;
+	if (!sunsConfig)
+		sunsConfig = pSettings;
+	for (int i = 0; i != env.m_flares_sections.size(); i++)
+	{
+		if (cur->lens_flare_id == env.m_flares_sections[i])
+		{
 			sel = i;
 		}
 	}
 
-	if (ImGui::Combo("sun", &sel, enumIni, env.m_suns_config, (int)env.m_suns_config->sections().size()))
+	if (ImGui::Combo("sun", &sel, enumShared, env.m_flares_sections.data(), (int)env.m_flares_sections.size()))
 	{
 		cur->lens_flare_id
-			= env.eff_LensFlare->AppendDef(env, env.m_suns_config, env.m_suns_config->sections()[sel]->Name.c_str());
+			= env.eff_LensFlare->AppendDef(env, sunsConfig, env.m_flares_sections[sel].c_str());
 		env.eff_LensFlare->Invalidate();
 		changed = true;
 	}
 
-	if (ImGui::ColorEdit4("sun_color", (float*)&cur->sun_color, ImGuiColorEditFlags_AlphaBar)) {
+	if (ImGui::ColorEdit4("sun_color", (float*)&cur->sun_color, ImGuiColorEditFlags_AlphaBar)) 
+	{
 		changed = true;
 	}
 	static float editor_altitude = 0.f;
@@ -598,41 +606,49 @@ void RenderUIWeather() {
 		cur->sun_dir.setHP(deg2rad(editor_longitude), deg2rad(editor_altitude));
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("update"))
+	if (ImGui::Button("update##sun_altitude"))
 	{
 		editor_altitude = cur->sun_dir.getP();
 	}
 
-	if (ImGui::SliderFloat("sun_longitude", &editor_longitude, -360.0f, 360.0f)) {
+	if (ImGui::SliderFloat("sun_longitude", &editor_longitude, -360.0f, 360.0f)) 
+	{
 		changed = true;
 		cur->sun_dir.setHP(deg2rad(editor_longitude), deg2rad(editor_altitude));
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("update"))
+	if (ImGui::Button("update##sun_longitude"))
 	{
 		editor_longitude = cur->sun_dir.getH();
 	}
 	ImGui::EndDisabled();
 
-	if (ImGui::SliderFloat("sun_shafts_intensity", &cur->m_fSunShaftsIntensity, 0.0f, 1.0f)) {
+	if (ImGui::SliderFloat("sun_shafts_intensity", &cur->m_fSunShaftsIntensity, 0.0f, 1.0f)) 
+	{
 		changed = true;
 	}
 
-	sel = 0;
+	sel = -1;
 
-	for (int i = 0; i != env.m_thunderbolt_collections_config->sections().size(); i++) {
-		if (cur->tb_id == env.m_thunderbolt_collections_config->sections()[i]->Name) {
-			sel = i + 1;
+	CInifile* thunderboltCollectionsConfig = env.m_thunderbolt_collections_config;
+	if (!thunderboltCollectionsConfig)
+		thunderboltCollectionsConfig = pSettings;
+
+	for (int i = 0; i != env.m_thunderbolts_sections.size(); i++)
+	{
+		if (cur->tb_id == env.m_thunderbolts_sections[i])
+		{
+			sel = i;
 		}
 	}
 
-	if (ImGui::Combo("thunderbolt_collection", &sel, enumIniWithEmpty, env.m_thunderbolt_collections_config,
-		(int)env.m_thunderbolt_collections_config->sections().size() + 1))
+	CInifile* thunderboltsConfig = env.m_thunderbolts_config;
+	if (!thunderboltsConfig)
+		thunderboltsConfig = pSettings;
+
+	if (ImGui::Combo("thunderbolt_collection", &sel, enumShared, env.m_thunderbolts_sections.data(), (int)env.m_thunderbolts_sections.size()))
 	{
-		cur->tb_id = (sel == 0)
-			? env.eff_Thunderbolt->AppendDef(env, env.m_thunderbolt_collections_config, env.m_thunderbolts_config, "")
-			: env.eff_Thunderbolt->AppendDef(env, env.m_thunderbolt_collections_config, env.m_thunderbolts_config,
-				env.m_thunderbolt_collections_config->sections()[sel - 1]->Name.c_str());
+		cur->tb_id = env.eff_Thunderbolt->AppendDef(env, thunderboltCollectionsConfig, thunderboltsConfig, env.m_thunderbolts_sections[sel].c_str());
 		changed = true;
 	}
 

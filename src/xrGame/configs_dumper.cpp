@@ -1,7 +1,8 @@
 #include "StdAfx.h"
+#ifdef XR_MP_BUILD
 #include "configs_dumper.h"
 #include "configs_common.h"
-#include "../xrCore/ppmd_compressor.h"
+#include "../xrCore/compression/ppmd/ppmd_compressor.h"
 #include "../xrCore/xr_ini.h"
 
 #include "GameObject.h"
@@ -87,7 +88,9 @@ static active_objects_t::size_type get_active_objects(active_objects_t & dest)
 		if (!tmp_inv_item)
 			continue;
 
-		CWeapon const * tmp_weapon			= smart_cast<CWeapon const*>(tmp_inv_item);
+		PIItem casted_inv_item = const_cast<PIItem>(tmp_inv_item);
+
+		CWeapon const * tmp_weapon = casted_inv_item->cast_weapon();
 		if (tmp_weapon)
 		{
 			dest.push_back(tmp_weapon);
@@ -131,7 +134,7 @@ void configs_dumper::write_configs()
 	{
 		while (m_ltx_configs.dump_one(m_dump_result)) {};
 	}
-	CInifile			active_params_dumper(nullptr, FALSE, FALSE, FALSE);
+	CInifile			active_params_dumper(nullptr, false, false, false);
 	active_objects_t	active_objects(
 		_alloca(sizeof(active_objects_t::value_type) * max_active_objects),
 		max_active_objects);
@@ -155,13 +158,13 @@ void configs_dumper::sign_configs		()
 {
 	string64	creation_date;
 	string64		tmp_player_name = {};
-	CInifile	tmp_ini				(nullptr, FALSE, FALSE, FALSE);
-	game_cl_mp*	tmp_cl_game			= smart_cast<game_cl_mp*>(&Game());
+	CInifile	tmp_ini				(nullptr, false, false, false);
+	game_cl_mp*	tmp_cl_game			= Game().cast_game_cl_mp();
 	R_ASSERT						(tmp_cl_game);
 	xr_strconcat(tmp_player_name, "\"",
 		tmp_cl_game->local_player ? tmp_cl_game->local_player->getName() : "unknown_just_connected",
 		"\"");
-	LPCSTR		tmp_cdkey_digest	= Level().get_cdkey_digest().c_str();
+	const char*		tmp_cdkey_digest	= Level().get_cdkey_digest().c_str();
 	if (!tmp_cdkey_digest)
 		tmp_cdkey_digest = "null";
 
@@ -229,13 +232,13 @@ void configs_dumper::dump_config(complete_callback_t complete_cb)
 	if (m_make_start_event)
 	{
 		SetEvent(m_make_start_event);
-		Engine.Sheduler.Register	(this, TRUE);
+		Engine.Sheduler.Register	(this, true);
 		return;
 	}
-	m_make_start_event			= CreateEvent(nullptr, FALSE, TRUE, nullptr);
-	m_make_done_event			= CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	m_make_start_event			= CreateEvent(nullptr, false, true, nullptr);
+	m_make_done_event			= CreateEvent(nullptr, false, false, nullptr);
 	thread_spawn				(&configs_dumper::dumper_thread, "configs_dumper", 0, this);
-	Engine.Sheduler.Register	(this, TRUE);
+	Engine.Sheduler.Register	(this, true);
 }
 
 void configs_dumper::compress_configs	()
@@ -305,7 +308,7 @@ void configs_dumper::realloc_compress_buffer(u32 need_size)
 }
 
 #ifdef DEBUG
-void configs_dumper::timer_begin(LPCSTR comment)
+void configs_dumper::timer_begin(const char* comment)
 {
 	m_timer_comment = comment;
 	m_debug_timer.Start();
@@ -357,3 +360,4 @@ void dump_signer::feel_private_dsa_key()
 
 
 }//namespace mp_anticheat
+#endif

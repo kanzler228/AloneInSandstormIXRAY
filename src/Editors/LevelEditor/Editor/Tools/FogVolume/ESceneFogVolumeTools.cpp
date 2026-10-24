@@ -32,7 +32,7 @@ void ESceneFogVolumeTool::Clear(bool bSpecific)
     m_group_counter		= 0;
 }
 
-CCustomObject* ESceneFogVolumeTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* ESceneFogVolumeTool::CreateObject(LPVOID data, const char* name)
 {
 
 	CCustomObject* O	= new EFogVolume(data,name);
@@ -130,7 +130,7 @@ void ESceneFogVolumeTool::UnGroupCurrent()
 
 void ESceneFogVolumeTool::RegisterGroup(u32 group)
 {
-   m_group_counter = _max(m_group_counter, group);
+   m_group_counter = std::max(m_group_counter, group);
 }
 
 void ESceneFogVolumeTool::Selected(EFogVolume* fv)
@@ -154,7 +154,7 @@ void ESceneFogVolumeTool::Selected(EFogVolume* fv)
 }
 
 //---------------------------------------
-EFogVolume::EFogVolume(LPVOID data, LPCSTR name)
+EFogVolume::EFogVolume(LPVOID data, const char* name)
 	:CEditShape(data,name)
 {
 	Construct(data);
@@ -179,7 +179,7 @@ void EFogVolume::OnUpdateTransform()
 	inherited::OnUpdateTransform();
 }
 
-bool EFogVolume::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool EFogVolume::LoadLTX(CInifile& ini, const char* sect_name)
 {
 	u32 version 				= ini.r_u32(sect_name, "version");
 
@@ -198,7 +198,7 @@ bool EFogVolume::LoadLTX(CInifile& ini, LPCSTR sect_name)
 	return 						true;
 }
 
-void EFogVolume::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void EFogVolume::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	inherited::SaveLTX	(ini, sect_name);
 
@@ -257,10 +257,10 @@ void EFogVolume::OnChangeEnvs	(PropValue* prop)
 
     ((ESceneFogVolumeTool*)FParentTools)->RegisterGroup(m_group_id);
 
-    LTools->UpdateProperties(FALSE);
+    LTools->UpdateProperties(false);
 }
 
-void EFogVolume::FillPropObjects(LPCSTR pref, PropItemVec& values)
+void EFogVolume::FillPropObjects(const char* pref, PropItemVec& values)
 {
 	inherited::FillProp			(pref, values);
 

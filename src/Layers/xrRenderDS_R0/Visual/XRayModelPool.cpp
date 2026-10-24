@@ -81,7 +81,7 @@ CDS0_RenderVisual* CDS0_ModelPool::Instance_Duplicate(CDS0_RenderVisual* V)
 	return N;
 }
 
-CDS0_RenderVisual* CDS0_ModelPool::Instance_Load(const char* N, BOOL allow_register)
+CDS0_RenderVisual* CDS0_ModelPool::Instance_Load(const char* N, bool allow_register)
 {
 	CDS0_RenderVisual* V;
 	string_path		name;
@@ -120,7 +120,7 @@ CDS0_RenderVisual* CDS0_ModelPool::Instance_Load(const char* N, BOOL allow_regis
 	return V;
 }
 
-CDS0_RenderVisual* CDS0_ModelPool::Instance_Load(LPCSTR name, IReader* data, BOOL allow_register)
+CDS0_RenderVisual* CDS0_ModelPool::Instance_Load(LPCSTR name, IReader* data, bool allow_register)
 {
 	CDS0_RenderVisual* V;
 
@@ -156,7 +156,7 @@ void CDS0_ModelPool::Destroy()
 #ifdef _DEBUG
 		Msg("ModelPool: Destroy object: '%s'", *V->getDebugName().c_str());
 #endif
-		DeleteInternal(V, TRUE);
+		DeleteInternal(V, true);
 	}
 
 	// Base/Reference
@@ -176,8 +176,8 @@ void CDS0_ModelPool::Destroy()
 
 CDS0_ModelPool::CDS0_ModelPool()
 {
-	bForceDiscard = FALSE;
-	bAllowChildrenDuplicate = TRUE;
+	bForceDiscard = false;
+	bAllowChildrenDuplicate = true;
 	g_pMotionsContainer = new motions_container;
 }
 
@@ -227,10 +227,10 @@ CDS0_RenderVisual* CDS0_ModelPool::Create(const char* name, IReader* data)
 
 		if (0 == Base) {
 			// 2. If not found
-			bAllowChildrenDuplicate = FALSE;
-			if (data)		Base = Instance_Load(low_name, data, TRUE);
-			else			Base = Instance_Load(low_name, TRUE);
-			bAllowChildrenDuplicate = TRUE;
+			bAllowChildrenDuplicate = false;
+			if (data)		Base = Instance_Load(low_name, data, true);
+			else			Base = Instance_Load(low_name, true);
+			bAllowChildrenDuplicate = true;
 #ifdef _EDITOR
 			if (!Base)		return 0;
 #endif
@@ -250,11 +250,11 @@ CDS0_RenderVisual* CDS0_ModelPool::CreateChild(LPCSTR name, IReader* data)
 
 	// 1. Search for already loaded model
 	CDS0_RenderVisual* Base = Instance_Find(low_name);
-	//.	if (0==Base) Base	 	= Instance_Load(name,data,FALSE);
+	//.	if (0==Base) Base	 	= Instance_Load(name,data,false);
 	if (0 == Base)
 	{
-		if (data)		Base = Instance_Load(low_name, data, FALSE);
-		else			Base = Instance_Load(low_name, FALSE);
+		if (data)		Base = Instance_Load(low_name, data, false);
+		else			Base = Instance_Load(low_name, false);
 	}
 
 	CDS0_RenderVisual* Model = bAllowChildrenDuplicate ? Instance_Duplicate(Base) : Base;
@@ -262,7 +262,7 @@ CDS0_RenderVisual* CDS0_ModelPool::CreateChild(LPCSTR name, IReader* data)
 }
 
 extern ENGINE_API xr_atomic_bool g_bRendering;
-void CDS0_ModelPool::DeleteInternal(CDS0_RenderVisual*& V, BOOL bDiscard)
+void CDS0_ModelPool::DeleteInternal(CDS0_RenderVisual*& V, bool bDiscard)
 {
 	VERIFY(!g_bRendering);
 	if (!V)
@@ -271,7 +271,7 @@ void CDS0_ModelPool::DeleteInternal(CDS0_RenderVisual*& V, BOOL bDiscard)
 	V->Depart();
 	if (bDiscard || bForceDiscard)
 	{
-		Discard(V, TRUE);
+		Discard(V, true);
 	}
 	else 
 	{
@@ -290,7 +290,7 @@ void CDS0_ModelPool::DeleteInternal(CDS0_RenderVisual*& V, BOOL bDiscard)
 	V = NULL;
 }
 
-void CDS0_ModelPool::Delete(CDS0_RenderVisual*& V, BOOL bDiscard)
+void CDS0_ModelPool::Delete(CDS0_RenderVisual*& V, bool bDiscard)
 {
 	if (NULL == V)
 		return;
@@ -312,7 +312,7 @@ void CDS0_ModelPool::DeleteQueue()
 	ModelsToDelete.clear();
 }
 
-void CDS0_ModelPool::Discard(CDS0_RenderVisual*& V, BOOL b_complete)
+void CDS0_ModelPool::Discard(CDS0_RenderVisual*& V, bool b_complete)
 {
 	//
 	REGISTRY_IT	it = Registry.find(V);
@@ -335,11 +335,11 @@ void CDS0_ModelPool::Discard(CDS0_RenderVisual*& V, BOOL b_complete)
 					I->refs--;
 					if (0 == I->refs)
 					{
-						bForceDiscard = TRUE;
+						bForceDiscard = true;
 						I->model->Release();
 						xr_delete(I->model);
 						Models.erase(I);
-						bForceDiscard = FALSE;
+						bForceDiscard = false;
 					}
 					break;
 				}
@@ -376,7 +376,7 @@ void CDS0_ModelPool::Prefetch()
 	}
 }
 
-void CDS0_ModelPool::ClearPool(BOOL b_complete)
+void CDS0_ModelPool::ClearPool(bool b_complete)
 {
 	POOL_IT	_I = Pool.begin();
 	POOL_IT	_E = Pool.end();

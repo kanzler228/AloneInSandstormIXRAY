@@ -24,7 +24,7 @@
 #include <malloc.h>
 #pragma warning(pop)
 
-extern void	setup_location_types_line	(GameGraph::TERRAIN_VECTOR &m_vertex_types, LPCSTR string);
+extern void	setup_location_types_line	(GameGraph::TERRAIN_VECTOR &m_vertex_types, const char* string);
 
 CSE_ALifeItemWeapon *CSE_ALifeOnlineOfflineGroup::tpfGetBestWeapon		(ALife::EHitType &tHitType, float &fHitPower)
 {
@@ -121,7 +121,7 @@ void CSE_ALifeOnlineOfflineGroup::register_member						(ALife::_OBJECT_ID member
 	m_tGraphID					= monster->m_tGraphID;
 	m_fGoingSpeed				= monster->m_fGoingSpeed;
 	m_fCurrentLevelGoingSpeed	= monster->m_fCurrentLevelGoingSpeed;
-	m_flags.set					(flUsedAI_Locations,TRUE);
+	m_flags.set					(flUsedAI_Locations,true);
 	alife().graph().update		(this);
 }
 
@@ -140,7 +140,7 @@ void CSE_ALifeOnlineOfflineGroup::unregister_member						(ALife::_OBJECT_ID memb
 	m_members.erase				(I);
 	
 	if (m_members.empty()) {
-		m_flags.set				(flUsedAI_Locations,FALSE);
+		m_flags.set				(flUsedAI_Locations,false);
 	}
 }
 
@@ -282,7 +282,7 @@ void CSE_ALifeOnlineOfflineGroup::notify_on_member_death(MEMBER *member)
 void CSE_ALifeOnlineOfflineGroup::on_before_register	()
 {
 	m_tGraphID					= GameGraph::_GRAPH_ID(-1);
-	m_flags.set					(flUsedAI_Locations,FALSE);
+	m_flags.set					(flUsedAI_Locations,false);
 }
 
 void CSE_ALifeOnlineOfflineGroup::on_after_game_load	()
@@ -334,7 +334,7 @@ void CSE_ALifeOnlineOfflineGroup::clear_location_types		(){
 }
 
 
-void CSE_ALifeOnlineOfflineGroup::add_location_type		(LPCSTR mask){
+void CSE_ALifeOnlineOfflineGroup::add_location_type		(const char* mask){
 	setup_location_types_line(m_tpaTerrain, mask);	
 	MEMBERS::iterator			I = m_members.begin();
 	MEMBERS::iterator			E = m_members.end();

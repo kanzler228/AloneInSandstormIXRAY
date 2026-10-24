@@ -10,6 +10,10 @@ public:
 	bool UseCameraPosForActor = false;
 
 private:
+	void InitIcons();
+
+	xr_hash_map<xr_string, ref_texture> Icons;
+
 	u32 m_timeUndo;
 	u32 m_timeRedo;
 
@@ -19,7 +23,6 @@ private:
 	ref_texture m_tTerminated;
 	ref_texture m_tPlayPC;
 	ref_texture m_tPlayCleanGame;
-	ref_texture	m_PreferencesIcon;
 
 	bool m_VerifySpaceRestrictors;
 	bool m_Simulate;

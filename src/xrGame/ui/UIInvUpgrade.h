@@ -23,7 +23,7 @@ class CUIInventoryUpgradeWnd;
 class CInventoryItem;
 class CUIUpgradePoint;
 
-class UIUpgrade : public CUIWindow
+class UIUpgrade final : public CUIWindow
 {
 private:
 	using Upgrade_type = inventory::upgrade::Upgrade;
@@ -91,14 +91,15 @@ public:
 	UIUpgrade(CUIInventoryUpgradeWnd* parent_wnd, bool cellBorder);
 	virtual ~UIUpgrade();
 
-	void init_upgrade(LPCSTR upgrade_id, CInventoryItem& item);
+	void init_upgrade(const char* upgrade_id, CInventoryItem& item);
 
 	void load_from_xml(CUIXml& ui_xml, int i_column, int i_cell, Frect const* t_cell_border, Frect const& t_cell_item);
-	void set_texture(Layer layer, LPCSTR texture);
+	void set_texture(Layer layer, const char* texture);
 			
 	virtual	void Draw() override;
 	virtual	void Update() override;
 	virtual	void Reset() override;
+	bool CanBeApplied() const { return m_state == STATE_ENABLED || m_state == STATE_FOCUSED || m_state == STATE_TOUCHED; }
 
 	void update_upgrade_state();
 	bool OverrideFreeButtonState(const UIUpgrade::Upgrade_type* my_upgrade, const UIUpgrade::Upgrade_type* active_upgrade, ViewState& new_state);
@@ -111,7 +112,8 @@ public:
 	void OnClick();
 	virtual bool OnDbClick() override;
 	void OnRClick();
-				 
+	void SetSelected(bool status);
+
 	void on_over_window();
 				 
 	void highlight_relation(bool enable);

@@ -13,14 +13,14 @@
 #include "../xrEProps/FolderLib.h"
 #include "../../xrPhysics/PhysicsShell.h"
 //---------------------------------------------------------------------------
-MotionID EngineModel::FindMotionID(LPCSTR name, u16 slot)
+MotionID EngineModel::FindMotionID(const char* name, u16 slot)
 {
 	MotionID M;
 	CKinematicsAnimated* VA = PKinematicsAnimated(m_pVisual);
 	if (VA) M				= VA->ID_Motion	(name,slot);
 	return M;
 }
-CMotionDef*	EngineModel::FindMotionDef(LPCSTR name, u16 slot)
+CMotionDef*	EngineModel::FindMotionDef(const char* name, u16 slot)
 {
 	CKinematicsAnimated* VA 	= PKinematicsAnimated(m_pVisual);
 	if (VA){
@@ -29,7 +29,7 @@ CMotionDef*	EngineModel::FindMotionDef(LPCSTR name, u16 slot)
 	}
 	return 0;
 }
-CMotion*	EngineModel::FindMotionKeys(LPCSTR name, u16 slot)
+CMotion*	EngineModel::FindMotionKeys(const char* name, u16 slot)
 {
 	CKinematicsAnimated* VA 	= PKinematicsAnimated(m_pVisual);
 	if (VA){
@@ -39,7 +39,7 @@ CMotion*	EngineModel::FindMotionKeys(LPCSTR name, u16 slot)
 	return 0;
 }
 
-void EngineModel::FillMotionList(LPCSTR pref, ListItemsVec& items, int modeID)
+void EngineModel::FillMotionList(const char* pref, ListItemsVec& items, int modeID)
 {
 	LHelper().CreateItem(items, pref, modeID, 0);
 	if (IsRenderable() && MainForm->GetLeftBarForm()->GetRenderMode() == UILeftBarForm::Render_Engine) 
@@ -133,7 +133,7 @@ bool EngineModel::UpdateVisual(CEditableObject* source, bool bUpdGeom, bool bUpd
 		F.w(m_GeometryStream.pointer(),m_GeometryStream.size());
 	}
 	IReader R							(F.pointer(), F.size());
-	::Render->model_Delete				(m_pVisual,TRUE);
+	::Render->model_Delete				(m_pVisual,true);
 	g_pMotionsContainer->clean			(false);
 	m_pVisual = ::Render->model_Create	(ChangeFileExt(source->GetName(),"").c_str(),&R);
 	m_pBlend = 0;
@@ -142,7 +142,7 @@ bool EngineModel::UpdateVisual(CEditableObject* source, bool bUpdGeom, bool bUpd
 
 //---------------------------------------------------------------------------
 
-void EngineModel::PlayMotion(LPCSTR name, u16 slot)
+void EngineModel::PlayMotion(const char* name, u16 slot)
 {
 	for (int k=0; k<MAX_PARTS; k++)
 	   m_BPPlayItems[k].name = "";
@@ -219,7 +219,7 @@ void EngineModel::PlayMotion(LPCSTR name, u16 slot)
 					CMotionDef* D = PSkeletonAnimated(m_pVisual)->ID_Cycle_Safe(m_BPPlayCache[k].c_str());
 					CBlend* B=0;
 					if (D){
-						B = D->PlayCycle(PSkeletonAnimated(m_pVisual),k,(idx==k)?!(D->flags&esmNoMix):FALSE,0,0);
+						B = D->PlayCycle(PSkeletonAnimated(m_pVisual),k,(idx==k)?!(D->flags&esmNoMix):false,0,0);
 						if (idx==k) m_pBlend = B;
 					}
 				}
@@ -249,9 +249,9 @@ void EngineModel::SaveParams(TFormStorage* s)
 void CActorTools::OnMotionKeysModified()
 {
 	Modified			();
-	m_Flags.set			(flUpdateMotionKeys,TRUE);
+	m_Flags.set			(flUpdateMotionKeys,true);
 	if (MainForm->GetLeftBarForm()->GetRenderMode() == UILeftBarForm::Render_Engine){
-		m_Flags.set		(flUpdateMotionKeys,FALSE);
+		m_Flags.set		(flUpdateMotionKeys,false);
 		if (m_RenderObject.UpdateVisual(m_pEditObject,false,true,false)){
 			PlayMotion();
 		}else{
@@ -265,9 +265,9 @@ void CActorTools::OnMotionKeysModified()
 void CActorTools::OnMotionDefsModified()
 {
 	Modified			();
-	m_Flags.set			(flUpdateMotionDefs,TRUE);
+	m_Flags.set			(flUpdateMotionDefs,true);
 	if ( MainForm->GetLeftBarForm()->GetRenderMode() == UILeftBarForm::Render_Engine){
-		m_Flags.set		(flUpdateMotionDefs,FALSE);
+		m_Flags.set		(flUpdateMotionDefs,false);
 		if (m_RenderObject.UpdateVisual(m_pEditObject,false,false,true)){
 			PlayMotion();
 		}else{
@@ -282,7 +282,7 @@ void CActorTools::OnGeometryModified()
 {
 	Modified			();
 	if ( MainForm->GetLeftBarForm()->GetRenderMode() == UILeftBarForm::Render_Engine){
-		m_Flags.set		(flUpdateGeometry,FALSE);
+		m_Flags.set		(flUpdateGeometry,false);
 		if (m_RenderObject.UpdateVisual(m_pEditObject,true,false,false)){
 			PlayMotion();
 		}else{
@@ -294,20 +294,20 @@ void CActorTools::OnGeometryModified()
 }
 //---------------------------------------------------------------------------
 
-bool CActorTools::AppendMotion(LPCSTR fn)
+bool CActorTools::AppendMotion(const char* fn)
 {
 	VERIFY(m_pEditObject);
 	bool bRes = m_pEditObject->AppendSMotion(fn,&appended_motions);
 	return bRes;
 }
 
-bool CActorTools::RemoveMotion(LPCSTR name)
+bool CActorTools::RemoveMotion(const char* name)
 {
 	VERIFY(m_pEditObject);
 	return m_pEditObject->RemoveSMotion(name);
 }
 
-bool CActorTools::SaveMotions(LPCSTR name, bool bSelOnly)
+bool CActorTools::SaveMotions(const char* name, bool bSelOnly)
 {
 	VERIFY(m_pEditObject);
 	ListItemsVec items;
@@ -336,7 +336,7 @@ void CActorTools::MakePreview()
 	if (m_pEditObject)
 	{
 		CMemoryWriter F;
-		m_Flags.set(flUpdateGeometry|flUpdateMotionDefs|flUpdateMotionKeys,FALSE);
+		m_Flags.set(flUpdateGeometry|flUpdateMotionDefs|flUpdateMotionKeys,false);
 
 		if (m_RenderObject.UpdateVisual(m_pEditObject,true,true,true))
 		{
@@ -416,7 +416,7 @@ void CActorTools::PauseMotion()
 	}
 }
 
-bool CActorTools::RenameMotion(LPCSTR old_name, LPCSTR new_name)
+bool CActorTools::RenameMotion(const char* old_name, const char* new_name)
 {
 	R_ASSERT(m_pEditObject);
 	CSMotion* M = m_pEditObject->FindSMotionByName(old_name);	R_ASSERT(M);

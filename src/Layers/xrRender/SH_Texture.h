@@ -1,13 +1,11 @@
-#ifndef SH_TEXTURE_H
-#define SH_TEXTURE_H
 #pragma once
 
 #include "../../xrCore/xr_resource.h"
 
-class  ENGINE_API CAviPlayerCustom;
-class  CTheoraSurface;
+class ENGINE_API CAviPlayerCustom;
+class CTheoraSurface;
 
-class  ECORE_API CTexture : public xr_resource_named
+class ECORE_API CTexture : public xr_resource_named
 {
 public:
 	//	Since DX10 allows up to 128 unique textures, 
@@ -15,7 +13,7 @@ public:
 	enum ResourceShaderType	//	Don't change this since it's hardware-dependent
 	{
 		rstPixel = 0,	//	Default texture offset
-		rstVertex = D3DVERTEXTEXTURESAMPLER0,
+		rstVertex = RHI_VERTEX_TEXTURESAMPLER,
 		rstGeometry = rstVertex+256,
 		rstHull = rstGeometry+256,
 		rstDomain = rstHull+256,
@@ -34,90 +32,78 @@ public:
 	void								Load			();
 	void								PostLoad		();
 	void								Unload			(void);
-//	void								Apply			(u32 dwStage);
+	void								CreateEmpty(u32 w, u32 h);
 
-	void								surface_set		(ID3DBaseTexture* surf );
-	ID3DBaseTexture*					surface_get 	();
+	void								surface_set		(IRHISurface* surf );
+	IRHISurface*						surface_get 	();
 
-	IC BOOL								isUser			()		{ return flags.bUser;					}
-	IC u32								get_Width		()		{ desc_enshure(); return desc.Width;	}
-	IC u32								get_Height		()		{ desc_enshure(); return desc.Height;	}
-
-#ifdef USE_DX11
-	IC DXGI_FORMAT						get_Format		()		{ desc_enshure(); return desc.Format;	}
-#endif
+	IC bool								isUser			()		{ return flags.bUser;					}
+	IC u32								get_Width		()		{ return pSurface->GetWidth();	}
+	IC u32								get_Height		()		{ return pSurface->GetHeight();	}
+	IC ERHI_FORMAT						get_Format		()		{ return pSurface ? pSurface->GetFormat() : ERHI_FORMAT::UNKNOWN; }
 
 	void								video_Sync		(u32 _time){m_play_time=_time;}
-	void								video_Play		(BOOL looped, u32 _time=0xFFFFFFFF);
-	void								video_Pause		(BOOL state);
+	void								video_Play		(bool looped, u32 _time=0xFFFFFFFF);
+	void								video_Pause		(bool state);
 	void								video_Stop		();
-	BOOL								video_IsPlaying	();
+	bool								video_IsPlaying	();
 
 	CTexture							();
 	virtual ~CTexture					();
-	
-#ifdef USE_DX11
-	ID3DShaderResourceView*				get_SRView() {return m_pSRView;}
-#endif //USE_DX11
+
+	IRHIShaderResourceView* get_SRView() { return m_pSRView; }
 
 private:
-	IC BOOL								desc_valid		()		{ return pSurface==desc_cache; }
-	IC void								desc_enshure	()		{ if (!desc_valid()) desc_update(); }
-	void								desc_update		();
-#ifdef USE_DX11
-	void								Apply			(u32 dwStage);
+	void								Apply(u32 dwStage);
 	void								ProcessStaging();
-	D3D_USAGE							GetUsage();
-#endif //USE_DX11
 
-	//	Class data
-public:	//	Public class members (must be encapsulated furthur)
+	ERHI_USAGE							GetUsage();
+public:
 	struct 
 	{
-		u32					bLoaded		: 1;
-		u32					bUser		: 1;
-		u32					seqCycles	: 1;
-		u32					MemoryUsage	: 28;
-#ifdef USE_DX11
-		u32					bLoadedAsStaging: 1;
-#endif //USE_DX11
-	}									flags;
+		u32 bLoaded		: 1;
+		u32 bUser		: 1;
+		u32 seqCycles	: 1;
+		u32 MemoryUsage	: 28;
+		u32 bLoadedAsStaging: 1;
+	} flags;
 	xr_delegate<void(u32)> bind;
 
+	CAviPlayerCustom*		pAVI;
+	CTheoraSurface*			pTheora;
+	float					m_material;
+	shared_str				m_bumpmap;
 
-	CAviPlayerCustom*					pAVI;
-	CTheoraSurface*						pTheora;
-	float								m_material;
-	shared_str							m_bumpmap;
-
-	union{
-		u32								m_play_time;		// sync theora time
-		u32								seqMSPF;			// Sequence data milliseconds per frame
+	union
+	{
+		u32 m_play_time;		// sync theora time
+		u32 seqMSPF;			// Sequence data milliseconds per frame
 	};
 
-	ID3DBaseTexture* pSurface;
+	IRHIShaderResourceView* GetView();
+
+	IRHISurface* pSurface;
+	bool can_unload;
+
 private:
+	IRHIShaderResourceView* m_pSRView;
+
 	// Sequence data
-	xr_vector<ID3DBaseTexture*>			seqDATA;
+	xr_vector<IRHISurface*> seqDATA;
 
-	// Description
-	ID3DBaseTexture*					desc_cache;
-	D3D_TEXTURE2D_DESC					desc;
-
-#ifdef USE_DX11
-	ID3DShaderResourceView*			m_pSRView;
 	// Sequence view data
-	xr_vector<ID3DShaderResourceView*>m_seqSRView;
-#endif //USE_DX11
+	xr_vector<IRHIShaderResourceView*> m_seqSRView;
 };
-struct 		resptrcode_texture	: public resptr_base<CTexture>
-{
-	ECORE_API void		create			(LPCSTR	_name);
-	void				destroy			()					{ _set(NULL);					}
-	shared_str			bump_get		()					{ return _get()->m_bumpmap;		}
-	bool				bump_exist		()					{ return 0!=bump_get().size();	}
-};
-typedef	resptr_core<CTexture,resptrcode_texture >	
-	ref_texture;
 
-#endif
+struct resptrcode_texture :
+	public resptr_base<CTexture>
+{
+	ECORE_API void create(const char* _name);
+	IC void destroy() { _set(nullptr); }
+	IC bool bump_exist() { return 0 != bump_get().size(); }
+
+	IC shared_str bump_get() { return _get()->m_bumpmap; }
+};
+
+using ref_texture = resptr_core<CTexture, resptrcode_texture>;
+#include "TextureAtlas.h"

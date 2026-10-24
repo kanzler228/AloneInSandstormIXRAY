@@ -33,7 +33,9 @@ public:
     virtual void Draw();
     virtual void Update();
     virtual void DetachChild(CUIWindow* pChild);
-    void SetScrollBarProfile(LPCSTR profile) { m_scrollbar_profile = profile; };
+    void SetScrollBarProfile(const char* profile) { m_scrollbar_profile = profile; }
+    CUIScrollBar* ScrollBar() { return m_ScrollBar; }
+    bool ReinitScrollBar();
 
     // Добавление элементов в листбокс
     template <class Element>
@@ -64,6 +66,8 @@ public:
     void SetAlwaysShowScroll(bool flag = true) { m_bAlwaysShowScroll = flag; }
     void EnableAlwaysShowScroll(bool flag) { m_bAlwaysShowScroll_enable = flag; }
 
+    bool NextItem(bool selectOnly = false, bool loop = false);
+	bool PrevItem(bool selectOnly = false, bool loop = false);
 
     int GetItemsCount() { return m_ItemList.size(); }
 
@@ -77,6 +81,7 @@ public:
     void ScrollToBegin();
     void ScrollToEnd();
     void ScrollToPos(int position);
+    void ScrollToSelection();
 
     IC bool IsActiveBackgroundEnabled() { return m_bActiveBackground; }
     void EnableActiveBackground(bool enable);
@@ -115,6 +120,10 @@ protected:
 
     CUIScrollBar* m_ScrollBar;
     CGameFont* m_pFont;
+
+    bool _initListScrollBar(Fvector2 size);
+    void SyncScrollRangeFromItems();
+    void UpdateScrollBarVisibility();
 
     //обновления елементов списка, вызвается
     //если произошли изменения

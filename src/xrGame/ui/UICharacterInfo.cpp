@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "UIInventoryUtilities.h"
 
@@ -50,7 +50,7 @@ void CUICharacterInfo::InitCharacterInfo(Fvector2 pos, Fvector2 size, CUIXml* xm
 	inherited::SetWndPos(pos);
 	inherited::SetWndSize(size);
 
-	Init_IconInfoItem( *xml_doc, "icon_static",         eIcon         ); // SoC compatibility
+	Init_IconInfoItem( *xml_doc, "icon_static",         eIcon, true   ); // SoC compatibility
 	Init_IconInfoItem( *xml_doc, "icon",                eIcon         );
 	Init_IconInfoItem( *xml_doc, "icon_over",           eIconOver     );
 
@@ -86,6 +86,9 @@ void CUICharacterInfo::InitCharacterInfo(Fvector2 pos, Fvector2 size, CUIXml* xm
 	Init_StrInfoItem( *xml_doc, "relation_caption",  eRelationCaption   );
 	Init_StrInfoItem( *xml_doc, "relation_static",   eRelation          );
 
+	Init_StrInfoItem( *xml_doc, "game_time_caption", eGameTimeCaption   );
+	Init_StrInfoItem( *xml_doc, "game_time_static",  eGameTime          );
+
 	if (xml_doc->NavigateToNode("biography_list", 0))
 	{
 		pUIBio = new CUIScrollView();
@@ -95,7 +98,7 @@ void CUICharacterInfo::InitCharacterInfo(Fvector2 pos, Fvector2 size, CUIXml* xm
 	}
 }
 
-void CUICharacterInfo::Init_StrInfoItem( CUIXml& xml_doc, LPCSTR item_str, UIItemType type )
+void CUICharacterInfo::Init_StrInfoItem( CUIXml& xml_doc, const char* item_str, UIItemType type )
 {
 	if ( xml_doc.NavigateToNode( item_str, 0 ) )
 	{
@@ -106,7 +109,7 @@ void CUICharacterInfo::Init_StrInfoItem( CUIXml& xml_doc, LPCSTR item_str, UIIte
 	}
 }
 
-void CUICharacterInfo::Init_IconInfoItem( CUIXml& xml_doc, LPCSTR item_str, UIItemType type )
+void CUICharacterInfo::Init_IconInfoItem( CUIXml& xml_doc, const char* item_str, UIItemType type, bool enableStretchByDefault )
 {
 	if ( xml_doc.NavigateToNode( item_str, 0 ) )
 	{
@@ -118,17 +121,19 @@ void CUICharacterInfo::Init_IconInfoItem( CUIXml& xml_doc, LPCSTR item_str, UIIt
 		pItem->Enable( true );
 		AttachChild( pItem );
 		pItem->SetAutoDelete( true );
+		if (enableStretchByDefault)
+			pItem->SetStretchTexture(true);
 	}
 }
 
-void CUICharacterInfo::InitCharacterInfo(Fvector2 pos, Fvector2 size, LPCSTR xml_name)
+void CUICharacterInfo::InitCharacterInfo(Fvector2 pos, Fvector2 size, const char* xml_name)
 {
 	CUIXml						uiXml;
 	uiXml.Load					(CONFIG_PATH, UI_PATH, xml_name);
 	InitCharacterInfo			(pos, size,&uiXml);
 }
 
-void CUICharacterInfo::InitCharacterInfo(CUIXml* xml_doc, LPCSTR node_str)
+void CUICharacterInfo::InitCharacterInfo(CUIXml* xml_doc, const char* node_str)
 {
 	Fvector2 pos, size;
 	XML_NODE* stored_root		= xml_doc->GetLocalRoot();
@@ -173,7 +178,7 @@ void CUICharacterInfo::InitCharacter(CInventoryOwner* invOwner)
 		pUIBio->Clear();
 		if (chInfo.Bio().size())
 		{
-			CUITextWnd* pItem = new CUITextWnd();
+			CUIStatic* pItem = new CUIStatic();
 			pItem->SetWidth(pUIBio->GetDesiredChildWidth());
 			pItem->SetText(chInfo.Bio().c_str());
 			pItem->AdjustHeightToText();
@@ -182,7 +187,7 @@ void CUICharacterInfo::InitCharacter(CInventoryOwner* invOwner)
 	}
 
 	shared_str const& comm_id = chInfo.Community().id();
-	LPCSTR   community0 = comm_id.c_str();
+	const char*   community0 = comm_id.c_str();
 	string64 community1;
 	xr_strcpy(community1, sizeof(community1), community0);
 	xr_strcat(community1, sizeof(community1), "_icon");
@@ -236,7 +241,104 @@ void CUICharacterInfo::InitCharacter(CInventoryOwner* invOwner)
 
 }
 
-void CUICharacterInfo::InitCharacter(LPCSTR player_name, LPCSTR player_icon)
+void CUICharacterInfo::InitCharacter(u16 id)
+{
+	m_ownerID = id;
+	CCharacterInfo chInfo;
+	CSE_ALifeTraderAbstract* T = ch_info_get_from_id(m_ownerID);
+	chInfo.Init(T);
+
+	if (m_icons[eName])
+	{
+		m_icons[eName]->TextItemControl()->SetTextST(T->m_character_name.c_str());
+	}
+
+	if (m_icons[eRank])
+	{
+		m_icons[eRank]->TextItemControl()->SetTextST(GetRankAsText(chInfo.Rank().value()));
+	}
+
+	if (m_icons[eCommunity])
+	{
+		m_icons[eCommunity]->TextItemControl()->SetTextST(chInfo.Community().id().c_str());
+	}
+
+	if (m_icons[eReputation])
+	{
+		m_icons[eReputation]->TextItemControl()->SetTextST(GetReputationAsText(chInfo.Reputation().value()));
+	}
+
+	// Bio
+	if (pUIBio && pUIBio->IsEnabled())
+	{
+		pUIBio->Clear();
+		if (chInfo.Bio().size())
+		{
+			CUIStatic* pItem = new CUIStatic();
+			pItem->SetWidth(pUIBio->GetDesiredChildWidth());
+			pItem->SetTextComplexMode(true);
+			pItem->SetTextST(chInfo.Bio().c_str());
+			pItem->AdjustHeightToText();
+			pUIBio->AddWindow(pItem, true);
+		}
+	}
+
+	shared_str const& comm_id = chInfo.Community().id();
+	const char*   community0 = comm_id.c_str();
+	string64 community1;
+	xr_strcpy(community1, sizeof(community1), community0);
+	xr_strcat(community1, sizeof(community1), "_icon");
+
+	string64 community2;
+	xr_strcpy(community2, sizeof(community2), community0);
+	xr_strcat(community2, sizeof(community2), "_wide");
+
+	m_bForceUpdate = true;
+	for (int i = eIcon; i < eMaxCaption; ++i)
+	{
+		if (m_icons[i])
+		{
+			m_icons[i]->Show(true);
+		}
+	}
+
+	m_texture_name = chInfo.IconName();
+	if (m_icons[eIcon]) { m_icons[eIcon]->InitTexture(m_texture_name.c_str()); }
+	if ( m_icons[eRankIcon        ] ) { m_icons[eRankIcon        ]->InitTexture( chInfo.Rank().id().c_str() ); }
+	
+
+	if ( Actor()->ID() != m_ownerID && !ignore_community( comm_id ) )
+	{
+		if ( m_icons[eCommunityIcon   ] ) { m_icons[eCommunityIcon   ]->InitTexture( community1 ); }
+		if ( m_icons[eCommunityBigIcon] ) { m_icons[eCommunityBigIcon]->InitTexture( community2 ); }
+		return;
+	}
+
+	shared_str our_comm, enemy;
+	if ( CUICharacterInfo::get_actor_community( &our_comm, &enemy ) )
+	{
+		if ( xr_strcmp( our_comm, "actor" ) ) // !=
+		{
+			xr_strcpy( community1, sizeof(community1), our_comm.c_str() );
+			xr_strcat( community1, sizeof(community1), "_icon" );
+
+			xr_strcpy( community2, sizeof(community2), our_comm.c_str() );
+			xr_strcat( community2, sizeof(community2), "_wide" );
+
+			if ( m_icons[eCommunityIcon   ] ) { m_icons[eCommunityIcon   ]->InitTexture( community1 ); }
+			if ( m_icons[eCommunityBigIcon] ) { m_icons[eCommunityBigIcon]->InitTexture( community2 ); }
+			return;
+		}
+	}
+
+	if ( m_icons[eCommunityIcon   ]     ) { m_icons[eCommunityIcon]->Show( false ); }
+	if ( m_icons[eCommunityBigIcon]     ) { m_icons[eCommunityBigIcon]->Show( false ); }
+	if ( m_icons[eCommunityIconOver   ] ) { m_icons[eCommunityIconOver]->Show( false ); }
+	if ( m_icons[eCommunityBigIconOver] ) { m_icons[eCommunityBigIconOver]->Show( false ); }
+
+}
+
+void CUICharacterInfo::InitCharacter(const char* player_name, const char* player_icon)
 {
 	ClearInfo();
 
@@ -256,9 +358,19 @@ void CUICharacterInfo::InitCharacter(LPCSTR player_name, LPCSTR player_icon)
 	{
 		m_icons[eIconOver]->Show(true);
 	}
+
+	if (m_icons[eGameTimeCaption])
+	{
+		m_icons[eGameTimeCaption]->Show(true);
+	}
+	if (m_icons[eGameTime])
+	{
+		m_icons[eGameTime]->Show(true);
+		m_icons[eGameTime]->SetText(GetGameTimeAsString(etpTimeToMinutes).c_str());
+	}
 }
 
-void  CUICharacterInfo::SetRelation(ALife::ERelationType relation, CHARACTER_GOODWILL goodwill)
+void  CUICharacterInfo::SetRelation(ALife::ERelationType relation, s32 goodwill)
 {
 	if(!m_icons[eRelation] || !m_icons[eRelationCaption])
 	{
@@ -287,16 +399,25 @@ void CUICharacterInfo::UpdateRelation()
 		return;
 	}
 
-	if(Actor()->ID() == m_ownerID || !hasOwner()) {
+	if(Actor()->ID() == m_ownerID || !hasOwner()) 
+	{
+		if (m_icons[eRelationCaption])
 		m_icons[eRelationCaption]->Show(false);
-		m_icons[eRelation]->Show(false);
+
+		if (m_icons[eRelation])
+			m_icons[eRelation]->Show(false);
 	}
 	else
 	{
-		bool showRelation = m_icons[eName]->IsShown();
+		bool showRelation = true;
+		if (m_icons[eName])
+			showRelation = m_icons[eName]->IsShown();
 
-		m_icons[eRelationCaption]->Show(showRelation);
-		m_icons[eRelation]->Show(showRelation);
+		if (m_icons[eRelationCaption])
+			m_icons[eRelationCaption]->Show(showRelation);
+
+		if (m_icons[eRelation])
+			m_icons[eRelation]->Show(showRelation);
 
 		if(showRelation) {
 			CSE_ALifeTraderAbstract* T = ch_info_get_from_id(m_ownerID);
@@ -321,6 +442,11 @@ namespace detail
 void CUICharacterInfo::Update()
 {
 	inherited::Update();
+
+	if (m_icons[eGameTime])
+	{
+		m_icons[eGameTime]->SetText(GetGameTimeAsString(etpTimeToMinutes).c_str());
+	}
 
 	if(hasOwner() && (m_bForceUpdate || (Device.dwFrame % 50 == 0)))
 	{
@@ -378,8 +504,8 @@ bool CUICharacterInfo::get_actor_community( shared_str* our, shared_str* enemy )
 		return false;
 	}
 	u32   size_temp   = (xr_strlen(vs_teams) + 1) * sizeof(char);
-	char*  our_fract   = (char*)_alloca( size_temp );
-	char*  enemy_fract = (char*)_alloca( size_temp );
+	char* our_fract   = (char*)_alloca( size_temp );
+	char* enemy_fract = (char*)_alloca( size_temp );
 	_GetItem( vs_teams, 0, our_fract, size_temp );
 	_GetItem( vs_teams, 1, enemy_fract, size_temp );
 
@@ -394,7 +520,7 @@ bool CUICharacterInfo::get_actor_community( shared_str* our, shared_str* enemy )
 
 bool CUICharacterInfo::ignore_community( shared_str const& check_community )
 {
-	LPCSTR comm_section_str = "ignore_icons_communities";
+	const char* comm_section_str = "ignore_icons_communities";
 	if (!pSettings->section_exist(comm_section_str))
 		return false;
 

@@ -17,7 +17,7 @@
 #include "../../xrUI/ui_base.h"
 #include "game_graph.h"
 #include "game_sv_single.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "ai/stalker/ai_stalker.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "cover_point.h"
@@ -65,7 +65,7 @@ void CLevelGraph::draw_nodes	()
 //	unpack_xz			(Local,x,z);
 //	F->Out				(0.f,0.55f,"%3d,%4d,%3d -> %d",	iFloor(x),iFloor(Local.y()),iFloor(z),u32(ID));
 
-	svector<u32,128>	linked;
+	FixedVector<u32,128>	linked;
 	{
 		const_iterator	i,e;
 		begin			(ID,i,e);
@@ -125,11 +125,11 @@ void CLevelGraph::draw_nodes	()
 			u32	CT		= color_xrgb(LL,LL,LL);
 			u32	CH		= color_xrgb(0,128,0);
 
-			BOOL	bHL		= FALSE;
-			if (Nid==u32(ID))	{ bHL = TRUE; CT = color_xrgb(0,255,0); }
+			bool	bHL		= false;
+			if (Nid==u32(ID))	{ bHL = true; CT = color_xrgb(0,255,0); }
 			else {
 				for (u32 t=0; t<linked.size(); ++t) {
-					if (linked[t]==Nid) { bHL = TRUE; CT = CH; break; }
+					if (linked[t]==Nid) { bHL = true; CT = CH; break; }
 				}
 			}
 
@@ -162,7 +162,7 @@ void CLevelGraph::draw_nodes	()
 				Device.mFullTransform.transform	(S,T);
 				if (S.z < 0 || S.z < 0)												continue;
 				if (S.x < -1.f || S.x > 1.f || S.y<-1.f || S.x>1.f)					continue;
-				F->SetHeight	(0.05f/_sqrt(_abs(S.w)));
+				F->SetHeight	(0.05f/_sqrt(std::abs(S.w)));
 				F->SetColor	(0xffffffff);
 				F->OutI		(S.x,-S.y,"~%d",Nid);
 			}
@@ -281,22 +281,24 @@ void CLevelGraph::draw_covers	()
 		position.y			+= 0.6f;
 		Level().debug_renderer().draw_aabb	(position,half_size - .01f,1.f,ai().level_graph().header().cell_size()*.5f-.01f,color_xrgb(0*255,255,0*255));
 
-		CVertex				*v = vertex((*I)->level_vertex_id());
-		Fvector				direction;
-		float				best_value = -1.f;
+		CVertex *v = vertex((*I)->level_vertex_id());
+		Fvector direction;
+		float best_value = -1.f;
 
-		for (u32 i=0, j = 0; i<36; ++i) {
-			float				value = low_cover_in_direction(float(10*i)/180.f*PI,v);
-			direction.setHP		(float(10*i)/180.f*PI,0);
-			direction.normalize	();
-			direction.mul		(value*half_size);
-			direction.add		(position);
-			direction.y			= position.y;
-			Level().debug_renderer().draw_line(Fidentity,position,direction,color_xrgb(0,0,255));
-			value				= compute_low_square(float(10*i)/180.f*PI,PI/2.f,v);
-			if (value > best_value) {
-				best_value		= value;
-				j				= i;
+		for (u32 i = 0; i < 36; ++i)
+		{
+			float value = low_cover_in_direction(float(10 * i) / 180.f * PI, v);
+			direction.setHP(float(10 * i) / 180.f * PI, 0);
+			direction.normalize();
+			direction.mul(value * half_size);
+			direction.add(position);
+			direction.y = position.y;
+			Level().debug_renderer().draw_line(Fidentity, position, direction, color_xrgb(0, 0, 255));
+
+			value = compute_low_square(float(10 * i) / 180.f * PI, PI / 2.f, v);
+			if (value > best_value)
+			{
+				best_value = value;
 			}
 		}
 
@@ -336,7 +338,7 @@ void CLevelGraph::draw_objects()
 			continue;
 		}
 
-		if (CCustomMonster* tpCustomMonster = _O != nullptr ? _O->cast_custom_monster() : nullptr)
+		if (CCreature* tpCustomMonster = _O != nullptr ? _O->cast_creature() : nullptr)
 		{
 			tpCustomMonster->OnRender();
 			if (!tpCustomMonster->movement().detail().path().empty())

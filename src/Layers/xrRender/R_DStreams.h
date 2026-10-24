@@ -11,12 +11,13 @@ enum
 class  ECORE_API _VertexStream
 {
 private :
-	ID3DVertexBuffer*		pVB;
+	IRHIBuffer*		pVB;
+	u32							rsDVB_Size;
 	u32							mSize;			// size in bytes
 	u32							mPosition;		// position in bytes
 	u32							mDiscardID;		// ID of discard - usually for caching
 public:
-	ID3DVertexBuffer*		old_pVB;
+	IRHIBuffer*		old_pVB;
 #ifdef DEBUG
 	u32							dbg_lock;
 #endif
@@ -28,7 +29,7 @@ public:
 	void						reset_begin		();
 	void						reset_end		();
 
-	IC ID3DVertexBuffer*	Buffer()		{ return pVB;			}
+	IC IRHIBuffer*	Buffer()		{ return pVB;			}
 	IC u32						DiscardID()		{ return mDiscardID;	}
 	IC void						Flush()			{ mPosition=mSize;		}
 
@@ -43,16 +44,17 @@ public:
 class  ECORE_API _IndexStream
 {
 private :
-	ID3DIndexBuffer*		pIB;
+	IRHIBuffer*		pIB;
+	u32							rsDIB_Size;
 	u32							mSize;		// real size (usually mCount, aligned on 512b boundary)
 	u32							mPosition;
 	u32							mDiscardID;
 public:
-	ID3DIndexBuffer*		old_pIB;
+	IRHIBuffer*		old_pIB;
 private:
 	void						_clear	()
 	{
-		pIB			= NULL;
+		pIB			= nullptr;
 		mSize		= 0;
 		mPosition	= 0;
 		mDiscardID	= 0;
@@ -63,7 +65,7 @@ public:
 	void						reset_begin		();
 	void						reset_end		();
 
-	IC ID3DIndexBuffer*	Buffer()		{ return pIB;			}
+	IC IRHIBuffer*	Buffer()		{ return pIB;			}
 	IC u32						DiscardID()		{ return mDiscardID;	}
 	void						Flush()			{ mPosition=mSize;		}
 

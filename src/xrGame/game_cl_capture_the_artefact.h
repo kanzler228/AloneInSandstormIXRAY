@@ -4,17 +4,17 @@
 #include "UIGameCTA.h"
 #include "game_cl_capture_the_artefact_captions_manager.h"
 /// This class describes the client part of "Capture The Artefact" game mode.
-class game_cl_CaptureTheArtefact	: public game_cl_mp
+class game_cl_CaptureTheArtefact final : public game_cl_mp
 {
 private:
-	typedef game_cl_mp inherited;
+	using inherited = game_cl_mp;
 	
 	CUIGameCTA * m_game_ui;
 
-	BOOL	m_bReadMapDesc;
-	BOOL	m_bTeamSelected;
-	BOOL	m_bSkinSelected;
-	BOOL	m_winnerTeamShowed;
+	bool	m_bReadMapDesc;
+	bool	m_bTeamSelected;
+	bool	m_bSkinSelected;
+	bool	m_winnerTeamShowed;
 	
 	CTAGameClCaptionsManager	m_captions_manager;
 
@@ -102,10 +102,10 @@ public:
 	virtual	bool OnKeyboardRelease(int key);
 	
 	virtual	void OnSpawn(CObject* pObj);
-	virtual	BOOL CanCallBuyMenu();
-	virtual BOOL CanCallSkinMenu() {return TRUE;};
-	virtual BOOL CanCallTeamSelectMenu();
-	virtual	BOOL CanCallInventoryMenu();
+	virtual	bool CanCallBuyMenu();
+	virtual bool CanCallSkinMenu() {return true;};
+	virtual bool CanCallTeamSelectMenu();
+	virtual	bool CanCallInventoryMenu();
 			bool LocalPlayerCanBuyItem(shared_str const & name_sect);
 	
 			void	Set_ShowPlayerNames			(bool Show) {m_bShowPlayersNames = Show;};
@@ -163,8 +163,11 @@ public:
 	bool			InWarmUp				()	const;
 	bool			HasTimeLimit			()	const;
 
-	virtual	LPCSTR	GetGameScore			(string32&	score_dest);
+	virtual	const char*	GetGameScore			(string32&	score_dest);
 	virtual	void	OnConnected				();
 	s32				GetGreenTeamScore		() const { return greenTeamScore; };
 	s32				GetBlueTeamScore		() const { return blueTeamScore; };
+
+	virtual game_cl_CaptureTheArtefact* cast_game_cl_capturetheartefact() override { return this; }
+	virtual game_cl_mp* cast_game_cl_mp() override { return this; }
 };

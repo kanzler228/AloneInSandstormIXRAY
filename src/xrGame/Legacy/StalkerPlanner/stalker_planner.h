@@ -14,12 +14,12 @@
 
 class CAI_Stalker;
 
-class CStalkerPlanner : public CActionPlannerScript<CAI_Stalker> {
+class CStalkerPlanner :
+	public CActionPlannerScript<CAI_Stalker>
+{
 protected:
 	typedef CActionPlannerScript<CAI_Stalker>			inherited;
 	typedef CActionScriptBase<CAI_Stalker>				CAction;
-	typedef GraphEngineSpace::_solver_value_type		_value_type;
-	typedef GraphEngineSpace::_solver_condition_type	_condition_type;
 	typedef CActionPlannerActionScript<CAI_Stalker>		CActionPlannerAction;
 
 private:
@@ -30,8 +30,8 @@ protected:
 			void			add_actions			();
 #ifdef LOG_ACTION
 public:
-	virtual LPCSTR			action2string		(const _action_id_type &action_id);
-	virtual LPCSTR			property2string		(const _condition_type &property_id);
+	virtual const char*			action2string		(const u32 &action_id);
+	virtual const char*			property2string		(const u32 &property_id);
 #endif
 
 public:
@@ -43,7 +43,7 @@ public:
 	IC		bool			affect_cover		() const;
 
 #ifdef LOG_ACTION
-	virtual	LPCSTR			object_name			() const;
+	virtual	const char*			object_name			() const;
 #endif
 };
 

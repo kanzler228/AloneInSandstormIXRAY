@@ -13,25 +13,25 @@ public:
 	void					SetSystemDepends	(ESystemDepends val) {m_dep = val;}
 
 	static CUIOptionsManager* GetOptionsManager	() {return &m_optionsManager;}
-	IC		LPCSTR			GetEntry			() const { return m_entry.c_str(); }
+	IC		const char*			GetEntry			() const { return m_entry.c_str(); }
 			xr_token*		GetOptToken			();
 
-	virtual	void			OnMessage			(LPCSTR message);
+	virtual	void			OnMessage			(const char* message);
 
-	virtual void			SetCurrentOptValue	()			= 0 {};	// opt->current
-	virtual void			SaveBackUpOptValue	()			= 0 {};	// current->backup
+	virtual void			SetCurrentOptValue	()			 {};	// opt->current
+	virtual void			SaveBackUpOptValue	()			 {};	// current->backup
 	virtual void			SaveOptValue		()			= 0;	// current->opt
 	virtual void			UndoOptValue		()			= 0;	// backup->current
-	virtual bool			IsChangedOptValue	() const 	= 0 { return false; };	// backup!=current
+	virtual bool			IsChangedOptValue	() const 	 { return false; };	// backup!=current
 			void			OnChangedOptValue	();
 			
 protected:
-			void			SendMessage2Group	(LPCSTR group, LPCSTR message);
+			void			SendMessage2Group	(const char* group, const char* message);
 
 
 			// string
-			LPCSTR			GetOptStringValue	() const;
-			void			SaveOptStringValue	(LPCSTR val);
+			const char*			GetOptStringValue	() const;
+			void			SaveOptStringValue	(const char* val);
 			// integer
 			void			GetOptIntegerValue	(int& val, int& min, int& max);
 			void			SaveOptIntegerValue	(int val);
@@ -42,7 +42,7 @@ protected:
 			bool			GetOptBoolValue		();
 			void			SaveOptBoolValue	(bool val);
 			// token
-			LPCSTR			GetOptTokenValue	();
+			const char*			GetOptTokenValue	();
 
 	shared_str				m_entry;
 	ESystemDepends			m_dep;

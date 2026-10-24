@@ -27,7 +27,7 @@ void rat_state_death::execute			()
 	if (object().m_fFood > 0.f)
 		return;
 
-	object().setEnabled			(FALSE);
+	object().setEnabled			(false);
 
 	NET_Packet					packet;
 	object().u_EventGen			(packet, GE_DESTROY, object().ID());
@@ -188,7 +188,7 @@ void rat_state_attack_melee::execute	()
 
 	if (squad && 
 		((squad->GetLeader() != object().cast_entity() && !squad->GetLeader()->g_Alive()) ||
-		squad->get_index(object().cast_entity()) == u32(-1))
+		squad->get_index(object().cast_entity()) == u8(-1))
 		) squad->SetLeader(object().cast_entity());
 
 	if (squad &&

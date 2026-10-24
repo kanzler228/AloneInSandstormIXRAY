@@ -1,5 +1,9 @@
 #pragma once
-#include <json/json.hpp>
+
+#define JSON_NOEXCEPTION
+#define JSON_THROW_USER do{}while(false);
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 #include "UI_MainCommand.h"
 #include "../../xrEngine/IInputReceiver.h"
@@ -29,11 +33,11 @@ struct ECORE_API SPBItem
 	volatile float progress;
 
 public:
-				SPBItem				(LPCSTR txt, LPCSTR inf, float mx):text(txt),info(inf),max(mx),progress(0.f){}
+				SPBItem				(const char* txt, const char* inf, float mx):text(txt),info(inf),max(mx),progress(0.f){}
 	void		GetInfo				(xr_string& txt, float& p, float& m);
-	void		Inc					(LPCSTR info=0, bool bWarn=false);
+	void		Inc					(const char* info=nullptr, bool bWarn=false);
 	void		Update				(float val);
-	void 		Info				(LPCSTR text, bool bWarn=false);
+	void 		Info				(const char* text, bool bWarn=false);
 };
 
 typedef xr_vector<EEditorState> EStateList;
@@ -139,7 +143,7 @@ public:
 					TUI				();
 	virtual 		~TUI			();
 
-	void			Quit			()	{	m_Flags.set(flNeedQuit,TRUE); }
+	void			Quit			()	{	m_Flags.set(flNeedQuit,true); }
 	bool            NeedQuit        () const { return m_Flags.test(flNeedQuit);}
 	u32 			&GetRenderWidth	()	{   return EDevice->TargetWidth; }
 	u32&GetRenderHeight	()	{   return EDevice->TargetHeight; }
@@ -157,13 +161,13 @@ public:
 	bool 			IsModified		();
 
 	bool  Idle			();
-	void 			Resize(int x, int y, bool maximize = false, bool bForced = false) { m_Size.set(x, y); m_Size_Maximize = maximize;   m_Flags.set(flResize | flRedraw, TRUE); if (bForced) RealResize(); }
-	void 			Resize(bool bForced = false) { m_Flags.set(flResize | flRedraw, TRUE); if (bForced) RealResize(); }
+	void 			Resize(int x, int y, bool maximize = false, bool bForced = false) { m_Size.set(x, y); m_Size_Maximize = maximize;   m_Flags.set(flResize | flRedraw, true); if (bForced) RealResize(); }
+	void 			Resize(bool bForced = false) { m_Flags.set(flResize | flRedraw, true); if (bForced) RealResize(); }
 
 	// add, remove, changing objects/scene
-	void 			UpdateScene			(bool bForced=false){	m_Flags.set(flUpdateScene,TRUE); 	if (bForced) RealUpdateScene();}
+	void 			UpdateScene			(bool bForced=false){	m_Flags.set(flUpdateScene,true); 	if (bForced) RealUpdateScene();}
 	// only redraw scene
-	void 			RedrawScene			(bool bForced=false){   m_Flags.set(flRedraw,TRUE); 		if (bForced) RealRedrawScene();}
+	void 			RedrawScene			(bool bForced=false){   m_Flags.set(flRedraw,true); 		if (bForced) RealRedrawScene();}
 
 	void 			SetRenderQuality	(float q)      {   EDevice->m_ScreenQuality = q;}
 // mouse action
@@ -192,10 +196,10 @@ public:
 				break;
 			}
 	}
-	EEditorState 	GetEState			(){ return m_EditorState.back(); }
+	EEditorState 	GetEState			() const { return m_EditorState.back(); }
 	bool 			ContainEState		(EEditorState st){ return std::find(m_EditorState.begin(),m_EditorState.end(),st)!=m_EditorState.end(); }
 
-	virtual void 	SetStatus			(LPCSTR s, bool bOutLog=true)=0;
+	virtual void 	SetStatus			(const char* s, bool bOutLog=true)=0;
 	virtual void 	ResetStatus			()=0;
 	
 	// direct input
@@ -216,8 +220,8 @@ public:
 	void 			OnDeviceCreate		();
 	void			OnDeviceDestroy		();
 
-	virtual LPCSTR 	EditorName			()=0;
-	virtual LPCSTR	EditorDesc			()=0;
+	virtual const char* 	EditorName			()=0;
+	virtual const char*	EditorDesc			()=0;
 	virtual ImTextureID LoadTexture(const char*) const override;
 // commands   
 	virtual	void	RegisterCommands			()=0; 
@@ -229,22 +233,26 @@ public:
 
 	virtual void	SaveSettings				(nlohmann::json&){}
 	virtual void	LoadSettings				(nlohmann::json&){}
+
 protected:    
 // progress bar
 	using PBVec = xr_vector<SPBItem*>;
 	using PBVecIt = PBVec::iterator;
 	PBVec			m_ProgressItems;
+
 public:
-	SPBItem*		ProgressStart		(float max_val, LPCSTR text);
+	SPBItem*		ProgressStart		(float max_val, const char* text);
 	void 			ProgressEnd			(SPBItem*&);
 	virtual void	ProgressDraw();
-	SPBItem*		ProgressLast		(){return m_ProgressItems.empty()?0:m_ProgressItems.back();}
+	SPBItem*		ProgressLast		(){return m_ProgressItems.empty()?nullptr:m_ProgressItems.back();}
 
 public:
 	// Progress load
 	volatile bool IsLoading = false;
 	volatile float ProgressStatus = 0.f;
 	xr_string ProgressStatusName;
+	using ModifierCallback = bool(*)();
+	xr_vector <std::pair<shared_str, ModifierCallback>> GeneralTabs;
 
 	// Render form
 	ref_rt RT;
@@ -275,7 +283,7 @@ public:
 	void DestroyViewport(int ID);
 
 	size_t ViewID = -1;
-	xr_vector<Viewport> Views;
+	xr_map<int, Viewport> Views;
 
 	ref_texture	m_HeaderLogo = nullptr;
 	ref_texture	m_WinMin = nullptr;
@@ -293,7 +301,7 @@ protected:
 	mutable xr_hash_map<shared_str, ref_texture> TextureStack;
 
 public:
-   IC  void ResetUI(bool bForced=false)  { if (!bForced)m_Flags.set(flResetUI, TRUE); if (bForced) RealResetUI(); }
+   IC  void ResetUI(bool bForced=false)  { if (!bForced)m_Flags.set(flResetUI, true); if (bForced) RealResetUI(); }
    virtual Ivector2 GetRenderMousePosition()const { return Ivector2().set(0, 0); }
 };
 

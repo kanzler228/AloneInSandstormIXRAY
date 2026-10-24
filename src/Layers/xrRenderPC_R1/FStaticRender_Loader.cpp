@@ -10,9 +10,10 @@
 
 #pragma warning(push)
 #pragma warning(disable:4995)
-#include <malloc.h>
 
 #include <FlexibleVertexFormat.h>
+
+#include "../../xrCore/FormatParsers/LevelGeom/GeomIO.h"
 using namespace FVF;
 
 #pragma warning(pop)
@@ -24,7 +25,7 @@ void CRender::level_Load(IReader *fs)
 
 	// Begin
 	pApp->LoadBegin					();
-	dxRenderDeviceRender::Instance().Resources->DeferredLoad	(TRUE);
+	dxRenderDeviceRender::Instance().Resources->DeferredLoad(ps_r__common_flags.test(RFLAG_DD_TEX_LOAD));
 	IReader*						chunk;
 
 	// Shaders
@@ -68,10 +69,28 @@ void CRender::level_Load(IReader *fs)
 		// VB,IB,SWI
 		g_pGamePersistent->SetLoadStageTitle("st_loading_geometry");
 		g_pGamePersistent->LoadTitle();
-		CStreamReader				*geom = FS.rs_open	("$level$","level.geom");
-		LoadBuffers					(geom);
-		LoadSWIs					(geom);
-		FS.r_close					(geom);
+		
+		{
+			auto Geom = XRay::Geom::Read("$level$","level", ".geom");
+			if (!I_ASSERT(Geom))
+			{
+				FATAL("Unable to load geometry file");
+			}
+		
+			dxRenderDeviceRender::Instance().Resources->Evict();
+			if (Geom->HasVBData())
+			{
+				LoadVertexBuffers(Geom->GetVBData());
+			}
+			if (Geom->HasIBData())
+			{
+				LoadIndexBuffers(Geom->GetIBData());
+			}
+			if (Geom->HasSWIData())
+			{
+				LoadSWIs(Geom->GetSWIData());
+			}
+		}
 
 		// Visuals
 		g_pGamePersistent->SetLoadStageTitle("st_loading_spatial_db");
@@ -100,7 +119,7 @@ void CRender::level_Load(IReader *fs)
 
 	// End
 	pApp->LoadEnd				();
-	b_loaded					= TRUE	;
+	b_loaded					= true	;
 }
 
 void CRender::level_Unload		()
@@ -164,90 +183,44 @@ void CRender::level_Unload		()
 	//*** Shaders
 	Shaders.clear();
 
-	//. dbg
-#ifdef DEBUG
-	// dxRenderDeviceRender::Instance().Resources->_DumpMemoryUsage	();
-	dxRenderDeviceRender::Instance().Resources->DBG_VerifyGeoms	();
-	dxRenderDeviceRender::Instance().Resources->DBG_VerifyTextures();
-#endif
-	b_loaded					= FALSE;
+	b_loaded					= false;
 }
 
-void CRender::LoadBuffers	(CStreamReader *base_fs)
+void CRender::LoadVertexBuffers(IReaderBase& fs)
 {
-	dxRenderDeviceRender::Instance().Resources->Evict	();
-	u32	dwUsage				= D3DUSAGE_WRITEONLY | (Caps.geometry.bSoftware?D3DUSAGE_SOFTWAREPROCESSING:0);
-
 	// Vertex buffers
-	if (base_fs->find_chunk(fsL_VB))
-	{
-		// Use DX9-style declarators
-		CStreamReader			*fs	= base_fs->open_chunk(fsL_VB);
-		u32 count				= fs->r_u32();
-		DCL.resize				(count);
-		VB.resize				(count);
-		for (u32 i=0; i<count; i++)
-		{
-			// decl
+	u32 count				= fs.r_u32();
+	DCL.resize				(count);
+	VB.resize				(count);
 
-//			D3DVERTEXELEMENT9	*dcl = (D3DVERTEXELEMENT9*) fs->pointer();
-			u32					buffer_size = (MAXD3DDECLLENGTH+1)*sizeof(D3DVERTEXELEMENT9);
-			D3DVERTEXELEMENT9	*dcl = (D3DVERTEXELEMENT9*)_alloca(buffer_size);
-			fs->r				(dcl,buffer_size);
-			fs->advance			(-(int)buffer_size);
+	ReadVBChunk(VB, DCL, count, fs);
+}
 
-			u32 dcl_len = u32(GetDeclLength(dcl) + 1);
-
-			DCL[i].resize		(dcl_len);
-			fs->r				(DCL[i].begin(),dcl_len*sizeof(D3DVERTEXELEMENT9));
-			//.????????? remove T&B from DCL[]
-
-			// count, size
-			u32 vCount			= fs->r_u32	();
-			u32 vSize = (u32)ComputeVertexSize(dcl, 0);
-#ifdef DEBUG
-			Msg("* [Loading VB] %d verts, %d Kb", vCount, (vCount * vSize) / 1024);
-#endif // DEBUG
-
-			// Create and fill
-			BYTE*	pData		= 0;
-			R_CHK				(RDevice->CreateVertexBuffer(vCount*vSize,dwUsage,0,D3DPOOL_MANAGED,&VB[i],0));
-			R_CHK				(VB[i]->Lock(0,0,(void**)&pData,0));
-			fs->r				(pData,vCount*vSize);
-//			CopyMemory			(pData,fs->pointer(),vCount*vSize);	//.???? copy while skip T&B
-			VB[i]->Unlock		();
-
-//			fs->advance			(vCount*vSize);
-		}
-		fs->close				();
-	} else {
-		FATAL					("DX7-style FVFs unsupported");
-	}
+void CRender::LoadIndexBuffers(IReaderBase& fs)
+{
 
 	// Index buffers
-	if (base_fs->find_chunk(fsL_IB))
+	u32 count = fs.r_u32();
+	IB.resize(count);
+
+	for (u32 i = 0; i < count; i++)
 	{
-		CStreamReader			*fs	= base_fs->open_chunk(fsL_IB);
-		u32 count				= fs->r_u32();
-		IB.resize				(count);
-		for (u32 i=0; i<count; i++)
-		{
-			u32 iCount		= fs->r_u32	();
-#ifdef DEBUG
-			Msg("* [Loading IB] %d indices, %d Kb", iCount, (iCount * 2) / 1024);
-#endif // DEBUG
+		u32 iCount = fs.r_u32();
 
-			// Create and fill
-			BYTE*	pData		= 0;
-			R_CHK				(RDevice->CreateIndexBuffer(iCount*2,dwUsage,D3DFMT_INDEX16,D3DPOOL_MANAGED,&IB[i],0));
-			R_CHK				(IB[i]->Lock(0,0,(void**)&pData,0));
-//			CopyMemory			(pData,fs->pointer(),iCount*2);
-			fs->r				(pData,iCount*2);
-			IB[i]->Unlock		();
+		// ��������� ����� ��� ������ ��������
+		std::vector<u16> tmpData(iCount);
+		fs.r(tmpData.data(), iCount * sizeof(u16));
 
-//			fs->advance			(iCount*2);
-		}
-		fs->close				();
+		RHIBufferDesc ibDesc{};
+		ibDesc.Size = iCount * sizeof(u16);
+		ibDesc.Type = ERHI_BUFFER_TYPE::INDEX;
+		ibDesc.Usage = ERHI_USAGE::USAGE_DEFAULT;
+		ibDesc.CPUAccessFlags = 0;
+
+		RHIBufferSubresource ibInit{};
+		ibInit.pSysMem = tmpData.data();
+
+		IB[i] = GRHI->CreateBuffer(ibDesc, &ibInit);
 	}
 }
 
@@ -290,7 +263,7 @@ struct b_portal
 {
 	u16				sector_front;
 	u16				sector_back;
-	svector<Fvector,6>	vertices;
+	FixedVector<Fvector,6>	vertices;
 };
 
 void CRender::LoadSectors(IReader* fs) {
@@ -322,7 +295,9 @@ void CRender::LoadSectors(IReader* fs) {
 	// load portals
 	if (count)
 	{
-		CDB::Collector	CL;
+		static CDB::Collector CL;
+		CL.clear();
+		CL.reserve(count * 4);
 		fs->find_chunk(fsL_PORTALS);
 		for (u32 i = 0; i < count; i++)
 		{
@@ -367,6 +342,7 @@ void CRender::LoadSectors(IReader* fs) {
 		else
 		{
 			IWriter* pWriterCache = FS.w_open("$app_data_root$", LevelName);
+			pWriterCache->w_u32(CDB::CDB_MODEL_CACHE_VERSION);
 			pWriterCache->w_u32(crc);
 			rmPortals->build(CL.getV(), CL.getVS(), CL.getT(), CL.getTS(), nullptr, nullptr, pWriterCache, false);
 		}
@@ -400,34 +376,29 @@ void CRender::LoadSectors(IReader* fs) {
 	}
 }
 
-void CRender::LoadSWIs(CStreamReader* base_fs)
+void CRender::LoadSWIs(IReaderBase& fs)
 {
 	// allocate memory for portals
-	if (base_fs->find_chunk(fsL_SWIS)){
-		CStreamReader		*fs = base_fs->open_chunk(fsL_SWIS);
-		u32 item_count		= fs->r_u32();	
+	u32 item_count		= fs.r_u32();	
 
-		xr_vector<FSlideWindowItem>::iterator it	= SWIs.begin();
-		xr_vector<FSlideWindowItem>::iterator it_e	= SWIs.end();
+	xr_vector<FSlideWindowItem>::iterator it	= SWIs.begin();
+	xr_vector<FSlideWindowItem>::iterator it_e	= SWIs.end();
 
-		for(;it!=it_e;++it)
-			xr_free( (*it).sw );
+	for(;it!=it_e;++it)
+		xr_free( (*it).sw );
 
-		SWIs.clear();
-		SWIs.resize(item_count);
+	SWIs.clear();
+	SWIs.resize(item_count);
 
-		for (u32 c=0; c<item_count; c++){
-			FSlideWindowItem& swi = SWIs[c];
-			swi.reserved[0]	= fs->r_u32();	
-			swi.reserved[1]	= fs->r_u32();	
-			swi.reserved[2]	= fs->r_u32();	
-			swi.reserved[3]	= fs->r_u32();	
-			swi.count		= fs->r_u32();	
-			VERIFY			(nullptr==swi.sw);
-			swi.sw			= xr_alloc<FSlideWindow> (swi.count);
-			fs->r			(swi.sw,sizeof(FSlideWindow)*swi.count);
-		}
-
-		fs->close			();
+	for (u32 c=0; c<item_count; c++){
+		FSlideWindowItem& swi = SWIs[c];
+		swi.reserved[0]	= fs.r_u32();	
+		swi.reserved[1]	= fs.r_u32();	
+		swi.reserved[2]	= fs.r_u32();	
+		swi.reserved[3]	= fs.r_u32();	
+		swi.count		= fs.r_u32();	
+		VERIFY			(nullptr==swi.sw);
+		swi.sw			= xr_alloc<FSlideWindow> (swi.count);
+		fs.r			(swi.sw,sizeof(FSlideWindow)*swi.count);
 	}
 }

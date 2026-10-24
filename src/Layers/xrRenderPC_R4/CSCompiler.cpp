@@ -20,7 +20,7 @@ CSCompiler& CSCompiler::begin(const char* name)
 	return *this;
 }
 
-CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName)
+CSCompiler& CSCompiler::defSampler(const char* ResourceName)
 {
 	D3D11_SAMPLER_DESC	desc;
 	ZeroMemory(&desc, sizeof(desc));
@@ -59,7 +59,7 @@ CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName)
 	if (0==xr_strcmp(ResourceName,"smp_base"))
 	{
 		//i_dx10Address( stage, D3DTADDRESS_WRAP);
-		//i_dx10FilterAnizo( stage, TRUE);
+		//i_dx10FilterAnizo( stage, true);
 		desc.AddressU = desc.AddressV = desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 		desc.Filter = D3D11_FILTER_ANISOTROPIC;
 		desc.MaxAnisotropy = ps_r__tf_Anisotropic;
@@ -82,7 +82,7 @@ CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName)
 	{
 		//i_dx10Address( stage, D3DTADDRESS_CLAMP);
 		//i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_NONE, D3DTEXF_LINEAR);
-		//RS.SetSAMP(stage, XRDX10SAMP_COMPARISONFILTER, TRUE);
+		//RS.SetSAMP(stage, XRDX10SAMP_COMPARISONFILTER, true);
 		//RS.SetSAMP(stage, XRDX10SAMP_COMPARISONFUNC, D3D_COMPARISON_LESS_EQUAL);
 		desc.AddressU = desc.AddressV = desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
@@ -104,7 +104,7 @@ CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName)
 	return *this;
 }
 
-CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName, const D3D_SAMPLER_DESC& def)
+CSCompiler& CSCompiler::defSampler(const char* ResourceName, const D3D_SAMPLER_DESC& def)
 {
 	VERIFY(ResourceName);
 
@@ -124,7 +124,7 @@ CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName, const D3D_SAMPLER_DESC& 
 
 void fix_texture_name(LPSTR);
 
-CSCompiler& CSCompiler::defOutput(LPCSTR ResourceName,	ref_rt rt)
+CSCompiler& CSCompiler::defOutput(const char* ResourceName,	ref_rt rt)
 {
 	VERIFY(ResourceName);
 	if (!rt) return *this;
@@ -138,12 +138,12 @@ CSCompiler& CSCompiler::defOutput(LPCSTR ResourceName,	ref_rt rt)
 	if (stage >= m_Textures.size())
 		m_Textures.resize(stage+1);
 
-	m_Outputs[stage] = rt->pUAView; //!!!dangerous view can be deleted
+	m_Outputs[stage] = (ID3D11UnorderedAccessView*)rt->pUAView->GetRaw(); //!!!dangerous view can be deleted
 
 	return *this;
 }
 
-CSCompiler& CSCompiler::defTexture(LPCSTR ResourceName,	ref_texture texture)
+CSCompiler& CSCompiler::defTexture(const char* ResourceName,	ref_texture texture)
 {
 	VERIFY(ResourceName);
 	if (!texture) return *this;
@@ -158,7 +158,7 @@ CSCompiler& CSCompiler::defTexture(LPCSTR ResourceName,	ref_texture texture)
 	if (stage >= m_Textures.size())
 		m_Textures.resize(stage+1);
 
-	m_Textures[stage] = texture->get_SRView(); //!!!dangerous view can be deleted
+	m_Textures[stage] = (ID3D11ShaderResourceView*)texture->get_SRView()->GetRawSRV(); //!!!dangerous view can be deleted
 
 	return *this;
 }
@@ -186,14 +186,14 @@ void CSCompiler::compile(const char* name)
 
 	string_path					cname;
 	xr_strconcat(cname,::Render->getShaderPath(),name,".cs.hlsl");
-	FS.update_path				(cname,	"$game_shaders$", cname);
+	FS.update_path				(cname,	_game_shaders_, cname);
 
 	IReader* file				= FS.r_open(cname);
 	R_ASSERT2					( file, cname );
 
 	// Select target
-	LPCSTR						c_target	= "cs_5_0";
-	LPCSTR						c_entry		= "main";
+	const char*						c_target	= "cs_5_0";
+	const char*						c_entry		= "main";
 
 	HRESULT	const _hr = ::Render->shader_compile(name, (DWORD const*)file->pointer(), file->length(), c_entry, c_target, D3DCOMPILE_PACK_MATRIX_ROW_MAJOR, (void*&)m_cs);
 

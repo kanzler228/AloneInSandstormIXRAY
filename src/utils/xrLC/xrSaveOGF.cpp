@@ -1,6 +1,8 @@
 #include "StdAfx.h"
 #include "Build.h"
 #include "OGF_Face.h"
+#include "../../xrCore/FormatParsers/LevelGeom/GeomIO.h"
+#include "../xrForms/CompilersUI.h"
 
 SWIContainer g_SWI,x_SWI;
 VBContainer g_VB,x_VB;
@@ -26,7 +28,7 @@ static u32 g_batch_500;
 static u32 g_batch_1000;
 static u32 g_batch_5000;
 
-u16 RegisterShader(LPCSTR T)
+u16 RegisterShader(const char* T)
 {
 	for (u32 it = 0; it < pBuild->g_Shaders.size(); it++)
 	{
@@ -56,43 +58,6 @@ static bool	remap_order(u32 id0, u32 id1)
 	OGF* o0 = (OGF*)g_tree[id0];
 	OGF* o1 = (OGF*)g_tree[id1];
 	return	xr_strcmp(*o0->textures.front().name, *o1->textures.front().name) < 0;
-}
-
-static void	SaveGEOMs(LPCSTR fn, VBContainer& vb, IBContainer& ib, SWIContainer& swi)
-{
-	Status("Geometry '%s'...", fn);
-
-	// geometry
-	IWriter* file;
-	string_path lfn;
-	file = FS.w_open(xr_strconcat(lfn, pBuild->path, fn));
-
-	hdrLEVEL H;
-	H.XRLC_version = XRCL_PRODUCTION_VERSION;
-	file->w_chunk(fsL_HEADER, &H, sizeof(H));
-	clMsg("Save Chunks: %umb", file->tell() / 1024 / 1024);
-	// verts
-
-	file->open_chunk(fsL_VB);
-	vb.Save(*file);
-	file->close_chunk();
-	clMsg("Save VB: %umb", file->tell() / 1024 / 1024);
-
-
-	// indices
-	file->open_chunk(fsL_IB);
-	ib.Save(*file);
-	file->close_chunk();
-	clMsg("Save IB: %umb", file->tell() / 1024 / 1024);
-
-	// swis
-	file->open_chunk(fsL_SWIS);
-	swi.Save(*file);
-	file->close_chunk();
-
-	clMsg("Save SWIS: %umb", file->tell() / 1024 / 1024);
-
-	FS.w_close(file);
 }
 
 void CBuild::SaveTREE(IWriter& fs)
@@ -132,17 +97,104 @@ void CBuild::SaveTREE(IWriter& fs)
 	fs.w(MFS.pointer(), MFS.size());
 	fs.close_chunk();
 
-	mem_Compact();
-
-	SaveGEOMs("level.geom", g_VB, g_IB, g_SWI);	 // Normal
-	SaveGEOMs("level.geomx", x_VB, x_IB, x_SWI); // Fast-Path
+	{
+		xr_unique_ptr<XRay::Geom::IFormat> FormatPtr = nullptr;
+		switch (gCompilerMode.LC_GeomType)
+		{
+		case GeomVanillaType::Vanilla:
+			{
+				FormatPtr.reset(new XRay::Geom::CGeomVanillaFormat);
+				break;
+			}
+		case GeomVanillaType::Chunked:
+			{
+				size_t mem_bytes = g_VB.size() + g_IB.size() + g_SWI.size();
+				u32 Number = (mem_bytes/(1024ull*1024ull))/gCompilerMode.LC_GeomChunkSize;
+				if (!Number)
+				{
+					FormatPtr.reset(new XRay::Geom::CGeomVanillaFormat);
+				} else
+				{
+					FormatPtr.reset(new XRay::Geom::CGeomVanillaChunkedFormat(Number+1));
+				}
+				break;
+			}
+		default:
+			{
+				FATAL("Invalid Geom type!");
+			}
+		}
+		IVERIFY(FormatPtr);
+		
+		g_VB.VerifyForSave();
+		FormatPtr->AddVBData(g_VB);
+		FormatPtr->AddIBData(g_IB);
+		FormatPtr->AddSWIData(g_SWI);
+		xr_stack_string_path Path = pBuild->path;
+		Path.append("level");
+		Write(Path, ".geom", *FormatPtr);
+		g_VB.Clear();
+		g_IB.Clear();
+		g_SWI.Clear();
+	}
+	{
+		xr_unique_ptr<XRay::Geom::IFormat> FormatPtr = nullptr;
+		switch (gCompilerMode.LC_GeomType)
+		{
+		case GeomVanillaType::Vanilla:
+			{
+				FormatPtr.reset(new XRay::Geom::CGeomVanillaFormat);
+				break;
+			}
+		case GeomVanillaType::Chunked:
+			{
+				size_t mem_bytes = x_VB.size() + x_IB.size() + x_SWI.size();
+				u32 Number = (mem_bytes/(1024ull*1024ull))/gCompilerMode.LC_GeomChunkSize;
+				if (!Number)
+				{
+					FormatPtr.reset(new XRay::Geom::CGeomVanillaFormat);
+				} else
+				{
+					FormatPtr.reset(new XRay::Geom::CGeomVanillaChunkedFormat(Number+1));
+				}
+				break;
+			}
+		default:
+			{
+				FATAL("Invalid Geom type!");
+			}
+		}
+		IVERIFY(FormatPtr);
+		
+		x_VB.VerifyForSave();
+		FormatPtr->AddVBData(x_VB);
+		FormatPtr->AddIBData(x_IB);
+		FormatPtr->AddSWIData(x_SWI);
+		xr_stack_string_path Path = pBuild->path;
+		Path.append("level");
+		Write(Path, ".geomx", *FormatPtr);
+		x_VB.Clear();
+		x_IB.Clear();
+		x_SWI.Clear();
+	}
 
 	clMsg("Shader table...");
 	fs.open_chunk(fsL_SHADERS);
 	fs.w_u32(g_Shaders.size());
-	for (xr_vector<LPCSTR>::iterator T = g_Shaders.begin(); T != g_Shaders.end(); T++)
+	for (xr_vector<const char*>::iterator T = g_Shaders.begin(); T != g_Shaders.end(); T++)
 		fs.w_stringZ(*T);
 	fs.close_chunk();
 
 	clMsg("Save OGF ENDED");
+}
+
+void ClearingVectors()
+{
+	g_VB.Clear();
+	g_IB.Clear();
+	g_SWI.Clear();
+
+	x_VB.Clear();
+	x_IB.Clear();
+	x_SWI.Clear();
 }

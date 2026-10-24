@@ -31,7 +31,17 @@ CScriptProcess::CScriptProcess	(shared_str name, shared_str scripts) :
 
 CScriptProcess::~CScriptProcess()
 {
-	delete_data		(m_scripts);
+	DestroyScripts();
+}
+
+void CScriptProcess::DestroyScripts()
+{
+	if (m_scripts.empty())
+	{
+		return;
+	}
+
+	delete_data(m_scripts);
 }
 
 void CScriptProcess::run_scripts()
@@ -95,7 +105,7 @@ void CScriptProcess::update()
 #endif
 }
 
-void CScriptProcess::add_script	(LPCSTR	script_name,bool do_string, bool reload)
+void CScriptProcess::add_script	(const char*	script_name,bool do_string, bool reload)
 {
 	m_scripts_to_run.push_back(CScriptToRun(script_name,do_string,reload));
 }

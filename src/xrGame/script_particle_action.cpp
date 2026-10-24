@@ -8,19 +8,18 @@
 
 #include "StdAfx.h"
 #include "script_particle_action.h"
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 
 CScriptParticleAction::~CScriptParticleAction	()
 {
 	//xr_delete			(m_tpParticleSystem);
 }
 
-void CScriptParticleAction::SetParticle			(LPCSTR caParticleToRun, bool bAutoRemove)
+void CScriptParticleAction::SetParticle			(const char* caParticleToRun, bool bAutoRemove)
 {
 	m_caParticleToRun	= caParticleToRun;
 	m_tGoalType			= eGoalTypeParticleAttached;
-	m_tpParticleSystem	= Particles::Details::Create(*m_caParticleToRun,BOOL(m_bAutoRemove = bAutoRemove));
+	m_tpParticleSystem	= Particles::Details::Create(*m_caParticleToRun,bool(m_bAutoRemove = bAutoRemove));
 	m_bStartedToPlay	= false;
 	m_bCompleted		= false;
 }

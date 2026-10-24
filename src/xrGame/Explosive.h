@@ -13,10 +13,8 @@
 #include "wallmark_manager.h"
 #include "HudSound.h"
 
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
-
 class IRender_Light;
+class CParticlesObject;
 
 using BLASTED_OBJECTS_V = xr_vector<CPhysicsShellHolder*>;
 using BLASTED_OBJECTS_I = BLASTED_OBJECTS_V::iterator;
@@ -32,8 +30,8 @@ public:
 								CExplosive(void);
 	virtual						~CExplosive(void);
 
-	virtual void 				Load(LPCSTR section);
-	virtual void				Load(CInifile const * ini,LPCSTR section);
+	virtual void 				Load(const char* section);
+	virtual void				Load(CInifile const * ini,const char* section);
 
 	virtual void 				net_Destroy		();
 	virtual void				net_Relcase		(CObject* O);
@@ -65,13 +63,21 @@ public:
 	virtual CGameObject			*cast_game_object()=0;
 	virtual CExplosive*			cast_explosive(){return this;}
 	virtual IDamageSource*		cast_IDamageSource()	{return this;}
+	virtual CMissile*			cast_missile() { return nullptr; }
 	virtual void				GetRayExplosionSourcePos(Fvector &pos);
 	virtual	void				GetExplosionBox			(Fvector &size);
 	virtual void				ActivateExplosionBox	(const Fvector &size,Fvector &in_out_pos);
 			void				SetExplosionSize		(const Fvector &new_size);
 	virtual bool				Useful					() const;
+
+			float				GetBlastHit				() {return m_fBlastHit;}
+			float				GetBlastRadius			() {return m_fBlastRadius;}
+
+			int					GetFragsCount			() {return m_iFragsNum;}
+			float				GetFragsHit				() {return m_fFragHit;}
+			float				GetFragsRadius			() {return m_fFragsRadius;}
 protected:
-			bool				IsSoundPlaying			(){return !!sndExplode._feedback();}
+			bool				IsSoundPlaying			(){return (sndExplode.is_playing());}
 			bool				IsExploded				(){return !!m_explosion_flags.test(flExploded);}
 public:
 			bool				IsExploding				(){return !!m_explosion_flags.test(flExploding);}
@@ -135,7 +141,7 @@ protected:
 	Flags8						m_explosion_flags;
 	///////////////////////////////////////////////
 	//Должен ли объект быть скрыт после взрыва: true - для всех кроме дымовой гранаты
-	BOOL						m_bHideInExplosion;
+	bool						m_bHideInExplosion;
 	bool						m_bAlreadyHidden;
 	virtual void				HideExplosive	();
 	//bool						m_bExploding;
@@ -164,7 +170,7 @@ protected:
 	virtual	void				StartLight	();
 	virtual	void				StopLight	();
 
-	BOOL						m_bDynamicParticles;
+	bool						m_bDynamicParticles;
 	xr_shared_ptr<CParticlesObject> m_pExpParticle;
 	virtual void				UpdateExplosionParticles ();	
 

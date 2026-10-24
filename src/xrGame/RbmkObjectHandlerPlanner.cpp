@@ -68,7 +68,7 @@ class FRbmkObjectPropertyQueue final : public FRbmkGoapProperty
 public:
 	virtual bool GetProperty() const override
 	{
-		if (CWeaponMagazined* WeaponMagazined = smart_cast<CWeaponMagazined*>(ItemObject))
+		if (CWeaponMagazined* WeaponMagazined = ItemObject != nullptr ? ItemObject->cast_weapon_magazined() : nullptr)
 		{
 			return !WeaponMagazined->StopedAfterQueueFired();
 		}
@@ -179,7 +179,8 @@ public:
 
 	void StopHidingOperationIfAny() const
 	{
-		CHudItem* HudItem = smart_cast<CHudItem*>(GetOwner()->inventory().ActiveItem());
+		PIItem active_item = GetOwner()->inventory().ActiveItem();
+		CHudItem* HudItem = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
 
 		if (!HudItem->IsHidden())
 		{
@@ -221,7 +222,7 @@ public:
 			return;
 		}
 
-		CHudItem* hud_item = smart_cast<CHudItem*>(StalkerOwner->inventory().ActiveItem());
+		CHudItem* hud_item = StalkerOwner->inventory().ActiveItem() != nullptr ? StalkerOwner->inventory().ActiveItem()->cast_hud_item() : nullptr;
 		if (!hud_item)
 		{
 			StalkerOwner->inventory().Slot(ItemObject->BaseSlot(), ItemObject);
@@ -270,7 +271,7 @@ public:
 		{
 			return;
 		}
-		CHudItem* HudItem = smart_cast<CHudItem*>(StalkerOwner->inventory().ActiveItem());
+		CHudItem* HudItem = StalkerOwner->inventory().ActiveItem()->cast_hud_item();
 		if (HudItem->IsHidden())
 		{
 			return;
@@ -506,7 +507,7 @@ public:
 		}
 		if (ItemObject && bCompleted)
 		{
-			if (CWeaponMagazined* WeaponMagazined = smart_cast<CWeaponMagazined*>(ItemObject))
+			if (CWeaponMagazined* WeaponMagazined = ItemObject->cast_weapon_magazined())
 			{
 				WeaponMagazined->StopedAfterQueueFired(false);
 			}
@@ -546,7 +547,7 @@ public:
 		bool bCompleted = Device.dwTimeGlobal - Timer > *QueueInterval;
 		if (ItemObject && bCompleted)
 		{
-			if (CWeaponMagazined* WeaponMagazined = smart_cast<CWeaponMagazined*>(ItemObject))
+			if (CWeaponMagazined* WeaponMagazined = ItemObject->cast_weapon_magazined())
 			{
 				WeaponMagazined->StopedAfterQueueFired(false);
 			}
@@ -668,11 +669,11 @@ public:
 				CInventory& inventory = *weapon.m_pInventory;
 				for (u8 i = 0; i < u8(weapon.m_ammoTypes.size()); ++i)
 				{
-					LPCSTR l_ammoType = weapon.m_ammoTypes[i].c_str();
+					const char* l_ammoType = weapon.m_ammoTypes[i].c_str();
 
 					for (TIItemContainer::iterator l_it = inventory.m_belt.begin(); inventory.m_belt.end() != l_it; ++l_it)
 					{
-						CWeaponAmmo* l_pAmmo = smart_cast<CWeaponAmmo*>(*l_it);
+						CWeaponAmmo* l_pAmmo = (*l_it) != nullptr ? (*l_it)->cast_weapon_ammo() : nullptr;
 
 						if (l_pAmmo && !xr_strcmp(l_pAmmo->cNameSect(), l_ammoType))
 						{
@@ -686,7 +687,7 @@ public:
 
 					for (TIItemContainer::iterator l_it = inventory.m_ruck.begin(); inventory.m_ruck.end() != l_it; ++l_it)
 					{
-						CWeaponAmmo* l_pAmmo = smart_cast<CWeaponAmmo*>(*l_it);
+						CWeaponAmmo* l_pAmmo = (*l_it) != nullptr ? (*l_it)->cast_weapon_ammo() : nullptr;
 						if (l_pAmmo && !xr_strcmp(l_pAmmo->cNameSect(), l_ammoType))
 						{
 							if (l_pAmmo->m_boxCurr < l_pAmmo->m_boxSize)
@@ -1189,7 +1190,7 @@ public:
 			shared_str Name = InName;
 			C& Action = GoapPlanner.AddAction<C>(Name);
 			Action.ItemObject = Missile;
-			Action.bAimed2 = bAimed2;
+			Action.bAimed1 = bAimed1;
 			Action.bAimed2 = bAimed2;
 			return Action;
 		};
@@ -1440,7 +1441,7 @@ void FRbmkObjectHandlerPlanner::SetGoap(MonsterSpace::EObjectAction ObjectAction
 	if (!InGameObject || (InMinQueueSize < 0))
 		return;
 
-	CWeaponMagazined *WeaponMagazined = smart_cast<CWeaponMagazined*>(InGameObject);
+	CWeaponMagazined *WeaponMagazined = InGameObject->cast_weapon_magazined();
 	if (!WeaponMagazined)
 		return;
 
@@ -1457,9 +1458,9 @@ void FRbmkObjectHandlerPlanner::SetGoap(MonsterSpace::EObjectAction ObjectAction
 		
 		uint32		QueueSize = 1;
 		if (MaxQueueSize == InMinQueueSize)
-			QueueSize		= _max(1,MinQueueSize);
+			QueueSize		= std::max(1u,MinQueueSize);
 		else
-			QueueSize		= _max(1,::Random.randI(MinQueueSize,MaxQueueSize));
+			QueueSize		= std::max(1,::Random.randI(MinQueueSize,MaxQueueSize));
 
 		if (MaxQueueInterval == MinQueueInterval)
 			QueueInterval	= MinQueueInterval;

@@ -8,10 +8,7 @@
 
 #include "xrsharedmem.h"
 
-// HACK: ForserX: Хак для установки уровня инициализации переменной в глобальном пространстве
-#pragma section(".Hook",read)
-
-BOOL mem_initialized	= FALSE;
+bool mem_initialized	= false;
 bool shared_str_initialized	= false;
 
 //fake fix of memory corruptions in multiplayer game :(
@@ -49,7 +46,7 @@ void xrMemory::_initialize()
 	stat_calls = 0;
 	stat_counter = 0;
 
-	if (CPU::ID.hasFeature(CPUFeature::MMXExt))
+	if (CPU::ID().hasFeature(CPUFeature::MMXExt))
 	{
 		mem_copy = xrMemCopy_MMX;
 		mem_fill = xrMemFill_x86;
@@ -61,7 +58,7 @@ void xrMemory::_initialize()
 		mem_fill32 = xrMemFill32_x86;
 	}
 
-	mem_initialized = TRUE;
+	mem_initialized = true;
 
 	g_pStringContainer = new str_container();
 	shared_str_initialized = true;
@@ -73,7 +70,7 @@ void xrMemory::_destroy()
 	xr_delete					(g_pSharedMemoryContainer);
 	xr_delete					(g_pStringContainer);
 
-	mem_initialized				= FALSE;
+	mem_initialized				= false;
 }
 
 void xrMemory::mem_compact()
@@ -113,17 +110,13 @@ wchar_t* xr_strdup(const wchar_t* string) {
 	return memory;
 }
 
-XRCORE_API		BOOL			is_stack_ptr		( void* _ptr)
+XRCORE_API		bool			is_stack_ptr		( void* _ptr)
 {
 	int			local_value		= 0;
 	void*		ptr_refsound	= _ptr;
 	void*		ptr_local		= &local_value;
-	ptrdiff_t	difference		= (ptrdiff_t)_abs(s64(ptrdiff_t(ptr_local) - ptrdiff_t(ptr_refsound)));
+	ptrdiff_t	difference		= (ptrdiff_t)std::abs(s64(ptrdiff_t(ptr_local) - ptrdiff_t(ptr_refsound)));
 	return		(difference < (512*1024));
 }
 
-#ifdef IXR_WINDOWS
-#pragma init_seg(lib)
-__declspec(allocate(".Hook"))
-#endif
 xrMemory Memory;

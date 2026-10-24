@@ -20,7 +20,7 @@
 #include "smart_cover_loophole.h"
 #include "../xrEngine/xr_collide_form.h"
 
-void smart_cover::object::Load			(LPCSTR section)
+void smart_cover::object::Load			(const char* section)
 {
 	inherited::Load					(section);
 
@@ -28,7 +28,7 @@ void smart_cover::object::Load			(LPCSTR section)
 	m_exit_min_enemy_distance		= pSettings->r_float(section, "exit_min_enemy_distance");
 }
 
-BOOL smart_cover::object::net_Spawn		(CSE_Abstract *server_entity)
+bool smart_cover::object::net_Spawn		(CSE_Abstract *server_entity)
 {
 	CSE_SmartCover					*smart_cover = smart_cast<CSE_SmartCover*>(server_entity);
 	VERIFY							(smart_cover);
@@ -58,9 +58,10 @@ BOOL smart_cover::object::net_Spawn		(CSE_Abstract *server_entity)
 	shape->ComputeBounds			();
 
 	if (!inherited::net_Spawn(server_entity))
-		return (FALSE);
+		return (false);
 
-	SpatialComponent->spatial.type &= ~STYPE_VISIBLEFORAI;
+	SpatialComponent->type &= ~ESPATIAL_TYPE::VISIBLEFORAI;
+	SpatialComponent->type |= ESPATIAL_TYPE::SMART_COVER;
 
 	if (ai().get_alife() && smart_cover->m_description.size())
 		m_cover						= ai().cover_manager().add_smart_cover(smart_cover->m_description.c_str(), *this, smart_cover->m_is_combat_cover ? true : false, smart_cover->m_can_fire ? true : false, smart_cover->m_available_loopholes);
@@ -69,10 +70,10 @@ BOOL smart_cover::object::net_Spawn		(CSE_Abstract *server_entity)
 
 	processing_deactivate			();
 
-	setEnabled						(FALSE);
-	setVisible						(FALSE);
+	setEnabled						(false);
+	setVisible						(false);
 
-	return (TRUE);
+	return (true);
 }
 
 void smart_cover::object::Center			(Fvector &result) const

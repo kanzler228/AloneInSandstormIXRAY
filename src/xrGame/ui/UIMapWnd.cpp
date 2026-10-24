@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMapWnd.h"
 #include "UIMap.h"
 #include "../../xrUI/UIXmlInit.h"
@@ -11,21 +11,36 @@
 
 #include "../xrEngine/string_table.h"
 #include "../xrEngine/xr_input.h"
-
-#include "../../xrUI/Widgets/UIFixedScrollBar.h"
+#include "../../xrUI/UIHelper.h"
 #include "../../xrUI/Widgets/UIFrameWindow.h"
 #include "../../xrUI/Widgets/UIFrameLineWnd.h"
 #include "../../xrUI/Widgets/UITabControl.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
-#include "UIMapWndActions.h"
-#include "UIMapWndActionsSpace.h"
 #include "../../xrUI/Widgets/UIHint.h"
 #include "map_hint.h"
 #include "../../xrUI/UICursor.h"
 #include "UIPdaSpot.h"
+#include "PdaUiSound.h"
+#include "UIMapZoomScale.h"
 
 #include "../../xrUI/Widgets/UIPropertiesBox.h"
 #include "../../xrUI/Widgets/UIListBoxItem.h"
+#include "../HudPdaAnimator.h"
+#include "../../xrUI/Widgets/UIScrollBar.h"
+
+namespace
+{
+bool resolveMapZoomScaleXmlPath(CUIXml& uiXml, const char* startFrom, string512& pathOut)
+{
+	xr_strconcat(pathOut, startFrom, ":zoom_scale");
+	if (uiXml.NavigateToNode(pathOut))
+	{
+		return true;
+	}
+	xr_strconcat(pathOut, startFrom, ":main_wnd:zoom_scale");
+	return uiXml.NavigateToNode(pathOut);
+}
+} // namespace
 
 CUIMapWnd* g_map_wnd = nullptr; // quick temporary solution -(
 CUIMapWnd* GetMapWnd()
@@ -46,28 +61,33 @@ CUIMapWnd::CUIMapWnd()
 	m_map_move_step			= 10.0f;
 	m_UserSpotWnd			= nullptr;
 	m_cur_location			= nullptr;
+	UIMainMapHeader			= nullptr;
 
 	m_scroll_mode			= false;
 	m_nav_timing			= Device.dwTimeGlobal;
 	hint_wnd				= nullptr;
+	m_text_hint				= nullptr;
 	g_map_wnd				= this;
+
+	for (u8 i = 0; i < max_btn_nav; ++i)
+		m_btn_nav[i] = nullptr;
+
+	ActionRepeaters()->Register(this, kPDA_TASKS_MAP_ZOOM_IN, 1, 1);
+	ActionRepeaters()->Register(this, kPDA_TASKS_MAP_ZOOM_OUT, 1, 1);
 }
 
 CUIMapWnd::~CUIMapWnd()
 {
-	delete_data( m_ActionPlanner );
 	delete_data( m_GameMaps );
 	delete_data( m_map_location_hint );
-/*
-#ifdef DEBUG
-	delete_data( m_dbg_text_hint );
-	delete_data( m_dbg_info );
-#endif // DEBUG/**/
+	delete_data( m_text_hint );
+	xr_delete( _zoomScale );
+
 	g_map_wnd				= nullptr;
 }
 
 
-void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
+void CUIMapWnd::Init(const char* xml_name, const char* start_from)
 {
 	CUIXml uiXml;
 	uiXml.Load						(CONFIG_PATH, UI_PATH, xml_name);
@@ -79,69 +99,106 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 
 	m_map_move_step					= uiXml.ReadAttribFlt( start_from, 0, "map_move_step", 10.0f );
 
-	m_UILevelFrame					= new CUIWindow(); m_UILevelFrame->SetAutoDelete(true);
-	xr_strconcat(pth,start_from,":level_frame");
-	xml_init.InitWindow				(uiXml, pth, 0, m_UILevelFrame);
-//	m_UIMainFrame->AttachChild		(m_UILevelFrame);
-	AttachChild						(m_UILevelFrame);
-
 	m_UIMainFrame					= new CUIFrameWindow(); m_UIMainFrame->SetAutoDelete(true);
 	AttachChild						(m_UIMainFrame);
 	xr_strconcat(pth,start_from,":main_map_frame");
+
+	m_use_legacy_map = false;
+	if (!uiXml.NavigateToNode(pth))
+	{
+		m_use_legacy_map = true;
+		xr_strconcat(pth, start_from, ":main_wnd:main_map_frame");
+	}
 	xml_init.InitFrameWindow		(uiXml, pth, 0, m_UIMainFrame);
 
-	m_scroll_mode = (uiXml.ReadAttribInt(start_from, 0, "scroll_enable", 0) == 1)? true : false;
+	m_UILevelFrame					= new CUIWindow(); m_UILevelFrame->SetAutoDelete(true);
+
+	CUIWindow* levelFrameParent = this;
+	CUIWindow* scrollParent = this;
+	xr_strconcat(pth,start_from,":level_frame");
+	if (m_use_legacy_map)
+	{
+		xr_strconcat(pth, start_from, ":main_wnd:main_map_frame:level_frame");
+		levelFrameParent = m_UIMainFrame;
+		scrollParent = m_UIMainFrame;
+	}
+	xml_init.InitWindow				(uiXml, pth, 0, m_UILevelFrame);
+	levelFrameParent->AttachChild		(m_UILevelFrame);
+
+	if (m_use_legacy_map)
+	{
+		xr_strconcat(pth, start_from, ":main_wnd:map_header_frame_line");
+		UIMainMapHeader = UIHelper::CreateFrameLine(uiXml, pth, m_UIMainFrame);
+	}
+
+	m_scroll_mode = (uiXml.ReadAttribInt(start_from, 0, "scroll_enable", 0) == 1) || m_use_legacy_map ? true : false;
+
 	if ( m_scroll_mode )
 	{
 		float dx, dy, sx, sy;
 		xr_strconcat(pth,start_from,":main_map_frame");
 		dx = uiXml.ReadAttribFlt( pth, 0, "dx", 0.0f );
 		dy = uiXml.ReadAttribFlt( pth, 0, "dy", 0.0f );
-		sx = uiXml.ReadAttribFlt( pth, 0, "sx", 5.0f );
-		sy = uiXml.ReadAttribFlt( pth, 0, "sy", 5.0f );
+		sx = uiXml.ReadAttribFlt( pth, 0, "sx", -5.0f );
+		sy = uiXml.ReadAttribFlt( pth, 0, "sy", -5.0f );
 
-		CUIWindow* rect_parent			= m_UIMainFrame;//m_UILevelFrame;
+		CUIWindow* rect_parent			= m_use_legacy_map ? m_UILevelFrame : m_UIMainFrame;
 		Frect r							= rect_parent->GetWndRect();
 
-        auto tempScroll = new CUIFixedScrollBar();
-		if (tempScroll->InitScrollBar(Fvector2().set(r.left + dx, r.bottom - sy), true))
-			m_UIMainScrollH = tempScroll;
-        else
-        {
-            xr_delete(tempScroll);
-            m_UIMainScrollH = new CUIScrollBar();
-            m_UIMainScrollH->InitScrollBar(Fvector2().set(r.left + dx, r.bottom - sy), r.right - r.left - dx * 2 - sx, true, "pda");
-        }
+		const Fvector2 scrollHPos = Fvector2().set(r.left + dx, r.bottom - sy);
+		const float scrollHLength = r.right - r.left - dx * 2.0f - sx;
+		const Fvector2 scrollVPos = Fvector2().set(r.right - sx, r.top + dy);
+		const float scrollVLength = r.bottom - r.top - dy * 2.0f;
 
-		m_UIMainScrollH->SetStepSize	( _max( 1, (int)(m_UILevelFrame->GetWidth()*0.1f) ) );
+		m_UIMainScrollH = new CUIScrollBar();
+		CUIScrollBar::InitForProfile(*m_UIMainScrollH, scrollHPos, scrollHLength, true, "pda");
+
+		m_UIMainScrollH->SetStepSize	(std::max( 1, (int)(m_UILevelFrame->GetWidth()*0.1f) ) );
 		m_UIMainScrollH->SetPageSize	( (int)m_UILevelFrame->GetWidth() ); // iFloor
 		m_UIMainScrollH->SetAutoDelete(true);
-		AttachChild						(m_UIMainScrollH);
+		scrollParent->AttachChild		(m_UIMainScrollH);
 		Register						(m_UIMainScrollH);
 		AddCallback						(m_UIMainScrollH, SCROLLBAR_HSCROLL,CUIWndCallback::void_function(this,&CUIMapWnd::OnScrollH));
 
-		tempScroll = new CUIFixedScrollBar();
-		if (tempScroll->InitScrollBar(Fvector2().set(r.right - sx, r.top + dy), false))
-			m_UIMainScrollV = tempScroll;
-		else
-		{
-			xr_delete(tempScroll);
-			m_UIMainScrollV = new CUIScrollBar();
-			m_UIMainScrollV->InitScrollBar(Fvector2().set(r.right - sx, r.top + dy), r.bottom - r.top - dy * 2, false, "pda");
-		}
+		m_UIMainScrollV = new CUIScrollBar();
+		CUIScrollBar::InitForProfile(*m_UIMainScrollV, scrollVPos, scrollVLength, false, "pda");
 
-		m_UIMainScrollV->SetStepSize	( _max( 1, (int)(m_UILevelFrame->GetHeight()*0.1f) ) );
+		m_UIMainScrollV->SetStepSize	(std::max( 1, (int)(m_UILevelFrame->GetHeight()*0.1f) ) );
 		m_UIMainScrollV->SetPageSize	( (int)m_UILevelFrame->GetHeight() );
 		m_UIMainScrollV->SetAutoDelete(true);
-		AttachChild						(m_UIMainScrollV);
+		scrollParent->AttachChild		(m_UIMainScrollV);
 		Register						(m_UIMainScrollV);
 		AddCallback						(m_UIMainScrollV,SCROLLBAR_VSCROLL,CUIWndCallback::void_function(this,&CUIMapWnd::OnScrollV));
+
+		float needW = scrollParent->GetWidth();
+		float needH = scrollParent->GetHeight();
+		if (m_UIMainScrollH)
+		{
+			needW = std::max(needW, m_UIMainScrollH->GetWndPos().x + m_UIMainScrollH->GetWidth());
+			needH = std::max(needH, m_UIMainScrollH->GetWndPos().y + m_UIMainScrollH->GetHeight());
+		}
+		if (m_UIMainScrollV)
+		{
+			needW = std::max(needW, m_UIMainScrollV->GetWndPos().x + m_UIMainScrollV->GetWidth());
+			needH = std::max(needH, m_UIMainScrollV->GetWndPos().y + m_UIMainScrollV->GetHeight());
+		}
+		if (needW > scrollParent->GetWidth() || needH > scrollParent->GetHeight())
+		{
+			scrollParent->SetWndSize(Fvector2().set(needW, needH));
+		}
 	}
 
-	m_map_location_hint					= new CUIMapLocationHint();
 	xr_strconcat(pth,start_from,":map_hint_item");
-	m_map_location_hint->Init			(uiXml, pth);
-	m_map_location_hint->SetAutoDelete	(false);
+	m_map_location_hint = new CUIMapLocationHint();
+	m_map_location_hint->Init(uiXml, pth);
+	m_map_location_hint->SetAutoDelete(false);
+
+	xr_strconcat(pth, start_from, ":main_wnd:text_hint");
+	if (uiXml.NavigateToNode(pth))
+	{
+		m_text_hint = new CUIStatic();
+		xml_init.InitStatic(uiXml, pth, 0, m_text_hint);
+	}
 
 // Load maps
 
@@ -154,7 +211,7 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 	m_GlobalMap->SetMinZoom					(m_GlobalMap->GetCurrentZoom().x);
 	m_currentZoom							= m_GlobalMap->GetCurrentZoom().x;
 	
-	init_xml_nav( uiXml );
+	init_xml_nav( uiXml, start_from );
 
 	// initialize local maps
 	xr_string sect_name;
@@ -170,11 +227,11 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 		for (;it!=end; it++)
 		{
 			shared_str map_name		= it->first;
+			xr_strlwr				(map_name);
 
 			if (!pGameIni->line_exist(map_name, "global_rect"))
 				continue;
 
-			xr_strlwr				(map_name);
 			R_ASSERT2				(m_GameMaps.end() == m_GameMaps.find(map_name), "Duplicate level name not allowed");
 			
 			CUICustomMap*& l		= m_GameMaps[map_name];
@@ -199,7 +256,7 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 				Msg(" --error-incorrect map definition global rect of map [%s] intersects with [%s]", *l->MapName(), *l2->MapName());
 			}
 		}
-		if(FALSE == l->GlobalRect().intersected(GlobalMap()->BoundRect())){
+		if(false == l->GlobalRect().intersected(GlobalMap()->BoundRect())){
 			Msg(" --error-incorrect map definition map [%s] places outside global map", *l->MapName());
 		}
 
@@ -207,7 +264,6 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 #endif
 
 	Register				(m_GlobalMap);
-	m_ActionPlanner			= new FRbmkMapActionPlanner(this);
 	m_view_actor			= true;
 
 	m_UIPropertiesBox = new CUIPropertiesBox();
@@ -218,14 +274,62 @@ void CUIMapWnd::Init(LPCSTR xml_name, LPCSTR start_from)
 	m_UIPropertiesBox->Hide();
 	m_UIPropertiesBox->SetWindowName("property_box");
 
+	auto initMapPatternOverlayLambda = [this, &uiXml, &xml_init, &pth, start_from]()
+	{
+		xr_strconcat(pth, start_from, ":map_pattern_overlay");
+		if (!uiXml.NavigateToNode(pth))
+		{
+			return;
+		}
+
+		m_mapPatternOverlay = new CUIStatic();
+		m_mapPatternOverlay->SetAutoDelete(true);
+		xml_init.InitStatic(uiXml, pth, 0, m_mapPatternOverlay);
+		m_UILevelFrame->AttachChild(m_mapPatternOverlay);
+		// Disabled for hit-testing only; still draws above the map, below m_controller_cursor.
+		m_mapPatternOverlay->Enable(false);
+	};
+	initMapPatternOverlayLambda();
+
+	if (resolveMapZoomScaleXmlPath(uiXml, start_from, pth))
+	{
+		_zoomScale = new UIMapZoomScale();
+		_zoomScale->InitFromXml(uiXml, pth);
+		AttachChild(_zoomScale);
+	}
+
+	m_controller_cursor = new CUIStatic();
+	m_controller_cursor->InitTexture("ui_cur_task");
+	m_controller_cursor->SetWndSize(Fvector2().set(19.f, 19.f));
+	m_controller_cursor->SetStretchTexture(true);
+	m_controller_cursor->SetWidth(m_controller_cursor->GetWidth()*CHudPdaAnimator::GetPDAScreen_kx());
+	m_controller_cursor->SetCustomDraw(true);
+	AttachChild(m_controller_cursor);
+
 	m_UserSpotWnd = new CUIPdaSpot();
 	m_UserSpotWnd->SetAutoDelete(true);
-	AttachChild(m_UserSpotWnd);
+	m_UserSpotWnd->SetUiSounds(m_pUiSounds);
+
+	if (!xr_strcmp(xml_name, "pda_map.xml"))
+		m_gamepad_legend = UIHelper::CreateGamepadLegend(uiXml, "gamepad_legend", this, false);
+
+	if (m_pUiSounds)
+	{
+		m_pUiSounds->LoadMapWindow(uiXml, start_from);
+	}
 }
 
 void CUIMapWnd::Show(bool status)
 {
 	inherited::Show(status);
+	if (_zoomScale)
+	{
+		_zoomScale->Show(status);
+	}
+	if (!status)
+	{
+		SetPersonalSpotPlacement(false);
+	}
 	Activated();
 	if ( GlobalMap() )
 	{
@@ -333,34 +437,81 @@ void CUIMapWnd::SetTargetMap			(CUICustomMap* m, const Fvector2& pos, bool bZoom
  	}
 	else
 	{
-
-		if(bZoomIn/* && fsimilar(GlobalMap()->GetCurrentZoom(), GlobalMap()->GetMinZoom(),EPS_L )*/)
+		if (bZoomIn)
+		{
 			SetZoom(GlobalMap()->GetMaxZoom());
+		}
 
-//		m_tgtCenter						= m->ConvertRealToLocalNoTransform(pos, m->BoundRect());
 		m_tgtCenter						= m->ConvertRealToLocal(pos, true);
 		m_tgtCenter.add					(m->GetWndPos()).div(GlobalMap()->GetCurrentZoom());
 	}
-	ResetActionPlanner				();
+	ResetActionPlanner();
 }
 
 void CUIMapWnd::MoveMap( Fvector2 const& pos_delta )
 {
+	if (m_pUiSounds && !pos_delta.similar({ 0.f, 0.f }, EPS_L))
+	{
+		m_pUiSounds->Play(EPdaUiSound::MapPan, true);
+	}
+
 	GlobalMap()->MoveWndDelta		(pos_delta);
 	UpdateScroll					();
-	HideCurHint();
+	HideCurHint						();
+
+	// gamepad cursor pos sync
+	ActiveMapRect().getcenter		(m_tgtCenter);
+
+	Fvector2						pos;
+	CUIGlobalMap* gm				= GlobalMap();
+	gm->GetAbsolutePos				(pos);
+	m_tgtCenter.sub					(pos);
+	m_tgtCenter.div					(gm->GetCurrentZoom());
+}
+
+void CUIMapWnd::MoveControllerCursor( Fvector2 const& pos_delta )
+{
+	if (m_pUiSounds && !pos_delta.similar({0.f, 0.f}, EPS_L))
+	{
+		m_pUiSounds->Play(EPdaUiSound::MapPan, true);
+	}
+
+	// Move target center
+	m_tgtCenter.x += pos_delta.x;
+	m_tgtCenter.y += pos_delta.y;
+	clamp<float>(m_tgtCenter.x, 0.0f, m_GlobalMap->BoundRect().width());
+	clamp<float>(m_tgtCenter.y, 0.0f, m_GlobalMap->BoundRect().height());
+
+	m_zoom_end_moving_time = Device.fTimeGlobal;
+
+	UpdateMapToMapCursor();
+}
+
+void CUIMapWnd::UpdateMapToMapCursor()
+{
+	Frect new_rect;
+	m_GlobalMap->CalcOpenRect(m_tgtCenter, new_rect, GetZoom());
+	m_GlobalMap->SetWndRect(new_rect);
+
+	m_GlobalMap->Update();
+	UpdateScroll();
 }
 
 void CUIMapWnd::Draw()
 {
 	inherited::Draw();
-/*
-#ifdef DEBUG
-	m_dbg_text_hint->Draw	();
-	m_dbg_info->Draw		();
-#endif // DEBUG/**/
+	
+	if (pInput->GetControllerMode())
+	{
+		UI().PushScissor(m_GlobalMap->WorkingArea());
+		m_controller_cursor->Draw();
+		UI().PopScissor();
+	}
 
-	m_btn_nav_parent->Draw();
+	if (m_text_hint)
+	{
+		m_text_hint->Draw();
+	}
 }
 
 void CUIMapWnd::MapLocationRelcase(CMapLocation* ml)
@@ -417,21 +568,27 @@ bool CUIMapWnd::OnKeyboardHold(int dik)
 	return inherited::OnKeyboardHold(dik);
 }
 
+void CUIMapWnd::SetPersonalSpotPlacement(bool isActive)
+{
+	m_personalSpotPlacement = isActive;
+}
+
 bool CUIMapWnd::OnKeyboardAction				(int dik, EUIMessages keyboard_action)
 {
+	if (keyboard_action == WINDOW_KEY_PRESSED && dik == SDL_SCANCODE_ESCAPE && m_personalSpotPlacement)
+	{
+		SetPersonalSpotPlacement(false);
+		return true;
+	}
 	switch(dik){
 		case SDL_SCANCODE_KP_MINUS:
 			{
-				//SetZoom(GetZoom()/1.5f);
 				UpdateZoom( false );
-				//ResetActionPlanner();
 				return true;
 			}break;
 		case SDL_SCANCODE_KP_PLUS:
 			{
-				//SetZoom(GetZoom()*1.5f);
 				UpdateZoom( true );
-				//ResetActionPlanner();
 				return true;
 			}break;
 	}
@@ -439,8 +596,38 @@ bool CUIMapWnd::OnKeyboardAction				(int dik, EUIMessages keyboard_action)
 	return inherited::OnKeyboardAction	(dik, keyboard_action);
 }
 
+bool CUIMapWnd::ApplyMouseWheelZoom(EUIMessages mouse_action)
+{
+	if (mouse_action != WINDOW_MOUSE_WHEEL_DOWN && mouse_action != WINDOW_MOUSE_WHEEL_UP)
+	{
+		return false;
+	}
+
+	if (!GlobalMap() || GlobalMap()->Locked())
+	{
+		return false;
+	}
+
+	Fvector2 cursor_pos = GetUICursor().GetCursorPosition();
+	Frect map_rect = ActiveMapRect();
+	if (!map_rect.in(cursor_pos))
+	{
+		return false;
+	}
+
+	const float prev_zoom = GetZoom();
+	const bool zoom_in = mouse_action == WINDOW_MOUSE_WHEEL_DOWN;
+	UpdateZoom(zoom_in, false);
+	return !fsimilar(prev_zoom, GetZoom());
+}
+
 bool CUIMapWnd::OnMouseAction(float x, float y, EUIMessages mouse_action)
 {
+	if (ApplyMouseWheelZoom(mouse_action))
+	{
+		return true;
+	}
+
 	if ( inherited::OnMouseAction(x,y,mouse_action) /*|| m_btn_nav_parent->OnMouseAction(x,y,mouse_action)*/ )
 	{
 		return true;
@@ -453,51 +640,113 @@ bool CUIMapWnd::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		switch ( mouse_action )
 		{
 		case WINDOW_RBUTTON_UP:
-			ActivatePropertiesBox(nullptr);
+			ActivatePropertiesBox(GetCurrentMouseHandler());
 			break;
 		case WINDOW_MOUSE_MOVE:
-			if( pInput->iGetAsyncBtnState(0) )
+			if( pInput->LeftMouseButtonPressed() )
 			{
-				GlobalMap()->MoveWndDelta		(GetUICursor().GetCursorPositionDelta());
-				UpdateScroll					();
-				HideCurHint						();
-				return							true;
+				MoveMap(GetUICursor().GetCursorPositionDelta());
+				return true;
 			}
 		break;
-
-		case WINDOW_MOUSE_WHEEL_DOWN:
-			UpdateZoom( true );
-			return true;
-		break;
-		case WINDOW_MOUSE_WHEEL_UP:
-			UpdateZoom( false );
-			return true;
-		break;
-
 		}//switch	
 	};
 
 	return false;
 }
 
-bool CUIMapWnd::UpdateZoom( bool b_zoom_in )
+bool CUIMapWnd::OnGamepadKeyAction				(int id, EUIMessages gamepad_action)
+{
+	if (gamepad_action == WINDOW_KEY_PRESSED)
+	{
+		switch (get_binded_action(id, agUITaskMenu))
+		{
+			case kPDA_TASKS_MAP_ZOOM_IN:
+			{
+				if (!any_binded_key_for_action_pressed_c(kPDA_TASKS_MAP_ZOOM_OUT))
+					UpdateZoom(true, false);
+				ActionRepeaters()->SetActionStarted(this, kPDA_TASKS_MAP_ZOOM_IN);
+				return true;
+			}
+			case kPDA_TASKS_MAP_ZOOM_OUT:
+			{
+				if (!any_binded_key_for_action_pressed_c(kPDA_TASKS_MAP_ZOOM_IN))
+					UpdateZoom(false, false);
+				ActionRepeaters()->SetActionStarted(this, kPDA_TASKS_MAP_ZOOM_OUT);
+				return true;
+			}
+		}
+	}
+	
+	return inherited::OnGamepadKeyAction	(id, gamepad_action);
+}
+
+bool CUIMapWnd::OnGamepadStickAction(int key, Fvector2 value, EUIMessages gamepad_action)
+{
+	if (key == 1)
+	{
+		Fvector2 valReal = value;
+
+		valReal.mul(m_map_move_step * Device.fTimeDelta * 16.f);
+
+		if (!fis_zero(value.x) || !fis_zero(value.y))
+		{
+			MoveControllerCursor(valReal);
+		}
+	}
+	return inherited::OnGamepadStickAction(key, value, gamepad_action);
+}
+
+
+bool CUIMapWnd::OnGamepadKeyHold(int id)
+{
+	switch (get_binded_action(id, agUITaskMenu))
+	{
+		case kPDA_TASKS_MAP_ZOOM_IN:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kPDA_TASKS_MAP_ZOOM_IN) && !any_binded_key_for_action_pressed_c(kPDA_TASKS_MAP_ZOOM_OUT))
+				UpdateZoom(true, true);
+			return true;
+		}
+		case kPDA_TASKS_MAP_ZOOM_OUT:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kPDA_TASKS_MAP_ZOOM_OUT) && !any_binded_key_for_action_pressed_c(kPDA_TASKS_MAP_ZOOM_IN))
+				UpdateZoom(false, true);
+			return true;
+		}
+	}
+
+	return inherited::OnGamepadKeyHold(id);
+}
+
+bool CUIMapWnd::UpdateZoom( bool b_zoom_in, bool b_use_dt )
 {
 	float prev_zoom = GetZoom();
 	float z = 0.0f;
 	if ( b_zoom_in )
 	{	
-		z = GetZoom() * 1.2f;
+		if (!b_use_dt)
+			z = GetZoom() * 1.2f;
+		else
+			z = GetZoom() * (1 + 0.6f * Device.fTimeDelta);
 		SetZoom( z );
 	}
 	else					
 	{
-		z = GetZoom() / 1.2f;
+		if (!b_use_dt)
+			z = GetZoom() / 1.2f;
+		else
+			z = GetZoom() * (1 - 0.6f * Device.fTimeDelta);
 		SetZoom( z );
 	}
 
 	
 	if ( !fsimilar( prev_zoom, GetZoom() ) )
 	{
+		if (m_pUiSounds)
+		{
+			m_pUiSounds->PlayMapZoom(b_zoom_in, b_use_dt);
+		}
 //		m_tgtCenter.set( 0, 0 );// = cursor_pos;
 		Frect vis_rect					= ActiveMapRect();
 		vis_rect.getcenter				(m_tgtCenter);
@@ -543,6 +792,16 @@ void CUIMapWnd::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 				m_cur_location = nullptr;
 				break;
 			}
+			case MAP_SET_NAV_SPOT_ACT:
+			{
+				Level().MapManager().SetActiveUserNavigationLocation(m_cur_location);
+				break;
+			}
+			case MAP_UNSET_NAV_SPOT_ACT:
+			{
+				Level().MapManager().ClearActiveUserNavigationLocation();
+				break;
+			}
 		}
 	}
 }
@@ -551,7 +810,17 @@ void CUIMapWnd::ActivatePropertiesBox(CUIWindow* w)
 {
 	m_UIPropertiesBox->RemoveAll();
 
-	CMapSpot* sp = smart_cast<CMapSpot*>(w);
+	CMapSpot* sp = nullptr;
+	CUIWindow* currentWindow = w;
+	while (currentWindow)
+	{
+		sp = smart_cast<CMapSpot*>(currentWindow);
+		if (sp)
+			break;
+
+		currentWindow = currentWindow->GetParent();
+	}
+
 	if (!sp)
 	{
 		return;
@@ -564,13 +833,17 @@ void CUIMapWnd::ActivatePropertiesBox(CUIWindow* w)
 		luabind::functor<void> funct;
 
 		R_ASSERT2(ai().script_engine().functor(m_onPropertyBoxAddProperties, funct), "failed to get OnPropertyBoxAddProperties functor");
-		funct(m_UIPropertiesBox, m_cur_location->ObjectID(), (LPCSTR)m_cur_location->GetLevelName().c_str());
+		funct(m_UIPropertiesBox, m_cur_location->ObjectID(), (const char*)m_cur_location->GetLevelName().c_str());
 	}
 
 	if (m_cur_location->IsUserDefined())
 	{
 		m_UIPropertiesBox->AddItem("st_pda_change_spot_hint", NULL, MAP_CHANGE_SPOT_HINT_ACT);
 		m_UIPropertiesBox->AddItem("st_pda_delete_spot", NULL, MAP_REMOVE_SPOT_ACT);
+		if (Level().MapManager().IsUserNavigationLocation(m_cur_location))
+			m_UIPropertiesBox->AddItem("st_pda_unset_navigation_spot", NULL, MAP_UNSET_NAV_SPOT_ACT);
+		else
+			m_UIPropertiesBox->AddItem("st_pda_set_navigation_spot", NULL, MAP_SET_NAV_SPOT_ACT);
 	}
 
 	if (m_UIPropertiesBox->GetItemsCount() > 0)
@@ -649,11 +922,41 @@ void CUIMapWnd::MoveScrollH( float dx )
 
 void CUIMapWnd::Update()
 {
-	if(m_GlobalMap)
+	if (m_GlobalMap)
+	{
 		m_GlobalMap->WorkingArea().set(ActiveMapRect());
+	}
+	ZoomUpdateLogic();
+	if (_zoomScale && m_GlobalMap)
+	{
+		_zoomScale->SyncFromMap(
+			m_GlobalMap->GetMinZoom(),
+			m_GlobalMap->GetMaxZoom(),
+			m_GlobalMap->GetCurrentZoom().x);
+	}
 	inherited::Update			();
-	m_ActionPlanner->Update		();
 	UpdateNav					();
+	UpdateControllerCursorStatic();
+}
+
+void CUIMapWnd::UpdateControllerCursorStatic()
+{
+	Fvector2 controllerCursorPos = GetMapCursorAbsPos();
+
+	Fvector2 apos;
+	GetAbsolutePos(apos);
+	controllerCursorPos.sub(apos);
+
+	controllerCursorPos.sub(Fvector2().set(m_controller_cursor->GetWidth() / 2, m_controller_cursor->GetHeight() / 2));
+	m_controller_cursor->SetWndPos(controllerCursorPos);
+
+	if (pInput->GetControllerMode())
+	{
+		Fvector2 cursorPos;
+		m_controller_cursor->GetAbsolutePos(cursorPos);
+		cursorPos.add(Fvector2().set(m_controller_cursor->GetWidth() / 2, m_controller_cursor->GetHeight() / 2));
+		GetUICursor().SetUICursorPosition(cursorPos);
+	}
 }
 
 void CUIMapWnd::SetZoom(float value)
@@ -670,7 +973,7 @@ void CUIMapWnd::ViewGlobalMap()
 
 void CUIMapWnd::ResetActionPlanner()
 {
-	m_ActionPlanner->Reset();
+	m_zoom_state = zoom_initialize;
 }
 
 void CUIMapWnd::ViewZoomIn()
@@ -704,9 +1007,14 @@ void CUIMapWnd::ViewActor()
 	}
 
 	SetTargetMap				(lm, m_prev_actor_pos, true);
+
+	if (m_pUiSounds)
+	{
+		m_pUiSounds->Play(EPdaUiSound::MapCenter);
+	}
 }
 
-void CUIMapWnd::ShowHintStr(CUIWindow* parent, LPCSTR text) //map name
+void CUIMapWnd::ShowHintStr(CUIWindow* parent, const char* text) //map name
 {
 	if(m_map_location_hint->GetOwner())
 		return;
@@ -718,6 +1026,13 @@ void CUIMapWnd::ShowHintStr(CUIWindow* parent, LPCSTR text) //map name
 
 void CUIMapWnd::ShowHintSpot( CMapSpot* spot )
 {
+	// do not show any hints until finished zooming
+	if (m_zoom_state != CUIMapWnd::zoom_idle)
+	{
+		HideCurHint();
+		return;
+	}
+
 	CUIWindow* owner = m_map_location_hint->GetOwner();
 	if ( !owner )
 	{
@@ -739,7 +1054,7 @@ void CUIMapWnd::ShowHintSpot( CMapSpot* spot )
 
 void CUIMapWnd::ShowHintTask( CGameTask* task, CUIWindow* owner )
 {
-	if ( task )
+	if ( task && m_zoom_state == CUIMapWnd::zoom_idle )
 	{
 		m_map_location_hint->SetInfoTask( task );
 		m_map_location_hint->SetOwner( owner );
@@ -783,10 +1098,8 @@ void CUIMapWnd::HideCurHint()
 
 void CUIMapWnd::Hint(const shared_str& text)
 {
-	/*
-#ifdef DEBUG
-	m_dbg_text_hint->SetTextST( *text );
-#endif // DEBUG/**/
+	if (m_text_hint)
+		m_text_hint->SetTextST(*text);
 }
 
 void CUIMapWnd::Reset()
@@ -811,6 +1124,7 @@ void CUIMapWnd::SpotSelected( CUIWindow* w )
 	CGameTask* t	= Level().GameTaskManager()->HasGameTask( sp->MapLocation(), true );
 	if ( t )
 	{
+		Level().MapManager().ClearActiveUserNavigationLocation();
 		Level().GameTaskManager()->SetActiveTask( t );
 	}
 }
@@ -829,8 +1143,8 @@ bool CUIMapWnd::ConvertCursorPosToMap(Fvector* return_position, CUILevelMap* cur
 	cursor_pos.sub(box_rect.lt);
 
 	Frect bound_rect = curr_map->BoundRect();
-	bound_rect.lt.x /= UI().get_current_kx();
-	bound_rect.rb.x /= UI().get_current_kx();
+	bound_rect.lt.x /= CHudPdaAnimator::GetPDAScreen_kx();
+	bound_rect.rb.x /= CHudPdaAnimator::GetPDAScreen_kx();
 	return_position->x = bound_rect.lt.x + cursor_pos.x / (box_rect.width() / bound_rect.width());
 	return_position->y = 0.f;
 	return_position->z = bound_rect.height() + bound_rect.lt.y - cursor_pos.y / (box_rect.height() / bound_rect.height());
@@ -887,4 +1201,131 @@ void CUIMapWnd::CreateSpotWindow(Fvector RealPosition, shared_str map_name)
 {
 	m_UserSpotWnd->Init(u16(-1), map_name.c_str(), RealPosition, true);
 	m_UserSpotWnd->ShowDialog(true);
+}
+
+Fvector2 CUIMapWnd::GetMapCursorAbsPos()
+{
+	Fvector2 absPos = m_tgtCenter;
+	ConvertGlobalMapSpaceToAbsWndSpace(absPos);
+	return absPos;
+}
+
+void CUIMapWnd::ConvertGlobalMapSpaceToAbsWndSpace(Fvector2& pos)
+{
+	pos.mul(m_GlobalMap->GetCurrentZoom());
+
+	Fvector2 globMapAbs;
+	m_GlobalMap->GetAbsolutePos(globMapAbs);
+
+	pos.add(globMapAbs);
+}
+
+constexpr float MapResizeSpeed = 350.f;
+constexpr float MapZoomTime = 0.5f;
+constexpr float MinMoveTime = 0.25f;
+
+void CUIMapWnd::ZoomUpdateLogic()
+{
+	switch (m_zoom_state)
+	{
+		case zoom_initialize:
+		{
+			m_target_zoom = GlobalMap()->GetMinZoom();
+			ZoomStart();
+			m_zoom_end_moving_time = Device.fTimeGlobal + MapZoomTime;
+			m_zoom_state = zoom_search_level_map;
+			break;
+		}
+		case zoom_search_level_map:
+		{
+			ZoomMoveMap();
+			if (ZoomTargetMapShown())
+			{
+				m_zoom_state = zoom_restart;
+				UpdateScroll();
+			}
+			break;
+		}
+		case zoom_restart:
+		{
+			m_target_zoom = GetZoom();
+			ZoomStart();
+			m_zoom_state = zoom_update_fly;
+			break;
+		}
+		case zoom_update_fly:
+		{
+			ZoomMoveMap();
+			break;
+		}
+	}
+}
+
+bool CUIMapWnd::ZoomTargetMapShown()
+{
+	Fvector2 Point = m_tgtCenter;
+	Point.mul(m_GlobalMap->GetCurrentZoom());
+	Fvector2 AbsolutePosition;
+	m_GlobalMap->GetAbsolutePos(AbsolutePosition);
+	Point.add(AbsolutePosition);
+	Frect Rect = ActiveMapRect();
+	Rect.grow(Rect.width(), Rect.height());
+	if (Rect.in(Point))
+	{
+		return true;
+	}
+	return false;
+}
+
+void CUIMapWnd::ZoomStart()
+{
+	float Distance = m_GlobalMap->CalcOpenRect(m_tgtCenter, m_desired_map_rect, m_target_zoom);
+	bool NeedMove = !fis_zero(Distance, EPS_L);
+	bool NeedZoom = !fsimilar(m_target_zoom, GlobalMap()->GetCurrentZoom().x, EPS_L);
+
+	m_zoom_end_moving_time = Device.fTimeGlobal;
+
+	if (NeedZoom && NeedMove)
+	{
+		m_zoom_end_moving_time += std::max(MapZoomTime, Distance / MapResizeSpeed);
+	}
+	else if (NeedZoom)
+	{
+		m_zoom_end_moving_time += MapZoomTime;
+	}
+	else if (NeedMove)
+	{
+		m_zoom_end_moving_time += std::max(Distance / MapResizeSpeed, MinMoveTime);
+	}
+}
+
+void CUIMapWnd::ZoomMoveMap()
+{
+	float CurMapZoom = GetZoom();
+	if (!fsimilar(CurMapZoom, m_target_zoom))
+	{
+		m_target_zoom = CurMapZoom;
+		ZoomStart();
+	}
+
+	float GlobalTime = Device.fTimeGlobal;
+	float TimeTo = m_zoom_end_moving_time - GlobalTime;
+	float DeltaTime = std::min(Device.fTimeDelta, TimeTo);
+	if (m_zoom_end_moving_time > Device.fTimeGlobal)
+	{
+		Frect CurrentRect = m_GlobalMap->GetWndRect();
+		CurrentRect.x1 += ((m_desired_map_rect.x1 - CurrentRect.x1) / TimeTo) * DeltaTime;
+		CurrentRect.y1 += ((m_desired_map_rect.y1 - CurrentRect.y1) / TimeTo) * DeltaTime;
+		CurrentRect.x2 += ((m_desired_map_rect.x2 - CurrentRect.x2) / TimeTo) * DeltaTime;
+		CurrentRect.y2 += ((m_desired_map_rect.y2 - CurrentRect.y2) / TimeTo) * DeltaTime;
+		m_GlobalMap->SetWndRect(CurrentRect);
+	}
+	else
+	{
+		m_GlobalMap->SetWndRect(m_desired_map_rect);
+		m_zoom_state = zoom_idle;
+	}
+
+	m_GlobalMap->Update();
+	UpdateScroll();
 }

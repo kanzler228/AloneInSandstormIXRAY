@@ -3,6 +3,12 @@
 #define ParticleEffectDefH
 
 #include "Shader.h"
+
+namespace EPALegacy
+{
+	struct EParticleAction;
+}
+
 class ButtonValue;
 
 namespace PAPI
@@ -21,7 +27,7 @@ namespace PS
 {
 	class CParticleEffect;
 
-	typedef BOOL ( * CollisionCallback)(CParticleEffect* E, PAPI::Particle& P, const Fvector& pt, const Fvector& norm); // TRUE-continue collision exec
+	typedef bool ( * CollisionCallback)(CParticleEffect* E, PAPI::Particle& P, const Fvector& pt, const Fvector& norm); // true-continue collision exec
 	typedef void ( * DestroyCallback)	(CParticleEffect* E, PAPI::Particle& P);
 
 	class PFunction;
@@ -92,8 +98,8 @@ namespace PS
         float 				m_fCollideResilience;
         float 				m_fCollideSqrCutoff; 
 	public:
-		BOOL 				SaveActionList		(IWriter& F);
-		BOOL 				LoadActionList		(IReader& F);
+		bool 				SaveActionList		(IWriter& F);
+		bool 				LoadActionList		(IReader& F);
 	// execute
 		void				ExecuteAnimate		(PAPI::Particle *particles, u32 p_cnt, float dt);
         void				ExecuteCollision	(PAPI::Particle *particles, u32 p_cnt, float dt, CParticleEffect* owner, CollisionCallback cb);
@@ -101,18 +107,24 @@ namespace PS
                             CPEDef				();
                             ~CPEDef				();
         
-		void				SetName				(LPCSTR name);
-        IC LPCSTR			Name				()const{return *m_Name;}
+		void				SetName				(const char* name);
+        IC const char*			Name				()const{return *m_Name;}
         void				CreateShader		();
         void				DestroyShader		();
 
 		void 				Save				(IWriter& F);
-		BOOL 				Load				(IReader& F);
+		bool 				LoadOriginal		(IReader& F);
+		bool 				LoadExtended		(IReader& F);
 
 		void 				Save2				(CInifile& ini);
-		BOOL 				Load2				(CInifile& ini);
+		bool 				Load2				(CInifile& ini);
+		bool				Load2Original		(CInifile& ini);
+		bool				Load2Entended		(CInifile& ini);
 
-#ifdef _EDITOR         
+#ifndef _EDITOR
+		using EPAVec = xr_vector<EPALegacy::EParticleAction*>;
+		using EPAVecIt = EPAVec::iterator;
+#else
 // change Copy&Equal if variables changed
 	public:
 		using EPAVec = xr_vector<EParticleAction*>;
@@ -120,7 +132,7 @@ namespace PS
 
 		EPAVec m_EActionList;
 	public:             
-		void   	FindActionByName	(LPCSTR new_name, bool& res);
+		void   	FindActionByName	(const char* new_name, bool& res);
 		bool   	NameOnAfterEdit					(PropValue* sender, shared_str& edit_val);
 		bool   	CollisionFrictionOnAfterEdit	(PropValue* sender, float& edit_val);
 		void   	CollisionFrictionOnBeforeEdit	(PropValue* sender, float& edit_val);
@@ -129,38 +141,68 @@ namespace PS
 		void   	CollisionCutoffOnBeforeEdit		(PropValue* sender, float& edit_val);
 		void   	CollisionCutoffOnDraw			(PropValue* sender, xr_string& draw_val);
 		void   	OnActionEditClick	(ButtonValue* sender, bool& bDataModified, bool& bSafe);
+		bool	RemoveAction(EParticleAction* action);
+		bool	RemoveAction(int idx);
+		bool	MoveUpAction(EParticleAction* action);
+		bool	MoveDownAction(EParticleAction* action);
+		bool	MoveUpAction(int idx);
+		bool	MoveDownAction(int idx);
 	    void   	OnFrameResize		(PropValue* sender);
 	    void   	OnShaderChange		(PropValue* sender);
 	    void   	OnFlagChange		(PropValue* sender);
 		void   	OnControlClick		(ButtonValue* sender, bool& bDataModified, bool& bSafe);
 		void   	OnActionsClick		(ButtonValue* sender, bool& bDataModified, bool& bSafe);
         bool   	OnAfterActionNameEdit(PropValue* sender, shared_str& edit_val);
-		void				FillProp		   	(LPCSTR pref, ::PropItemVec& items, void* owner);
+		void				FillProp		   	(const char* pref, ::PropItemVec& items, void* owner);
+		
+		void OnSpriteFrameClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnSpriteAnimatedClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnTimeLimitClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnSpriteClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnSpriteCullingClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnMovementAlignClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnMovementVelocityClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		void OnMovementCollisionClicked(ButtonValue* value, bool& bModif, bool& bSafe);
+		
 		void				Copy				(const CPEDef& src);
-		BOOL				Equal				(const CPEDef* pe);
+		bool				Equal				(const CPEDef* pe);
 		void 				Render				(const Fmatrix& parent);
-		static PFunction*	FindCommandPrototype(LPCSTR src, LPCSTR& dest);
+		static PFunction*	FindCommandPrototype(const char* src, const char*& dest);
 		void   	FillActionList		(ChooseItemVec& items, void* param);
         bool 				Validate 			(bool bMsg);
-		void 				Compile				(EPAVec& v);
 		void				OnDrawUI			();
 #endif
+		void Compile(EPAVec& v);
 	};
+
+	namespace PE
+	{
+		enum class Version: u16
+		{
+			Original = 0x0001,
+			Extended,
+			MAX,
+			Latest = MAX - 1,
+		};
+
+		enum class Chunks: u32
+		{
+			VERSION = 0x0001,
+			NAME = 0x0002,
+			EFFECTDATA = 0x0003,
+			ACTIONLIST = 0x0004,
+			FLAGS = 0x0005,
+			FRAME = 0x0006,
+			SPRITE = 0x0007,
+			TIMELIMIT = 0x0008,
+			TIMELIMIT2 = 0x0009,
+			SOURCETEXT_ = 0x0020, // obsolete
+			COLLISION = 0x0021,
+			VEL_SCALE = 0x0022,
+			EDATA = 0x0024,
+			ALIGN_TO_PATH = 0x0025,
+		};
+	}
 };
-#define PED_VERSION				0x0001
-#define PED_CHUNK_VERSION		0x0001
-#define PED_CHUNK_NAME			0x0002
-#define PED_CHUNK_EFFECTDATA	0x0003
-#define PED_CHUNK_ACTIONLIST   	0x0004
-#define PED_CHUNK_FLAGS			0x0005
-#define PED_CHUNK_FRAME			0x0006
-#define PED_CHUNK_SPRITE	   	0x0007
-#define PED_CHUNK_TIMELIMIT		0x0008
-#define PED_CHUNK_TIMELIMIT2	0x0009
-#define PED_CHUNK_SOURCETEXT_  	0x0020 // obsolete
-#define PED_CHUNK_COLLISION	   	0x0021
-#define PED_CHUNK_VEL_SCALE		0x0022
-#define PED_CHUNK_EDATA			0x0024
-#define PED_CHUNK_ALIGN_TO_PATH	0x0025
 //---------------------------------------------------------------------------
 #endif

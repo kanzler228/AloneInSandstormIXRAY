@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "UISpinText.h"
 #include "UILines.h"
 #include "../../xrEngine/string_table.h"
@@ -29,7 +29,7 @@ void CUISpinText::SetItem(int v)
 	m_pLines->SetText	(m_list[v]._transl.c_str());
 }
 
-LPCSTR CUISpinText::GetTokenText()
+const char* CUISpinText::GetTokenText()
 {
 	R_ASSERT			(m_curItem != -1);
 	return				m_list[m_curItem]._orig.c_str();

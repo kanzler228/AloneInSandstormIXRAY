@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "psy_dog.h"
 #include "../../../level_graph.h"
 #include "../../../ai_space.h"
@@ -30,7 +30,7 @@ CPsyDog::~CPsyDog()
 	xr_free							(m_phantoms_die_time);
 }
 
-void CPsyDog::Load(LPCSTR section)
+void CPsyDog::Load(const char* section)
 {
 	inherited::Load					(section);
 	
@@ -53,18 +53,18 @@ void CPsyDog::Load(LPCSTR section)
 		m_time_phantom_respawn		=	pSettings->r_u32(section,"Time_Phantom_Appear");
 }
 
-BOOL CPsyDog::net_Spawn(CSE_Abstract *dc)
+bool CPsyDog::net_Spawn(CSE_Abstract *dc)
 {
-	if (!inherited::net_Spawn(dc)) return FALSE;
+	if (!inherited::net_Spawn(dc)) return false;
 
-	return TRUE;
+	return true;
 }
 void CPsyDog::reinit()
 {
 	inherited::reinit	();
 	m_aura->reinit		();
 }
-void CPsyDog::reload(LPCSTR section)
+void CPsyDog::reload(const char* section)
 {
 	inherited::reload(section);
 }
@@ -106,7 +106,7 @@ bool CPsyDog::spawn_phantom()
 	if (!control().path_builder().get_node_in_radius(ai_location().level_vertex_id(), 4,8,5,node)) return false;
 	
  	// set id to created server object
-	LPCSTR phantomSection = READ_IF_EXISTS(pSettings, r_string, this->get_section(), "phantom_section", "psy_dog_phantom");
+	const char* phantomSection = READ_IF_EXISTS(pSettings, r_string, this->get_section(), "phantom_section", "psy_dog_phantom");
 	CSE_Abstract* phantom = Level().spawn_item(phantomSection, ai().level_graph().vertex_position(node), node, 0xffff, true);
 	CSE_ALifeMonsterBase	*pSE_Monster = smart_cast<CSE_ALifeMonsterBase*>(phantom);
 	VERIFY(pSE_Monster);
@@ -115,8 +115,8 @@ bool CPsyDog::spawn_phantom()
 	
 	// spawn here
 	NET_Packet					P;
-	phantom->Spawn_Write		(P,TRUE);
-	Level().Send				(P,net_flags(TRUE));
+	phantom->Spawn_Write		(P,true);
+	Level().Send				(P,net_flags(true));
 	F_entity_Destroy			(phantom);
 
 	return true;
@@ -196,9 +196,9 @@ CPsyDogPhantom::CPsyDogPhantom()
 CPsyDogPhantom::~CPsyDogPhantom()
 {
 }
-BOOL CPsyDogPhantom::net_Spawn(CSE_Abstract *dc)
+bool CPsyDogPhantom::net_Spawn(CSE_Abstract *dc)
 {
-	if (!inherited::net_Spawn(dc)) return FALSE;
+	if (!inherited::net_Spawn(dc)) return false;
 
 	CSE_ALifeMonsterBase *se_monster	= smart_cast<CSE_ALifeMonsterBase*>(dc);
 	m_parent_id = se_monster->m_spec_object_id;
@@ -207,8 +207,8 @@ BOOL CPsyDogPhantom::net_Spawn(CSE_Abstract *dc)
 	
 	try_to_register_to_parent();
 
-	setVisible	(FALSE);
-	setEnabled	(FALSE);
+	setVisible	(false);
+	setEnabled	(false);
 
 	// load effector
 	// Load psi postprocess --------------------------------------------------------
@@ -221,7 +221,7 @@ BOOL CPsyDogPhantom::net_Spawn(CSE_Abstract *dc)
 
 	m_time_spawned			= time();
 
-	return (TRUE);
+	return (true);
 }
 
 const u32 pmt_time_wait_parent = 10000;
@@ -274,10 +274,11 @@ void CPsyDogPhantom::Think()
 
 	m_state			= eAttack;
 	
-	setVisible		(TRUE);
-	setEnabled		(TRUE);
+	setVisible		(true);
+	setEnabled		(true);
 
-	CParticlesPlayer::StartParticles(m_particles_appear,Fvector().set(0.0f,0.1f,0.0f),ID());
+	TParticlesPlayer* PPlayer = GetOrCreateComponent<TParticlesPlayer>();
+	PPlayer->StartParticles(m_particles_appear,Fvector().set(0.0f,0.1f,0.0f),ID());
 
 	if (EnemyMan.get_enemy() != Actor()) 
 		return;

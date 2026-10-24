@@ -9,8 +9,7 @@ enum ELECommand
 	COMMAND_READONLY_TARGET,
 	COMMAND_SHOW_TARGET,
 
-	COMMAND_SHOW_OBJECTLIST,
-    COMMAND_MULTI_RENAME_OBJECTS,
+    COMMAND_MULTI_RENAME_OBJECTS = 64,
 
 	COMMAND_REFRESH_SOUND_ENVS,
     COMMAND_REFRESH_SOUND_ENV_GEOMETRY,
@@ -51,10 +50,7 @@ enum ELECommand
     COMMAND_MAKE_AIMAP,
     COMMAND_MAKE_AIMAP_LEGACY,
 
-    COMMAND_MOVE_GIZMO,
-    COMMAND_UPDATE_GIZMO,
-
-	COMMAND_INVERT_SELECTION_ALL,
+	COMMAND_INVERT_SELECTION_ALL = 100,
 	COMMAND_SELECT_ALL,
 	COMMAND_DESELECT_ALL,
 	COMMAND_DELETE_SELECTION,
@@ -70,9 +66,8 @@ enum ELECommand
 	COMMAND_DEL_SEL_SNAP_OBJECTS,
     COMMAND_CLEAR_SNAP_OBJECTS,
 	COMMAND_SELECT_SNAP_OBJECTS,
-	COMMAND_REFRESH_SNAP_OBJECTS,
 
-    COMMAND_LOAD_FIRSTRECENT,
+    COMMAND_LOAD_FIRSTRECENT = 116,
 
     COMMAND_SHOWCONTEXTMENU,
     COMMAND_SHOW_CLIP_EDITOR,
@@ -83,13 +78,18 @@ enum ELECommand
     COMMAND_LE_END
 };
 
-class CLevelMain: public TUI{
+class CLevelMain: 
+    public TUI
+{
 	typedef TUI inherited;
     
     virtual void 	RealUpdateScene			();
     virtual void 	RealQuit				();
+
 public:
     C3DCursor*   	m_Cursor;
+    xr_task_group LoaderEvent;
+
 public:
     				CLevelMain 				();
     virtual 		~CLevelMain				();
@@ -98,11 +98,11 @@ public:
     virtual LPSTR	GetCaption				();
 
     virtual void 	ResetStatus				();
-    virtual void 	SetStatus				(LPCSTR s, bool bOutLog=true);
+    virtual void 	SetStatus				(const char* s, bool bOutLog=true);
     virtual void	ProgressDraw			();
 
-    virtual LPCSTR	EditorName				(){return "level";}
-    virtual LPCSTR	EditorDesc				(){return "Level Editor";}
+    virtual const char*	EditorName				(){return "level";}
+    virtual const char*	EditorDesc				(){return "Level Editor";}
 
     void 			ShowContextMenu			(int cls);
 	bool 			PickGround				(Fvector& hitpoint, const Fvector& start, const Fvector& direction, int bSnap=1, Fvector* hitnormal=0);

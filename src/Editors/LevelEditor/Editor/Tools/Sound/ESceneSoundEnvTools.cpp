@@ -14,12 +14,14 @@ void ESceneSoundEnvTool::RemoveControls()
 
 void ESceneSoundEnvTool::Clear(bool bSpecific)
 {
-	inherited::Clear	(bSpecific);
-    LSndLib->RefreshEnvGeometry	();
+	inherited::Clear(bSpecific);
+	if (LSndLib)
+	{
+		LSndLib->RefreshEnvGeometry();
+	}
 }
 
-
-CCustomObject* ESceneSoundEnvTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* ESceneSoundEnvTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O	= new ESoundEnvironment(data,name);
     O->FParentTools		= this;

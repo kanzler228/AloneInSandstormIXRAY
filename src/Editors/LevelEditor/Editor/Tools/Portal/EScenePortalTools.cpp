@@ -17,14 +17,14 @@ void EScenePortalTool::RemoveControls()
 }
 
 
-void EScenePortalTool::FillProp(LPCSTR pref, PropItemVec& items)
+void EScenePortalTool::FillProp(const char* pref, PropItemVec& items)
 {
 	PHelper().CreateFlag32(items, PrepareKey(pref,"Draw Simple Model"),&m_Flags,			flDrawSimpleModel);
 	inherited::FillProp	(pref, items);
 }
 
 
-CCustomObject* EScenePortalTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* EScenePortalTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O	= new CPortal(data,name);
     O->FParentTools		= this;
@@ -79,7 +79,7 @@ struct co_plane_pred
             p_plane.n.div(plane_magn);
             p_plane.d /= plane_magn;
             
-			float dot = _abs(plane_dot(m_plane, p_plane));
+			float dot = std::abs(plane_dot(m_plane, p_plane));
             if(fsimilar(dot, 1.0f, EPS_L))
             {
             	Fbox	m_box, p_box;

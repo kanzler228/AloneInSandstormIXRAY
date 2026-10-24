@@ -25,9 +25,10 @@
 //#include "script_ini_file.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "HangingLamp.h"
+#include "../xrEngine/LightAnimLibrary.h"
 #include "patrol_path_manager.h"
 #include "ai_object_location.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "EntityCondition.h"
 #include "space_restrictor.h"
 #include "detail_path_manager.h"
@@ -61,10 +62,10 @@ BIND_FUNCTION10	(&object(),	CScriptGameObject::Position,			CGameObject,	Position
 BIND_FUNCTION10	(&object(),	CScriptGameObject::Direction,			CGameObject,	Direction,			Fvector,						Fvector());
 BIND_FUNCTION10	(&object(),	CScriptGameObject::Mass,		CPhysicsShellHolder,	GetMass,			float,							float(-1));
 BIND_FUNCTION10	(&object(),	CScriptGameObject::ID,					CGameObject,	ID,					u16,							u16(-1));
-BIND_FUNCTION10	(&object(),	CScriptGameObject::getVisible,			CGameObject,	getVisible,			BOOL,							FALSE);
-//BIND_FUNCTION01	(&object(),	CScriptGameObject::setVisible,			CGameObject,	setVisible,			BOOL,							BOOL);
-BIND_FUNCTION10	(&object(),	CScriptGameObject::getEnabled,			CGameObject,	getEnabled,			BOOL,							FALSE);
-//BIND_FUNCTION01	(&object(),	CScriptGameObject::setEnabled,			CGameObject,	setEnabled,			BOOL,							BOOL);
+BIND_FUNCTION10	(&object(),	CScriptGameObject::getVisible,			CGameObject,	getVisible,			bool,							false);
+//BIND_FUNCTION01	(&object(),	CScriptGameObject::setVisible,			CGameObject,	setVisible,			bool,							bool);
+BIND_FUNCTION10	(&object(),	CScriptGameObject::getEnabled,			CGameObject,	getEnabled,			bool,							false);
+//BIND_FUNCTION01	(&object(),	CScriptGameObject::setEnabled,			CGameObject,	setEnabled,			bool,							bool);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::story_id,			CGameObject,	story_id,			ALife::_STORY_ID,				ALife::_STORY_ID(-1));
 BIND_FUNCTION10	(&object(),	CScriptGameObject::DeathTime,			CEntity,		GetLevelDeathTime,	u32,							0);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::MaxHealth,			CEntity,		GetMaxHealth,		float,							-1);
@@ -83,6 +84,7 @@ BIND_FUNCTION10	(&object(),	CScriptGameObject::GetBleeding,			CEntityAlive,	cond
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetMorale,			CEntityAlive,	conditions().GetEntityMorale,	float,							-1);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetSleepiness,		CEntityAlive,	conditions().GetSleepiness,		float,							-1);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetThirst,			CEntityAlive,	conditions().GetThirst,			float,							-1);
+BIND_FUNCTION10	(&object(),	CScriptGameObject::GetIntoxication,		CEntityAlive,	conditions().GetIntoxication,	float,							-1);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetHealth,			CEntityAlive,	conditions().ChangeHealth,		float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetPsyHealth,		CEntityAlive,	conditions().ChangePsyHealth,	float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetPower,			CEntityAlive,	conditions().ChangePower,		float,							float);
@@ -91,11 +93,12 @@ BIND_FUNCTION01	(&object(),	CScriptGameObject::SetRadiation,		CEntityAlive,	cond
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetBleeding,			CEntityAlive,	conditions().ChangeBleeding,	float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetSleepiness,		CEntityAlive,	conditions().ChangeSleepiness,	float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetThirst,			CEntityAlive,	conditions().ChangeThirst,		float,							float);
+BIND_FUNCTION01	(&object(),	CScriptGameObject::SetIntoxication,		CEntityAlive,	conditions().ChangeIntoxication,float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetCircumspection,	CEntityAlive,	conditions().ChangeCircumspection,float,							float);
 BIND_FUNCTION01	(&object(),	CScriptGameObject::SetMorale,			CEntityAlive,	conditions().ChangeEntityMorale,	float,							float);
-BIND_FUNCTION02	(&object(),	CScriptGameObject::SetScriptControl,	CScriptEntity,	SetScriptControl,	bool,								LPCSTR,					bool,					shared_str);
+BIND_FUNCTION02	(&object(),	CScriptGameObject::SetScriptControl,	CScriptEntity,	SetScriptControl,	bool,								const char*,					bool,					shared_str);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetScriptControl,	CScriptEntity,	GetScriptControl,	bool,								false);
-BIND_FUNCTION10	(&object(),	CScriptGameObject::GetScriptControlName,CScriptEntity,GetScriptControlName,LPCSTR,					"");
+BIND_FUNCTION10	(&object(),	CScriptGameObject::GetScriptControlName,CScriptEntity,GetScriptControlName,const char*,					"");
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetEnemyStrength,	CScriptEntity,	get_enemy_strength,	int,					0);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::GetActionCount,		CScriptEntity,	GetActionCount,		u32,					0);
 BIND_FUNCTION10	(&object(),	CScriptGameObject::can_script_capture,	CScriptEntity,	can_script_capture,	bool,					0);
@@ -175,7 +178,7 @@ const CScriptEntityAction* CScriptGameObject::GetActionByIndex(u32 action_index)
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-u16 CScriptGameObject::get_bone_id(LPCSTR bone_name) const
+u16 CScriptGameObject::get_bone_id(const char* bone_name) const
 {
 	return object().Visual()->dcast_PKinematics()->LL_BoneID(bone_name);
 }
@@ -234,7 +237,7 @@ CHolderCustom* CScriptGameObject::get_custom_holder()
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-LPCSTR CScriptGameObject::WhoHitName()
+const char* CScriptGameObject::WhoHitName()
 {
 	if (CEntityAlive* entity_alive = object().cast_entity_alive())
 	{
@@ -245,7 +248,7 @@ LPCSTR CScriptGameObject::WhoHitName()
 	return 0;
 }
 
-LPCSTR CScriptGameObject::WhoHitSectionName()
+const char* CScriptGameObject::WhoHitSectionName()
 {
 	if (CEntityAlive* entity_alive = object().cast_entity_alive())
 	{
@@ -296,7 +299,7 @@ void CScriptGameObject::bind_object(CScriptBinderObject* game_object)
 
 void CScriptGameObject::set_previous_point(int point_index)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().patrol().set_previous_point(point_index);
 	}
@@ -308,7 +311,7 @@ void CScriptGameObject::set_previous_point(int point_index)
 
 void CScriptGameObject::set_start_point(int point_index)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().patrol().set_start_point(point_index);
 	}
@@ -320,7 +323,7 @@ void CScriptGameObject::set_start_point(int point_index)
 
 u32 CScriptGameObject::get_current_patrol_point_index()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->movement().patrol().get_current_point_index();
 	}
@@ -332,8 +335,71 @@ u32 CScriptGameObject::get_current_patrol_point_index()
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+Fvector	CScriptGameObject::bone_position(u16 _bone_id)
+{
+	u16 bone_id = BI_NONE;
+	if (_bone_id == BI_NONE)
+	{
+		Msg("! CScriptGameObject::bone_position(...): bone_id [%s] not found in object [%s]", _bone_id, object().cNameSect().c_str());
+		return {};
+	}
 
-Fvector	CScriptGameObject::bone_position(LPCSTR bone_name) const
+	if (IKinematics* kin = PKinematics(object().Visual()))
+	{
+		const char* bone_name = kin->LL_BoneName_dbg(_bone_id);
+		if (xr_strlen(bone_name))
+		{
+			bone_id = kin->LL_BoneID(bone_name);
+		}
+
+		if (bone_id == BI_NONE)
+		{
+			Msg("! CScriptGameObject::bone_position(...): bone_name missing by id [%d] in object [%s]", bone_id, object().cNameSect().c_str());
+			return {};
+		}
+		
+		Fvector res;
+		kin->LL_GetBoneWorldPosition(bone_id, object().XFORM(), res);
+
+		return res;
+	}
+
+	return {};
+}
+
+Fvector	CScriptGameObject::bone_direction(u16 _bone_id)
+{
+	u16 bone_id = BI_NONE;
+	if (_bone_id == BI_NONE)
+	{
+		Msg("! CScriptGameObject::bone_position(...): bone_id [%s] not found in object [%s]", _bone_id, object().cNameSect().c_str());
+		return {};
+	}
+
+	if (IKinematics* kin = PKinematics(object().Visual()))
+	{
+		const char* bone_name = kin->LL_BoneName_dbg(_bone_id);
+		if (xr_strlen(bone_name))
+		{
+			bone_id = kin->LL_BoneID(bone_name);
+		}
+
+		if (bone_id == BI_NONE)
+		{
+			Msg("! CScriptGameObject::bone_position(...): bone_name missing by id [%d] in object [%s]", bone_id, object().cNameSect().c_str());
+			return {};
+		}
+
+		Fmatrix res;
+		kin->LL_GetBoneWorldTransform(bone_id, object().XFORM(), res);
+
+		return res.k;
+	}
+
+	return {};
+}
+
+Fvector	CScriptGameObject::bone_position(const char* bone_name)
 {
 	u16 bone_id = BI_NONE;
 
@@ -355,9 +421,101 @@ Fvector	CScriptGameObject::bone_position(LPCSTR bone_name) const
 		return {};
 	}
 
-	Fmatrix matrix;
-	matrix.mul_43(object().XFORM(), kin->LL_GetBoneInstance(bone_id).mTransform);
-	return matrix.c;
+	Fvector res;
+	kin->LL_GetBoneWorldPosition(bone_id, object().XFORM(), res);
+
+	return res;
+}
+
+Fvector	CScriptGameObject::bone_direction(const char* bone_name)
+{
+	u16 bone_id = BI_NONE;
+
+	IKinematics* kin = PKinematics(object().Visual());
+
+	if (xr_strlen(bone_name))
+	{
+		bone_id = kin->LL_BoneID(bone_name);
+	}
+	else
+	{
+		bone_id = kin->LL_GetBoneRoot();
+		Msg("! CScriptGameObject::bone_position(...): bone_name is empty, object %s:", object().cNameSect().c_str());
+	}
+
+	if (bone_id == BI_NONE)
+	{
+		Msg("! CScriptGameObject::bone_position(...): bone_name [%s] not found in object [%s]", bone_name, object().cNameSect().c_str());
+		return {};
+	}
+
+	Fmatrix res;
+	kin->LL_GetBoneWorldTransform(bone_id, object().XFORM(), res);
+
+	return res.k;
+}
+
+const char*	CScriptGameObject::get_root_bone_name() const
+{
+	u16 bone_id = BI_NONE;
+
+	if (IKinematics* kin = PKinematics(object().Visual()))
+	{
+		bone_id = kin->LL_GetBoneRoot();
+		if (bone_id == BI_NONE)
+		{
+			Msg("! CScriptGameObject::get_root_bone_name(...): bone_id [%s] not found in object [%s]", bone_id, object().cNameSect().c_str());
+			return {};
+		}
+
+		return kin->LL_BoneName_dbg(bone_id);
+	}
+
+	return "";
+}
+
+u16	CScriptGameObject::get_root_bone_id() const
+{
+	if (IKinematics* kin = PKinematics(object().Visual()))
+	{
+		return kin->LL_GetBoneRoot();
+	}
+
+	return BI_NONE;
+}
+
+const char*	CScriptGameObject::get_bone_name_by_id(u16 bone_id) const
+{
+	if (bone_id == BI_NONE)
+	{
+		Msg("! CScriptGameObject::bone_name_by_id(...): bone_id [%s] not found in object [%s]", bone_id, object().cNameSect().c_str());
+		return "";
+	}
+
+	if (IKinematics* kin = PKinematics(object().Visual()))
+	{
+		return kin->LL_BoneName_dbg(bone_id);
+	}
+
+	return "";
+}
+
+u16	CScriptGameObject::get_bone_id_by_name(const char* bone_name) const
+{
+	u16 bone_id = BI_NONE;
+
+	IKinematics* kin = PKinematics(object().Visual());
+
+	if (xr_strlen(bone_name))
+	{
+		bone_id = kin->LL_BoneID(bone_name);
+	}
+	else
+	{
+		bone_id = BI_NONE;
+	}
+
+	return bone_id;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -374,8 +532,19 @@ u32 CScriptGameObject::GetAmmoElapsed()
 	return 0;
 }
 
+// FFx0001++
+const char* CScriptGameObject::GetItemAdditionalName()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		return inventory_item->GetAdditionalName();
+	}
+
+	return "";
+}
+
 //FFx0001++
-LPCSTR CScriptGameObject::GetItemAdditionalDescription()
+const char* CScriptGameObject::GetItemAdditionalDescription()
 {
 	if (CInventoryItem* inventory_item = object().cast_inventory_item())
 	{
@@ -385,12 +554,70 @@ LPCSTR CScriptGameObject::GetItemAdditionalDescription()
 	return "";
 }
 
-//FFx0001++
-void CScriptGameObject::SetItemAdditionalDescription(LPCSTR additionalDescription)
+// FFx0001++
+const char* CScriptGameObject::GetItemPrependName()
 {
 	if (CInventoryItem* inventory_item = object().cast_inventory_item())
 	{
-		inventory_item->SetAdditionalDescription(additionalDescription);
+		return inventory_item->GetPrependName();
+	}
+
+	return "";
+}
+
+// FFx0001++
+const char* CScriptGameObject::GetItemPrependDescription()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		return inventory_item->GetPrependDescription();
+	}
+
+	return "";
+}
+
+// FFx0001++
+void CScriptGameObject::SetItemAdditionalName(const char* text)
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetAdditionalName(text);
+	}
+}
+
+//FFx0001++
+void CScriptGameObject::SetItemAdditionalDescription(const char* text)
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetAdditionalDescription(text);
+	}
+}
+
+// FFx0001++
+void CScriptGameObject::SetItemPrependName(const char* text)
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetPrependName(text);
+	}
+}
+
+// FFx0001++
+void CScriptGameObject::SetItemPrependDescription(const char* text)
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetPrependDescription(text);
+	}
+}
+
+// FFx0001++
+void CScriptGameObject::UnsetItemAdditionalName()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetAdditionalName("");
 	}
 }
 
@@ -399,8 +626,37 @@ void CScriptGameObject::UnsetItemAdditionalDescription()
 {
 	if (CInventoryItem* inventory_item = object().cast_inventory_item())
 	{
-		inventory_item->UnsetAdditionalDescription();
+		inventory_item->SetAdditionalDescription("");
 	}
+}
+
+// FFx0001++
+void CScriptGameObject::UnsetItemPrependName()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetPrependName("");
+	}
+}
+
+// FFx0001++
+void CScriptGameObject::UnsetItemPrependDescription()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->SetPrependDescription("");
+	}
+}
+
+// FFx0001++
+bool CScriptGameObject::IsItemUsedAdditionalName()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->IsUsedAdditionalName();
+	}
+
+	return false;
 }
 
 //FFx0001++
@@ -409,6 +665,28 @@ bool CScriptGameObject::IsItemUsedAdditionalDescription()
 	if (CInventoryItem* inventory_item = object().cast_inventory_item())
 	{
 		inventory_item->IsUsedAdditionalDescription();
+	}
+
+	return false;
+}
+
+// FFx0001++
+bool CScriptGameObject::IsItemUsedPrependName()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->IsUsedPrependName();
+	}
+
+	return false;
+}
+
+// FFx0001++
+bool CScriptGameObject::IsItemUsedPrependDescription()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->IsUsedPrependDescription();
 	}
 
 	return false;
@@ -622,99 +900,99 @@ bool CScriptGameObject::inside(const Fvector& position) const
 
 void CScriptGameObject::set_patrol_extrapolate_callback(const luabind::functor<bool>& functor)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().patrol().extrapolate_callback().set(functor);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_patrol_extrapolate_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_patrol_extrapolate_callback!");
 	}
 }
 
 void CScriptGameObject::set_patrol_extrapolate_callback(const luabind::functor<bool>& functor, const luabind::object& object)
 {
-	if (CCustomMonster* monster = this->object().cast_custom_monster())
+	if (CCreature* monster = this->object().cast_creature())
 	{
 		monster->movement().patrol().extrapolate_callback().set(functor, object);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_patrol_extrapolate_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_patrol_extrapolate_callback!");
 	}
 }
 
 void CScriptGameObject::set_patrol_extrapolate_callback()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().patrol().extrapolate_callback().clear();
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_patrol_extrapolate_callback!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_patrol_extrapolate_callback!");
 	}
 }
 
 void CScriptGameObject::extrapolate_length(float extrapolate_length)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().detail().extrapolate_length(extrapolate_length);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member extrapolate_length!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member extrapolate_length!");
 	}
 }
 
 float CScriptGameObject::extrapolate_length() const
 {
-	if (const CCustomMonster* monster = object().cast_custom_monster())
+	if (const CCreature* monster = object().cast_creature())
 	{
 		return monster->movement().detail().extrapolate_length();
 	}
 
-	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member extrapolate_length!");
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member extrapolate_length!");
 	return 0.0f;
 }
 
 void CScriptGameObject::set_fov(float new_fov)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->set_fov(new_fov);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_fov!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_fov!");
 	}
 }
 
 void CScriptGameObject::set_range(float new_range)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->set_range(new_range);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member set_range!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member set_range!");
 	}
 }
 
 u32	CScriptGameObject::vertex_in_direction(u32 level_vertex_id, Fvector direction, float max_distance) const
 {
-	CCustomMonster* monster = object().cast_custom_monster();
+	CCreature* monster = object().cast_creature();
 	if (monster == nullptr)
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member vertex_in_direction!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member vertex_in_direction!");
 		return (u32(-1));
 	}
 
 	if (!monster->movement().restrictions().accessible(level_vertex_id))
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster::vertex_in_direction - start vertex id is not accessible!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature::vertex_in_direction - start vertex id is not accessible!");
 		return (u32(-1));
 	}
 
@@ -735,32 +1013,32 @@ u32	CScriptGameObject::vertex_in_direction(u32 level_vertex_id, Fvector directio
 
 bool CScriptGameObject::invulnerable() const
 {
-	if (const CCustomMonster* monster = object().cast_custom_monster())
+	if (const CCreature* monster = object().cast_creature())
 	{
 		return monster->invulnerable();
 	}
 
-	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member invulnerable!");
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member invulnerable!");
 	return false;
 }
 
 void CScriptGameObject::invulnerable(bool invulnerable)
 {
-	if (CActor* pActor = object().cast_actor())
+	if (object().cast_actor() != nullptr)
 	{
-		psActorFlags.set(AF_GODMODE, invulnerable);
+		psActorFlags.set(AF_GOD_MODE, invulnerable);
 	}
-	else if (CCustomMonster* monster = object().cast_custom_monster())
+	else if (CCreature* monster = object().cast_creature())
 	{
 		monster->invulnerable(invulnerable);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member invulnerable!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member invulnerable!");
 	}
 }
 
-LPCSTR CScriptGameObject::get_smart_cover_description() const
+const char* CScriptGameObject::get_smart_cover_description() const
 {
 	if (smart_cover::object* smart_cover_object = smart_cast<smart_cover::object*>(&object()))
 	{
@@ -773,7 +1051,7 @@ LPCSTR CScriptGameObject::get_smart_cover_description() const
 
 CGameObject& CScriptGameObject::object() const
 {
-#ifdef DEBUG
+#if defined(DEBUG) && defined(IXR_WINDOWS)
 	__try
 	{
 		if (m_game_object && m_game_object->lua_game_object() == this)
@@ -798,12 +1076,12 @@ bool CScriptGameObject::IsActorOutdoors() const
 	// Check to make sure all the params are available (we're in game and such).
 	if (!g_pGameLevel)
 	{
-		return FALSE;
+		return false;
 	}
 	CObject* e = g_pGameLevel->CurrentViewEntity();
 	if (!e || !e->renderable_ROS())
 	{
-		return FALSE;
+		return false;
 	}
 	// Now do the real check! This is a copy out of another section of code that is also hard coded.
 	// I don't know what the proper limit for this is supposed to be, but this seems good enough.
@@ -814,13 +1092,16 @@ void CScriptGameObject::StartTrade(CScriptGameObject* obj)
 {
 	if (CActor* actor = obj->object().cast_actor())
 	{
-		CUIActorMenu& ActorMenu = CurrentGameUI()->ActorMenu();
+		CInventoryOwner* pActorInv = smart_cast<CInventoryOwner*>(actor);
+		if (!pActorInv)
+			return;
 
-		ActorMenu.SetActor(actor->cast_inventory_owner());
-		ActorMenu.SetPartner(object().cast_inventory_owner());
+		CInventoryOwner* pOtherOwner = smart_cast<CInventoryOwner*>(&object());
+		if (!pOtherOwner)
+			return;
 
-		ActorMenu.SetMenuMode(mmTrade);
-		ActorMenu.ShowDialog(true);
+		if (CurrentGameUI())
+			CurrentGameUI()->StartTrade(pActorInv, pOtherOwner);
 	}
 }
 
@@ -828,13 +1109,16 @@ void CScriptGameObject::StartUpgrade(CScriptGameObject* obj)
 {
 	if (CActor* actor = obj->object().cast_actor())
 	{
-		CUIActorMenu& ActorMenu = CurrentGameUI()->ActorMenu();
+		CInventoryOwner* pActorInv = smart_cast<CInventoryOwner*>(actor);
+		if (!pActorInv)
+			return;
 
-		ActorMenu.SetActor(actor->cast_inventory_owner());
-		ActorMenu.SetPartner(object().cast_inventory_owner());
+		CInventoryOwner* pOtherOwner = smart_cast<CInventoryOwner*>(&object());
+		if (!pOtherOwner)
+			return;
 
-		ActorMenu.SetMenuMode(mmUpgrade);
-		ActorMenu.ShowDialog(true);
+		if (CurrentGameUI())
+			CurrentGameUI()->StartUpgrade(pActorInv, pOtherOwner);
 	}
 }
 
@@ -863,17 +1147,9 @@ bool CScriptGameObject::Use(CScriptGameObject* obj)
 		return ret;
 	}
 
-	CUIActorMenu& ActorMenu = CurrentGameUI()->ActorMenu();
-
 	if (CInventoryBox* pBox = object().cast_inventory_box())
 	{
-		ActorMenu.SetActor(pActorInv);
-		ActorMenu.SetInvBox(pBox);
-
-		ActorMenu.SetMenuMode(mmDeadBodySearch);
-		ActorMenu.ShowDialog(true);
-
-		return true;
+		return CurrentGameUI()->StartCarBody(pActorInv, pBox);
 	}
 	else
 	{
@@ -882,15 +1158,87 @@ bool CScriptGameObject::Use(CScriptGameObject* obj)
 		{
 			return ret;
 		}
-
-		ActorMenu.SetActor(pActorInv);
-		ActorMenu.SetPartner(pOtherOwner);
-
-		ActorMenu.SetMenuMode(mmDeadBodySearch);
-		ActorMenu.ShowDialog(true);
-
-		return true;
+		return CurrentGameUI()->StartCarBody(pActorInv, pOtherOwner);
 	}
-
 	return false;
+}
+
+// =========================================================================
+// Custom Lighting Control (CHangingLamp)
+// Designed for script-driven cutscenes and dynamic atmosphere adjustments
+// =========================================================================
+
+// Checks if the light is currently turned on
+bool CScriptGameObject::IsLightActive()
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (lamp && lamp->light_render) 
+		return lamp->light_render->get_active();
+	
+	return false;
+}
+
+// Sets the RGB color and brightness multiplier of the light source
+void CScriptGameObject::SetLightColor(float r, float g, float b, float multiplier)
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (!lamp) return;
+
+	Fcolor new_color;
+	new_color.set(r, g, b, 1.f);
+	
+	// Store the brightness multiplier
+	lamp->fBrightness = multiplier; 
+
+	if (lamp->light_render)
+	{
+		// Apply brightness multiplier to the RGB values before passing to render
+		new_color.mul_rgb(multiplier); 
+		lamp->light_render->set_color(new_color);
+	}
+}
+
+// Sets the maximum radius (distance) of the light source
+void CScriptGameObject::SetLightRange(float range)
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (!lamp || !lamp->light_render) return;
+
+	lamp->light_render->set_range(range); 
+}
+
+// Enables or disables dynamic shadows cast by this light
+void CScriptGameObject::SetLightShadows(bool b_shadows)
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (!lamp || !lamp->light_render) return;
+
+	lamp->light_render->set_shadow(b_shadows); 
+}
+
+// Enables or disables volumetric lighting (god rays / fog scattering)
+void CScriptGameObject::SetLightVolumetric(bool b_volumetric)
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (!lamp || !lamp->light_render) return;
+
+	lamp->light_render->set_volumetric(b_volumetric); 
+}
+
+// Applies a specific color/flicker animation from light_anims.ltx
+void CScriptGameObject::SetLightAnim(const char* anim_name)
+{
+	CHangingLamp* lamp = smart_cast<CHangingLamp*>(&object());
+	if (!lamp) return;
+
+	if (anim_name && anim_name[0])
+	{
+		// Find and assign the animation by name from the library
+		lamp->lanim = LALib.FindItem(anim_name); 
+	}
+	else
+	{
+		// Disable animation if an empty string or null is passed
+		lamp->lanim = nullptr; 
+	}
 }

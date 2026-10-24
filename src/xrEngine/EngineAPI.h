@@ -5,11 +5,11 @@
 //****************************************************************************
 #pragma once
 #include <array>
-
-enum class APILevel;
+#include "../xrRHI/RHIEnums.h"
 
 // Abstract 'Pure' class for DLL interface
-class ENGINE_API DLL_Pure {
+class ENGINE_API DLL_Pure
+{
 public:
 	CLASS_ID				CLS_ID;
 
@@ -37,6 +37,7 @@ enum class EditorUI : u8
 	LuaCodespace,
 	ActorInfos,
 	HudAdjust,
+	LevelInspector,
 	ScenesViewer,
 	CameraEffectors,
 	Game_TimeManager,
@@ -44,17 +45,29 @@ enum class EditorUI : u8
 	Game_WeaponManager,
 	Game_SearchManager,
 	Game_HudAdjustManager,
+	Game_3rdAdjust,
+	Game_3DIconAdjust,
+	Game_DemoRecord,
+	Game_ActorAnimations,
+	Tools_RenderDebug_SVGStorageViewer,
 	Tools_OMFEditor,
+	Tools_InputManager,
+	Tools_CarEditor,
+	Tools_PostProcessEffectorEditor,
+	Tools_TextureEditor,
+	Tools_QuestEditor,
+	UI_General,
+	ECSViewer,
 	Count
 };
 
 class ENGINE_API CEngineAPI
 {
 private:
-	HMODULE hGame;
 	HMODULE hRender;
 
 public:
+	HMODULE hGame;
 	HMODULE hGameSpy;
 
 	Factory_Create* pCreate;
@@ -73,7 +86,7 @@ public:
 	void				Destroy		();
 
 	void				CreateRendererList();
-	APILevel			GetAPI();
+	ERHI_API_LAYER		GetAPI();
 	int					GetSkinningMode() const;
 	void				SetSkinningMode(int Mode = -1);
 };

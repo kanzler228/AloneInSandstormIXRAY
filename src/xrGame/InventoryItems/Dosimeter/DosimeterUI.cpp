@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "DosimeterUI.h"
 
 #include "../../../xrUI/ui_base.h"
@@ -65,14 +65,29 @@ void CUIDosimeter::update()
 	float rad = 0.0f;
 	if (pActor)
 	{
-		for (CObject* pFeelObject : pActor->q_nearest)
+		for (ISpatialShared& SS : pActor->q_nearest)
 		{
-			CRadioactiveZone* pRadZone = smart_cast<CRadioactiveZone*>(pFeelObject);
+			ISpatial* S = SS.get();
 
-			if (pRadZone)
-			{
-				rad += pRadZone->fHitPower;
-			}
+			if (!S)
+				continue;
+
+			CObject* pFeelObject = S->dcast_CObject();
+
+			if (!pFeelObject || pFeelObject->getDestroy())
+				continue;
+
+			CGameObject* game_object = pFeelObject->cast_game_object();
+
+			if (game_object == nullptr)
+				continue;
+
+			CRadioactiveZone* pRadZone = game_object->cast_radioactive_zone();
+
+			if (pRadZone == nullptr)
+				continue;
+
+			rad += pRadZone->fHitPower;
 		}
 	}
 
@@ -88,13 +103,13 @@ void CUIDosimeter::update()
 	xr_sprintf(s, "%05.0lf", rad);
 	string16 tex;
 	xr_sprintf(tex, "green_%c", s[1]);
-	m_seg1->InitTextureEx(tex, "hud\\p3d");
+	m_seg1->InitTextureEx(tex, "hud\\dosimeter");
 	xr_sprintf(tex, "green_%c", s[2]);
-	m_seg2->InitTextureEx(tex, "hud\\p3d");
+	m_seg2->InitTextureEx(tex, "hud\\dosimeter");
 	xr_sprintf(tex, "green_%c", s[3]);
-	m_seg3->InitTextureEx(tex, "hud\\p3d");
+	m_seg3->InitTextureEx(tex, "hud\\dosimeter");
 	xr_sprintf(tex, "green_%c", s[4]);
-	m_seg4->InitTextureEx(tex, "hud\\p3d");
+	m_seg4->InitTextureEx(tex, "hud\\dosimeter");
 
 	if (Device.dwTimeGlobal > m_workTick + WORK_PERIOD)
 	{
@@ -121,7 +136,7 @@ void CUIDosimeter::Draw()
 	UI().m_currentPointType = IUIRender::pttLIT;
 
 	UIRender->CacheSetXformWorld(LM);
-	UIRender->CacheSetCullMode(IUIRender::cmNONE);
+	UIRender->CacheSetCullMode(ERHI_CULLMODE::NONE);
 
 	CUIWindow::Draw();
 

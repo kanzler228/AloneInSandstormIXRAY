@@ -3,7 +3,7 @@
 #include "../controlled_entity.h"
 #include "../../../../xrScripts/script_export_space.h"
 
-class CTushkano :	public CBaseMonster,
+class CTushkano final :	public CBaseMonster,
 					public CControlledEntity<CTushkano> {
 
 
@@ -14,7 +14,7 @@ public:
 					CTushkano 			();
 	virtual			~CTushkano 			();	
 
-	virtual void	Load				(LPCSTR section);
+	virtual void	Load				(const char* section);
 	virtual void	CheckSpecParams		(u32 spec_params);
 	virtual	char*	get_monster_class_name () { return (char*) "tushkano"; }
 

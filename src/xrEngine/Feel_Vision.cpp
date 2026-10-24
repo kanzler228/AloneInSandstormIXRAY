@@ -81,12 +81,13 @@ void Vision::feel_vision_query(Fmatrix& mFull)
 	(
 		r_spatial,
 		0,
-		STYPE_VISIBLEFORAI,
+		ESPATIAL_TYPE::VISIBLEFORAI,
 		Frustum
 	);
 
 	// Determine visibility for dynamic part of scene
-	clear_and_reserve(seen);
+	seen.clear();
+
 	for (u32 o_it = 0; o_it < r_spatial.size(); o_it++)
 	{
 		ISpatial* spatial = r_spatial[o_it].get();
@@ -111,7 +112,7 @@ void	Vision::feel_vision_update(Fvector& P, float dt, float vis_threshold)
 		seen.resize(E - seen.begin());
 
 		{
-			diff.resize(_max(seen.size(), query.size()));
+			diff.resize(std::max(seen.size(), query.size()));
 			xr_vector<CObject*>::iterator	E_ = std::set_difference(
 				seen.begin(), seen.end(),
 				query.begin(), query.end(),
@@ -125,7 +126,7 @@ void	Vision::feel_vision_update(Fvector& P, float dt, float vis_threshold)
 	// A-B = objects, that are invisible
 	if (!query.empty())
 	{
-		diff.resize(_max(seen.size(), query.size()));
+		diff.resize(std::max(seen.size(), query.size()));
 		xr_vector<CObject*>::iterator	E = std::set_difference(
 			query.begin(), query.end(),
 			seen.begin(), seen.end(),
@@ -184,36 +185,36 @@ void Vision::o_trace(Fvector& P, float dt, float vis_threshold) {
 					// cache outdated. real query.
 					VERIFY(!fis_zero(RD.dir.magnitude()));
 
-					if (g_pGameLevel->ObjectSpace.RayQuery(RQR, RD, [](collide::rq_result & result, LPVOID params) -> BOOL
+					if (g_pGameLevel->ObjectSpace.RayQuery(RQR, RD, [](collide::rq_result & result, LPVOID params) -> bool
 					{
 						SFeelParam* fp = (SFeelParam*)params;
 						float vis = fp->parent->feel_vision_mtl_transp(result.O, result.element);
 						fp->vis *= vis;
 						if (nullptr == result.O && fis_zero(vis))
 						{
-							CDB::TRI* T = g_pGameLevel->ObjectSpace.GetStaticTris() + result.element;
-							Fvector* V = g_pGameLevel->ObjectSpace.GetStaticVerts();
-							fp->item->Cache.verts[0].set(V[T->verts[0]]);
-							fp->item->Cache.verts[1].set(V[T->verts[1]]);
-							fp->item->Cache.verts[2].set(V[T->verts[2]]);
+							auto& Tidxs = g_pGameLevel->ObjectSpace.GetStaticTris()[result.element].verts;
+							xr_vector<Fvector>& V = g_pGameLevel->ObjectSpace.GetStaticVerts();
+							fp->item->Cache.verts[0] = V[Tidxs[0]];
+							fp->item->Cache.verts[1] = V[Tidxs[1]];
+							fp->item->Cache.verts[2] = V[Tidxs[2]];
 						}
-						return BOOL(fp->vis > fp->vis_threshold);
+						return bool(fp->vis > fp->vis_threshold);
 					}, &feel_params, nullptr, m_owner))
 
 					{
 						I->Cache_vis = feel_params.vis;
-						I->Cache.set(P, D, f, TRUE);
+						I->Cache.set(P, D, f, true);
 					}
 					else {
 						//							feel_params.vis	= 0.f;
 						//							I->Cache_vis	= feel_params.vis	;
-						I->Cache.set(P, D, f, FALSE);
+						I->Cache.set(P, D, f, false);
 					}
 					//						Log("query");
 				}
 			}
 			//				Log("Vis",feel_params.vis);
-			g_SpatialSpace->q_ray(r_spatial, 0, STYPE_VISIBLEFORAI, P, D, f);
+			g_SpatialSpace->q_ray(r_spatial, 0, ESPATIAL_TYPE::VISIBLEFORAI, P, D, f);
 
 			RD.flags = CDB::OPT_ONLYFIRST;
 

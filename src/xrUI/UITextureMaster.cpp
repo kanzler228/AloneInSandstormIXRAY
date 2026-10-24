@@ -10,10 +10,10 @@
 
 #include "stdafx.h"
 #include "UITextureMaster.h"
+#include "UIVectorBinding.h"
 #include "Widgets/UIStaticItem.h"
 #include "uiabstract.h"
 #include "xrUIXmlParser.h"
-#include "../Include/xrRender/UIShader.h"
 
 xr_map<shared_str, TEX_INFO>	CUITextureMaster::m_textures;
 xr_map<sh_pair, ui_shader>		CUITextureMaster::m_shaders;
@@ -29,8 +29,35 @@ void CUITextureMaster::FreeCachedShaders()
 	m_shaders.clear();
 }
 
+void CUITextureMaster::ParseShTexInfoLegacy(const char* xml_file)
+{
+	CUIXml xml;
+	xml.Load(CONFIG_PATH, UI_PATH, xml_file);
+	shared_str file = xml.Read("file_name",0,""); 
 
-void CUITextureMaster::ParseShTexInfo(LPCSTR xml_file)
+//	shared_textures_it	sht_it = m_shTex.find(texture);
+//	if (m_shTex.end() == sht_it)
+//	{
+		int num = xml.GetNodesNum("",0,"texture");
+//		regions regs;
+		for (int i = 0; i<num; i++)
+		{
+			TEX_INFO info;
+
+			info.file = file;
+
+			info.rect.x1 = xml.ReadAttribFlt("texture",i,"x");
+			info.rect.x2 = xml.ReadAttribFlt("texture",i,"width") + info.rect.x1;
+			info.rect.y1 = xml.ReadAttribFlt("texture",i,"y");
+			info.rect.y2 = xml.ReadAttribFlt("texture",i,"height") + info.rect.y1;
+			shared_str id = xml.ReadAttrib("texture",i,"id");
+
+			m_textures.insert(std::make_pair(id,info));
+		}
+//		m_shTex.insert(std::make_pair(texture, regs));
+//	}
+}
+void CUITextureMaster::ParseShTexInfo(const char* xml_file)
 {
 	CUIXml						xml;
 	xml.Load					(CONFIG_PATH, "ui\\textures_descr", xml_file);
@@ -75,24 +102,20 @@ bool CUITextureMaster::InitTexture(const shared_str& texture_name, const shared_
 	xr_map<shared_str, TEX_INFO>::iterator it	= m_textures.find(texture_name);
 	if (it != m_textures.end())
 	{
-		sh_pair p={it->second.file, shader_name};
-		xr_map<sh_pair, ui_shader>::iterator sh_it = m_shaders.find(p);
-		if(sh_it==m_shaders.end())
-			m_shaders[p]->create(shader_name.c_str(), it->second.file.c_str());
-
-		out_shader			= m_shaders[p];
+		out_shader			= CreateTextureShader(it->second.file, shader_name);
 		out_rect			= (*it).second.rect;
 		return true;
 	}
 	// Step 2 - if texture is not in XML, try to load existing file
-	bool texExist = FS.TryLoad(xr_string(texture_name.c_str()));
+	string_path tmp;
+	bool texExist = FS.exist(tmp, _game_textures_, texture_name.c_str());
 	if (texExist || warn_about_missing_tex)
 	{
-		out_shader->create(shader_name.c_str(), texture_name.c_str());
+		out_shader = CreateTextureShader(texture_name, shader_name);
 	}
 	else
 	{
-		out_shader->create(shader_name.c_str(), "ed\\ed_not_existing_texture");
+		out_shader = CreateTextureShader("ed\\ed_not_existing_texture", shader_name);
 	}
 	return false;
 }
@@ -100,35 +123,49 @@ bool CUITextureMaster::InitTexture(const shared_str& texture_name, const shared_
 bool CUITextureMaster::InitTexture(const shared_str& texture_name, CUIStaticItem* tc, const shared_str& shader_name, bool warn_about_missing_tex)
 {
 	// Step 1 - try to read texture from XML
-	xr_map<shared_str, TEX_INFO>::iterator it	= m_textures.find(texture_name);
+	xr_map<shared_str, TEX_INFO>::iterator it = m_textures.find(texture_name);
 	if (it != m_textures.end())
 	{
-		sh_pair p={it->second.file, shader_name};
-		xr_map<sh_pair, ui_shader>::iterator sh_it = m_shaders.find(p);
-		if(sh_it==m_shaders.end())
-			m_shaders[p]->create(shader_name.c_str(), it->second.file.c_str());
-
-		tc->SetShader		(m_shaders[p]);
-		tc->SetTextureRect	((*it).second.rect);
-		tc->SetSize			(Fvector2().set(it->second.rect.width(),it->second.rect.height()));
+		tc->SetShader(CreateTextureShader(it->second.file, shader_name));
+		tc->SetTextureRect((*it).second.rect);
+		tc->SetSize(Fvector2().set(it->second.rect.width(), it->second.rect.height()));
 		return true;
 	}
 	// Step 2 - if texture is not in XML, try to load existing file
-	bool texExist = FS.TryLoad(xr_string(texture_name.c_str()));
+	string_path tmp;
+	bool texExist = FS.exist(tmp, _game_textures_, texture_name.c_str());
 	if (texExist || warn_about_missing_tex)
 	{
-		tc->CreateShader(texture_name.c_str(), shader_name.c_str());
+		tc->SetShader(CreateTextureShader(texture_name, shader_name));
 	}
 	else
 	{
-		tc->CreateShader("ed\\ed_not_existing_texture", shader_name.c_str());
+		tc->SetShader(CreateTextureShader("ed\\ed_not_existing_texture", shader_name));
 	}
+
 	return false;
+}
+
+bool CUITextureMaster::InitTexture(const shared_str& svg_texture_name, CUIStaticItem* tc, float fWidgetWidth, float fWidgetHeight, SVGTintRGBA svgTint)
+{
+	if (tc == nullptr)
+		return false;
+	return CUIVectorBinding::ApplyVectorFileToStaticItem(svg_texture_name, svgTint, *tc, fWidgetWidth, fWidgetHeight);
 }
 
 Frect CUITextureMaster::GetTextureRect(const shared_str&  texture_name){
 	TEX_INFO info = FindItem(texture_name);
 	return info.rect;
+}
+
+const char* CUITextureMaster::GetTextureFileName(const char* texture_name) {
+	xr_map<shared_str, TEX_INFO>::iterator	it;
+	it = m_textures.find(texture_name);
+
+	if (it != m_textures.end())
+		return *((*it).second.file);
+	R_ASSERT3(false, "CUITextureMaster::GetTextureFileName Can't find texture", texture_name);
+	return 0;
 }
 
 float CUITextureMaster::GetTextureHeight(const shared_str&  texture_name){
@@ -157,7 +194,12 @@ TEX_INFO CUITextureMaster::FindItem(const shared_str&  texture_name)
 bool CUITextureMaster::ItemExist(const shared_str& texture_name)
 {
 	const auto it = m_textures.find(texture_name);
-	return it != m_textures.end();
+	if (it != m_textures.end())
+	{
+		return true;
+	};
+	string_path tmp;
+	return FS.exist(tmp, _game_textures_, texture_name.c_str());
 }
 
 void CUITextureMaster::GetTextureShader(const shared_str&  texture_name, ui_shader& sh){
@@ -167,4 +209,15 @@ void CUITextureMaster::GetTextureShader(const shared_str&  texture_name, ui_shad
 	R_ASSERT3(it != m_textures.end(), "can't find texture", texture_name.c_str());
 
 	sh->create("hud\\default", *((*it).second.file));	
+}
+
+ui_shader CUITextureMaster::CreateTextureShader(const shared_str& texture_name, const shared_str& shader_name)
+{
+	sh_pair p = {texture_name, shader_name};
+	xr_map<sh_pair, ui_shader>::iterator sh_it = m_shaders.find(p);
+	if (sh_it == m_shaders.end())
+	{
+		m_shaders[p]->create(shader_name.c_str(), texture_name.c_str());
+	}
+	return m_shaders[p];
 }

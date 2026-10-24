@@ -8,6 +8,7 @@
 #include "../../Layers/xrRender/ResourceManager.h"
 #include "../../Layers/xrRender/ParticleEffect.h"
 #include "../../Layers/xrRender/ParticleGroup.h"
+#include "../../Layers/xrRender/ParticleAnimCurve.h"
 #include "../../xrEngine/defines.h"
 #include "EditObject.h"
 ref_sound* choose_snd;
@@ -17,11 +18,12 @@ namespace ChoseEvents
     void   FillEntity(ChooseItemVec& items, void* param)
     {
         //.    AppendItem	   					(RPOINT_CHOOSE_NAME);
-        CInifile::Root const& data = pSettings->sections();
-        for (CInifile::RootCIt it = data.begin(); it != data.end(); it++) {
-            LPCSTR val;
-            if ((*it)->line_exist("$spawn", &val))
-                items.push_back(SChooseItem(*(*it)->Name, ""));
+        CInifile::Root& sections = pSettings->sections();
+        for (CInifile::Sect& sect : sections)
+        {
+            const char* val;
+            if (sect.line_exist("$spawn", &val))
+                items.push_back(SChooseItem(*sect.Name, ""));
         }
     }
     //---------------------------------------------------------------------------
@@ -29,7 +31,7 @@ namespace ChoseEvents
     {
         choose_snd->stop();
         choose_snd->create(item->name.c_str(), st_Effect, sg_Undefined);
-        choose_snd->play(0, sm_2D);
+        choose_snd->play(nullptr, sm_2D);
         //    snd.pla
         /*
         //.
@@ -77,17 +79,17 @@ namespace ChoseEvents
         if (thm->Valid()) thm->FillInfo(info_items);
         xr_delete(thm);
     }
-    void   UpdateObjectTHM(LPCSTR name, ImTextureID&ID)
+    void   UpdateObjectTHM(const char* name, IRHISurface*&ID)
     {
         EObjectThumbnail* thm = new EObjectThumbnail(name);
         if (thm->Valid())
         {
-            thm->Update((ID3DBaseTexture*&)ID);
+            thm->Update(ID);
         }
         else if (ID)
         {
             IM_TEXTURE_RELEASE(ID);
-            ID = 0;
+            ID = nullptr;
         }
         xr_delete(thm);
     }
@@ -107,17 +109,17 @@ namespace ChoseEvents
         if (thm->Valid()) thm->FillInfo(info_items);
         xr_delete(thm);
     }
-    void   UpdateGroupTHM(LPCSTR name, ImTextureID& ID)
+    void   UpdateGroupTHM(const char* name, IRHISurface*& ID)
     {
         EGroupThumbnail* thm = new EGroupThumbnail(name);
         if (thm->Valid())
         {
-            thm->Update((ID3DBaseTexture*&)ID);
+            thm->Update(ID);
         }
         else if(ID)
         {
             IM_TEXTURE_RELEASE(ID);
-            ID = 0;
+            ID = nullptr;
         }
         xr_delete(thm);
     }
@@ -181,42 +183,72 @@ namespace ChoseEvents
         LAItemIt _E = lst.end();
         for (; it != _E; it++)			items.push_back(SChooseItem(*(*it)->cName, ""));
     }
-    void   UpdateLAnim(LPCSTR name, ImTextureID& Texture)
+
+    void UpdateLAnim(const char* Name, IRHISurface*& Texture)
     {
-        int frame;
-        CLAItem* item = LALib.FindItem(name);
-        if (item)
+        CLAItem* Item = LALib.FindItem(Name);
+        if (!Item)
+            return;
+
+        RHITextureDesc Desc;
+        Desc.Width = THUMB_WIDTH;
+        Desc.Height = THUMB_HEIGHT;
+        Desc.Format = ERHI_FORMAT::R8G8B8A8_UNORM;
+        Desc.MipLevels = 1;
+        Desc.ArraySize = 1;
+        Desc.Usage = ERHI_USAGE::USAGE_DYNAMIC;
+        Desc.BindFlags = ERHI_BIND_FLAG::SHADER_RESOURCE;
+
+        if (Texture)
         {
+            if (Texture->GetWidth() != Desc.Width ||
+                Texture->GetHeight() != Desc.Height ||
+                Texture->GetFormat() != Desc.Format)
+            {
+                Texture->Release();
+                Texture = nullptr;
+            }
+        }
 
-            ID3DTexture2D* pTexture = nullptr;
-            if (Texture != nullptr)
-            {
-                R_CHK(((ID3DBaseTexture*)Texture)->QueryInterface(__uuidof(ID3DTexture2D), (void**)&pTexture));
-            }
-            else
-            {
-                R_CHK(REDevice->CreateTexture(THUMB_WIDTH, THUMB_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &pTexture, 0));
-                Texture = pTexture;
-            }
-            {
-                D3DLOCKED_RECT rect;
-                R_CHK(pTexture->LockRect(0, &rect, 0, 0));
-                u32* dest = nullptr;
-                
-                for (u32 y = 0; y < THUMB_HEIGHT; y++)
-                {
-                    dest = reinterpret_cast<u32*>(reinterpret_cast<char*>(rect.pBits)+(rect.Pitch*y));
-                    for (u32 i = 0; i < THUMB_WIDTH; i++)
-                    {
-                        dest[i] = item->CalculateRGB(EDevice->fTimeGlobal, frame);
-                        dest[i] = subst_alpha(dest[i], 0xFF);
-                    }
-                }
-                R_CHK(pTexture->UnlockRect(0));
-            }
+        xr_vector<u32> Pixels(THUMB_WIDTH * THUMB_HEIGHT);
 
+        int Frame = 0;
+        for (u32 Y = 0; Y < THUMB_HEIGHT; ++Y)
+        {
+            for (u32 X = 0; X < THUMB_WIDTH; ++X)
+            {
+                u32 Color = Item->CalculateRGB(EDevice->fTimeGlobal, Frame);
+                Color = subst_alpha(Color, 0xFF); // фиксируем альфу
+                Pixels[Y * THUMB_WIDTH + X] = Color;
+            }
+        }
+
+        // Подготовка подресурса
+        RHISubResource SubResource{};
+        SubResource.Width = THUMB_WIDTH;
+        SubResource.Height = THUMB_HEIGHT;
+        SubResource.TextureFormat = Desc.Format;
+        SubResource.RowPitch = THUMB_WIDTH * 4;
+        SubResource.Data = Pixels.data();
+
+        if (!Texture)
+        {
+            Texture = GRHI->CreateTexture2D(Desc, SubResource);
+        }
+        else
+        {
+            RHIBox box;
+            box.left = 0;
+            box.top = 0;
+            box.front = 0;
+            box.right = THUMB_WIDTH;
+            box.bottom = THUMB_HEIGHT;
+            box.back = 1;
+
+            Texture->UpdateData(0, 0, &SubResource, box);
         }
     }
+
     //---------------------------------------------------------------------------
     void   FillEShader(ChooseItemVec& items, void* param)
     {
@@ -236,13 +268,30 @@ namespace ChoseEvents
     //---------------------------------------------------------------------------
     void   FillPE(ChooseItemVec& items, void* param)
     {
-        for (PS::PEDIt E = ::RImplementation.PSLibrary.FirstPED(); E != ::RImplementation.PSLibrary.LastPED(); E++)items.push_back(SChooseItem(*(*E)->m_Name, "EFFECT"));
+        for (PS::PEDIt E = ::RImplementation.PSLibrary.FirstPED(); E != ::RImplementation.PSLibrary.LastPED(); E++)
+        {
+            items.push_back(SChooseItem(*(*E)->m_Name, "EFFECT"));
+        }
+    }
+    //---------------------------------------------------------------------------
+    void   FillPAC(ChooseItemVec& items, void* param)
+    {
+        for (auto elem : RImplementation.PSLibrary.VecPACDs())
+        {
+            items.push_back(SChooseItem(elem->getName(), "ANIM_CURVE"));
+        }
     }
     //---------------------------------------------------------------------------
     void   FillParticles(ChooseItemVec& items, void* param)
     {
-        for (PS::PEDIt E = ::RImplementation.PSLibrary.FirstPED(); E != ::RImplementation.PSLibrary.LastPED(); E++)items.push_back(SChooseItem(*(*E)->m_Name, "EFFECT"));
-        for (PS::PGDIt G = ::RImplementation.PSLibrary.FirstPGD(); G != ::RImplementation.PSLibrary.LastPGD(); G++)items.push_back(SChooseItem(*(*G)->m_Name, "GROUP"));
+        for (PS::PEDIt E = ::RImplementation.PSLibrary.FirstPED(); E != ::RImplementation.PSLibrary.LastPED(); E++)
+        {
+            items.push_back(SChooseItem(*(*E)->m_Name, "EFFECT"));
+        }
+        for (PS::PGDIt G = ::RImplementation.PSLibrary.FirstPGD(); G != ::RImplementation.PSLibrary.LastPGD(); G++)
+        {
+            items.push_back(SChooseItem(*(*G)->m_Name, "GROUP"));
+        }
     }
 
     void   SelectPE(SChooseItem* item, PropItemVec& info_items)
@@ -299,11 +348,11 @@ namespace ChoseEvents
         }
     }
 
-    void   UpdateTextureTHM(LPCSTR name, ImTextureID&Texture)
+    void   UpdateTextureTHM(const char* name, IRHISurface*&Texture)
     {
         if (name && name[0]) {
             ETextureThumbnail* thm = new ETextureThumbnail(name);
-            if (thm->Valid()) thm->Update((ID3DBaseTexture*&)Texture);
+            if (thm->Valid()) thm->Update(Texture);
             xr_delete(thm);
         }
     }
@@ -319,11 +368,11 @@ namespace ChoseEvents
         }
     }
 
-    void   UpdateTextureTHMRaw(LPCSTR name, ImTextureID& ID)
+    void   UpdateTextureTHMRaw(const char* name, IRHISurface*& ID)
     {
         if (name && name[0]) {
             ETextureThumbnail* thm = new ETextureThumbnail(name);
-            if (thm->Valid()) thm->Update((ID3DBaseTexture*&)ID);
+            if (thm->Valid()) thm->Update(ID);
             xr_delete(thm);
         }
     }
@@ -355,7 +404,7 @@ namespace ChoseEvents
 
     void   FillSkeletonAnims(ChooseItemVec& items, void* param)
     {
-        IRenderVisual* V = ::Render->model_Create((LPCSTR)param);
+        IRenderVisual* V = ::Render->model_Create((const char*)param);
         if (PKinematicsAnimated(V)) {
             u32 cnt = PKinematicsAnimated(V)->LL_MotionsSlotCount();
             for (u32 k = 0; k < cnt; k++) {
@@ -376,7 +425,7 @@ namespace ChoseEvents
 
     void   FillSkeletonBones(ChooseItemVec& items, void* param)
     {
-        IRenderVisual* V = ::Render->model_Create((LPCSTR)param);
+        IRenderVisual* V = ::Render->model_Create((const char*)param);
         if (PKinematics(V))
         {
             CKinematicsAnimated::accel* ll_bones = PKinematics(V)->LL_Bones();
@@ -405,25 +454,26 @@ namespace ChoseEvents
 
 void FillChooseEvents()
 {
-    UIChooseForm::AppendEvents(smSoundSource, "Select Sound Source", ChoseEvents::FillSoundSource, ChoseEvents::SelectSoundSource, 0, ChoseEvents::CloseSoundSource, 0);
-    UIChooseForm::AppendEvents(smSoundEnv, "Select Sound Environment", ChoseEvents::FillSoundEnv, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smObject, "Select Library Object", ChoseEvents::FillObject, ChoseEvents::SelectObject, ChoseEvents::UpdateObjectTHM, 0, 0);
-    UIChooseForm::AppendEvents(smGroup, "Select Group", ChoseEvents::FillGroup, ChoseEvents::SelectGroup, ChoseEvents::UpdateGroupTHM, 0, 0);
-    UIChooseForm::AppendEvents(smEShader, "Select Engine Shader", ChoseEvents::FillEShader, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smCShader, "Select Compiler Shader", ChoseEvents::FillCShader, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smPE, "Select Particle Effect", ChoseEvents::FillPE, 0/*ChoseEvents::SelectPE*/, 0, 0, 0);
-    UIChooseForm::AppendEvents(smParticles, "Select Particle System", ChoseEvents::FillParticles, 0/*ChoseEvents::SelectPG*/, 0, 0, 0);
-    UIChooseForm::AppendEvents(smTextureRaw, "Select Source Texture", ChoseEvents::FillTextureRaw, ChoseEvents::SelectTextureRaw, ChoseEvents::UpdateTextureTHMRaw, 0, SChooseEvents::flClearTexture);
-    UIChooseForm::AppendEvents(smTexture, "Select Texture", ChoseEvents::FillTexture, ChoseEvents::SelectTexture, ChoseEvents::UpdateTextureTHM, 0, SChooseEvents::flClearTexture);
-    UIChooseForm::AppendEvents(smEntityType, "Select Entity", ChoseEvents::FillEntity, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smLAnim, "Select Light Animation", ChoseEvents::FillLAnim, 0, ChoseEvents::UpdateLAnim, 0, SChooseEvents::flAnimated);
-    UIChooseForm::AppendEvents(smVisual, "Select Visual", ChoseEvents::FillVisual, ChoseEvents::SelectVisual, 0, 0, 0);
-    UIChooseForm::AppendEvents(smSkeletonAnims, "Select Skeleton Animation", ChoseEvents::FillSkeletonAnims, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smSkeletonBones, "Select Skeleton Bones", ChoseEvents::FillSkeletonBones, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smSkeletonBonesInObject, "Select Skeleton Bones", ChoseEvents::FillSkeletonBonesObject, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smGameMaterial, "Select Game Material", ChoseEvents::FillGameMaterial, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smGameAnim, "Select Animation", ChoseEvents::FillGameAnim, 0, 0, 0, 0);
-    UIChooseForm::AppendEvents(smGameSMotions, "Select Game Object Motions", ChoseEvents::FillGameObjectMots, ChoseEvents::SelectGameObjectMots, 0, 0, 0);
+    UIChooseForm::AppendEvents(smSoundSource, "Select Sound Source", ChoseEvents::FillSoundSource, ChoseEvents::SelectSoundSource, nullptr, ChoseEvents::CloseSoundSource, 0);
+    UIChooseForm::AppendEvents(smSoundEnv, "Select Sound Environment", ChoseEvents::FillSoundEnv, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smObject, "Select Library Object", ChoseEvents::FillObject, ChoseEvents::SelectObject, ChoseEvents::UpdateObjectTHM, nullptr, 0);
+    UIChooseForm::AppendEvents(smGroup, "Select Group", ChoseEvents::FillGroup, ChoseEvents::SelectGroup, ChoseEvents::UpdateGroupTHM, nullptr, 0);
+    UIChooseForm::AppendEvents(smEShader, "Select Engine Shader", ChoseEvents::FillEShader, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smCShader, "Select Compiler Shader", ChoseEvents::FillCShader, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smPE, "Select Particle Effect", ChoseEvents::FillPE, nullptr/*ChoseEvents::SelectPE*/, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smParticles, "Select Particle System", ChoseEvents::FillParticles, nullptr/*ChoseEvents::SelectPG*/, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smTextureRaw, "Select Source Texture", ChoseEvents::FillTextureRaw, ChoseEvents::SelectTextureRaw, ChoseEvents::UpdateTextureTHMRaw, nullptr, SChooseEvents::flClearTexture);
+    UIChooseForm::AppendEvents(smTexture, "Select Texture", ChoseEvents::FillTexture, ChoseEvents::SelectTexture, ChoseEvents::UpdateTextureTHM, nullptr, SChooseEvents::flClearTexture);
+    UIChooseForm::AppendEvents(smEntityType, "Select Entity", ChoseEvents::FillEntity, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smLAnim, "Select Light Animation", ChoseEvents::FillLAnim, nullptr, ChoseEvents::UpdateLAnim, nullptr, SChooseEvents::flAnimated);
+    UIChooseForm::AppendEvents(smVisual, "Select Visual", ChoseEvents::FillVisual, ChoseEvents::SelectVisual, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smSkeletonAnims, "Select Skeleton Animation", ChoseEvents::FillSkeletonAnims, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smSkeletonBones, "Select Skeleton Bones", ChoseEvents::FillSkeletonBones, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smSkeletonBonesInObject, "Select Skeleton Bones", ChoseEvents::FillSkeletonBonesObject, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smGameMaterial, "Select Game Material", ChoseEvents::FillGameMaterial, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smGameAnim, "Select Animation", ChoseEvents::FillGameAnim, nullptr, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smGameSMotions, "Select Game Object Motions", ChoseEvents::FillGameObjectMots, ChoseEvents::SelectGameObjectMots, nullptr, nullptr, 0);
+    UIChooseForm::AppendEvents(smPAC, "Select Animation Curve", ChoseEvents::FillPAC, nullptr,nullptr, nullptr, 0);
     choose_snd = new ref_sound();
 }
 

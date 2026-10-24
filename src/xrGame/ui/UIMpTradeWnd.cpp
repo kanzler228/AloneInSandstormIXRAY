@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMpTradeWnd.h"
 
 #include "UIMpItemsStoreWnd.h"
@@ -17,7 +17,7 @@ void CUIMpTradeWnd::OnBtnOkClicked(CUIWindow* w, void* d)
 	CheckDragItemToDestroy				();
 	StorePreset							(_preset_idx_last, true, false, false);
 	HideDialog							();
-	game_cl_mp* clgame					= smart_cast<game_cl_mp*>(&(Game()));
+	game_cl_mp* clgame					= Game().cast_game_cl_mp();
 	VERIFY(clgame);
 	clgame->OnBuyMenu_Ok					();
 //.	StorePreset							(_preset_idx_last, true, true);
@@ -27,7 +27,7 @@ void CUIMpTradeWnd::OnBtnCancelClicked(CUIWindow* w, void* d)
 {
 	CheckDragItemToDestroy				();
 	HideDialog							();
-	game_cl_mp* clgame					= smart_cast<game_cl_mp*>(&(Game()));
+	game_cl_mp* clgame					= Game().cast_game_cl_mp();
 	VERIFY(clgame);
 	clgame->OnBuyMenu_Cancel			();
 }

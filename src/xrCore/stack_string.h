@@ -11,6 +11,13 @@
 #include <string.h>
 #include <iterator>
 #include <cassert>
+#include <functional>
+#include <string_view>
+#include <cwctype>
+
+#include "xrDebug_macros.h"
+#include "_std_c_undefs.h"
+#include "_stl_extensions_nonalloc.h"
 
 #ifdef UNICODE
 #ifdef IXR_WINDOWS
@@ -32,7 +39,7 @@ public:
 	using pointer = char_t*;
 	using reference = char_t&;
 	using const_reference = const char_t&;
-	using const_pointer = const pointer;
+	using const_pointer = const char_t*;
 
 	using number_type = decltype(_kStringLength);
 
@@ -43,6 +50,7 @@ public:
 
 	inline static constexpr number_type Length = _kStringLength;
 	inline static constexpr number_type Size = _kStringLength * sizeof(value_type);
+	inline static constexpr number_type npos = number_type(-1);
 
 	static_assert(std::is_same<char, char_t>::value || std::is_same<wchar_t, char_t>::value, "unsupported char format, report to developers (maybe you need it, but at least write your problem)");
 	static_assert(_kStringLength != number_type(-1), "you can't pass a negative value for instatiation!");
@@ -56,8 +64,42 @@ public:
 		// https://godbolt.org/z/9cc833e1W
 		m_buffer[0] = char_t(0);
 	}
+	
+	stack_string(const char* Str)
+	{
+		if constexpr (std::is_same_v<char_t, char>)
+		{
+			m_buffer[0] = char_t(0);
+			append(Str); // maybe need to optimize
+		}
+	}
 
-	~stack_string() {}
+#ifdef UNICODE
+	stack_string(const xr_char_t* Str)
+	{
+#ifdef IXR_WINDOWS
+		if constexpr (std::is_same_v<char_t, wchar_t>)
+		{
+			m_buffer[0] = char_t(0);
+			append(Str);
+		}
+#elif defined(IXR_LINUX)
+		if constexpr (std::is_same_v<char_t, char16_t>)
+		{
+			m_buffer[0] = char_t(0);
+			append(Str);
+		}
+#endif
+	}
+#endif
+
+	stack_string(xr_string_view Str)
+	{
+		m_buffer[0] = char_t(0);
+		append(Str);
+	}
+
+	~stack_string() = default;
 
 
 	// const
@@ -131,14 +173,16 @@ public:
 		if constexpr (std::is_same_v<char_t, char>)
 		{
 			const char* found = std::strstr(this->m_buffer + pos, p_str);
-			return found ? found - this->m_buffer : number_type(-1);
+			return found ? found - this->m_buffer : npos;
 		}
 
+#ifdef IXR_WINDOWS
 		if constexpr (std::is_same_v<char_t, wchar_t>)
 		{
 			const wchar_t* found = std::wcsstr(this->m_buffer + pos, p_str);
-			return found ? found - this->m_buffer : number_type(-1);
+			return found ? found - this->m_buffer : npos;
 		}
+#endif
 
 		return number_type(-1);
 	}
@@ -156,10 +200,12 @@ public:
 			return (number_type)strlen(m_buffer);
 		}
 
+#ifdef IXR_WINDOWS
 		if constexpr (std::is_same<wchar_t, char_t>::value)
 		{
 			return wcslen(m_buffer);
 		}
+#endif
 	}
 
 	inline number_type length(void) const { return this->size(); }
@@ -177,26 +223,65 @@ public:
 
 	inline stack_string<char_t, _kStringLength>& append(const char_t* p_str)
 	{
-		assert(p_str && "don't pass invalid pointer! (NULL)");
+		if (!IVERIFY(p_str))
+		{
+			return *this;
+		}
 
 		const number_type current_length = this->size();
 		const number_type available_length = _kStringLength - current_length;
 
-		if (p_str && available_length > 0)
+		if (!IVERIFY(available_length > 0) || !IVERIFY(current_length < available_length))
 		{
-			if constexpr (std::is_same_v<char_t, char>)
-			{
-				std::strncat(this->m_buffer, p_str, available_length);
-			}
-
-			if constexpr (std::is_same_v<char_t, wchar_t>)
-			{
-				std::wcsncat(this->m_buffer, p_str, available_length);
-			}
+			return *this;
 		}
+
+		if constexpr (std::is_same_v<char_t, char>)
+		{
+			std::strncat(this->m_buffer, p_str, available_length);
+		}
+
+#ifdef IXR_WINDOWS
+		if constexpr (std::is_same_v<char_t, wchar_t>)
+		{
+			std::wcsncat(this->m_buffer, p_str, available_length);
+		}
+#endif
 
 		return *this;
 	}
+
+	inline stack_string& append(std::basic_string_view<char_t> Str)
+	{
+		const number_type current_length = this->size();
+		const number_type available_length = _kStringLength - current_length;
+
+		if (!IVERIFY(available_length > 0) || !IVERIFY(Str.size() < available_length))
+		{
+			return *this;
+		}
+
+		if constexpr (std::is_same_v<char_t, char>)
+		{
+			std::strncat(this->m_buffer, Str.data(), available_length);
+		}
+		
+#ifdef IXR_WINDOWS
+		if constexpr (std::is_same_v<char_t, wchar_t>)
+		{
+			std::wcsncat(this->m_buffer, Str.data(), available_length);
+		}
+#endif
+		
+		return *this;
+	}
+
+	operator std::basic_string_view<char_t>() const
+	{
+		return {this->m_buffer, this->size()};
+	}
+
+	
 
 	inline void swap(const stack_string<char_t, _kStringLength>& data)
 	{
@@ -212,7 +297,7 @@ public:
 	{
 		const number_type len = this->length();
 
-		if (len < _kStringLength)
+		if (IVERIFY(len < _kStringLength))
 		{
 			this->m_buffer[len] = c;
 			this->m_buffer[len + 1] = char_t();
@@ -223,7 +308,7 @@ public:
 	{
 		const number_type len = this->length();
 
-		if (len > 0)
+		if (IVERIFY(len > 0))
 		{
 			this->m_buffer[len - 1] = char_t();
 		}
@@ -232,16 +317,7 @@ public:
 	// operators
 	inline stack_string<char_t, _kStringLength>& operator+=(char_t symbol)
 	{
-		auto current_index = this->size();
-
-		assert(current_index <= _kStringLength - 1 && "overflow, not good!");
-
-		if (current_index <= _kStringLength - 1)
-			this->m_buffer[current_index] = symbol;
-
-		if (current_index + 1 < _kStringLength)
-			this->m_buffer[current_index + 1] = char_t(0);
-
+		this->push_back(symbol);
 		return *this;
 	}
 
@@ -254,17 +330,24 @@ public:
 	template<number_type Size>
 	inline stack_string<char_t, _kStringLength>& operator+=(const char_t (&str)[Size])
 	{
-		if (Size > _kStringLength)
+		
+		if constexpr (std::is_same_v<char_t, char>)
 		{
-			assert(false && "too big string!");
-			return *this;
+			if (!IVERIFY(std::strlen(&str[0]) + this->size() <= _kStringLength))
+			{
+				return *this;
+			}
 		}
 
-		if (Size + this->size() > _kStringLength)
+#ifdef IXR_WINDOWS
+		if constexpr (std::is_same_v<char_t, wchar_t>)
 		{
-			assert(false && "overflow!");
-			return *this;
+			if (!IVERIFY(std::wcslen(&str[0]) + this->size() <= _kStringLength))
+			{
+				return *this;
+			}
 		}
+#endif
 
 		this->append(&str[0]);
 		return *this;
@@ -273,15 +356,8 @@ public:
 	template<number_type Size>
 	inline stack_string<char_t, _kStringLength>& operator+=(const stack_string<char_t, Size>& str)
 	{
-		if (str.size() > _kStringLength)
+		if (!IVERIFY(str.size() + this->size() <= _kStringLength))
 		{
-			assert(false && "too big string!");
-			return *this;
-		}
-			
-		if (str.size() + this->size() > _kStringLength)
-		{
-			assert(false && "overflow!");
 			return *this;
 		}
 
@@ -295,23 +371,52 @@ public:
 		return *this;
 	}
 
+	template <class ViewTemplate>
+	inline stack_string<char_t, _kStringLength>& operator=(const ViewTemplate& view)
+	{
+		if (view.empty() == false)
+		{
+			if constexpr (std::is_same_v<char_t, char>)
+			{
+				number_type arg_len = std::clamp(number_type(view.size()), std::min(number_type(1), _kStringLength), _kStringLength);
+				std::memcpy(this->m_buffer, view.data(), arg_len);
+				this->m_buffer[arg_len] = L'\0';
+			}
+
+#ifdef IXR_WINDOWS
+			if constexpr (std::is_same_v<char_t, wchar_t>)
+			{
+				std::wstring_view wview(view.begin(), view.size());
+
+				number_type arg_len = std::clamp(number_type(wview.size()), std::min(number_type(1), _kStringLength), _kStringLength);
+				std::memcpy(this->m_buffer, wview.data(), arg_len * sizeof(wchar_t));
+				this->m_buffer[arg_len] = L'\0';
+			}
+#endif
+		}
+
+		return *this;
+	}
+
 	inline stack_string<char_t, _kStringLength>& operator=(const char_t* p_str)
 	{
 		if (p_str)
 		{
 			if constexpr (std::is_same_v<char_t, char>)
 			{
-				number_type arg_len = std::clamp(number_type(strlen(p_str)), min(number_type(1), _kStringLength), _kStringLength);
+				number_type arg_len = std::clamp(number_type(strlen(p_str)), std::min(number_type(1), _kStringLength), _kStringLength);
 				std::memcpy(this->m_buffer, p_str, arg_len);
 				this->m_buffer[arg_len] = '\0';
 			}
 
+#ifdef IXR_WINDOWS
 			if constexpr (std::is_same_v<char_t, wchar_t>)
 			{
-				number_type arg_len = std::clamp(number_type(wcslen(p_str)), min(number_type(1), _kStringLength), _kStringLength);
+				number_type arg_len = std::clamp(number_type(wcslen(p_str)), std::min(number_type(1), _kStringLength), _kStringLength);
 				std::memcpy(this->m_buffer, p_str, arg_len * sizeof(wchar_t));
-				this->m_buffer[arg_len] = '\0';
+				this->m_buffer[arg_len] = L'\0';
 			}
+#endif
 		}
 
 		return *this;
@@ -343,11 +448,12 @@ inline bool operator==(const stack_string<char_t, _kSize>& left, const stack_str
 		return !strcmp(left.c_str(), right.c_str());
 	}
 
+#ifdef IXR_WINDOWS
 	if constexpr (std::is_same_v<char_t, wchar_t>)
 	{
 		return !wcscmp(left.c_str(), right.c_str());
 	}
-
+#endif
 	assert(false && "unsupported char type, report to developers");
 	return false;
 }
@@ -362,11 +468,38 @@ inline bool operator==(const stack_string<char_t, _kSize>& left, const char_t* r
 		return std::strncmp(left.c_str(), right, _kSize) == 0;
 	}
 
+#ifdef IXR_WINDOWS
 	if constexpr (std::is_same_v<char_t, wchar_t>)
 	{
 		return std::wcsncmp(left.c_str(), right, _kSize) == 0;
 	}
+#endif
+	assert(false && "unsupported char type, report to developers");
+	return false;
 }
+
+namespace std {
+	template <std::size_t N>
+	struct hash< stack_string<char, N> >
+	{
+		std::size_t operator()(stack_string<char, N> const& s) const noexcept {
+			std::string_view sv{ s.c_str() };
+			return std::hash<std::string_view>{}(sv);
+		}
+	};
+
+#ifdef IXR_WINDOWS
+	template <std::size_t N>
+	struct hash< stack_string<wchar_t, N> >
+	{
+		std::size_t operator()(stack_string<wchar_t, N> const& s) const noexcept {
+			std::wstring_view wsv{ s.c_str() };
+			return std::hash<std::wstring_view>{}(wsv);
+		}
+	};
+#endif
+} // namespace std
+
 
 static_assert(sizeof(stack_string<char, 1>) == sizeof(char[1]), "you can't add any additional field to this class! pure buffer on stack... (there's no point in reducing counting operations and caching like size of buffer and etc)");
 
@@ -386,3 +519,76 @@ using xr_stack_wstring = stack_string<char16_t, StringLength>;
 
 template<xr_ssnt_t StringLength>
 using xr_stack_tstring = stack_string<xr_char_t, StringLength>;
+
+using xr_stack_string_path = xr_stack_string<2 * _MAX_PATH>;
+using xr_stack_string16 = xr_stack_string<16>;
+using xr_stack_string32 = xr_stack_string<32>;
+using xr_stack_string64 = xr_stack_string<64>;
+using xr_stack_string128 = xr_stack_string<128>;
+using xr_stack_string256 = xr_stack_string<256>;
+using xr_stack_string512 = xr_stack_string<512>;
+using xr_stack_string1024 = xr_stack_string<1024>;
+using xr_stack_string2048 = xr_stack_string<2048>;
+using xr_stack_string4096 = xr_stack_string<4096>;
+
+using xr_stack_wstring_path = xr_stack_wstring<2 * _MAX_PATH>;
+using xr_stack_wstring16 = xr_stack_wstring<16>;
+using xr_stack_wstring32 = xr_stack_wstring<32>;
+using xr_stack_wstring64 = xr_stack_wstring<64>;
+using xr_stack_wstring128 = xr_stack_wstring<128>;
+using xr_stack_wstring256 = xr_stack_wstring<256>;
+using xr_stack_wstring512 = xr_stack_wstring<512>;
+using xr_stack_wstring1024 = xr_stack_wstring<1024>;
+using xr_stack_wstring2048 = xr_stack_wstring<2048>;
+using xr_stack_wstring4096 = xr_stack_wstring<4096>;
+
+template<xr_ssnt_t StringLength>
+IC void xr_strlwr(xr_stack_string<StringLength>& src)
+{
+	for (auto& Char : src)
+	{
+		Char = std::tolower(Char);
+	}
+}
+
+#ifdef IXR_WINDOWS
+template<xr_ssnt_t StringLength>
+IC void xr_strlwr(xr_stack_wstring<StringLength>& src)
+{
+	if constexpr (std::is_same_v<xr_char_t, wchar_t>)
+	{
+		for (auto& Char : src)
+		{
+			Char = std::towlower(Char);
+		}
+	}
+}
+#elif defined(IXR_LINUX)
+template<xr_ssnt_t StringLength>
+IC void xr_strlwr(xr_stack_wstring<StringLength>& src)
+{
+	if constexpr (std::is_same_v<xr_char_t, char16_t>)
+	{
+		for (auto& Char : src)
+		{
+			Char = std::towlower(Char);
+		}
+	}
+}
+#endif
+
+template<xr_ssnt_t StringLength>
+ICF int __cdecl xr_sprintf	(xr_stack_string<StringLength>& destination, const char* format_string, ... )
+{
+	va_list args;
+	va_start					( args, format_string);
+	return						vsnprintf_s( destination.data(), StringLength, StringLength - 1, format_string, args );
+}
+
+template<xr_ssnt_t StringLength>
+ICF int __cdecl xr_sprintf	(xr_stack_wstring<StringLength>& destination, const char* format_string, ... )
+{
+	va_list args;
+	va_start					( args, format_string);
+	return						vsnwprintf_s( destination.data(), StringLength, StringLength - 1, format_string, args );
+}

@@ -4,14 +4,14 @@
 #include "../../../../xrScripts/script_export_space.h"
 
 
-class CPseudoGigant : public CBaseMonster,
+class CPseudoGigant final : public CBaseMonster,
 					  public CControlledEntity<CPseudoGigant> {
 	
 	typedef		CBaseMonster						inherited;
 	typedef		CControlledEntity<CPseudoGigant>	CControlled;
 
 private:
-	xr_vector<CObject*>		m_nearest;
+	xr_vector<ISpatialShared> m_nearest;
 
 	// step_effector
 	struct {
@@ -38,14 +38,14 @@ private:
 	SVelocityParam	m_fsVelocityJumpPrepare;
 	SVelocityParam	m_fsVelocityJumpGround;
 
-	LPCSTR			m_kick_particles;
+	const char*			m_kick_particles;
 
 
 public:
 					CPseudoGigant				();
 	virtual			~CPseudoGigant				();	
 
-	virtual void	Load				(LPCSTR section);
+	virtual void	Load				(const char* section);
 	virtual void	reinit				();
 
 	virtual bool	ability_earthquake	() {return true;}

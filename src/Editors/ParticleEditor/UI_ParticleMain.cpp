@@ -25,18 +25,17 @@ CParticleMain::~CParticleMain()
 CCommandVar CParticleTool::CommandSelectPreviewObj(CCommandVar p1, CCommandVar p2)
 {
     SelectPreviewObject(p1);
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandEditPreviewProps(CCommandVar p1, CCommandVar p2)
 {
-    return TRUE;
+    return true;
 }
 
 CCommandVar CParticleTool::CommandSaveXR(CCommandVar p1, CCommandVar p2)
 {
-    Save							(true);
-    ExecCommand						(COMMAND_UPDATE_CAPTION);
-    return TRUE;
+    Save(true);
+    return true;
 }
 
 CCommandVar CParticleTool::CommandLoadXR(CCommandVar p1, CCommandVar p2)
@@ -60,67 +59,52 @@ CCommandVar CParticleTool::CommandLoadXR(CCommandVar p1, CCommandVar p2)
         RImplementation.PSLibrary.Load(NormalPath.c_str());
         PTools->ResetCurrent();
         ExecCommand(COMMAND_UPDATE_PROPERTIES);
-        ExecCommand(COMMAND_UPDATE_CAPTION);
     }
-    return TRUE;
+    return true;
 }
 
 CCommandVar CParticleTool::CommandSave(CCommandVar p1, CCommandVar p2)
 {
     Save		(false);
-    ExecCommand	(COMMAND_UPDATE_CAPTION);
-    return 		TRUE;
+    return 		true;
 }
 CCommandVar CParticleTool::CommandSaveBackup(CCommandVar p1, CCommandVar p2)
 {
     ExecCommand(COMMAND_SAVE);
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandReload(CCommandVar p1, CCommandVar p2)
 {
-    if (!IfModified()) 	return FALSE;
+    if (!IfModified()) 	return false;
     Reload				();
-    ExecCommand(COMMAND_UPDATE_CAPTION);
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandValidate(CCommandVar p1, CCommandVar p2)
 {
 	Validate(true);
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandClear(CCommandVar p1, CCommandVar p2)
 {
     UI->CurrentView().m_Camera.Reset();
     ResetPreviewObject();
-    ExecCommand(COMMAND_UPDATE_CAPTION);
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandPlayCurrent(CCommandVar p1, CCommandVar p2)
 {
     PlayCurrent();
-    return TRUE;
+    return true;
 }
 CCommandVar CParticleTool::CommandStopCurrent(CCommandVar p1, CCommandVar p2)
 {
     StopCurrent(p1);
-    return TRUE;
-}
-
-CCommandVar CommandUpdateToolBar(CCommandVar p1, CCommandVar p2)
-{
-    /*fraLeftBar->UpdateBar();*/
-    return TRUE;
-}
-CCommandVar CommandUpdateCaption(CCommandVar p1, CCommandVar p2)
-{
-    /*frmMain->UpdateCaption();*/
-    return TRUE;
+    return true;
 }
 
 CCommandVar CommandJumpToItem(CCommandVar p1, CCommandVar p2)
 {
     PTools->CommandJumpToItem();
-    return TRUE;
+    return true;
 }
 
 void CParticleMain::RegisterCommands()
@@ -137,8 +121,6 @@ void CParticleMain::RegisterCommands()
     	APPEND_SUB_CMD	("Stop Immediate",		0,0);
     	APPEND_SUB_CMD	("Stop Deffered", 		1,0);
     REGISTER_SUB_CMD_END;
-	REGISTER_CMD_S	(COMMAND_UPDATE_TOOLBAR,    CommandUpdateToolBar);
-	REGISTER_CMD_S	(COMMAND_UPDATE_CAPTION,    CommandUpdateCaption);
 	REGISTER_CMD_S	(COMMAND_JUMP_TO_ITEM,     CommandJumpToItem);
 	REGISTER_CMD_C	(COMMAND_SAVE_XR,     		PTools, CParticleTool::CommandSaveXR);
 	REGISTER_CMD_C	(COMMAND_LOAD_XR,     		PTools, CParticleTool::CommandLoadXR);
@@ -186,7 +168,7 @@ void CParticleMain::ResetStatus()
 	    fraBottomBar->paStatus->Caption=""; fraBottomBar->paStatus->Repaint();
     }*/
 }
-void CParticleMain::SetStatus(LPCSTR s, bool bOutLog)
+void CParticleMain::SetStatus(const char* s, bool bOutLog)
 {
 	/*VERIFY(m_bReady);
     if (fraBottomBar->paStatus->Caption!=s){

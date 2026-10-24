@@ -2,7 +2,6 @@
 #include "map_location.h"
 #include "map_spot.h"
 #include "map_manager.h"
-
 #include "Level.h"
 #include "../xrEngine/xr_object.h"
 #include "ai_space.h"
@@ -10,6 +9,7 @@
 #include "xrServer.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "../../xrUI/UIXmlInit.h"
+#include "../../xrUI/ui_base.h"
 #include "ui/UIMap.h"
 #include "alife_simulator.h"
 #include "graph_engine.h"
@@ -28,9 +28,9 @@
 #include "GametaskManager.h"
 #include "ActorHelmet.h"
 #include "Inventory.h"
-//#include "CustomMonster.h"
+#include "HudPdaAnimator.h"
 
-CMapLocation::CMapLocation(LPCSTR type, u16 object_id, bool is_user_loc)
+CMapLocation::CMapLocation(const char* type, u16 object_id, bool is_user_loc)
 {
 	m_flags.zero			();
 
@@ -51,13 +51,22 @@ CMapLocation::CMapLocation(LPCSTR type, u16 object_id, bool is_user_loc)
 
 	if (is_user_loc)
 	{
-		m_flags.set(eUserDefined, TRUE);
+		m_flags.set(eUserDefined, true);
 	}
 
 	m_objectID				= object_id;
 	m_actual_time			= 0;
+	m_compassOverrideSize.set(0.0f, 0.0f);
+	m_compassOverrideColor = 0;
+	m_compassOverrideOffsetX = 0.0f;
+	m_compassOverrideOffsetY = 0.0f;
+	m_compassOverrideMaxDist = 0.0f;
+	m_compassOverrideVertAlign = valCenter;
+	m_hasCompassOverride = false;
+	m_compassShadowOverridden = false;
+	m_compassShadow = {};
 	m_owner_se_object = (ai().get_alife() && !IsUserDefined()) ? ai().alife().objects().object(m_objectID, true) : nullptr;
-	m_flags.set				(eHintEnabled, TRUE);
+	m_flags.set				(eHintEnabled, true);
 	LoadSpot				(type, false);
 	
 	DisablePointer			();
@@ -68,6 +77,28 @@ CMapLocation::CMapLocation(LPCSTR type, u16 object_id, bool is_user_loc)
 	m_cached.m_graphID		= GameGraph::_GRAPH_ID(-1);
 	if(!IsGameTypeSingle())
 		m_cached.m_LevelName = Level().name();
+}
+
+ECompassSpotKind CMapLocation::GetCompassSpotKind() const
+{
+	const char* typeStr = GetType();
+	if (!typeStr || !*typeStr)
+	{
+		return ECompassSpotKind::Generic;
+	}
+
+	if (strstr(typeStr, "enemy_location") || strstr(typeStr, "friend_location") ||
+		strstr(typeStr, "neutral_location") || strstr(typeStr, "deadbody_location"))
+	{
+		return ECompassSpotKind::Npc;
+	}
+
+	if (strstr(typeStr, "storyline") || strstr(typeStr, "additional") || strstr(typeStr, "task"))
+	{
+		return ECompassSpotKind::Mission;
+	}
+
+	return ECompassSpotKind::Generic;
 }
 
 CMapLocation::~CMapLocation()
@@ -127,59 +158,71 @@ void CMapLocation::InitUserSpot(const shared_str& level_name, const Fvector& pos
 	}
 }
 
-CUIXml*	g_uiSpotXml=nullptr;
-void CMapLocation::LoadSpot(LPCSTR type, bool bReload)
+CUIXml* g_uiSpotXml = nullptr;
+
+void CMapLocation::LoadSpot(const char* type, bool bReload)
 {
-	if ( !g_uiSpotXml )
+	if (!g_uiSpotXml)
 	{
-		g_uiSpotXml				= new CUIXml();
-		g_uiSpotXml->Load		(CONFIG_PATH, UI_PATH, "map_spots.xml");
+		g_uiSpotXml = new CUIXml();
+		shared_str spotXmlName;
+		if (pGameGlobals && pGameGlobals->section_exist("map_spots") &&
+			pGameGlobals->line_exist("map_spots", "map_spots_file"))
+		{
+			spotXmlName = pGameGlobals->r_string("map_spots", "map_spots_file");
+		}
+		else
+		{
+			spotXmlName = UI().get_xml_name("map_spots.xml");
+		}
+		g_uiSpotXml->Load(CONFIG_PATH, UI_PATH, spotXmlName.c_str());
 	}
 
 	XML_NODE* node = nullptr;
 	string512 path_base, path;
 	xr_strcpy		(path_base,type);
+	m_compass_spot_color = 0;
+	m_compassShadowOverridden = false;
 	R_ASSERT3		(g_uiSpotXml->NavigateToNode(path_base,0), "XML node not found in file map_spots.xml", path_base);
-	LPCSTR s		= g_uiSpotXml->ReadAttrib(path_base, 0, "hint", "no hint");
+	const char* s		= g_uiSpotXml->ReadAttrib(path_base, 0, "hint", "no hint");
 	SetHint			(s);
 	
 	s = g_uiSpotXml->ReadAttrib(path_base, 0, "store", nullptr);
 	if ( s )
 	{
-		m_flags.set( eSerailizable, TRUE);
+		m_flags.set( eSerailizable, true);
 	}
 
 	s = g_uiSpotXml->ReadAttrib(path_base, 0, "no_offline", nullptr);
 	if ( s )
 	{
-		m_flags.set( eHideInOffline, TRUE);
+		m_flags.set( eHideInOffline, true);
 	}
 
 	m_ttl = g_uiSpotXml->ReadAttribInt(path_base, 0, "ttl", 0);
 	if ( m_ttl > 0 )
 	{
-		m_flags.set( eTTL, TRUE);
+		m_flags.set( eTTL, true);
 		m_actual_time = Device.dwTimeGlobal+m_ttl*1000;
 	}
 
 	s = g_uiSpotXml->ReadAttrib(path_base, 0, "pos_to_actor", nullptr);
 	if ( s )
 	{
-		m_flags.set( ePosToActor, TRUE);
+		m_flags.set( ePosToActor, true);
 	}
-	
 	xr_strconcat(path,path_base,":level_map");
 	node = g_uiSpotXml->NavigateToNode(path,0);
 	if ( node )
 	{
-		LPCSTR str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
+		const char* str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
 		if( xr_strlen(str) )
 		{
 			if ( !bReload )
 			{
 				m_level_spot = new CMapSpot(this);
 			}
-			m_level_spot->Load(g_uiSpotXml,str);
+			m_level_spot->Load(g_uiSpotXml, str, CHudPdaAnimator::GetPDAScreen_kx());
 		}else{
 			VERIFY( !(bReload&&m_level_spot) );
 		}
@@ -194,7 +237,7 @@ void CMapLocation::LoadSpot(LPCSTR type, bool bReload)
 			{
 				m_level_spot_pointer = new CMapSpotPointer(this);
 			}
-			m_level_spot_pointer->Load(g_uiSpotXml,str);
+			m_level_spot_pointer->Load(g_uiSpotXml, str, CHudPdaAnimator::GetPDAScreen_kx());
 		}else{
 			VERIFY( !(bReload && m_level_spot_pointer) );
 		}
@@ -204,28 +247,162 @@ void CMapLocation::LoadSpot(LPCSTR type, bool bReload)
 	node = g_uiSpotXml->NavigateToNode(path,0);
 	if ( node )
 	{
-		LPCSTR str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
+		const char* str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
 		if( xr_strlen(str) )
 		{
 			if ( !bReload )
 			{
 				m_minimap_spot = new CMiniMapSpot(this);
 			}
-			m_minimap_spot->Load(g_uiSpotXml,str);
+			m_minimap_spot->Load(g_uiSpotXml,str, UI().get_current_kx());
 		}else{
 			VERIFY( !(bReload && m_minimap_spot) );
 		}
+		if (g_uiSpotXml->ReadAttribInt(path, 0, "compass", 0) != 0)
+		{
+			m_flags.set(eShowOnCompass, true);
+		}
+		if (xr_strlen(str))
+		{
+			string512 buf;
+			xr_strconcat(buf, str, ":texture");
+			if ( g_uiSpotXml->NavigateToNode(buf, 0) )
+			{
+				m_compass_spot_texture = g_uiSpotXml->Read(buf, 0, nullptr);
+				int r = g_uiSpotXml->ReadAttribInt(buf, 0, "r", -1);
+				int g = g_uiSpotXml->ReadAttribInt(buf, 0, "g", -1);
+				int b = g_uiSpotXml->ReadAttribInt(buf, 0, "b", -1);
+				int a = g_uiSpotXml->ReadAttribInt(buf, 0, "a", 255);
+				if (r >= 0 || g >= 0 || b >= 0)
+					m_compass_spot_color = color_argb(a >= 0 ? a : 255, r >= 0 ? r : 255, g >= 0 ? g : 255, b >= 0 ? b : 255);
+				else
+					m_compass_spot_color = 0;
+
+				CUIXmlInit::ReadShadowsNode(*g_uiSpotXml, buf, 0, m_compassShadow);
+			}
+			else
+				m_compass_spot_color = 0;
+			if (g_uiSpotXml->NavigateToNode(str, 0))
+			{
+				m_compass_spot_size.x = g_uiSpotXml->ReadAttribFlt(str, 0, "width", 0.0f);
+				m_compass_spot_size.y = g_uiSpotXml->ReadAttribFlt(str, 0, "height", 0.0f);
+			}
+			else
+			{
+				m_compass_spot_size.set(0.0f, 0.0f);
+			}
+		}
+		else
+		{
+			m_compass_spot_color = 0;
+			m_compass_spot_size.set(0.0f, 0.0f);
+		}
+		
+		string512 compassPath;
+		bool hasCompassNode = false;
+		if (xr_strlen(str))
+		{
+			xr_strconcat(compassPath, str, ":compass");
+			hasCompassNode = g_uiSpotXml->NavigateToNode(compassPath, 0);
+			if (hasCompassNode)
+			{
+				m_hasCompassOverride = true;
+				m_compassOverrideTexture = g_uiSpotXml->Read(compassPath, 0, "");
+				m_compassOverrideOffsetX = g_uiSpotXml->ReadAttribFlt(compassPath, 0, "x", 0.0f);
+				m_compassOverrideOffsetY = g_uiSpotXml->ReadAttribFlt(compassPath, 0, "y", 0.0f);
+				m_compassOverrideSize.x = g_uiSpotXml->ReadAttribFlt(compassPath, 0, "width", 0.0f);
+				m_compassOverrideSize.y = g_uiSpotXml->ReadAttribFlt(compassPath, 0, "height", 0.0f);
+				m_compassOverrideMaxDist = g_uiSpotXml->ReadAttribFlt(compassPath, 0, "max_dist", 0.0f);
+				// max_dist: not specified or 0.0f = infinite distance, > 0.0f = distance in game meters
+				
+				const char* colorName = g_uiSpotXml->ReadAttrib(compassPath, 0, "color", nullptr);
+				if (colorName && xr_strlen(colorName) > 0)
+				{
+					CUIXmlInit::ColorDefs::const_iterator colorIt = CUIXmlInit::GetColorDefs()->find(colorName);
+					m_compassOverrideColor = (colorIt != CUIXmlInit::GetColorDefs()->end()) ? colorIt->second : 0;
+				}
+				else
+				{
+					const int r = g_uiSpotXml->ReadAttribInt(compassPath, 0, "r", -1);
+					const int g = g_uiSpotXml->ReadAttribInt(compassPath, 0, "g", -1);
+					const int b = g_uiSpotXml->ReadAttribInt(compassPath, 0, "b", -1);
+					const int a = g_uiSpotXml->ReadAttribInt(compassPath, 0, "a", 255);
+					if (r >= 0 || g >= 0 || b >= 0)
+					{
+						m_compassOverrideColor = color_argb(
+							a >= 0 ? a : 255,
+							r >= 0 ? r : 255,
+							g >= 0 ? g : 255,
+							b >= 0 ? b : 255);
+					}
+					else
+					{
+						m_compassOverrideColor = 0;
+					}
+				}
+				
+				const char* vertAlignStr = g_uiSpotXml->ReadAttrib(compassPath, 0, "vert_align", nullptr);
+				if (vertAlignStr && xr_strlen(vertAlignStr) > 0)
+				{
+					if (_stricmp(vertAlignStr, "top") == 0)
+					{
+						m_compassOverrideVertAlign = valTop;
+					}
+					else if (_stricmp(vertAlignStr, "bottom") == 0)
+					{
+						m_compassOverrideVertAlign = valBotton;
+					}
+					else
+					{
+						m_compassOverrideVertAlign = valCenter;
+					}
+				}
+				else
+				{
+					m_compassOverrideVertAlign = valCenter;
+				}
+
+				string512 compassShadowsPath;
+				xr_strconcat(compassShadowsPath, compassPath, ":shadows");
+				const bool hasCompassShadowNode = g_uiSpotXml->NavigateToNode(compassShadowsPath, 0);
+
+				SUITextureShadowParams compassShadow;
+				CUIXmlInit::ReadShadowsNode(*g_uiSpotXml, compassPath, 0, compassShadow);
+				if (hasCompassShadowNode)
+				{
+					m_compassShadowOverridden = true;
+					m_compassShadow = compassShadow;
+				}
+				else if (compassShadow.enabled)
+				{
+					m_compassShadow = compassShadow;
+				}
+			}
+		}
+		if (!hasCompassNode)
+		{
+			m_hasCompassOverride = false;
+		}
+		
 		m_spot_border_names[2] = g_uiSpotXml->ReadAttrib(path, 0, "spot_a", "mini_map_spot_border");
 		m_spot_border_names[3] = g_uiSpotXml->ReadAttrib(path, 0, "spot_na", "");
 
 		str = g_uiSpotXml->ReadAttrib(path, 0, "pointer", "");
+		if (!xr_strlen(str) && IsUserDefined())
+		{
+			string512 levelMapPath;
+			xr_strconcat(levelMapPath, path_base, ":level_map");
+			str = g_uiSpotXml->ReadAttrib(levelMapPath, 0, "pointer", "");
+			if (!xr_strlen(str))
+				str = "quest_pointer";
+		}
 		if( xr_strlen(str) )
 		{
 			if ( !bReload )
 			{
 				m_minimap_spot_pointer = new CMapSpotPointer(this);
 			}
-			m_minimap_spot_pointer->Load(g_uiSpotXml,str);
+			m_minimap_spot_pointer->Load(g_uiSpotXml,str, UI().get_current_kx());
 		}else{
 			VERIFY( !(bReload && m_minimap_spot_pointer) );
 		}
@@ -235,14 +412,14 @@ void CMapLocation::LoadSpot(LPCSTR type, bool bReload)
 	node = g_uiSpotXml->NavigateToNode(path, 0);
 	if ( node )
 	{
-		LPCSTR str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
+		const char* str = g_uiSpotXml->ReadAttrib(path, 0, "spot", "");
 		if( xr_strlen(str) )
 		{
 			if ( !bReload )
 			{
 				m_complex_spot = new CComplexMapSpot(this);
 			}
-			m_complex_spot->Load(g_uiSpotXml,str);
+			m_complex_spot->Load(g_uiSpotXml,str, CHudPdaAnimator::GetPDAScreen_kx());
 		}else{
 			VERIFY( !(bReload && m_complex_spot) );
 		}
@@ -256,7 +433,7 @@ void CMapLocation::LoadSpot(LPCSTR type, bool bReload)
 			{
 				m_complex_spot_pointer = new CMapSpotPointer(this);
 			}
-			m_complex_spot_pointer->Load(g_uiSpotXml,str);
+			m_complex_spot_pointer->Load(g_uiSpotXml, str, CHudPdaAnimator::GetPDAScreen_kx());
 		}else{
 			VERIFY( !(bReload && m_complex_spot_pointer) );
 		}
@@ -287,12 +464,12 @@ Fvector2 CMapLocation::CalcPosition()
 	CObject* pObject = Level().Objects.net_Find(m_objectID);
 	if (!pObject)
 	{
-		if (m_owner_se_object)
+		CSE_ALifeDynamicObject* owner = (ai().get_alife() && !IsUserDefined()) ? ai().alife().objects().object(m_objectID, true) : nullptr;
+		if (owner)
 		{
-			m_position_global = m_owner_se_object->draw_level_position();
+			m_position_global = owner->draw_level_position();
 			pos.set(m_position_global.x, m_position_global.z);
 		}
-
 	}
 	else
 	{
@@ -341,14 +518,20 @@ void CMapLocation::CalcLevelName()
 	if (IsUserDefined())
 		return;
 
-	if(m_owner_se_object && ai().get_game_graph())
+	if (m_owner_se_object && ai().get_game_graph())
 	{
-		if(m_cached.m_graphID != m_owner_se_object->m_tGraphID)
+		GameGraph::_GRAPH_ID gid = m_owner_se_object->m_tGraphID;
+		if (ai().game_graph().valid_vertex_id(gid) && m_cached.m_graphID != gid)
 		{
-			m_cached.m_LevelName	= ai().game_graph().header().level(ai().game_graph().vertex(m_owner_se_object->m_tGraphID)->level_id()).name();
-			m_cached.m_graphID		= m_owner_se_object->m_tGraphID;
+			m_cached.m_LevelName = ai().game_graph().header().level(ai().game_graph().vertex(gid)->level_id()).name();
+			m_cached.m_graphID = gid;
 		}
-	}else
+		else if (!ai().game_graph().valid_vertex_id(gid))
+		{
+			m_cached.m_LevelName = Level().name();
+		}
+	}
+	else
 	{
 		m_cached.m_LevelName = Level().name();
 	}
@@ -403,30 +586,35 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp )
 				return;
 			}
 
-			if (b_alife && m_owner_se_object->m_flags.test(CSE_ALifeObject::flVisibleForMap) == FALSE)
+			if (b_alife && m_owner_se_object->m_flags.test(CSE_ALifeObject::flVisibleForMap) == false)
 			{
 				return;
 			}
 		}
 
-		CGameTask* ml_task = Level().GameTaskManager()->HasGameTask( this, true );
-		if (ml_task)
+		bool border_show = false;
+		if (CGameTask* ml_task = Level().GameTaskManager()->HasGameTask(this, true))
 		{
 			CGameTask* storyTask = Level().GameTaskManager()->ActiveTask(eTaskTypeStoryline);
 			CGameTask* additionalTask = Level().GameTaskManager()->ActiveTask(eTaskTypeAdditional);
-			const bool border_show = ml_task == storyTask || ml_task == additionalTask;
-			if (m_minimap_spot)
-			{
-				m_minimap_spot->show_static_border(border_show);
-			}
-			if (m_level_spot)
-			{
-				m_level_spot->show_static_border(border_show);
-			}
-			if (m_complex_spot)
-			{
-				m_complex_spot->show_static_border(border_show);
-			}
+			border_show = ml_task == storyTask || ml_task == additionalTask;
+		}
+		else if (IsUserDefined())
+		{
+			border_show = Level().MapManager().IsUserNavigationLocation(this);
+		}
+
+		if (m_minimap_spot)
+		{
+			m_minimap_spot->show_static_border(border_show);
+		}
+		if (m_level_spot)
+		{
+			m_level_spot->show_static_border(border_show);
+		}
+		if (m_complex_spot)
+		{
+			m_complex_spot->show_static_border(border_show);
 		}
 
 		//update spot position
@@ -469,7 +657,7 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp )
 			m_position_on_map = tmp;
 		}
 		CMapSpot* s = GetSpotBorder(sp);
-		if (s)
+		if (s && map->IsRectVisible(wnd_rect))
 		{
 			s->SetWndPos(sp->GetWndPos());
 			map->AttachChild(s);
@@ -482,10 +670,14 @@ void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp )
 	{
 		GameGraph::_GRAPH_ID		dest_graph_id;
 
-		if (!IsUserDefined())
+		if (!IsUserDefined() && m_owner_se_object != nullptr)
+		{
 			dest_graph_id = m_owner_se_object->m_tGraphID;
+		}
 		else
+		{
 			dest_graph_id = m_cached.m_graphID;
+		}
 
 		map_point_path.clear();
 
@@ -589,7 +781,7 @@ void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
 
 		float dist_to_target = Level().CurrentEntity()->Position().distance_to(ttt);
 		CGameTask* task = Level().GameTaskManager()->HasGameTask(this, true);
-		if (task)
+		if (task || Level().MapManager().IsUserNavigationLocation(this))
 		{
 			map->SetPointerDistance(dist_to_target);
 		}
@@ -676,7 +868,7 @@ void CMapLocation::SetHint(const shared_str& hint)
 {
 	if ( hint == "disable_hint" )
 	{
-		m_flags.set(eHintEnabled, FALSE);
+		m_flags.set(eHintEnabled, false);
 		m_hint		= "" ;
 		return;
 	}
@@ -688,13 +880,13 @@ Fvector2 CMapLocation::SpotSize()
 	return m_level_spot->GetWndSize();
 }
 
-LPCSTR CMapLocation::GetHint()
+const char* CMapLocation::GetHint()
 {
 	if ( !HintEnabled() ) 
 	{
 		return nullptr;
 	}
-	return g_pStringTable->translate(m_hint).c_str();
+	return g_pStringTable->ParseStringFromScript(m_hint).c_str();
 };
 
 CMapSpotPointer* CMapLocation::GetSpotPointer(CMapSpot* sp)
@@ -730,7 +922,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_level_map_spot_border )
 			{
 				m_level_map_spot_border			= new CMapSpot(this);
-				m_level_map_spot_border->Load	(g_uiSpotXml,m_spot_border_names[0].c_str());
+				m_level_map_spot_border->Load	(g_uiSpotXml,m_spot_border_names[0].c_str(), CHudPdaAnimator::GetPDAScreen_kx());
 			}
 			return m_level_map_spot_border;
 		}
@@ -739,7 +931,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_mini_map_spot_border )
 			{
 				m_mini_map_spot_border			= new CMapSpot(this);
-				m_mini_map_spot_border->Load	(g_uiSpotXml,m_spot_border_names[2].c_str());
+				m_mini_map_spot_border->Load	(g_uiSpotXml,m_spot_border_names[2].c_str(), UI().get_current_kx());
 			}
 			return m_mini_map_spot_border;
 		}
@@ -748,7 +940,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_complex_spot_border )
 			{
 				m_complex_spot_border			= new CMapSpot(this);
-				m_complex_spot_border->Load		(g_uiSpotXml,m_spot_border_names[4].c_str());
+				m_complex_spot_border->Load		(g_uiSpotXml,m_spot_border_names[4].c_str(), CHudPdaAnimator::GetPDAScreen_kx());
 			}
 			return m_complex_spot_border;
 		}
@@ -760,7 +952,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_level_map_spot_border_na && m_spot_border_names[1].size() )
 			{
 				m_level_map_spot_border_na			= new CMapSpot(this);
-				m_level_map_spot_border_na->Load	(g_uiSpotXml,m_spot_border_names[1].c_str());
+				m_level_map_spot_border_na->Load	(g_uiSpotXml,m_spot_border_names[1].c_str(), CHudPdaAnimator::GetPDAScreen_kx());
 			}
 			return m_level_map_spot_border_na;
 		}
@@ -769,7 +961,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_mini_map_spot_border_na && m_spot_border_names[3].size() )
 			{
 				m_mini_map_spot_border_na			= new CMapSpot(this);
-				m_mini_map_spot_border_na->Load		(g_uiSpotXml,m_spot_border_names[3].c_str());
+				m_mini_map_spot_border_na->Load		(g_uiSpotXml,m_spot_border_names[3].c_str(), UI().get_current_kx());
 			}
 			return m_mini_map_spot_border_na;
 		}
@@ -778,7 +970,7 @@ CMapSpot* CMapLocation::GetSpotBorder(CMapSpot* sp)
 			if ( nullptr == m_complex_spot_border_na && m_spot_border_names[5].size() )
 			{
 				m_complex_spot_border_na			= new CMapSpot(this);
-				m_complex_spot_border_na->Load		(g_uiSpotXml,m_spot_border_names[5].c_str());
+				m_complex_spot_border_na->Load		(g_uiSpotXml,m_spot_border_names[5].c_str(), CHudPdaAnimator::GetPDAScreen_kx());
 			}
 			return m_complex_spot_border_na;
 		}
@@ -824,18 +1016,23 @@ bool CRelationMapLocation::Update()
 		CSE_ALifeCreatureAbstract*		pCreature = smart_cast<CSE_ALifeCreatureAbstract*>(m_owner_se_object);
 		if(pCreature) //maybe trader ?
 			bAlive = pCreature->g_Alive		();
-	}else
+	}
+	else
 	{
-		CInventoryOwner*			pEnt = nullptr;
-		CInventoryOwner*			pAct = nullptr;
+		CInventoryOwner* pEnt = nullptr;
+		CInventoryOwner* pAct = nullptr;
 
-		pEnt = smart_cast<CInventoryOwner*>(Level().Objects.net_Find(m_objectID));
-		pAct = smart_cast<CInventoryOwner*>(Level().Objects.net_Find(m_pInvOwnerActorID));
+		CObject* finded_object = Level().Objects.net_Find(m_objectID);
+		pEnt = finded_object != nullptr ? finded_object->cast_inventory_owner() : nullptr;
+
+		finded_object = Level().Objects.net_Find(m_pInvOwnerActorID);
+		pAct = finded_object != nullptr ? finded_object->cast_inventory_owner() : nullptr;
+
 		if(!pEnt || !pAct)	
 			return false;
 
 		m_last_relation =  RELATION_REGISTRY().GetRelationType(pEnt, pAct);
-		CEntityAlive* pEntAlive = smart_cast<CEntityAlive*>(pEnt);
+		CEntityAlive* pEntAlive = pEnt != nullptr ? pEnt->cast_entity_alive() : nullptr;
 		if(pEntAlive)
 			bAlive = !!pEntAlive->g_Alive		();
 	}
@@ -857,14 +1054,17 @@ bool CRelationMapLocation::Update()
 		CObject* _object_ = Level().Objects.net_Find(m_objectID);
 		if(_object_)
 		{
-			CEntityAlive* ea = smart_cast<CEntityAlive*>(_object_);
+			CEntityAlive* ea = _object_->cast_entity_alive();
 			if(ea&&!ea->g_Alive()) 
 				vis_res =  true;	
 			else
 			{
-				const CGameObject* pObj = smart_cast<const CGameObject*>(_object_);
-				CActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
-				CHelmet* helm = smart_cast<CHelmet*>(pAct->inventory().ItemFromSlot(HELMET_SLOT));
+				const CGameObject* pObj = _object_->cast_game_object();
+				CObject* finded_object = Level().Objects.net_Find(m_pInvOwnerActorID);
+
+				CActor* pAct = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
+				CHelmet* helm = pAct->GetHelmet();
+
 				if(helm && helm->m_fShowNearestEnemiesDistance)
 				{
 					if(pAct->Position().distance_to(pObj->Position()) < helm->m_fShowNearestEnemiesDistance)
@@ -885,9 +1085,11 @@ bool CRelationMapLocation::Update()
 		CObject* _object_ = Level().Objects.net_Find(m_objectID);
 		if(_object_)
 		{
-			const CGameObject* pObj = smart_cast<const CGameObject*>(_object_);
-			CActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
-			if(/*pAct->Position().distance_to_sqr(pObj->Position()) < 100.0F && */abs(pObj->Position().y-pAct->Position().y)<3.0f)
+			const CGameObject* pObj = _object_->cast_game_object();
+			CObject* finded_object = Level().Objects.net_Find(m_pInvOwnerActorID);
+			CActor* pAct = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
+
+			if(abs(pObj->Position().y-pAct->Position().y)<3.0f)
 				vis_res = true;
 			else
 				vis_res = false;
@@ -960,4 +1162,48 @@ void CMapLocation::HighlightSpot(bool state, const Fcolor& color)
 		if (st->GetTextureColor() != 0xffffffff)
 			st->SetTextureColor(0xffffffff);
 	}
+}
+
+const shared_str& CMapLocation::GetCompassTexture() const
+{
+	if (m_hasCompassOverride)
+	{
+		return m_compassOverrideTexture.size() > 0 ? m_compassOverrideTexture : m_compass_spot_texture;
+	}
+	return m_compass_spot_texture;
+}
+
+Fvector2 CMapLocation::GetCompassSize() const
+{
+	if (m_hasCompassOverride && m_compassOverrideSize.magnitude() > 0.0f)
+	{
+		return m_compassOverrideSize;
+	}
+	return m_compass_spot_size;
+}
+
+u32 CMapLocation::GetCompassColor() const
+{
+	return (m_hasCompassOverride && m_compassOverrideColor != 0) ? 
+		m_compassOverrideColor : m_compass_spot_color;
+}
+
+float CMapLocation::GetCompassOffsetX() const
+{
+	return m_hasCompassOverride ? m_compassOverrideOffsetX : 0.0f;
+}
+
+float CMapLocation::GetCompassOffsetY() const
+{
+	return m_hasCompassOverride ? m_compassOverrideOffsetY : 0.0f;
+}
+
+float CMapLocation::GetCompassMaxDist() const
+{
+	return m_hasCompassOverride ? m_compassOverrideMaxDist : 0.0f;
+}
+
+EVTextAlignment CMapLocation::GetCompassVertAlign() const
+{
+	return m_hasCompassOverride ? m_compassOverrideVertAlign : valCenter;
 }

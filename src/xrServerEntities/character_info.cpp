@@ -3,7 +3,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "character_info.h"
 
 #ifdef XRGAME_EXPORTS
@@ -18,8 +18,8 @@
 SCharacterProfile::SCharacterProfile()
 {
 	m_CharacterId		= nullptr;
-	m_Rank				= NO_RANK;
-	m_Reputation		= NO_REPUTATION;
+	m_Rank				= -type_max(s32);
+	m_Reputation		= -type_max(s32);
 }
 
 SCharacterProfile::~SCharacterProfile()
@@ -36,8 +36,8 @@ CCharacterInfo::CCharacterInfo()
 	m_SpecificCharacterId = nullptr;
 
 #ifdef XRGAME_EXPORTS
-	m_CurrentRank.set(NO_RANK);
-	m_CurrentReputation.set(NO_REPUTATION);
+	m_CurrentRank.set(-type_max(s32));
+	m_CurrentReputation.set(-type_max(s32));
 	m_StartDialog = nullptr;
 	m_Sympathy = 0.0f;
 #endif
@@ -63,11 +63,11 @@ void CCharacterInfo::InitSpecificCharacter (shared_str new_id)
 	m_SpecificCharacterId = new_id;
 
 	m_SpecificCharacter.Load(m_SpecificCharacterId);
-	if(Rank().value() == NO_RANK)
+	if(Rank().value() == -type_max(s32))
 		SetRank(m_SpecificCharacter.Rank());
-	if(Reputation().value() == NO_REPUTATION)
+	if(Reputation().value() == -type_max(s32))
 		SetReputation(m_SpecificCharacter.Reputation());
-	if(Community().index() == NO_COMMUNITY_INDEX)
+	if(Community().index() == s32(-1))
 		SetCommunity(m_SpecificCharacter.Community().index());
 	if(!m_StartDialog || !m_StartDialog.size() )
 		m_StartDialog = m_SpecificCharacter.data()->m_StartDialog;
@@ -76,7 +76,7 @@ void CCharacterInfo::InitSpecificCharacter (shared_str new_id)
 
 #endif
 
-void CCharacterInfo::load_shared	(LPCSTR)
+void CCharacterInfo::load_shared	(const char*)
 {
 	const ITEM_DATA& item_data = *id_to_index::GetById(m_ProfileId);
 
@@ -90,12 +90,12 @@ void CCharacterInfo::load_shared	(LPCSTR)
 
 
 
-	LPCSTR spec_char = pXML->Read("specific_character", 0, nullptr);
+	const char* spec_char = pXML->Read("specific_character", 0, nullptr);
 	if(!spec_char)
 	{
 		data()->m_CharacterId	= nullptr;
 		
-		LPCSTR char_class			= pXML->Read	("class",		0,	nullptr);
+		const char* char_class			= pXML->Read	("class",		0,	nullptr);
 
 		if(char_class)
 		{
@@ -105,10 +105,10 @@ void CCharacterInfo::load_shared	(LPCSTR)
 			xr_free(buf_str);
 		}
 		else
-			data()->m_Class				= NO_CHARACTER_CLASS;
+			data()->m_Class				= nullptr;
 			
-		data()->m_Rank = pXML->ReadInt			("rank",		0,	NO_RANK);
-		data()->m_Reputation = pXML->ReadInt	("reputation",	0,	NO_REPUTATION);
+		data()->m_Rank = pXML->ReadInt			("rank",		0,	-type_max(s32));
+		data()->m_Reputation = pXML->ReadInt	("reputation",	0,	-type_max(s32));
 	}
 	else
 		data()->m_CharacterId = spec_char;
@@ -130,7 +130,7 @@ shared_str CCharacterInfo::Profile()			const
 	return m_ProfileId;
 }
 
-LPCSTR CCharacterInfo::Name() const
+const char* CCharacterInfo::Name() const
 {
 	R_ASSERT2(m_SpecificCharacterId.size(), m_SpecificCharacter.Name());
 	return	m_SpecificCharacter.Name();
@@ -141,17 +141,17 @@ shared_str CCharacterInfo::Bio() const
 	return 	m_SpecificCharacter.Bio();
 }
 
-void CCharacterInfo::SetRank (CHARACTER_RANK_VALUE rank)
+void CCharacterInfo::SetRank (s32 rank)
 {
 	m_CurrentRank.set(rank);
 }
 
-void CCharacterInfo::SetReputation (CHARACTER_REPUTATION_VALUE reputation)
+void CCharacterInfo::SetReputation (s32 reputation)
 {
 	m_CurrentReputation.set(reputation);
 }
 
-void CCharacterInfo::SetCommunity(CHARACTER_COMMUNITY_INDEX community)
+void CCharacterInfo::SetCommunity(s32 community)
 {
 	m_CurrentCommunity.set( community );
 	m_Sympathy = m_CurrentCommunity.sympathy( m_CurrentCommunity.index() );
@@ -166,6 +166,15 @@ const shared_str& CCharacterInfo::IconName() const
 shared_str	CCharacterInfo::StartDialog	()	const
 {
 	return m_StartDialog;
+}
+
+shared_str CCharacterInfo::SpecificCharacterStartDialog() const
+{
+	if (!m_SpecificCharacterId.size())
+	{
+		return shared_str(nullptr);
+	}
+	return m_SpecificCharacter.data()->m_StartDialog;
 }
 
 const DIALOG_ID_VECTOR&	CCharacterInfo::ActorDialogs	()	const

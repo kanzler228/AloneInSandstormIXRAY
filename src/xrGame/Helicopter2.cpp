@@ -5,10 +5,11 @@
 #include "../Include/xrRender/Kinematics.h"
 #include "../xrEngine/LightAnimLibrary.h"
 #include "ai/stalker/ai_stalker.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "../xrPhysics/MathUtils.h"
 
 #include "Actor.h"
+#include "ParticlesObject.h"
 #include "physics_game.h"
 
 bool CHelicopter::isObjectVisible			(CObject* O)
@@ -20,7 +21,7 @@ bool CHelicopter::isObjectVisible			(CObject* O)
 	dir_to_object.sub		(to_point,from_point).normalize_safe();
 	float ray_length		= from_point.distance_to(to_point);
 
-	BOOL res = Level().ObjectSpace.RayTest(from_point, dir_to_object, ray_length, collide::rqtStatic, nullptr, nullptr);
+	bool res = Level().ObjectSpace.RayTest(from_point, dir_to_object, ray_length, collide::rqtStatic, nullptr, nullptr);
 		
 	return !res;
 }
@@ -48,7 +49,7 @@ void  CHelicopter::TurnEngineSound(bool bOn)
 void CHelicopter::StartFlame ()
 {
 	if(m_pParticle)return;
-	m_pParticle = Particles::Details::Create(*m_smoke_particle,FALSE).get();
+	m_pParticle = Particles::Details::Create(*m_smoke_particle,false).get();
 
 	Fvector zero_vector;
 	zero_vector.set(0.f,0.f,0.f);
@@ -59,7 +60,7 @@ void CHelicopter::StartFlame ()
 
 void CHelicopter::UpdateHeliParticles	()
 {
-	IKinematics* K		= smart_cast<IKinematics*>(Visual());
+	IKinematics* K		= PKinematics(Visual());
 	m_particleXFORM		= K->LL_GetTransform(m_smoke_bone);
 	m_particleXFORM.mulA_43(XFORM());
 
@@ -206,47 +207,50 @@ float CHelicopter::GetRealAltitude()
 	return cR.range;
 }
 
-void	CHelicopter::Hit							(SHit* pHDS)
+void CHelicopter::Hit(SHit* pHDS)
 {
-//	inherited::Hit(pHDS);
+	//	inherited::Hit(pHDS);
 
 
-	if(GetfHealth()<0.005f)
+	if (GetfHealth() < 0.005f)
 		return;
 
-	if(state() == CHelicopter::eDead ) return;
+	if (state() == CHelicopter::eDead) return;
 
-	if(pHDS->who==this)
+	if (pHDS->who == this)
 		return;
 
 	bonesIt It = m_hitBones.find(pHDS->bone());
-	if(It != m_hitBones.end() && pHDS->hit_type==ALife::eHitTypeFireWound) {
+	if (It != m_hitBones.end() && pHDS->hit_type == ALife::eHitTypeFireWound)
+	{
 		float curHealth = GetfHealth();
-		curHealth -= pHDS->damage()*It->second*1000.0f;
+		curHealth -= pHDS->damage() * It->second * 1000.0f;
 		SetfHealth(curHealth);
 #ifdef DEBUG
-		if (bDebug)	Msg("----Helicopter::PilotHit(). health=%f",curHealth);
+		if (bDebug) Msg("----Helicopter::PilotHit(). health=%f", curHealth);
 #endif
-	}else {
-		float hit_power		= pHDS->damage();
-		hit_power			= AffectHit(hit_power, pHDS->hit_type);
+	}
+	else
+	{
+		float hit_power = pHDS->damage();
+		hit_power = AffectHit(hit_power, pHDS->hit_type);
 
-		SetfHealth(GetfHealth()-hit_power);
+		SetfHealth(GetfHealth() - hit_power);
 #ifdef DEBUG
 		if (bDebug)
-			Msg("----Helicopter::Hit(). health=%f",GetfHealth());
+			Msg("----Helicopter::Hit(). health=%f", GetfHealth());
 #endif
 	};
-	if (pHDS->who&&
-		( smart_cast<CActor*>(pHDS->who)	||
-		smart_cast<CAI_Stalker*>(pHDS->who)		||
-		smart_cast<CCustomZone*>(pHDS->who) )
-		){
-			callback(GameObject::eHelicopterOnHit)(pHDS->damage(),pHDS->impulse,pHDS->hit_type,pHDS->who->ID());
-		}
+
+	CGameObject* go = pHDS->who->cast_game_object();
+
+	bool have_actor = go != nullptr && go->cast_actor() != nullptr;
+	bool can_cast = go->cast_stalker() != nullptr || go->cast_game_object() != nullptr || go->cast_anomaly_zone();
+
+	if (have_actor && can_cast)
+		callback(GameObject::eHelicopterOnHit)(pHDS->damage(), pHDS->impulse, pHDS->hit_type, pHDS->who->ID());
 
 	CPHDestroyable::SetFatalHit(*pHDS);
-
 }
 
 void CHelicopter::PHHit(SHit &H)
@@ -284,20 +288,20 @@ void CHelicopter::DieHelicopter()
 	m_brokenSound.play_at_pos		(0,XFORM().c,sm_Looped);
 
 
-	IKinematics* K		= smart_cast<IKinematics*>(Visual());
+	IKinematics* K		= PKinematics(Visual());
 	if(true /*!PPhysicsShell()*/){
 		string256						I;
-		LPCSTR bone;
+		const char* bone;
 		
 		u16 bone_id;
 		for (u32 i=0, n=_GetItemCount(*m_death_bones_to_hide); i<n; ++i){
 			bone = _GetItem(*m_death_bones_to_hide,i,I);
 			bone_id		= K->LL_BoneID	(bone);
-			K->LL_SetBoneVisible(bone_id,FALSE,TRUE);
+			K->LL_SetBoneVisible(bone_id,false,true);
 		}
 
 		///PPhysicsShell()=P_build_Shell	(this,false);
-		PPhysicsShell()->EnabledCallbacks(TRUE);
+		PPhysicsShell()->EnabledCallbacks(true);
 		PPhysicsShell()->set_ObjectContactCallback(CollisionCallbackDead);
 		PPhysicsShell()->set_ContactCallback(ContactShotMark);
 	}
@@ -314,14 +318,14 @@ void CHelicopter::DieHelicopter()
 	PPhysicsShell()->set_AngularVel	(m_death_ang_vel);
 	PPhysicsShell()->Enable			();
 	K->CalculateBones_Invalidate	();
-	K->CalculateBones				(TRUE);
+	K->CalculateBones				(true);
 	setState						(CHelicopter::eDead);
 	m_engineSound.stop				();
 	processing_deactivate			();
 	m_dead							= true;
 }
 
-void SHeliEnemy::Load(LPCSTR section)
+void SHeliEnemy::Load(const char* section)
 {
 	fire_trail_length_des	= pSettings->r_float(section, "fire_trail_length");
 	bUseFireTrail			= !!pSettings->r_bool(section, "use_fire_trail");
@@ -393,7 +397,7 @@ void CHelicopter::UseFireTrail(bool val)
 }
 
 
-void SHeliBodyState::Load(LPCSTR section)
+void SHeliBodyState::Load(const char* section)
 {
 	model_angSpeedBank			= pSettings->r_float(section,"model_angular_sp_bank");
 	model_angSpeedPitch			= pSettings->r_float(section,"model_angular_sp_pitch");
@@ -450,7 +454,7 @@ float t_1(float t10, float t11)
 		if(t11<0)
 			return t10;
 		else
-			return _min(t10,t11);
+			return std::min(t10,t11);
 
 }
 

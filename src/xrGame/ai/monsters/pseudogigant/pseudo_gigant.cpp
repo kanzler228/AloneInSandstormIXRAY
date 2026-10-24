@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pseudo_gigant.h"
 #include "pseudo_gigant_step_effector.h"
 #include "../../../Actor.h"
@@ -35,7 +35,7 @@ CPseudoGigant::~CPseudoGigant()
 }
 
 
-void CPseudoGigant::Load(LPCSTR section)
+void CPseudoGigant::Load(const char* section)
 {
 	inherited::Load	(section);
 
@@ -129,7 +129,7 @@ void CPseudoGigant::Load(LPCSTR section)
 
 
 	// Load psi postprocess --------------------------------------------------------
-	LPCSTR ppi_section = pSettings->r_string(section, "threaten_effector");
+	const char* ppi_section = pSettings->r_string(section, "threaten_effector");
 	m_threaten_effector.ppi.duality.h		= pSettings->r_float(ppi_section,"duality_h");
 	m_threaten_effector.ppi.duality.v		= pSettings->r_float(ppi_section,"duality_v");
 	m_threaten_effector.ppi.gray				= pSettings->r_float(ppi_section,"gray");
@@ -174,8 +174,6 @@ void CPseudoGigant::reinit()
 
 	m_time_next_threaten = 0;
 
-	if(CCustomMonster::use_simplified_visual())	return;
-
 	move().load_velocity(*cNameSect(), "Velocity_JumpPrepare",MonsterMovement::eGiantVelocityParameterJumpPrepare);
 	move().load_velocity(*cNameSect(), "Velocity_JumpGround",MonsterMovement::eGiantVelocityParameterJumpGround);
 	
@@ -187,26 +185,26 @@ void CPseudoGigant::reinit()
 
 
 
-#define MAX_STEP_RADIUS 60.f
+#define MAX_STEP_RADIUS 60.0f
 
 void CPseudoGigant::event_on_step()
 {
-	//////////////////////////////////////////////////////////////////////////
-	// Earthquake Effector	//////////////
-	CActor* pActor =  smart_cast<CActor*>(Level().CurrentEntity());
-	if(pActor)
+	// Earthquake Effector
+	CObject* current_entity = Level().CurrentEntity();
+	CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr;
+
+	if (pActor == nullptr)
 	{
-		float dist_to_actor = pActor->Position().distance_to(Position());
-		float max_dist		= MAX_STEP_RADIUS;
-		if (dist_to_actor < max_dist) 
-			Actor()->Cameras().AddCamEffector(new CPseudogigantStepEffector(
-				step_effector.time, 
-				step_effector.amplitude, 
-				step_effector.period_number, 
-				(max_dist - dist_to_actor) / (1.2f * max_dist))
-			);
+		return;
 	}
-	//////////////////////////////////
+
+	float dist_to_actor = pActor->Position().distance_to(Position());
+	float max_dist = MAX_STEP_RADIUS;
+
+	if (dist_to_actor < max_dist) 
+	{
+		pActor->Cameras().AddCamEffector(new CPseudogigantStepEffector(step_effector.time, step_effector.amplitude, step_effector.period_number, (max_dist - dist_to_actor) / (1.2f * max_dist)));
+	}
 }
 
 bool CPseudoGigant::check_start_conditions(ControlCom::EControlType type)
@@ -245,11 +243,17 @@ void CPseudoGigant::on_activate_control(ControlCom::EControlType type)
 void CPseudoGigant::on_threaten_execute()
 {
 	// разбросить объекты
-	m_nearest.resize(0);
-	Level().ObjectSpace.GetNearest	(m_nearest,Position(), 15.f, nullptr); 
-	for (u32 i=0;i<m_nearest.size();i++) {
-		CPhysicsShellHolder  *obj = smart_cast<CPhysicsShellHolder *>(m_nearest[i]);
-		if (!obj || !obj->m_pPhysicsShell) continue;
+	g_SpatialSpace->q_sphere(m_nearest,0,ESPATIAL_TYPE::COLLIDEABLE,Position(),15.f);
+	for (ISpatialShared& SS : m_nearest)
+	{
+		ISpatial* S = SS.get();
+		if (!S) continue;
+		CObject* O = S->dcast_CObject();
+		if (!O || O->getDestroy()) continue;
+
+		CPhysicsShellHolder* obj = O->cast_physics_shell_holder();
+		if (!obj || !obj->m_pPhysicsShell)
+			continue;
 
 		Fvector dir;
 		Fvector pos;
@@ -271,7 +275,8 @@ void CPseudoGigant::on_threaten_execute()
 		// играть партиклы
 		PlayParticles(m_kick_particles, pos, Direction());
 
-		CActor *pA = const_cast<CActor *>(smart_cast<const CActor *>(EnemyMan.get_enemy()));
+		CEntityAlive* cast_get_enemy = const_cast<CEntityAlive*>(EnemyMan.get_enemy());
+		CActor *pA = cast_get_enemy != nullptr ? cast_get_enemy->cast_actor() : nullptr;
 	if (!pA)
 		return;
 
@@ -304,7 +309,7 @@ void CPseudoGigant::on_threaten_execute()
 		HS.weaponID = (ID());														//	l_P.w_u16	(ID());
 		HS.dir = (Fvector().set(0.f, 1.f, 0.f));									//	l_P.w_dir	(Fvector().set(0.f,1.f,0.f));
 		HS.power = (hit_value);													//	l_P.w_float	(m_kick_damage);
-		HS.boneID = (smart_cast<IKinematics*>(pA->Visual())->LL_GetBoneRoot());	//	l_P.w_s16	(smart_cast<IKinematics*>(pA->Visual())->LL_GetBoneRoot());
+		HS.boneID = (PKinematics(pA->Visual())->LL_GetBoneRoot());
 		HS.p_in_bone_space = (Fvector().set(0.f, 0.f, 0.f));									//	l_P.w_vec3	(Fvector().set(0.f,0.f,0.f));
 		HS.impulse = (80 * pA->character_physics_support()->movement()->GetMass());						//	l_P.w_float	(20 * pA->movement_control()->GetMass());
 		HS.hit_type = (ALife::eHitTypeStrike);										//	l_P.w_u16	( u16(ALife::eHitTypeWound) );
@@ -340,7 +345,7 @@ void CPseudoGigant::on_threaten_execute()
 
 					if (device != nullptr)
 					{
-						device->SetDropManual(TRUE);
+						device->SetDropManual(true);
 						need_kick_animator = true;
 					}
 				}
@@ -350,7 +355,7 @@ void CPseudoGigant::on_threaten_execute()
 				need_kick_animator = true;
 			}
 
-			if (need_kick_animator && !pA->HudAnimator()->IsActive())
+			if (need_kick_animator && !pA->HudAnimator()->IsAnyAnimatorActive())
 			{
 				auto GetAngleCos = [&](const Fvector& v1, const Fvector& v2)
 				{
@@ -369,14 +374,14 @@ void CPseudoGigant::on_threaten_execute()
 				{
 					if (front_kick_animator.size() > 0)
 					{
-						pA->HudAnimator()->StartAnimator(front_kick_animator);
+						pA->HudAnimator()->ItemAnimator()->StartAnimator(front_kick_animator);
 					}
 				}
 				else
 				{
 					if (back_kick_animator.size() > 0)
 					{
-						pA->HudAnimator()->StartAnimator(back_kick_animator);
+						pA->HudAnimator()->ItemAnimator()->StartAnimator(back_kick_animator);
 					}
 				}
 			}
@@ -398,17 +403,19 @@ void CPseudoGigant::on_threaten_execute()
 				xrClientData* CL = static_cast<xrClientData*>(client);
 				if (!CL->owner)
 					return;
-				CActor* pA = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
+
+				CObject* finded_object = Level().Objects.net_Find(CL->owner->ID);
+
+				CActor* pA = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
 				if (!pA)
 					return;
 
 				NET_Packet	tmp_packet;
 				CGameObject::u_EventGen(tmp_packet, GE_PSEUDO_GIGANT_KICK, pObj->ID());
-				Level().Server->SendTo(client->ID, tmp_packet, net_flags(TRUE, TRUE));
+				Level().Server->SendTo(client->ID, tmp_packet, net_flags(true, true));
 
-				if ((pA->GetMovementState(eReal) & ACTOR_DEFS::mcJump) != 0) return;
-
-				Fvector pos = pObj->Position();
+				if ((pA->GetMovementState(eReal) & ACTOR_DEFS::mcJump) != 0)
+					return;
 
 				// check distance to enemy
 				float dist = pA->Position().distance_to(pObj->Position());
@@ -429,7 +436,7 @@ void CPseudoGigant::on_threaten_execute()
 				HS.weaponID = (pObj->ID());														//	l_P.w_u16	(ID());
 				HS.dir = (Fvector().set(0.f, 1.f, 0.f));									//	l_P.w_dir	(Fvector().set(0.f,1.f,0.f));
 				HS.power = (hit_value);													//	l_P.w_float	(m_kick_damage);
-				HS.boneID = (smart_cast<IKinematics*>(pA->Visual())->LL_GetBoneRoot());	//	l_P.w_s16	(smart_cast<IKinematics*>(pA->Visual())->LL_GetBoneRoot());
+				HS.boneID = (PKinematics(pA->Visual())->LL_GetBoneRoot());
 				HS.p_in_bone_space = (Fvector().set(0.f, 0.f, 0.f));									//	l_P.w_vec3	(Fvector().set(0.f,0.f,0.f));
 				HS.impulse = (80 * pA->character_physics_support()->movement()->GetMass());						//	l_P.w_float	(20 * pA->movement_control()->GetMass());
 				HS.hit_type = (ALife::eHitTypeStrike);										//	l_P.w_u16	( u16(ALife::eHitTypeWound) );

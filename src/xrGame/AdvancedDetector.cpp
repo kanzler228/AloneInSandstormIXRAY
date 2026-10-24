@@ -27,6 +27,27 @@ CUIArtefactDetectorAdv& CAdvancedDetector::ui()
 	return *((CUIArtefactDetectorAdv*)m_ui);
 }
 
+void CAdvancedDetector::shedule_Update(u32 dt)
+{
+	inherited::shedule_Update(dt);
+
+	if (!m_bWorking && m_need_refresh)
+	{
+		if (attachable_hud_item* hid = HudItemData())
+		{
+			if (IKinematics* kin = hid->m_model)
+			{
+				u16 m_screen_bone_id = kin->LL_BoneID("screen_bone");
+				if (kin->LL_GetBoneVisible(m_screen_bone_id))
+				{
+					kin->LL_SetBoneVisible(m_screen_bone_id, false, true);
+				}
+			}
+		}
+	}
+
+}
+
 void CAdvancedDetector::UpdateAf()
 {
 	ui().SetValue(0.0f, zero_vel);
@@ -99,7 +120,7 @@ void CAdvancedDetector::UpdateAf()
 	if (af_info.snd_time > af_info.cur_period)
 	{
 		af_info.snd_time = 0;
-		HUD_SOUND_ITEM::PlaySound(item_type->detect_snds, Fvector().set(0, 0, 0), this, true, false);
+		HUD_SOUND_ITEM::PlaySound(item_type->detect_snds, Fvector().set(0, 0, 0), this, true, false, true);
 		if (item_type->detect_snds.m_activeSnd)
 		{
 			item_type->detect_snds.m_activeSnd->snd.set_frequency(snd_freq);
@@ -125,6 +146,8 @@ void CUIArtefactDetectorAdv::SetValue(const float val1, const Fvector& val2)
 
 void CUIArtefactDetectorAdv::update()
 {
+	if (!m_parent)
+		return;
 	attachable_hud_item* hid = m_parent->HudItemData();
 	if (hid == nullptr || m_bid == u16(-1))
 	{
@@ -135,11 +158,11 @@ void CUIArtefactDetectorAdv::update()
 
 	IKinematics* kin = hid->m_model;
 
-	BOOL b_visible = !fis_zero(m_target_dir.magnitude()) && m_parent != nullptr && m_parent->IsWorking();
+	bool b_visible = !fis_zero(m_target_dir.magnitude()) && m_parent->IsWorking();
 
 	if (b_visible != kin->LL_GetBoneVisible(m_bid))
 	{
-		kin->LL_SetBoneVisible(m_bid, b_visible, TRUE);
+		kin->LL_SetBoneVisible(m_bid, b_visible, true);
 	}
 
 	if (!b_visible)
@@ -198,7 +221,7 @@ void CUIArtefactDetectorAdv::ResetBoneCallbacks()
 	CBoneInstance& bi = kin->LL_GetBoneInstance(bid);
 	bi.reset_callback();
 
-	kin->LL_SetBoneVisible(bid, FALSE, TRUE);
+	kin->LL_SetBoneVisible(bid, false, true);
 	m_target_dir = zero_vel;
 }
 

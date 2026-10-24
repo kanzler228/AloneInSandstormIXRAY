@@ -159,23 +159,24 @@ void EScene::SelectSnapList()
 {
     ObjectList* snap_objects = GetSnapList(true);
     if (snap_objects){
-        SelectObjects(FALSE,OBJCLASS_SCENEOBJECT);
+        SelectObjects(false,OBJCLASS_SCENEOBJECT);
         for(ObjectIt _F = snap_objects->begin();_F!=snap_objects->end();_F++)
-            (*_F)->Select(TRUE);
+            (*_F)->Select(true);
         UI->RedrawScene();
     }
 }
 
 void EScene::UpdateSnapList()
 {
-    m_RTFlags.set(flUpdateSnapList, TRUE);
+    m_RTFlags.set(flUpdateSnapList, true);
 }
 
 void EScene::UpdateSnapListReal()
 {
 	if (NULL==LTools) return;
     ObjClassID cls = LTools->CurrentClassID();
-    switch (cls){
+    switch ((ESceneItemsGuids)cls)
+    {
     case OBJCLASS_DUMMY:	break;
     default:
 	    ESceneToolBase* mt = m_SceneTools[cls];
@@ -184,5 +185,5 @@ void EScene::UpdateSnapListReal()
 	// visual update
 	//if (fraLeftBar) fraLeftBar->UpdateSnapList();
 
-    m_RTFlags.set(flUpdateSnapList, FALSE);
+    m_RTFlags.set(flUpdateSnapList, false);
 }

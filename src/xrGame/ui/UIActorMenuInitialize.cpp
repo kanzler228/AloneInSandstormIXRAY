@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIActorMenu.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "../../xrUI/xrUIXmlParser.h"
@@ -11,61 +11,45 @@
 #include "UIMessageBoxEx.h"
 #include "../../xrUI/Widgets/UIPropertiesBox.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
-
+#include "../../xrEngine/xr_input.h"
 #include "UIInventoryUpgradeWnd.h"
 #include "UIInvUpgradeInfo.h"
+#include "InventorySorter.h"
 
 #include "ai_space.h"
 #include "alife_simulator.h"
 #include "object_broker.h"
 #include "../../xrUI/Widgets/UIWndCallback.h"
 #include "UIHelperGame.h"
-#include "../../xrUI/Widgets/UIProgressBar.h"
+#include "../../xrUI/Widgets/UIItemStateDisplay.h"
+#include "../../xrUI/Widgets/UITabControl.h"
 #include "../../xrUI/ui_base.h"
 #include "../../xrEngine/string_table.h"
+#include "ui_drop_amount.h"
+#include "../xrUI/Widgets/UIProgressBar.h"
 
 CUIActorMenu::CUIActorMenu()
 {
-	m_currMenuMode					= mmUndefined;
-	m_trade_partner_inventory_state = 0;
-
-	LoadCallbackGlobals(m_isItemDropped, m_onItemDropped, "OnItemDropped");
-	LoadCallbackGlobals(m_isCanMoveToPartner, m_onCanMoveToPartner, "OnCanMoveToPartner");
-	LoadCallbackGlobals(m_isItemFocusReceive, m_onItemFocusReceive, "OnItemFocusReceive");
-	LoadCallbackGlobals(m_isItemFocusLost, m_onItemFocusLost, "OnItemFocusLost");
-	LoadCallbackGlobals(m_isCanTake, m_onCanTake, "OnCanTake");
 	LoadCallbackGlobals(m_isCanDisassembleItem, m_onCanDisassembleItem, "OnCanDisassembleItem");
 	LoadCallbackGlobals(m_isQuestionDisassembleItem, m_onQuestionDisassembleItem, "OnQuestionDisassembleItem");
 	LoadCallbackGlobals(m_isEffectDisassemble, m_onEffectDisassemble, "OnEffectDisassemble");
-	LoadCallbackGlobals(m_isDonateCurrentItem, m_onDonateCurrentItem, "OnDonateCurrentItem");
-
-	LoadCallbackGlobals(m_isInvBoxCanTakeItem, m_onInvBoxCanTakeItem, "OnInvBoxCanTakeItem");		// FFx0001
-	LoadCallbackGlobals(m_isInvBoxCanPlaceItem, m_onInvBoxCanPlaceItem, "OnInvBoxCanPlaceItem");	// FFx0001
 
 	Construct						();
 }
 
 CUIActorMenu::~CUIActorMenu()
 {
-	xr_delete			(m_message_box_yes_no);
-	xr_delete			(m_message_box_ok);
 	xr_delete			(m_UIPropertiesBox);
 	xr_delete			(m_hint_wnd);
 	xr_delete			(m_ItemInfo);
-
-	for (size_t i = 0; i < m_ArtefactSlotsHighlight.size(); i++)
-	{
-		m_ArtefactSlotsHighlight[i] = nullptr;
-		m_belt_list_over[i] = nullptr;
-	}
-
-	ClearAllLists		();
 }
 
 void CUIActorMenu::Construct()
 {
 	CUIXml								uiXml;
 	uiXml.Load							(CONFIG_PATH, UI_PATH, "actor_menu.xml");
+
+	inherited::InitBase					(uiXml);
 
 	CUIXmlInit							xml_init;
 
@@ -96,29 +80,28 @@ void CUIActorMenu::Construct()
 
 	if (uiXml.NavigateToNode("right_delimiter:trade_caption", 0))
 	{
-		m_ActorTradeCaption = UIHelper::CreateTextWnd(uiXml, "right_delimiter:trade_caption", m_RightDelimiter);
+		m_ActorTradeCaption = UIHelper::CreateStatic(uiXml, "right_delimiter:trade_caption", m_RightDelimiter);
 		m_ActorTradeCaption->AdjustWidthToText();
 	}
-	m_ActorTradePrice			= UIHelper::CreateTextWnd(uiXml, "right_delimiter:trade_price", m_RightDelimiter);
-	m_ActorTradeWeightMax		= UIHelper::CreateTextWnd(uiXml, "right_delimiter:trade_weight_max", m_RightDelimiter);
+	m_ActorTradePrice			= UIHelper::CreateStatic(uiXml, "right_delimiter:trade_price", m_RightDelimiter);
+	m_ActorTradeWeightMax		= UIHelper::CreateStatic(uiXml, "right_delimiter:trade_weight_max", m_RightDelimiter);
 	
 	m_LeftDelimiter				= UIHelper::CreateStatic(uiXml, "left_delimiter", this);
 
 	if (uiXml.NavigateToNode("left_delimiter:trade_caption", 0))
 	{
-		m_PartnerTradeCaption		= UIHelper::CreateTextWnd(uiXml, "left_delimiter:trade_caption", m_LeftDelimiter);
+		m_PartnerTradeCaption		= UIHelper::CreateStatic(uiXml, "left_delimiter:trade_caption", m_LeftDelimiter);
 		m_PartnerTradeCaption->AdjustWidthToText();
 	}
-	m_PartnerTradePrice			= UIHelper::CreateTextWnd(uiXml, "left_delimiter:trade_price", m_LeftDelimiter);
-	m_PartnerTradeWeightMax		= UIHelper::CreateTextWnd(uiXml, "left_delimiter:trade_weight_max", m_LeftDelimiter);
+	m_PartnerTradePrice			= UIHelper::CreateStatic(uiXml, "left_delimiter:trade_price", m_LeftDelimiter);
+	m_PartnerTradeWeightMax		= UIHelper::CreateStatic(uiXml, "left_delimiter:trade_weight_max", m_LeftDelimiter);
 
-	m_ActorBottomInfo			= UIHelper::CreateStatic(uiXml, "actor_weight_caption", this);
-	m_ActorWeight				= UIHelper::CreateTextWnd(uiXml, "actor_weight", this);
-	m_ActorWeightMax			= UIHelper::CreateTextWnd(uiXml, "actor_weight_max", this);
+	InitActorWeightSection				(uiXml, xml_init);
+	InitActorVolumeSection				(uiXml, xml_init);
 	m_ActorBottomInfo->AdjustWidthToText();
 
 	m_PartnerBottomInfo			= UIHelper::CreateStatic(uiXml, "partner_weight_caption", this);
-	m_PartnerWeight				= UIHelper::CreateTextWnd(uiXml, "partner_weight", this);
+	m_PartnerWeight				= UIHelper::CreateStatic(uiXml, "partner_weight", this);
 	m_PartnerBottomInfo->AdjustWidthToText();
 	m_PartnerWeight_end_x		= m_PartnerWeight->GetWndPos().x;
 
@@ -127,60 +110,15 @@ void CUIActorMenu::Construct()
 		m_QuickSlotsHighlight[0] = UIHelper::CreateStatic(uiXml, "quick_slot_highlight", this);
 		m_QuickSlotsHighlight[0]->Show(false);
 	}
-	for (u8 i = 0; i <= LAST_SLOT; ++i)
-	{
-		m_pInvList[i] = nullptr;
-		m_pInvSlotHighlight[i] = nullptr;
-		m_pInvSlotProgress[i] = nullptr;
-	}
-
-	XML_NODE* stored_root = uiXml.GetLocalRoot();
-	XML_NODE* node = uiXml.NavigateToNode("inventory_slot_wnd", 0);
-	uiXml.SetLocalRoot(node);
-
-	m_slot_count = (u8)uiXml.GetNodesNum(node, "slot");
-	for (u8 i = 1; i <= m_slot_count; ++i)
-	{
-		uiXml.SetLocalRoot(node);
-		XML_NODE* slot_node = uiXml.NavigateToNode("slot", i - 1);
-		uiXml.SetLocalRoot(slot_node);
-
-		if (uiXml.GetNodesNum(slot_node, "slot_dragdrop") == 0)
-			continue;
-
-		m_pInvList[i] = new CUIDragDropListEx();
-		AttachChild(m_pInvList[i]);
-		CUIXmlInitGame::InitDragDropListEx(uiXml, "slot_dragdrop", 0, m_pInvList[i]);
-		m_pInvList[i]->SetAutoDelete(true);
-
-		BindDragDropListEvents(m_pInvList[i]);
-
-		if (uiXml.NavigateToNode("slot_highlight"))
-		{
-			m_pInvSlotHighlight[i] = new CUIStatic();
-			AttachChild(m_pInvSlotHighlight[i]);
-			CUIXmlInit::InitStatic(uiXml, "slot_highlight", 0, m_pInvSlotHighlight[i]);
-			m_pInvSlotHighlight[i]->SetAutoDelete(true);
-			m_pInvSlotHighlight[i]->Show(false);
-		}
-
-		if (uiXml.GetNodesNum(slot_node, "slot_progress") == 0)
-			continue;
-
-		m_pInvSlotProgress[i] = new CUIProgressBar();
-		AttachChild(m_pInvSlotProgress[i]);
-		CUIXmlInit::InitProgressBar(uiXml, "slot_progress", 0, m_pInvSlotProgress[i]);
-		m_pInvSlotProgress[i]->SetAutoDelete(true);
-	}
-	uiXml.SetLocalRoot(stored_root);
+	inherited::InitSlots		(uiXml);
 
 	m_pInventoryBagList			= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_bag", this);
 	m_pInventoryBeltList		= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_belt", this);
 
-	m_pTradeActorBagList		= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_actor_trade_bag", this);
 	m_pTradeActorList			= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_actor_trade", this);
-	m_pTradePartnerBagList		= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_partner_bag", this);
+	m_pTradeActorBagList		= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_actor_trade_bag", this);
 	m_pTradePartnerList			= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_partner_trade", this);
+	m_pTradePartnerBagList		= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_partner_bag", this);
 	m_pDeadBodyBagList			= UIHelperGame::CreateDragDropListEx(uiXml, "dragdrop_deadbody_bag", this);
 	if (uiXml.NavigateToNode("dragdrop_quick_slots"))
 	{
@@ -248,6 +186,16 @@ void CUIActorMenu::Construct()
 		}
 	}
 
+	const char* pSelectorTextureName = "ui_inv_item_selector_sec";
+	m_pInventoryBagList->InitSelector(pSelectorTextureName);
+	m_pInventoryBeltList->InitSelector(pSelectorTextureName);
+	m_pTradeActorBagList->InitSelector(pSelectorTextureName);
+	m_pTradeActorList->InitSelector(pSelectorTextureName);
+	m_pTradePartnerBagList->InitSelector(pSelectorTextureName);
+	m_pTradePartnerList->InitSelector(pSelectorTextureName);
+	m_pDeadBodyBagList->InitSelector(pSelectorTextureName);
+	//m_pQuickSlot->InitSelector(pSelectorTextureName);
+
 	m_pTrashList				= UIHelperGame::CreateDragDropListEx		(uiXml, "dragdrop_trash", this);
 	m_pTrashList->m_f_item_drop	= CUIDragDropListEx::DRAG_CELL_EVENT	(this,&CUIActorMenu::OnItemDrop);
 	m_pTrashList->m_f_drag_event= CUIDragDropListEx::DRAG_ITEM_EVENT	(this,&CUIActorMenu::OnDragItemOnTrash);
@@ -286,20 +234,20 @@ void CUIActorMenu::Construct()
 		m_HelmetOver->Show(false);
 	}
 
-	m_ActorMoney	= UIHelper::CreateTextWnd(uiXml, "actor_money_static", this);
-	m_PartnerMoney	= UIHelper::CreateTextWnd(uiXml, "partner_money_static", this);
+	m_ActorMoney	= UIHelper::CreateStatic(uiXml, "actor_money_static", this);
+	m_PartnerMoney	= UIHelper::CreateStatic(uiXml, "partner_money_static", this);
 
 	if (uiXml.NavigateToNode("quick_slot1_text"))
-		m_QuickSlot1	= UIHelper::CreateTextWnd(uiXml, "quick_slot1_text", this);
+		m_QuickSlot1	= UIHelper::CreateStatic(uiXml, "quick_slot1_text", this);
 
 	if (uiXml.NavigateToNode("quick_slot2_text"))
-		m_QuickSlot2	= UIHelper::CreateTextWnd(uiXml, "quick_slot2_text", this);
+		m_QuickSlot2	= UIHelper::CreateStatic(uiXml, "quick_slot2_text", this);
 
 	if (uiXml.NavigateToNode("quick_slot3_text"))
-		m_QuickSlot3	= UIHelper::CreateTextWnd(uiXml, "quick_slot3_text", this);
+		m_QuickSlot3	= UIHelper::CreateStatic(uiXml, "quick_slot3_text", this);
 
 	if (uiXml.NavigateToNode("quick_slot4_text"))
-		m_QuickSlot4	= UIHelper::CreateTextWnd(uiXml, "quick_slot4_text", this);
+		m_QuickSlot4	= UIHelper::CreateStatic(uiXml, "quick_slot4_text", this);
 
 	if (uiXml.NavigateToNode("trade_button", 0))
 		m_trade_button = UIHelper::Create3tButton(uiXml, "trade_button", this);
@@ -332,33 +280,158 @@ void CUIActorMenu::Construct()
 	m_ActorStateInfo->init_from_xml		(uiXml, "actor_state_info");
 	m_ActorStateInfo->SetAutoDelete		(true);
 	AttachChild							(m_ActorStateInfo); 
-
-	stored_root							= uiXml.GetLocalRoot	();
-	uiXml.SetLocalRoot					(uiXml.NavigateToNode	("action_sounds",0));
-	::Sound->create						(sounds[eSndOpen],		uiXml.Read("snd_open",			0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eSndClose],		uiXml.Read("snd_close",			0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eItemToSlot],	uiXml.Read("snd_item_to_slot",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eItemToBelt],	uiXml.Read("snd_item_to_belt",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eItemToRuck],	uiXml.Read("snd_item_to_ruck",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eProperties],	uiXml.Read("snd_properties",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eDropItem],		uiXml.Read("snd_drop_item",		0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eAttachAddon],	uiXml.Read("snd_attach_addon",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eDetachAddon],	uiXml.Read("snd_detach_addon",	0,	nullptr),st_Effect,sg_SourceType);
-	::Sound->create						(sounds[eItemUse],		uiXml.Read("snd_item_use",		0,	nullptr),st_Effect,sg_SourceType);
-	uiXml.SetLocalRoot					(stored_root);
+	
+	inherited::InitGamepadSelectors		();
 
 	m_ItemInfo							= new CUIItemInfo();
 //-	m_ItemInfo->SetAutoDelete			(true);
 //-	AttachChild							(m_ItemInfo);
 	m_ItemInfo->InitItemInfo			("actor_menu_item.xml");
 
-	m_upgrade_info						= nullptr;
 	if ( ai().get_alife() )
 	{
 		m_upgrade_info						= new UIInvUpgradeInfo();
 		m_upgrade_info->SetAutoDelete		(true);
 		AttachChild							(m_upgrade_info);
 		m_upgrade_info->init_from_xml		("actor_menu_item.xml");
+	}
+
+	CUIXml uiDropAmountXml;
+	if (uiDropAmountXml.Load(CONFIG_PATH, UI_PATH, "custom_drop_amount.xml"))
+	{
+		m_pItemDropAmountWnd = new CUIItemDropAmountWnd();
+		m_pItemDropAmountWnd->SetAutoDelete(true);
+		m_pItemDropAmountWnd->InitDropAmount(uiDropAmountXml);
+	}
+
+	m_pInventorySorter					= new CInventorySorter();
+
+	const struct SSortTabsLayoutNode
+	{
+		ESortTabsLayoutSlot slot;
+		const char* node;
+		const char* windowName;
+	};
+
+	const SSortTabsLayoutNode layoutNodesCategories[] = {
+		{ eSortTabsInventory, "inventory_sort_tabs", "inventory_sort_tabs" },
+		{ eSortTabsUpgrade, "inventory_sort_tabs_container_upgrade", "inventory_sort_tabs_container_upgrade" },
+		{ eSortTabsTradeActor, "inventory_sort_tabs_container_trade_actor_bag", "inventory_sort_tabs_container_trade_actor_bag" },
+		{ eSortTabsTradePartner, "inventory_sort_tabs_container_trade_partner_bag", "inventory_sort_tabs_container_trade_partner_bag" },
+		{ eSortTabsDeadBody, "inventory_sort_tabs_container_deadbody_bag", "inventory_sort_tabs_container_deadbody_bag" }
+	};
+
+	const SSortTabsLayoutNode layoutNodesOrdering[] = {
+		{ eSortTabsInventory, "inventory_sort_order_tabs", "inventory_sort_order_tabs" },
+		{ eSortTabsUpgrade, "inventory_sort_order_tabs_container_upgrade", "inventory_sort_order_tabs_container_upgrade" },
+		{ eSortTabsTradeActor, "inventory_sort_order_tabs_container_trade_actor_bag", "inventory_sort_order_tabs_container_trade_actor_bag" },
+		{ eSortTabsTradePartner, "inventory_sort_order_tabs_container_trade_partner_bag", "inventory_sort_order_tabs_container_trade_partner_bag" },
+		{ eSortTabsDeadBody, "inventory_sort_order_tabs_container_deadbody_bag", "inventory_sort_order_tabs_container_deadbody_bag" }
+	};
+
+	const struct SSortTabsSystemInit
+	{
+		EInventorySortSystem system;
+		u8 systemIndex;
+		const char* baseSortTabsNode;
+		const SSortTabsLayoutNode* layoutNodes;
+		u32 layoutNodesCount;
+	};
+
+	const SSortTabsSystemInit systemsToInit[] = {
+		{
+			EInventorySortSystem::Categories,
+			0,
+			"inventory_sort_tabs",
+			layoutNodesCategories,
+			static_cast<u32>(std::size(layoutNodesCategories))
+		},
+		{
+			EInventorySortSystem::Ordering,
+			1,
+			"inventory_sort_order_tabs",
+			layoutNodesOrdering,
+			static_cast<u32>(std::size(layoutNodesOrdering))
+		}
+	};
+
+	for (const SSortTabsSystemInit& systemInit : systemsToInit)
+	{
+		if (!uiXml.NavigateToNode(systemInit.baseSortTabsNode, 0))
+		{
+			continue;
+		}
+
+		for (u32 layoutIndex = 0; layoutIndex < systemInit.layoutNodesCount; ++layoutIndex)
+		{
+			const SSortTabsLayoutNode& layoutNode = systemInit.layoutNodes[layoutIndex];
+			const u8 systemIndex = systemInit.systemIndex;
+
+			if (systemInit.system == EInventorySortSystem::Ordering)
+			{
+				m_orderMode[layoutNode.slot] = EInventoryOrderMode::General;
+				m_orderModeId[layoutNode.slot] = "";
+				m_orderOptions[layoutNode.slot] = {};
+				m_orderOptions[layoutNode.slot].weightDesc = m_pInventorySorter->IsWeightDescending();
+				m_orderOptions[layoutNode.slot].conditionDesc = m_pInventorySorter->IsConditionDescending();
+				m_orderOptions[layoutNode.slot].costDesc = m_pInventorySorter->IsCostDescending();
+				m_orderOptions[layoutNode.slot].noveltyDesc = m_pInventorySorter->IsNoveltyDescending();
+				m_orderOptions[layoutNode.slot].typeCycle = 0;
+			}
+			else
+			{
+				m_sortCategory[layoutNode.slot] = EInventorySortCategory::All;
+				m_sortCategoryId[layoutNode.slot] = "";
+			}
+
+			if (layoutNode.slot == eSortTabsInventory)
+			{
+				m_sortTabsLayoutPos[systemIndex][layoutNode.slot] = Fvector2().set(
+					uiXml.ReadAttribFlt(systemInit.baseSortTabsNode, 0, "x", 0.0f),
+					uiXml.ReadAttribFlt(systemInit.baseSortTabsNode, 0, "y", 0.0f));
+				m_sortTabsLayoutSize[systemIndex][layoutNode.slot] = Fvector2().set(
+					uiXml.ReadAttribFlt(systemInit.baseSortTabsNode, 0, "width", 0.0f),
+					uiXml.ReadAttribFlt(systemInit.baseSortTabsNode, 0, "height", 0.0f));
+				m_sortTabsLayoutDefined[systemIndex][layoutNode.slot] = true;
+			}
+			else if (uiXml.NavigateToNode(layoutNode.node, 0))
+			{
+				m_sortTabsLayoutPos[systemIndex][layoutNode.slot].x = uiXml.ReadAttribFlt(layoutNode.node, 0, "x", 0.0f);
+				m_sortTabsLayoutPos[systemIndex][layoutNode.slot].y = uiXml.ReadAttribFlt(layoutNode.node, 0, "y", 0.0f);
+				m_sortTabsLayoutSize[systemIndex][layoutNode.slot].x = uiXml.ReadAttribFlt(layoutNode.node, 0, "width", 0.0f);
+				m_sortTabsLayoutSize[systemIndex][layoutNode.slot].y = uiXml.ReadAttribFlt(layoutNode.node, 0, "height", 0.0f);
+				m_sortTabsLayoutDefined[systemIndex][layoutNode.slot] = true;
+			}
+			else
+			{
+				continue;
+			}
+
+			m_sortTabControl[systemIndex][layoutNode.slot] = new CUITabControl();
+			m_sortTabControl[systemIndex][layoutNode.slot]->SetAutoDelete(true);
+			AttachChild(m_sortTabControl[systemIndex][layoutNode.slot]);
+			CUIXmlInit::InitTabControl(uiXml, systemInit.baseSortTabsNode, 0, m_sortTabControl[systemIndex][layoutNode.slot]);
+			m_sortTabControl[systemIndex][layoutNode.slot]->SetWindowName(layoutNode.windowName);
+			m_sortTabControl[systemIndex][layoutNode.slot]->SetWndPos(m_sortTabsLayoutPos[systemIndex][layoutNode.slot]);
+			m_sortTabControl[systemIndex][layoutNode.slot]->SetWndSize(m_sortTabsLayoutSize[systemIndex][layoutNode.slot]);
+			m_sortTabControl[systemIndex][layoutNode.slot]->Show(false);
+			m_sortTabControl[systemIndex][layoutNode.slot]->Enable(false);
+			if (systemInit.system == EInventorySortSystem::Ordering)
+			{
+				m_sortTabControl[systemIndex][layoutNode.slot]->SetAllowReselect(true);
+			}
+			Register(m_sortTabControl[systemIndex][layoutNode.slot]);
+			AddCallbackStr(layoutNode.windowName, TAB_CHANGED, CUIWndCallback::void_function(this, &CUIActorMenu::OnSortTabChanged));
+			ApplySortTabCaptions(m_sortTabControl[systemIndex][layoutNode.slot], systemInit.system);
+		}
+	}
+
+	if (m_pInventorySorter->GetSystem() == EInventorySortSystem::Ordering)
+	{
+		for (u8 i = 0; i < eSortTabsLayoutCount; ++i)
+		{
+			UpdateOrderTabCaption(static_cast<ESortTabsLayoutSlot>(i));
+		}
 	}
 
 	m_message_box_yes_no				= new CUIMessageBoxEx();	
@@ -377,6 +450,8 @@ void CUIActorMenu::Construct()
 	m_UIPropertiesBox->Hide				();
 	m_UIPropertiesBox->SetWindowName	( "property_box" );
 
+	m_gamepad_legend					= UIHelper::CreateGamepadLegend(uiXml, "gamepad_legend", this, false);
+
 	InitCallbacks						();
 
 	BindDragDropListEvents(m_pInventoryBeltList);
@@ -389,48 +464,6 @@ void CUIActorMenu::Construct()
 	if (m_pQuickSlot)
 	BindDragDropListEvents(m_pQuickSlot);
 
-	m_allowed_drops[iTrashSlot].push_back(iActorBag);
-	m_allowed_drops[iTrashSlot].push_back(iActorSlot);
-	m_allowed_drops[iTrashSlot].push_back(iActorBelt);
-	m_allowed_drops[iTrashSlot].push_back(iQuickSlot);
-
-	m_allowed_drops[iActorSlot].push_back(iActorBag);
-	m_allowed_drops[iActorSlot].push_back(iActorSlot);
-	m_allowed_drops[iActorSlot].push_back(iActorTrade);
-	m_allowed_drops[iActorSlot].push_back(iDeadBodyBag);
-
-	m_allowed_drops[iActorBag].push_back(iActorSlot);
-	m_allowed_drops[iActorBag].push_back(iActorBelt);
-	m_allowed_drops[iActorBag].push_back(iActorTrade);
-	m_allowed_drops[iActorBag].push_back(iDeadBodyBag);
-	m_allowed_drops[iActorBag].push_back(iActorBag);
-	m_allowed_drops[iActorBag].push_back(iQuickSlot);
-	
-	m_allowed_drops[iActorBelt].push_back(iActorBag);
-	m_allowed_drops[iActorBelt].push_back(iActorTrade);
-	m_allowed_drops[iActorBelt].push_back(iDeadBodyBag);
-	m_allowed_drops[iActorBelt].push_back(iActorBelt);
-
-	m_allowed_drops[iActorTrade].push_back(iActorSlot);
-	m_allowed_drops[iActorTrade].push_back(iActorBag);
-	m_allowed_drops[iActorTrade].push_back(iActorBelt);
-	m_allowed_drops[iActorTrade].push_back(iActorTrade);
-	m_allowed_drops[iActorTrade].push_back(iQuickSlot);
-
-	m_allowed_drops[iPartnerTradeBag].push_back(iPartnerTrade);
-	m_allowed_drops[iPartnerTradeBag].push_back(iPartnerTradeBag);
-	m_allowed_drops[iPartnerTrade].push_back(iPartnerTradeBag);
-	m_allowed_drops[iPartnerTrade].push_back(iPartnerTrade);
-
-	m_allowed_drops[iDeadBodyBag].push_back(iActorSlot);
-	m_allowed_drops[iDeadBodyBag].push_back(iActorBag);
-	m_allowed_drops[iDeadBodyBag].push_back(iActorBelt);
-	m_allowed_drops[iDeadBodyBag].push_back(iDeadBodyBag);
-
-	m_allowed_drops[iQuickSlot].push_back(iActorBag);
-	m_allowed_drops[iQuickSlot].push_back(iActorTrade);
-
-	m_upgrade_selected				= nullptr;
 	SetCurrentItem					(nullptr);
 	SetActor						(nullptr);
 	SetPartner						(nullptr);
@@ -438,29 +471,33 @@ void CUIActorMenu::Construct()
 
 	m_actor_trade					= nullptr;
 	m_partner_trade					= nullptr;
-	m_repair_mode					= 0;
-	m_item_info_view				= false;
-	m_highlight_clear				= true;
 
 	DeInitInventoryMode				();
 	DeInitTradeMode					();
 	DeInitUpgradeMode				();
 	DeInitDeadBodySearchMode		();
-}
+	
+	// Controller mode
+	xr_map<xr_string, CUIWindow*> wndPointers;
+	wndPointers["TradeActorBagList"]	= m_pTradeActorBagList;
+	wndPointers["BeltList"]				= m_pInventoryBeltList;
+	wndPointers["PistolList"]			= GetSidearmDragDropList();
+	wndPointers["AutomaticList"]		= GetPrimaryDragDropList();
+	wndPointers["OutfitList"]			= m_pInvList[OUTFIT_SLOT];
+	wndPointers["HelmetList"]			= m_pInvList[HELMET_SLOT];
+	wndPointers["DetectorList"]			= m_pInvList[DEVICE_SLOT];
+	wndPointers["BagList"]				= m_pInventoryBagList;
+	wndPointers["TradeActorList"]		= m_pTradeActorList;
+	wndPointers["TradePartnerBagList"]	= m_pTradePartnerBagList;
+	wndPointers["TradePartnerList"]		= m_pTradePartnerList;
+	wndPointers["DeadBodyBagList"]		= m_pDeadBodyBagList;
+	wndPointers["QuickSlot"]			= m_pQuickSlot;
+	//wndPointers["UpgradeWnd"]			= m_pUpgradeWnd;
 
-void CUIActorMenu::BindDragDropListEvents(CUIDragDropListEx* lst)
-{
-	if (lst == nullptr)
-		return;
-
-	lst->m_f_item_drop				= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemDrop);
-	lst->m_f_item_start_drag		= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemStartDrag);
-	lst->m_f_item_db_click			= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemDbClick);
-	lst->m_f_item_selected			= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemSelected);
-	lst->m_f_item_rbutton_click		= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemRButtonClick);
-	lst->m_f_item_focus_received	= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemFocusReceive);
-	lst->m_f_item_focus_lost		= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemFocusLost);
-	lst->m_f_item_focused_update	= CUIDragDropListEx::DRAG_CELL_EVENT(this,&CUIActorMenu::OnItemFocusedUpdate);
+	ReadWndSelectorsInfo(uiXml, "ui_c_navi_inventory",	m_ui_navigation_lists[mmInventory], wndPointers);
+	ReadWndSelectorsInfo(uiXml, "ui_c_navi_deadbody",	m_ui_navigation_lists[mmDeadBodySearch], wndPointers);
+	ReadWndSelectorsInfo(uiXml, "ui_c_navi_trade",		m_ui_navigation_lists[mmTrade], wndPointers);
+	ReadWndSelectorsInfo(uiXml, "ui_c_navi_upgrade",	m_ui_navigation_lists[mmUpgrade], wndPointers);
 }
 
 void CUIActorMenu::InitCallbacks()
@@ -504,7 +541,7 @@ void CUIActorMenu::InitCallbacks()
 	}
 
 	AddCallback(m_exit_button,     BUTTON_CLICKED,   CUIWndCallback::void_function(this, &CUIActorMenu::OnBtnExitClicked));
-	AddCallback(m_UIPropertiesBox, PROPERTY_CLICKED, CUIWndCallback::void_function(this, &CUIActorMenu::ProcessPropertiesBoxClicked));
+	AddCallback(m_UIPropertiesBox, PROPERTY_CLICKED, CUIWndCallback::void_function(this, &CUIActorMenuBase::ProcessPropertiesBoxClicked));
 	AddCallback(m_pUpgradeWnd->m_btn_repair, BUTTON_CLICKED,   CUIWndCallback::void_function(this, &CUIActorMenu::TryRepairItem));
 	if (m_pUpgradeWnd->m_btn_disassemble != nullptr)
 	{
@@ -533,7 +570,7 @@ void CUIActorMenu::UpdateButtonsLayout()
 	}
 
 	string32 tmp;
-	LPCSTR str = g_pStringTable->translate("quick_use_str_1").c_str();
+	const char* str = g_pStringTable->translate("quick_use_str_1").c_str();
 	strncpy_s(tmp, sizeof(tmp), str, 3);
 	if(tmp[2]==',')
 		tmp[1] = '\0';

@@ -14,7 +14,7 @@
 
 
 // pool
-//.static	poolSS<R_constant,512>			g_constant_allocator;
+//.static	poolSS<RHIShaderConstant,512>			g_constant_allocator;
 
 //R_constant_table::~R_constant_table	()	{	dxRenderDeviceRender::Instance().Resources->_DeleteConstantTable(this);	}
 
@@ -26,7 +26,7 @@ R_constant_table::~R_constant_table()
 }
 
 
-void	R_constant_table::fatal(LPCSTR S)
+void	R_constant_table::fatal(const char* S)
 {
 	//FATAL(S);
 }
@@ -34,13 +34,14 @@ void	R_constant_table::fatal(LPCSTR S)
 void R_constant_table::_copy(const R_constant_table& Other)
 {
 	table = Other.table;
+	handlers_valid = false;
 #ifdef USE_DX11
 	m_CBTable = Other.m_CBTable;
 #endif
 }
 
 // predicates
-IC bool	p_search(ref_constant C, LPCSTR S)
+IC bool	p_search(ref_constant C, const char* S)
 {
 	return xr_strcmp(*C->name, S) < 0;
 }
@@ -49,12 +50,12 @@ IC bool	p_sort_constants(ref_constant C1, ref_constant C2)
 	return xr_strcmp(C1->name, C2->name) < 0;
 }
 
-ref_constant R_constant_table::get(LPCSTR S)
+ref_constant R_constant_table::get(const char* S)
 {
-	//PROF_EVENT("R_constant_table::get LPCSTR")
+	//PROF_EVENT("R_constant_table::get const char*")
 	// assumption - sorted by name
 	c_table::iterator I = std::lower_bound(table.begin(), table.end(), S, p_search);
-	if (I == table.end() || (0 != xr_strcmp(*(*I)->name, S)))	return 0;
+	if (I == table.end() || (0 != xr_strcmp(*(*I)->name, S)))	return nullptr;
 	else												return *I;
 }
 ref_constant R_constant_table::get(shared_str& S)
@@ -67,19 +68,19 @@ ref_constant R_constant_table::get(shared_str& S)
 		ref_constant	C = *I;
 		if (C->name.equal(S))	return C;
 	}
-	return	0;
+	return	nullptr;
 }
 
 #ifndef USE_DX11
-BOOL	R_constant_table::parse(void* _desc, u32 destination)
+bool	R_constant_table::parse(void* _desc, u32 destination)
 {
 	D3DXSHADER_CONSTANTTABLE* desc = (D3DXSHADER_CONSTANTTABLE*)_desc;
-	D3DXSHADER_CONSTANTINFO* it = (D3DXSHADER_CONSTANTINFO*)(LPBYTE(desc) + desc->ConstantInfo);
-	LPBYTE					 ptr = LPBYTE(desc);
+	D3DXSHADER_CONSTANTINFO* it = (D3DXSHADER_CONSTANTINFO*)((u8*)(desc) + desc->ConstantInfo);
+	u8*					 ptr = (u8*)desc;
 	for (u32 dwCount = desc->Constants; dwCount; dwCount--, it++)
 	{
 		// Name
-		LPCSTR	name = LPCSTR(ptr + it->Name);
+		const char*	name = (const char*)(ptr + it->Name);
 
 		// Type
 		u16		type = RC_float;
@@ -92,7 +93,7 @@ BOOL	R_constant_table::parse(void* _desc, u32 destination)
 
 		// TypeInfo + class
 		D3DXSHADER_TYPEINFO* T = (D3DXSHADER_TYPEINFO*)(ptr + it->TypeInfo);
-		BOOL bSkip = FALSE;
+		bool bSkip = false;
 		switch (T->Class)
 		{
 		case D3DXPC_SCALAR:			r_type = RC_1x1;		break;
@@ -147,19 +148,20 @@ BOOL	R_constant_table::parse(void* _desc, u32 destination)
 				// We have determined all valuable info, search if constant already created
 				ref_constant	C = get(name);
 				if (!C) {
-					C = new R_constant();//.g_constant_allocator.create();
+					C = new RHIShaderConstant();//.g_constant_allocator.create();
 					C->name = name;
 					C->destination = RC_dest_sampler;
 					C->type = RC_sampler;
-					R_constant_load& L = C->samp;
+					RHIShaderConstant::Loader& L = C->samp;
 					L.index = u16(r_index + ((destination & 1) ? 0 : D3DVERTEXTEXTURESAMPLER0));
 					L.cls = RC_sampler;
 					table.push_back(C);
+					handlers_valid = false;
 				}
 				else {
 					R_ASSERT(C->destination == RC_dest_sampler);
 					R_ASSERT(C->type == RC_sampler);
-					R_constant_load& L = C->samp;
+					RHIShaderConstant::Loader& L = C->samp;
 					R_ASSERT(L.index == r_index);
 					R_ASSERT(L.cls == RC_sampler);
 				}
@@ -170,10 +172,10 @@ BOOL	R_constant_table::parse(void* _desc, u32 destination)
 				break;
 			}
 		}
-		bSkip = TRUE;
+		bSkip = true;
 		break;
 		default:
-			bSkip = TRUE;
+			bSkip = true;
 			break;
 		}
 		if (bSkip)			continue;
@@ -181,32 +183,35 @@ BOOL	R_constant_table::parse(void* _desc, u32 destination)
 		// We have determined all valuable info, search if constant already created
 		ref_constant	C = get(name);
 		if (!C) {
-			C = new R_constant();//.g_constant_allocator.create();
+			C = new RHIShaderConstant();//.g_constant_allocator.create();
 			C->name = name;
 			C->destination = destination;
 			C->type = type;
-			R_constant_load& L = (destination & 1) ? C->ps : C->vs;
+			RHIShaderConstant::Loader& L = (destination & 1) ? C->ps : C->vs;
 			L.index = r_index;
 			L.cls = r_type;
 			table.push_back(C);
+			handlers_valid = false;
 		}
 		else {
 			C->destination |= destination;
 			VERIFY(C->type == type);
-			R_constant_load& L = (destination & 1) ? C->ps : C->vs;
+			RHIShaderConstant::Loader& L = (destination & 1) ? C->ps : C->vs;
 			L.index = r_index;
 			L.cls = r_type;
 		}
 	}
 	std::sort(table.begin(), table.end(), p_sort_constants);
-	return		TRUE;
+	return		true;
 }
 #endif
 
 /// !!!!!!!!FIX THIS FOR DX11!!!!!!!!!
 void R_constant_table::merge(R_constant_table* T)
 {
-	if (0 == T)		return;
+	if (nullptr == T)		return;
+
+	handlers_valid = false;
 
 	// Real merge
 	static xr_vector<ref_constant> table_tmp;
@@ -219,7 +224,7 @@ void R_constant_table::merge(R_constant_table* T)
 		ref_constant C = get(*src->name);
 		if (!C)
 		{
-			C = new R_constant();//.g_constant_allocator.create();
+			C = new RHIShaderConstant();//.g_constant_allocator.create();
 			C->name = src->name;
 			C->destination = src->destination;
 			C->type = src->type;
@@ -240,8 +245,8 @@ void R_constant_table::merge(R_constant_table* T)
 			VERIFY2(!(C->destination & src->destination & RC_dest_sampler), "Can't have samplers or textures with the same name for PS, VS and GS.");
 			C->destination |= src->destination;
 			VERIFY(C->type == src->type);
-			R_constant_load& sL = src->get_load(src->destination);
-			R_constant_load& dL = C->get_load(src->destination);
+			RHIShaderConstant::Loader& sL = src->get_load(src->destination);
+			RHIShaderConstant::Loader& dL = C->get_load(src->destination);
 			dL.index = sL.index;
 			dL.cls = sL.cls;
 		}
@@ -268,21 +273,22 @@ void R_constant_table::clear()
 {
 	//.
 	for (u32 it = 0; it < table.size(); it++)
-		table[it] = 0;//.g_constant_allocator.destroy(table[it]);
+		table[it] = nullptr;//.g_constant_allocator.destroy(table[it]);
 	table.clear();
+	handlers_valid = false;
 #ifdef USE_DX11
 	m_CBTable.clear();
 #endif //USE_DX11
 }
 
-BOOL R_constant_table::equal(R_constant_table& C)
+bool R_constant_table::equal(R_constant_table& C)
 {
-	if (table.size() != C.table.size())	return FALSE;
+	if (table.size() != C.table.size())	return false;
 	u32 size = (u32)table.size();
 	for (u32 it = 0; it < size; it++)
 	{
-		if (!table[it]->equal(&*C.table[it]))	return FALSE;
+		if (!table[it]->equal(&*C.table[it]))	return false;
 	}
 
-	return TRUE;
+	return true;
 }

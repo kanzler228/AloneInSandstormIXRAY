@@ -8,26 +8,26 @@
 
 #pragma once
 
-#include "../../../CustomMonster.h"
+#include "../../../Creature.h"
 #include "../../../eatable_item.h"
 #include "../../../seniority_hierarchy_holder.h"
 #include "../../../team_hierarchy_holder.h"
 #include "../../../squad_hierarchy_holder.h"
 #include "../../../group_hierarchy_holder.h"
 #include "../../../../xrEngine/AI/game_graph_space.h"
+#include "../../../../xrSound/ai_sounds.h"
 
 class CBlend;
 class CPatrolPath;
-enum ESoundTypes;
 class rat_state_manager;
 
 namespace steering_behaviour {
 	class manager;
 } // namespace steering_behaviour
-class CAI_Rat : public CCustomMonster, public CEatableItem
+class CAI_Rat final : public CCreature, public CEatableItem
 {
 private:
-	typedef	CCustomMonster	inherited;
+	typedef	CCreature	inherited;
 	const CPatrolPath	*m_path;
 
 private:
@@ -181,6 +181,7 @@ protected:
 	ERatAction					m_tAction;
 	bool						m_turning;
 
+	xr_vector<ISpatialShared>	m_nearest;
 	// FSM
 	xr_stack<ERatStates>		m_tStateStack;
 	ERatStates					m_eCurrentState;
@@ -300,8 +301,8 @@ protected:
 	float						m_fSoundThreshold;
 
 	// eat troops
-	BOOL						m_bEatMemberCorpses;
-	BOOL						m_bCannibalism;
+	bool						m_bEatMemberCorpses;
+	bool						m_bCannibalism;
 	u32							m_dwEatCorpseInterval;
 	u32							m_previous_query_time;
 
@@ -327,18 +328,6 @@ public:
 			//////////////////////////
 			// FSM STATES
 			//////////////////////////
-			void				Death					();
-			void				FreeHuntingActive		();
-			void				FreeHuntingPassive		();
-			void				AttackFire				();
-			void				AttackRun				();
-			void				UnderFire				();
-			void				Retreat					();
-			void				Pursuit					();
-			void				FreeRecoil				();
-			void				ReturnHome				();
-			void				EatCorpse				();
-			void				test_movement			();
 			void				init					();
 public:
 								CAI_Rat					();
@@ -353,30 +342,29 @@ public:
 	virtual CEntityAlive*		cast_entity_alive			()	{return this;}
 	virtual CEntity*			cast_entity					()	{return this;}
 	virtual CPhysicsShellHolder*cast_physics_shell_holder	()	{return this;}
-	virtual CParticlesPlayer*	cast_particles_player		()	{return this;}
-	virtual CCustomMonster*		cast_custom_monster			()	{return this;}
+	virtual CCreature*		cast_creature			()	{return this;}
 	virtual CScriptEntity*		cast_script_entity			()	{return this;}
 	virtual CWeapon*			cast_weapon					()	{return NULL;}
 	virtual CAI_Rat				*dcast_Rat					()	{return this;};
 
 public:
 
-	virtual BOOL				renderable_ShadowReceive();
-	virtual BOOL				renderable_ShadowGenerate();
-	virtual BOOL				net_Spawn				(CSE_Abstract* DC);
+	virtual bool				renderable_ShadowReceive();
+	virtual bool				renderable_ShadowGenerate();
+	virtual bool				net_Spawn				(CSE_Abstract* DC);
 	virtual void				net_Destroy				();
 	virtual void				net_Export				(NET_Packet& P);
 	virtual void				net_Import				(NET_Packet& P);
 	virtual void				HitSignal				(float amount, Fvector& vLocalDir, CObject* who, s16 element);
 	virtual void				Die						(CObject* who);
-	virtual void				Load					(LPCSTR section);
+	virtual void				Load					(const char* section);
 	virtual void				Think					();
 	virtual void				SelectAnimation			(const Fvector& _view, const Fvector& _move, float speed );
 	virtual void				Exec_Action				(float dt);
 	virtual	void				feel_sound_new			(CObject* who, int type, CSound_UserDataPtr user_data, const Fvector &Position, float power);
 	virtual void				feel_touch_new			(CObject* O);
-	virtual BOOL				feel_touch_on_contact	(CObject* O);
-	virtual BOOL				feel_vision_isRelevant	(CObject*);
+	virtual bool				feel_touch_on_contact	(CObject* O);
+	virtual bool				feel_vision_isRelevant	(CObject*);
 	virtual void				shedule_Update			(u32 dt);
 	virtual void				UpdateCL				();
 	virtual	void				Hit						(SHit* pHDS);
@@ -392,7 +380,7 @@ public:
 	virtual void				OnH_A_Independent		();
 	virtual void				OnEvent					(NET_Packet& P, u16 type) {inherited::OnEvent(P,type);}
 	virtual bool				Useful					() const;
-	virtual BOOL				UsedAI_Locations		();
+	virtual bool				UsedAI_Locations		();
 	///////////////////////////////////////////////////////////////////////
 	virtual u16					PHGetSyncItemsNumber	()			{return inherited ::PHGetSyncItemsNumber();}
 	virtual CPHSynchronize*		PHGetSyncItem			(u16 item)	{return inherited ::PHGetSyncItem(item);}
@@ -405,7 +393,7 @@ public:
 	virtual bool				useful					(const CItemManager *manager, const CGameObject *object) const;
 	virtual	float				evaluate				(const CItemManager *manager, const CGameObject *object) const;
 	virtual	void				reinit					();
-	virtual void				reload					(LPCSTR	section);
+	virtual void				reload					(const char*	section);
 	virtual const SRotation		Orientation				() const
 	{
 		return					(inherited::Orientation());
@@ -430,7 +418,7 @@ public:
 	//serialization
 	virtual void				save					(NET_Packet &output_packet) {inherited::save(output_packet);}
 	virtual void				load					(IReader &input_packet)		{inherited::load(input_packet);}
-	virtual BOOL				net_SaveRelevant		()							{return inherited::net_SaveRelevant();}
+	virtual bool				net_SaveRelevant		()							{return inherited::net_SaveRelevant();}
 			bool				can_stand_here			();
 			bool				can_stand_in_position	();
 			Fvector				get_next_target_point	();

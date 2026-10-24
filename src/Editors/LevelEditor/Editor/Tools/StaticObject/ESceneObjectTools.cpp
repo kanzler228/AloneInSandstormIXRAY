@@ -1,12 +1,14 @@
 #include "stdafx.h"
 
-ESceneObjectTool::ESceneObjectTool():ESceneCustomOTool(OBJCLASS_SCENEOBJECT)
+ESceneObjectTool::ESceneObjectTool() :
+    ESceneCustomOTool(OBJCLASS_SCENEOBJECT)
 {
-    m_AppendRandomMinScale.set		(1.f,1.f,1.f);
-    m_AppendRandomMaxScale.set		(1.f,1.f,1.f);
-    m_AppendRandomMinRotation.set	(0.f,0.f,0.f);
-    m_AppendRandomMaxRotation.set	(0.f,0.f,0.f);
-	m_Flags.zero	();
+    m_AppendRandomMinScale.set(1.f, 1.f, 1.f);
+    m_AppendRandomMaxScale.set(1.f, 1.f, 1.f);
+    m_AppendRandomMinRotation.set(0.f, 0.f, 0.f);
+    m_AppendRandomMaxRotation.set(0.f, 0.f, 0.f);
+
+    m_Flags.zero();
 }
 
 void ESceneObjectTool::CreateControls()
@@ -88,44 +90,42 @@ bool ESceneObjectTool::Validate(bool full_test)
 
 void ESceneObjectTool::OnChangeAppendRandomFlags(PropValue* prop)
 {
-    m_Flags.set					(flAppendRandomUpdateProps,TRUE);
+    m_Flags.set					(flAppendRandomUpdateProps,true);
 	_SequenceToList				(m_AppendRandomObjects,*m_AppendRandomObjectsStr);
 }
 
-void ESceneObjectTool::FillAppendRandomPropertiesBegin(bool bUpdateOnly)
+void ESceneObjectTool::FillAppendRandomPropertiesBegin(UIPropertiesForm& Prop)
 {
 
-	m_AppendRandomObjectsStr		= _ListToSequence(m_AppendRandomObjects).c_str();    
+    m_AppendRandomObjectsStr = _ListToSequence(m_AppendRandomObjects).c_str();
 
-    PropValue* V;           
-    PropItemVec 					items; 
-    V=PHelper().CreateFlag32		(items,"Scale",				&m_Flags, flAppendRandomScale);
-    V->OnChangeEvent.bind			(this,&ESceneObjectTool::OnChangeAppendRandomFlags);
-    if (m_Flags.is(flAppendRandomScale)){
-        V=PHelper().CreateFlag32	(items,"Scale\\Proportional",&m_Flags, flAppendRandomScaleProportional);
-        V->OnChangeEvent.bind		(this,&ESceneObjectTool::OnChangeAppendRandomFlags);
-        if (m_Flags.is(flAppendRandomScaleProportional)){
-            PHelper().CreateFloat	(items,"Scale\\Minimum",	&m_AppendRandomMinScale.x,0.001f,1000.f,0.001f,3);
-            PHelper().CreateFloat	(items,"Scale\\Maximum",	&m_AppendRandomMaxScale.x,0.001f,1000.f,0.001f,3);
-        }else{
-            PHelper().CreateVector	(items,"Scale\\Minimum",	&m_AppendRandomMinScale,0.001f,1000.f,0.001f,3);
-            PHelper().CreateVector	(items,"Scale\\Maximum",	&m_AppendRandomMaxScale,0.001f,1000.f,0.001f,3);
-        }
+    PropValue* V;
+    PropItemVec 					items;
+    V = PHelper().CreateCaption(items, "Scale", "");
+    V->OnChangeEvent.bind(this, &ESceneObjectTool::OnChangeAppendRandomFlags);
+
+    V = PHelper().CreateFlag32(items, "Scale\\Proportional", &m_Flags, flAppendRandomScaleProportional);
+    V->OnChangeEvent.bind(this, &ESceneObjectTool::OnChangeAppendRandomFlags);
+    if (m_Flags.is(flAppendRandomScaleProportional)) {
+        PHelper().CreateFloat(items, "Scale\\Minimum", &m_AppendRandomMinScale.x, 0.001f, 1000.f, 0.001f, 3);
+        PHelper().CreateFloat(items, "Scale\\Maximum", &m_AppendRandomMaxScale.x, 0.001f, 1000.f, 0.001f, 3);
+    }
+    else {
+        PHelper().CreateVector(items, "Scale\\Minimum", &m_AppendRandomMinScale, 0.001f, 1000.f, 0.001f, 3);
+        PHelper().CreateVector(items, "Scale\\Maximum", &m_AppendRandomMaxScale, 0.001f, 1000.f, 0.001f, 3);
     }
 
-    V=PHelper().CreateFlag32		(items,"Rotate",			&m_Flags, flAppendRandomRotation);
-    V->OnChangeEvent.bind			(this,&ESceneObjectTool::OnChangeAppendRandomFlags);
-    if (m_Flags.is(flAppendRandomRotation)){
-        PHelper().CreateAngle3		(items,"Rotate\\Minimum",	&m_AppendRandomMinRotation);
-        PHelper().CreateAngle3		(items,"Rotate\\Maximum",	&m_AppendRandomMaxRotation);
-    }
-	V=PHelper().CreateChoose		(items,"Objects",&m_AppendRandomObjectsStr,smObject,0,0,32);
-    V->OnChangeEvent.bind			(this,&ESceneObjectTool::OnChangeAppendRandomFlags);
-    if (bUpdateOnly)
-        UIPropertiesModal::GetProperties()->AssignItems(items);
-    else
-        UIPropertiesModal::Show(items);
+    V = PHelper().CreateCaption(items, "Rotate", "");
+    V->OnChangeEvent.bind(this, &ESceneObjectTool::OnChangeAppendRandomFlags);
+
+    PHelper().CreateAngle3(items, "Rotate\\Minimum", &m_AppendRandomMinRotation);
+    PHelper().CreateAngle3(items, "Rotate\\Maximum", &m_AppendRandomMaxRotation);
+
+    V = PHelper().CreateChoose(items, "Objects", &m_AppendRandomObjectsStr, smObject, 0, 0, 32);
+    V->OnChangeEvent.bind(this, &ESceneObjectTool::OnChangeAppendRandomFlags);
+    Prop.AssignItems(items);
 }
+
 bool ESceneObjectTool::FillAppendRandomPropertiesEnd()
 {
     bool ok;
@@ -146,7 +146,8 @@ void ESceneObjectTool::Clear		(bool bSpecific)
     m_AppendRandomMinRotation.set	(0.f,0.f,0.f);
     m_AppendRandomMaxRotation.set	(0.f,0.f,0.f);
     m_AppendRandomObjects.clear		();
-    m_Flags.zero					();
+
+    m_Flags.zero();
 }
 
 bool ESceneObjectTool::GetBox		(Fbox& bb)
@@ -160,16 +161,17 @@ bool ESceneObjectTool::GetBox		(Fbox& bb)
     return bb.is_valid();
 }
 
-void ESceneObjectTool::OnFrame		()
+void ESceneObjectTool::OnFrame()
 {
-	inherited::OnFrame				();
-	if (m_Flags.is(flAppendRandomUpdateProps)){
-    	m_Flags.set					(flAppendRandomUpdateProps,FALSE);
-        FillAppendRandomPropertiesBegin	(true);
+    inherited::OnFrame();
+    if (m_Flags.is(flAppendRandomUpdateProps))
+    {
+        m_Flags.set(flAppendRandomUpdateProps, false);
+        //FillAppendRandomPropertiesBegin	(true);
     }
 }
 
-CCustomObject* ESceneObjectTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* ESceneObjectTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O	= new CSceneObject(data,name);                     
     O->FParentTools		= this;
@@ -177,7 +179,7 @@ CCustomObject* ESceneObjectTool::CreateObject(LPVOID data, LPCSTR name)
 }
 
 
-void ESceneObjectTool::HighlightTexture(LPCSTR tex_name, bool allow_ratio, u32 t_width, u32 t_height, BOOL mark)
+void ESceneObjectTool::HighlightTexture(const char* tex_name, bool allow_ratio, u32 t_width, u32 t_height, bool mark)
 {
 	if (tex_name&&tex_name[0]){
         for (ObjectIt a_it=m_Objects.begin(); a_it!=m_Objects.end(); a_it++){

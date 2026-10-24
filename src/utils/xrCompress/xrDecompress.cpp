@@ -50,7 +50,7 @@ int xrDecompressor::ExtractFile(const char* filename)
 		}
 	}
 
-	IReader* pReader = FS.r_open("$game_data$", filename);
+	IReader* pReader = FS.r_open(_game_data_, filename);
 	if (pReader)
 	{
 		size_t size = pReader->length();
@@ -60,7 +60,7 @@ int xrDecompressor::ExtractFile(const char* filename)
 		FS.r_close(pReader);
 
 		char fullPath[MAX_PATH + 1];
-		sprintf(fullPath, "%s%c%s", m_OutDir, s_Separators[0], filename);
+		xr_sprintf(fullPath, "%s%c%s", m_OutDir, s_Separators[0], filename);
 		FILE* FF = fopen(fullPath, "wb");
 
 		if (!FF)
@@ -98,7 +98,7 @@ const char* xrDecompressor::CreatePath(const char* path)
 		xr_strcpy(relPath, path);
 
 		char fullPath[MAX_PATH + 1];
-		sprintf(fullPath, "%s%c%s", m_OutDir, s_Separators[0], path);
+		xr_sprintf(fullPath, "%s%c%s", m_OutDir, s_Separators[0], path);
 
 		if (CreateDir(m_OutDir, path) < 0)
 			return nullptr;
@@ -119,11 +119,17 @@ int xrDecompressor::CreateDir(const char* base, const char* path)
 	xr_strcpy(relPath, path);
 
 	char* token = strtok(relPath, s_Separators);
-	sprintf(newBase, "%s%c%s", newBase, s_Separators[0], token);
+	if (!token)
+		return 0;
+	xr_strcat(newBase, "\\");
+	xr_strcat(newBase, token);
 	while (token)
 	{
 		if (token != relPath && strlen(newPath))
-			sprintf(newPath, "%s%c%s", newPath, s_Separators[0], token);
+		{
+			xr_strcat(newPath, "\\");
+			xr_strcat(newPath, token);
+		}
 		else if (token != relPath)
 			xr_strcpy(newPath, token);
 
@@ -155,7 +161,7 @@ void xrDecompressor::Decompress()
 	Msg("Start Decompress\n");
 	timer.Start();
 
-	auto files = FS.file_list_open("$game_data$");
+	auto files = FS.file_list_open(_game_data_);
 	VERIFY(files);
 
 	Msg("%d file(s) to decompress in %d archive(s)\n", (int)files->size(), (int)FS.m_archives.size());

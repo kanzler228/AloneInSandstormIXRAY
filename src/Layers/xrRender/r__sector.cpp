@@ -126,7 +126,7 @@ void CSector::traverse			(CFrustum &F, _scissor& R_scissor)
 				float distSQ		=	dir2portal.square_magnitude();
 				float ssa			=	R*R/distSQ;
 				dir2portal.div		(_sqrt(distSQ));
-				ssa					*=	_abs(PORTAL->P.n.dotproduct(dir2portal));
+				ssa					*= std::abs(PORTAL->P.n.dotproduct(dir2portal));
 				if (ssa<r_ssaDISCARD)	continue;
 
 				if (PortalTraverser.i_options&CPortalTraverser::VQ_FADE)	{
@@ -137,7 +137,7 @@ void CSector::traverse			(CFrustum &F, _scissor& R_scissor)
 		}
 
 		// Clip by frustum
-		svector<Fvector,8>&	POLY = PORTAL->getPoly();
+		FixedVector<Fvector,8>&	POLY = PORTAL->getPoly();
 		S.assign			(&*POLY.begin(),POLY.size()); D.clear();
 		sPoly* P			= F.ClipPoly(S,D);
 		if (0==P)			continue;
@@ -208,7 +208,7 @@ void CSector::traverse			(CFrustum &F, _scissor& R_scissor)
 		CFrustum				Clip;
 		Clip.CreateFromPortal	(P, PORTAL->P.n, PortalTraverser.i_vBase,PortalTraverser.i_mXFORM);
 		PORTAL->marker			= PortalTraverser.i_marker;
-		PORTAL->bDualRender		= FALSE;
+		PORTAL->bDualRender		= false;
 		if(pSector)
 			pSector->traverse		(Clip,scissor);
 	}

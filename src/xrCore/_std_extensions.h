@@ -1,40 +1,28 @@
 #pragma once
 
-#ifdef abs
-#undef abs
-#endif
-
-#ifdef _MIN
-#undef _MIN
-#endif
-
-#ifdef _MAX
-#undef _MAX
-#endif
-
-#ifdef min
-#undef min
-#endif
-
-#ifdef max
-#undef max
-#endif
+#include "Concepts.h"
+#include "_std_c_undefs.h"
 
 // token type definition
 struct XRCORE_API xr_token
 {
-	LPCSTR	name;
-	int 	id;
+	const char* name = nullptr;
+	int id = 0;
+
+	xr_token() = default;
+	xr_token(const char* _name, int _id) : name(_name), id(_id) {}
+	template<XRay::Concepts::Enum enumT>
+	xr_token(const char* _name, enumT _id) : name(_name), id((int)_id) {}
 };
 
-IC LPCSTR get_token_name(xr_token* tokens, int key)
+ICF const char* get_token_name(xr_token* tokens, int key)
 {
     for (int k=0; tokens[k].name; k++)
     	if (key==tokens[k].id) return tokens[k].name;
     return "";
 }
 
-IC int get_token_id(xr_token* tokens, LPCSTR key)
+ICF int get_token_id(xr_token* tokens, const char* key)
 {
     for (int k=0; tokens[k].name; k++)
     	if ( _stricmp(tokens[k].name,key)==0 ) 
@@ -44,28 +32,29 @@ IC int get_token_id(xr_token* tokens, LPCSTR key)
 
 struct XRCORE_API xr_token2
 {
-	LPCSTR	name;
-	LPCSTR	info;
+	const char*	name;
+	const char*	info;
 	int 	id;
 };
 
+template<typename T>
+consteval T bit_lshift(T n) { return T{ 1 } << n; }
+
+template<typename T>
+consteval T bit_rshift(T value, T n) { return value >> n; }
+
 // generic
-template <class T>	IC T		_min	(T a, T b)	{ return a<b?a:b;	}
-template <class T>	IC T		_max	(T a, T b)	{ return a>b?a:b;	}
-template <class T>	IC T		_sqr	(T a)		{ return a*a;		}
+template <class T>	ICF T		_sqr	(T a)		{ return a*a;		}
 
 // float
-IC float	_abs	(float x)		{ return fabsf(x); }
-IC float	_sqrt_sse	(float x)
+ICF float	_sqrt_sse	(float x)
 {
     return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ps1(x)));
 }
-IC float	_sqrt	(float x)		{ return sqrtf(x); }
-IC float	_sin	(float x)		{ return sinf(x); }
-IC float	_cos	(float x)		{ return cosf(x); }
+ICF float	_sqrt	(float x)		{ return sqrtf(x); }
 
 // check for: Signaling NaN, Quiet NaN, Negative infinity ( �INF), Positive infinity (+INF), Negative denormalized, Positive denormalized
-IC BOOL _valid(const float x)
+ICF bool _valid(const float x)
 {
 	const int cls = std::fpclassify(x);
 	switch (cls)
@@ -81,14 +70,8 @@ IC BOOL _valid(const float x)
 	return true;
 }
 
-// double
-IC double	_abs	(double x)		{ return fabs(x); }
-IC double	_sqrt	(double x)		{ return sqrt(x); }
-IC double	_sin	(double x)		{ return sin(x); }
-IC double	_cos	(double x)		{ return cos(x); }
-
 // check for: Signaling NaN, Quiet NaN, Negative infinity ( �INF), Positive infinity (+INF), Negative denormalized, Positive denormalized
-IC BOOL _valid(const double x)
+ICF bool _valid(const double x)
 {
 	const int cls = std::fpclassify(x);
 	switch (cls)
@@ -104,58 +87,52 @@ IC BOOL _valid(const double x)
 	return true;
 }
 
-// int8
-IC s8		_abs	(s8  x)			{ return (x>=0)? x : s8(-x); }
-IC s8 		_min	(s8  x, s8  y)	{ return y + ((x - y) & ((x - y) >> (sizeof(s8 ) * 8 - 1))); };
-IC s8 		_max	(s8  x, s8  y)	{ return x - ((x - y) & ((x - y) >> (sizeof(s8 ) * 8 - 1))); };
-
-// unsigned int8
-IC u8		_abs	(u8 x)			{ return x; }
-
-// int16
-IC s16		_abs	(s16 x)			{ return (x>=0)? x : s16(-x); }
-IC s16		_min	(s16 x, s16 y)	{ return y + ((x - y) & ((x - y) >> (sizeof(s16) * 8 - 1))); };
-IC s16		_max	(s16 x, s16 y)	{ return x - ((x - y) & ((x - y) >> (sizeof(s16) * 8 - 1))); };
-
-// unsigned int16
-IC u16		_abs	(u16 x)			{ return x; }
-
-// int32
-IC s32		_abs	(s32 x)			{ return (x>=0)? x : s32(-x); }
-IC s32		_min	(s32 x, s32 y)	{ return y + ((x - y) & ((x - y) >> (sizeof(s32) * 8 - 1))); };
-IC s32		_max	(s32 x, s32 y)	{ return x - ((x - y) & ((x - y) >> (sizeof(s32) * 8 - 1))); };
-
-// int64
-IC s64		_abs	(s64 x)			{ return (x>=0)? x : s64(-x); }
-IC s64		_min	(s64 x, s64 y)	{ return y + ((x - y) & ((x - y) >> (sizeof(s64) * 8 - 1))); };
-IC s64		_max	(s64 x, s64 y)	{ return x - ((x - y) & ((x - y) >> (sizeof(s64) * 8 - 1))); };
-
-IC u32							xr_strlen				( const char* S );
+ICF u32							xr_strlen				( const char* S );
 
 // string management
 
 // return pointer to ".ext"
-IC char*						strext					( const char* S )
-{	return (char*) strrchr(S,'.');	}
+ICF char* strext(const char* S)
+{
+	return (char*)strrchr(S, '.');
+}
 
-IC u32							xr_strlen				( const char* S )
-{	return (u32)strlen(S);			}
+ICF u32 xr_strlen(const char* S)
+{
+	return (u32)strlen(S);
+}
 
-IC char*						xr_strlwr				(char* S)
-{	return _strlwr(S);				}
+ICF char* xr_strlwr(char* S)
+{
+	return _strlwr(S);
+}
 
-IC int							xr_strcmp				( const char* S1, const char* S2 )
-{	return (int)strcmp(S1,S2);  }
+ICF int xr_strcmp(const char* S1, const char* S2)
+{
+	return strcmp(S1, S2);
+}
 
-IC int							xr_strncmp				( const char* S1, const char* S2, int n )
-{	return (int)strncmp(S1,S2,n);	}
+ICF int xr_strncmp(const char* S1, const char* S2, int n)
+{
+	return strncmp(S1, S2, n);
+}
 
-inline errno_t xr_strcpy	( LPSTR destination, size_t const destination_size, LPCSTR source )
+ICF int xr_stricmp(char const* S1, char const* S2)
+{
+	return _stricmp(S1, S2);
+}
+
+ICF char const* xr_strstr(char const* S1, char const* S2)
+{
+	return strstr(S1, S2);
+}
+
+ICF errno_t xr_strcpy	( LPSTR destination, size_t const destination_size, const char* source )
 {
 	return						strncpy_s( destination, destination_size, source, destination_size );
 }
 
-inline errno_t xr_strcat		( LPSTR destination, size_t const buffer_size, LPCSTR source )
+ICF errno_t xr_strcat		( LPSTR destination, size_t const buffer_size, const char* source )
 {
 	size_t const destination_length	= xr_strlen(destination);
 	LPSTR i						= destination + destination_length;
@@ -163,14 +140,14 @@ inline errno_t xr_strcat		( LPSTR destination, size_t const buffer_size, LPCSTR 
 	if ( i > e )
 		return					0;
 
-	for ( LPCSTR j = source; *j && (i != e); ++i, ++j )
+	for ( const char* j = source; *j && (i != e); ++i, ++j )
 		*i						= *j;
 
 	*i							= 0;
 	return						0;
 }
 
-inline int __cdecl xr_sprintf	( LPSTR destination, size_t const buffer_size, LPCSTR format_string, ... )
+ICF int __cdecl xr_sprintf	( LPSTR destination, size_t const buffer_size, const char* format_string, ... )
 {
 	va_list args;
 	va_start					( args, format_string);
@@ -178,7 +155,7 @@ inline int __cdecl xr_sprintf	( LPSTR destination, size_t const buffer_size, LPC
 }
 
 template <int count>
-inline int __cdecl xr_sprintf	( char (&destination)[count], LPCSTR format_string, ... )
+ICF int __cdecl xr_sprintf	( char (&destination)[count], const char* format_string, ... )
 {
 	va_list args;
 	va_start					( args, format_string);
@@ -186,13 +163,13 @@ inline int __cdecl xr_sprintf	( char (&destination)[count], LPCSTR format_string
 }
 
 template <int count>
-inline errno_t xr_strcpy	( char (&destination)[count], LPCSTR source )
+ICF errno_t xr_strcpy	( char (&destination)[count], const char* source )
 {
 	return						xr_strcpy( destination, count, source );
 }
 
 template <int count>
-inline errno_t xr_strcat	( char (&destination)[count], LPCSTR source )
+ICF errno_t xr_strcat	( char (&destination)[count], const char* source )
 {
 	return						xr_strcat( destination, count, source );
 }

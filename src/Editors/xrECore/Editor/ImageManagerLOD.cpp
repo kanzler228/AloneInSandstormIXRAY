@@ -10,11 +10,11 @@
 using Fvector4Vec = xr_vector<Fvector4>;
 using Fvector4It = Fvector4Vec::iterator;
 
-BOOL GetPointColor(SPickQuery::SResult* R, u32& alpha, u32& color)
+bool GetPointColor(SPickQuery::SResult* R, u32& alpha, u32& color)
 {
     CSurface* surf			= R->e_mesh->GetSurfaceByFaceID(R->tag); VERIFY(surf);
     Shader_xrLC* c_sh		= EDevice->ShaderXRLC.Get(surf->_ShaderXRLCName());
-    if (!c_sh->flags.bRendering) return FALSE;
+    if (!c_sh->flags.bRendering) return false;
     const Fvector2*			cuv[3];
     R->e_mesh->GetFaceTC	(R->tag,cuv);
 
@@ -59,7 +59,7 @@ BOOL GetPointColor(SPickQuery::SResult* R, u32& alpha, u32& color)
         return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 struct SBuildLight{
@@ -95,7 +95,7 @@ void CreateLODSamples(const Fbox& bbox, U32Vec& tgt_data, u32 tgt_w, u32 tgt_h)
     u32 cc						= 	EPrefs->scene_clear_color;
     EPrefs->scene_clear_color 	= 	0x0000000;
     psDeviceFlags.zero			();
-	psDeviceFlags.set			(rsFilterLinear,TRUE);
+	psDeviceFlags.set			(rsFilterLinear,true);
 	EDevice->dwFillMode			= D3DFILL_SOLID;
     EDevice->dwShadeMode			= D3DSHADE_GOURAUD;
 
@@ -104,7 +104,7 @@ void CreateLODSamples(const Fbox& bbox, U32Vec& tgt_data, u32 tgt_w, u32 tgt_h)
     
     Fvector S;
     bbox.getradius				(S);
-    float R 					= 2.f*_max(S.x,S.z);
+    float R 					= 2.f* std::max(S.x,S.z);
 
     u32 pitch 					= tgt_w*LOD_SAMPLE_COUNT;
     tgt_data.resize				(pitch*tgt_h);
@@ -169,11 +169,10 @@ void CImageManager::CreateLODTexture(CEditableObject* OBJECT, U32Vec& lod_pixels
     bb.getradius(o_size);
     bb.getcenter(o_center);
     SPBItem* PB = UI->ProgressStart(LOD_SAMPLE_COUNT * LOD_IMAGE_SIZE, OBJECT->GetName());
-    float dW = _max(o_size.x, o_size.z) / (LOD_IMAGE_SIZE / 2);
+    float dW = std::max(o_size.x, o_size.z) / (LOD_IMAGE_SIZE / 2);
     float dH = o_size.y / (LOD_IMAGE_SIZE / 2);
     float dR = bb.getradius();
     float d2R = dR * 2.f;
-    //ETOOLS::ray_options			(CDB::OPT_CULL);
 
     CreateLODSamples(bb, lod_pixels, LOD_IMAGE_SIZE, LOD_IMAGE_SIZE);
 
@@ -187,7 +186,7 @@ void CImageManager::CreateLODTexture(CEditableObject* OBJECT, U32Vec& lod_pixels
         CSurface* surf = *surf_it;
         Shader_xrLC* c_sh = EDevice->ShaderXRLC.Get(surf->_ShaderXRLCName());
         if (!c_sh->flags.bRendering) continue;
-        if (0 == surf->m_ImageData)surf->CreateImageData();
+        if (nullptr == surf->m_ImageData)surf->CreateImageData();
     }
 
     // calculate
@@ -334,7 +333,7 @@ void CImageManager::CreateLODTexture(CEditableObject* OBJECT, U32Vec& lod_pixels
 //------------------------------------------------------------------------------
 // 
 //------------------------------------------------------------------------------
-void CImageManager::CreateLODTexture(CEditableObject* OBJECT, LPCSTR tex_name, u32 tgt_w, u32 tgt_h, int samples, time_t age, int quality)
+void CImageManager::CreateLODTexture(CEditableObject* OBJECT, const char* tex_name, u32 tgt_w, u32 tgt_h, int samples, time_t age, int quality)
 {
     U32Vec lod_pixels, nm_pixels;
 

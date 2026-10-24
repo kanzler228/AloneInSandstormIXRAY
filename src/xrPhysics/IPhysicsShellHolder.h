@@ -35,9 +35,9 @@ class IPhysicsShellHolder
 
 	virtual	Fmatrix&					_BCL	ObjectXFORM						()						=0;
 	virtual	Fvector&					_BCL	ObjectPosition						()						=0;
-	virtual	LPCSTR						_BCL	ObjectName							()		const			=0;
-	virtual	LPCSTR						_BCL	ObjectNameVisual					()		const			=0;
-	virtual	LPCSTR						_BCL	ObjectNameSect						()		const			=0;
+	virtual	const char*						_BCL	ObjectName							()		const			=0;
+	virtual	const char*						_BCL	ObjectNameVisual					()		const			=0;
+	virtual	const char*						_BCL	ObjectNameSect						()		const			=0;
 	virtual	bool						_BCL	ObjectGetDestroy					()		const			=0;
 	virtual ICollisionHitCallback*		_BCL	ObjectGetCollisionHitCallback		()						=0;
 	virtual	u16							_BCL	ObjectID							()		const			=0;
@@ -51,15 +51,13 @@ class IPhysicsShellHolder
 	virtual	CPhysicsShell*&				_BCL	ObjectPPhysicsShell				()						=0;
 	virtual	void						_BCL	enable_notificate					()						=0;
 	virtual bool						_BCL	has_parent_object					()						=0;
-	virtual	void						_BCL	on_physics_disable					()						=0;
 	virtual	IPHCapture*					_BCL	PHCapture							()						=0;
 	virtual	bool						_BCL	IsInventoryItem						()						=0;
 	virtual	bool						_BCL	IsActor								()						=0;
 	virtual bool						_BCL	IsStalker							()						=0;
-	//virtual	void							SetWeaponHideState					( u16 State, bool bSet )=0;
 	virtual	void						_BCL	HideAllWeapons						( bool v )				=0;//(SetWeaponHideState(INV_STATE_BLOCK_ALL,true))
 	virtual	void						_BCL	MovementCollisionEnable				( bool enable )			=0;
-	virtual CPHSoundPlayer*				_BCL	ObjectPhSoundPlayer				()  					=0;
+	virtual CPHSoundPlayer*				_BCL	ObjectPhSoundPlayer				() { return nullptr;};
 	virtual	ICollisionDamageReceiver*	_BCL	ObjectPhCollisionDamageReceiver	()						=0;
 	virtual	void						_BCL BonceDamagerCallback				( float &damage_factor )=0;
 #ifdef	DEBUG

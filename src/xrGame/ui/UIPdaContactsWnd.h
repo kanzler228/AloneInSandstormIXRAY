@@ -10,6 +10,9 @@ class CUIStatic;
 class CUIAnimatedStatic;
 class CUIScrollView;
 class CInventoryOwner;
+class UIHint;
+class CUIGamepadLegend;
+class CUIXml;
 
 class CUIPdaContactsWnd: public CUIWindow  
 {
@@ -25,8 +28,13 @@ public:
 	void						Init					();
 
 
+	virtual void				Draw					();
 	virtual void				Update					();
+	virtual void				DrawHint				();
 	virtual void				Reset					();
+
+	virtual bool				OnGamepadKeyAction		(int id, EUIMessages gamepad_action);
+	virtual bool				OnGamepadKeyHold		(int id);
 
 	virtual void				Show					(bool status);
 
@@ -37,10 +45,13 @@ public:
 
 	CUIScrollView*				UIListWnd;
 	CUIScrollView*				UIDetailsWnd;
+	UIHint*						m_hint_wnd;
+	CUIGamepadLegend*			m_gamepad_legend = nullptr;
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 
 protected:
+	CUIXml*						_layoutXml = nullptr;
 	CUIFrameWindow*				m_background;
 	CUIFrameWindow*				UIFrameContacts;
 	CUIFrameLineWnd*			UIContactsHeader;
@@ -53,12 +64,17 @@ protected:
 class CUIPdaContactItem :public CUIPdaListItem, public CUISelectable
 {
 	CUIPdaContactsWnd*			m_cw;
+private:
+	typedef CUIPdaListItem inherited;
 public:
 								CUIPdaContactItem		(CUIPdaContactsWnd* cw)		{m_cw = cw;}
-	virtual						~CUIPdaContactItem		();
+	virtual						~CUIPdaContactItem		() = default;
 	virtual void				SetSelected				(bool b);
 	virtual bool				OnMouseDown				(int mouse_btn);
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUISelectable* ui_cast_selectable() { return this; }
+
+	virtual void				OnFocusReceive			();
+			void				SetHintText				();
 };

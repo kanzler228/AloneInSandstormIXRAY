@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "game_sv_freemp.h"
 #include "clsid_game.h"
 #include "actor_mp_client.h"
@@ -7,7 +7,8 @@
 void game_sv_freemp::FillDeathActorRejectItems(CSE_ActorMP* actor, xr_vector<CSE_Abstract*>& to_reject)
 {
 	R_ASSERT(actor);
-	CActor* pActor = smart_cast<CActor*>(Level().Objects.net_Find(actor->ID));
+	CObject* finded_object = Level().Objects.net_Find(actor->ID);
+	CActor* pActor = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
 
 	VERIFY2(pActor, make_string<const char*>("Actor not found. actor_id = [%d]", actor->ID));
 	if (!pActor) {
@@ -38,14 +39,14 @@ void game_sv_freemp::FillDeathActorRejectItems(CSE_ActorMP* actor, xr_vector<CSE
 	}
 }
 
-BOOL game_sv_freemp::OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item)
+bool game_sv_freemp::OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item)
 {
 	R_ASSERT(actor);
 	R_ASSERT(item);
 
 	if (item->ID_Parent != 0xffff)
 	{
-		return TRUE;
+		return true;
 	}
 
 	//move all items from rukzak to player
@@ -63,7 +64,7 @@ BOOL game_sv_freemp::OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item)
 			CSE_Abstract* e_child_item = get_entity_from_eid(item->children.back());
 			if (e_child_item)
 			{
-				if (!OnTouch(actor->ID, e_child_item->ID, FALSE))
+				if (!OnTouch(actor->ID, e_child_item->ID, false))
 				{
 					NET_Packet P;
 					u_EventGen(P, GE_OWNERSHIP_REJECT, item->ID);
@@ -88,7 +89,7 @@ BOOL game_sv_freemp::OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item)
 	//destroy the BAG
 	DestroyGameItem(item);
 
-	return FALSE;
+	return false;
 }
 
 void game_sv_freemp::OnDetachPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item)

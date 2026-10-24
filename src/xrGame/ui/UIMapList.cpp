@@ -22,7 +22,7 @@ extern ENGINE_API string512		g_sLaunchOnExit_app;
 extern ENGINE_API string512		g_sLaunchOnExit_params;
 extern ENGINE_API string_path	g_sLaunchWorkingFolder;
 
-LPCSTR GameTypeToString(EGameIDs gt, bool bShort);
+const char* GameTypeToString(EGameIDs gt, bool bShort);
 
 
 CUIMapList::CUIMapList(){
@@ -136,7 +136,7 @@ void CUIMapList::OnListItemClicked()
 
 	Frect orig_rect = m_pMapPic->GetTextureRect();
 
-	if (FS.exist("$game_textures$",full_name.c_str()))
+	if (FS.exist(_game_textures_,full_name.c_str()))
 		m_pMapPic->InitTexture		(map_name.c_str());
 	else
 		m_pMapPic->InitTexture		("ui\\ui_noise");
@@ -146,7 +146,7 @@ void CUIMapList::OnListItemClicked()
 	m_pMapInfo->InitMap				(M.map_name.c_str(), M.map_ver.c_str());
 }
 
-xr_token g_GameModes[];
+extern xr_token g_GameModes[];
 
 void CUIMapList::OnModeChange()
 {
@@ -155,7 +155,7 @@ void CUIMapList::OnModeChange()
 
 EGameIDs CUIMapList::GetCurGameType()
 {
-	LPCSTR text = "";
+	const char* text = "";
 	CUIComboBox* combo_ms = smart_cast<CUIComboBox*>(m_pModeSelector);
 	CUISpinText* spin_ms = smart_cast<CUISpinText*>(m_pModeSelector);
 	if(combo_ms)
@@ -194,13 +194,11 @@ EGameIDs CUIMapList::GetCurGameType()
 		NODEFAULT;
 
 
-#ifdef DEBUG
 	return EGameIDs(u32(-1));
-#endif
 }
 
 //Функция для создания обычного сервера через игру
-const char* CUIMapList::GetCommandLine(LPCSTR player_name)
+const char* CUIMapList::GetCommandLine(const char* player_name)
 {
 	CUIListBoxItem* itm				= m_pList2->GetItemByIDX(0);
 	if (!itm)	
@@ -232,7 +230,7 @@ const char* CUIMapList::GetCommandLine(LPCSTR player_name)
 }
 
 //функция для создания выделенного сервера из игры
-const char* CUIMapList::GetCommandLineDedicated(LPCSTR player_name) 
+const char* CUIMapList::GetCommandLineDedicated(const char* player_name) 
 {
 	CUIListBoxItem* itm = m_pList2->GetItemByIDX(0);
 	if (!itm)
@@ -263,7 +261,7 @@ const char* CUIMapList::GetCommandLineDedicated(LPCSTR player_name)
 	return m_command.c_str();
 }
 
-const char* CUIMapList::GetPlayerName(const LPCSTR player_name) {
+const char* CUIMapList::GetPlayerName(const char* player_name) {
 	static string256 final_name;
 	if (player_name == nullptr || 0 == xr_strlen(player_name)) {
 		string64 player_name2;
@@ -344,7 +342,7 @@ void CUIMapList::SetMapInfo(CUIMapInfo* map_info){
 	m_pMapInfo = map_info;	
 }
 
-void CUIMapList::SetServerParams(LPCSTR params){
+void CUIMapList::SetServerParams(const char* params){
 	m_srv_params = params;
 }
 
@@ -400,7 +398,7 @@ void CUIMapList::UpdateMapList(EGameIDs GameType)
 
 	for ( u32 i = 0; i < list_size; ++i )
 	{
-		LPCSTR st = m_pList2->GetText( i );
+		const char* st = m_pList2->GetText( i );
 		map_list.push_back( st );
 	}
 	m_pList2->Clear();
@@ -547,6 +545,11 @@ void CUIMapList::script_register(lua_State* L)
 			value("eGameIDTeamDeathmatch",		int(eGameIDTeamDeathmatch)),
 			value("eGameIDArtefactHunt",		int(eGameIDArtefactHunt)),
 			value("eGameIDCaptureTheArtefact",	int(eGameIDCaptureTheArtefact)),
+			// SoC only
+			value("GAME_DEATHMATCH",			int(eGameIDDeathmatch)),
+			value("GAME_TEAMDEATHMATCH",		int(eGameIDTeamDeathmatch)),
+			value("GAME_ARTEFACTHUNT",		int(eGameIDArtefactHunt)),
+
 			value("eGameIDFreeMp",				int(eGameIDFreeMP))
 		]
 	];

@@ -6,7 +6,7 @@
 //	Description : Server objects smartcovers for ALife simulator
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "xrServer_Objects_Alife_Smartcovers.h"
 
@@ -27,7 +27,7 @@ static SFillPropData			fp_data;
 #endif // XRSE_FACTORY_EXPORTS
 
 #ifdef XRSE_FACTORY_EXPORTS
-bool parse_bool		(luabind::object const &table, LPCSTR identifier)
+bool parse_bool		(luabind::object const &table, const char* identifier)
 {
 	VERIFY2						(luabind::get_type(table) == LUA_TTABLE, "invalid loophole description passed");
 	luabind::object				result = table[identifier];
@@ -36,10 +36,10 @@ bool parse_bool		(luabind::object const &table, LPCSTR identifier)
 	return						(luabind::object_cast<bool>(result));
 }
 
-BOOL is_combat_cover			(shared_str const &table_id)
+bool is_combat_cover			(shared_str const &table_id)
 {
 	if (table_id.size() == 0)
-		return					(FALSE);
+		return					(false);
 
 	string256					temp;
 	xr_strcpy					(temp, "smart_covers.descriptions.");
@@ -56,20 +56,20 @@ BOOL is_combat_cover			(shared_str const &table_id)
 	VERIFY2						(result, make_string<const char*>("bad or missing description in smart_cover [%s]", table_id.c_str()));
 	if (luabind::get_type(table) != LUA_TTABLE) {
 		VERIFY					(luabind::get_type(table) != LUA_TNIL);
-		return					(TRUE);
+		return					(true);
 	}
 
 	value						= table["is_combat_cover"];
 	if (luabind::get_type(value) == LUA_TNIL) {
 		Msg						("! is_combat_cover flag not found for smart_cover [%s], forcing to \"true\"", table_id.c_str());
-		return					(TRUE);
+		return					(true);
 	}
 
-	return						(parse_bool(table, "is_combat_cover") ? TRUE : FALSE);
+	return						(parse_bool(table, "is_combat_cover") ? true : false);
 }
 #endif // XRSE_FACTORY_EXPORTS
 
-CSE_SmartCover::CSE_SmartCover	(LPCSTR section) : CSE_ALifeDynamicObject(section)
+CSE_SmartCover::CSE_SmartCover	(const char* section) : CSE_ALifeDynamicObject(section)
 {
 #ifdef XRSE_FACTORY_EXPORTS
 	fp_data.inc					();
@@ -119,7 +119,7 @@ bool CSE_SmartCover::interactive		() const
 	return						(false);
 }
 
-LPCSTR CSE_SmartCover::description		() const
+const char* CSE_SmartCover::description		() const
 {
 	return						(m_description.c_str());
 }
@@ -178,7 +178,7 @@ void CSE_SmartCover::UPDATE_Write(NET_Packet &tNetPacket)
 	inherited1::UPDATE_Write	(tNetPacket);
 }
 #ifndef XRGAME_EXPORTS
-void CSE_SmartCover::FillProps	(LPCSTR pref, PropItemVec& items)
+void CSE_SmartCover::FillProps	(const char* pref, PropItemVec& items)
 {
 #	ifdef XRSE_FACTORY_EXPORTS
 	PHelper().CreateFloat		(items, PrepareKey(pref,*s_name,"hold position time"), 	&m_hold_position_time,	0.f, 60.f);
@@ -188,9 +188,10 @@ void CSE_SmartCover::FillProps	(LPCSTR pref, PropItemVec& items)
 	PHelper().CreateFloat		(items, PrepareKey(pref,*s_name,"enter min enemy distance"),&m_enter_min_enemy_distance,	0.f, 100.f);
 	PHelper().CreateFloat		(items, PrepareKey(pref,*s_name,"exit min enemy distance"),	&m_exit_min_enemy_distance,		0.f, 100.f);
 
-	if (is_combat_cover(m_description)) {
-		PHelper().CreateBOOL	(items, PrepareKey(pref, *s_name, "is combat cover"), &m_is_combat_cover);
-		PHelper().CreateBOOL	(items, PrepareKey(pref, *s_name, "can fire"), &m_can_fire);
+	if (is_combat_cover(m_description)) 
+	{
+		PHelper().CreateBool	(items, PrepareKey(pref, *s_name, "is combat cover"), &m_is_combat_cover);
+		PHelper().CreateBool	(items, PrepareKey(pref, *s_name, "can fire"), &m_can_fire);
 	}
 #	endif // #ifdef XRSE_FACTORY_EXPORTS
 }
@@ -200,7 +201,7 @@ void CSE_SmartCover::FillProps	(LPCSTR pref, PropItemVec& items)
 #include <script_value_container_impl.h>
 
 #ifdef XRSE_FACTORY_EXPORTS
-void CSE_SmartCover::set_loopholes_table_checker(BOOLValue *value){
+void CSE_SmartCover::set_loopholes_table_checker(BoolValue *value){
 	value->OnChangeEvent.bind	(this,&CSE_SmartCover::OnChangeLoopholes);
 }
 
@@ -216,16 +217,16 @@ void CSE_SmartCover::OnChangeDescription(PropValue* sender)
 	load_draw_data	();
 }
 
-LPCSTR parse_string(luabind::object const &table, LPCSTR identifier)
+const char* parse_string(luabind::object const &table, const char* identifier)
 {
 	VERIFY2			(luabind::get_type(table) == LUA_TTABLE, "invalid loophole description passed");
 	luabind::object	result = table[identifier];
 	VERIFY2			(luabind::get_type(result) != LUA_TNIL, make_string<const char*>("cannot read string value %s", identifier));
 	VERIFY2			(luabind::get_type(result) == LUA_TSTRING, make_string<const char*>("cannot read string value %s", identifier));
-	return			(luabind::object_cast<LPCSTR>(result));
+	return			(luabind::object_cast<const char*>(result));
 }
 
-Fvector parse_fvector (luabind::object const &table, LPCSTR identifier)
+Fvector parse_fvector (luabind::object const &table, const char* identifier)
 {
 	VERIFY2			(luabind::get_type(table) == LUA_TTABLE, "invalid loophole description passed");
 	luabind::object	result = table[identifier];
@@ -235,7 +236,7 @@ Fvector parse_fvector (luabind::object const &table, LPCSTR identifier)
 
 float parse_float	(
 					 luabind::object const &table,
-					 LPCSTR identifier,
+					 const char* identifier,
 					 float const &min_threshold = flt_min,
 					 float const &max_threshold = flt_max
 					 )
@@ -250,7 +251,7 @@ float parse_float	(
 	return			(result);
 }
 
-void parse_table	(luabind::object const &table, LPCSTR identifier, luabind::object &result)
+void parse_table	(luabind::object const &table, const char* identifier, luabind::object &result)
 {
 	VERIFY2			(luabind::get_type(table) == LUA_TTABLE, "invalid loophole description passed");
 	result			= table[identifier];
@@ -259,8 +260,8 @@ void parse_table	(luabind::object const &table, LPCSTR identifier, luabind::obje
 }
 
 namespace smart_cover {
-	static	LPCSTR				s_enter_loophole_id = "<__ENTER__>";
-	static	LPCSTR				s_exit_loophole_id  = "<__EXIT__>";
+	static	const char*				s_enter_loophole_id = "<__ENTER__>";
+	static	const char*				s_exit_loophole_id  = "<__EXIT__>";
 
 	shared_str	transform_vertex(shared_str const &vertex_id, bool const &in)
 	{
@@ -273,7 +274,7 @@ namespace smart_cover {
 		return					(s_exit_loophole_id);
 	}
 
-	shared_str	parse_vertex	(luabind::object const &table, LPCSTR identifier, bool const &in)
+	shared_str	parse_vertex	(luabind::object const &table, const char* identifier, bool const &in)
 	{
 		return					(
 			transform_vertex(
@@ -443,7 +444,7 @@ void draw_frustum	(CDUInterface* du, float FOV, float _FAR, float A, Fvector &P,
 }
 
 shared_str animation_id(luabind::object table)
-{ 
+{
 	luabind::object::iterator i = table.begin();
 	luabind::object::iterator e = table.end();
 	for ( ; i != e; ++i ) {
@@ -453,7 +454,7 @@ shared_str animation_id(luabind::object table)
 			continue;
 		}
 
-		return		(luabind::object_cast<LPCSTR>(string));
+		return		(luabind::object_cast<const char*>(string));
 	}
 
 	return			("");
@@ -490,12 +491,20 @@ void CSE_SmartCover::load_draw_data () {
 			luabind::object::iterator i = m_available_loopholes.begin();
 			luabind::object::iterator e = m_available_loopholes.end();
 			for ( ; i != e; ++i ) {
-				LPCSTR const loophole_id= luabind::object_cast< LPCSTR >( i.key( ) );
+				const char* const loophole_id= luabind::object_cast< const char* >( i.key( ) );
 				shared_str descr_loophole_id = parse_string(*I,"id");
 				if ( xr_strcmp( loophole_id, descr_loophole_id ) )
+				{
 					continue;
-				if ( !luabind::object_cast< bool >( *i ) )
+				}
+				auto type = luabind::get_type(*i);
+				if (type == LUA_TNUMBER && !luabind::object_cast< int >( *i ))
+				{
 					loophole_exist = false;
+				} else if (type == LUA_TBOOLEAN && !luabind::object_cast< bool >( *i ) )
+				{
+					loophole_exist = false;
+				}
 				break;
 			}
 		}
@@ -588,9 +597,9 @@ void CSE_SmartCover::on_render	(CDUInterface* du, ISE_AbstractLEOwner* owner_, b
 
 		du->OutText(pos, H.string_identifier.c_str(), color_rgba(255,255,255,255));
 
-		//du->DrawBox(H.point_position,Fvector().set(0.2f,0.2f,0.2f),TRUE,TRUE,color_rgba(255,0,0,80),color_rgba(0,255,0,255));
-		//du->DrawFlag(H.point_position, 0, 1.0f, 1, 1, color_rgba(0,255,0,255), FALSE);
-		//du->DrawCylinder(Fidentity, pos, Fvector().set(0.f, 1.f, 0.f), 1.f, .05f, color_rgba(0,255,0,255), color_rgba(0,255,0,255), TRUE, FALSE);
+		//du->DrawBox(H.point_position,Fvector().set(0.2f,0.2f,0.2f),true,true,color_rgba(255,0,0,80),color_rgba(0,255,0,255));
+		//du->DrawFlag(H.point_position, 0, 1.0f, 1, 1, color_rgba(0,255,0,255), false);
+		//du->DrawCylinder(Fidentity, pos, Fvector().set(0.f, 1.f, 0.f), 1.f, .05f, color_rgba(0,255,0,255), color_rgba(0,255,0,255), true, false);
 
 		Fvector dir = H.fov_direction;
 		parent.transform_dir(dir);

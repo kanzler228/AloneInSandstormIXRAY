@@ -23,13 +23,14 @@
 
 #include <luabind/iterator_policy.hpp>
 #include <luabind/iterator_pair_policy.hpp>
+#include <Actor.h>
 
 using namespace luabind;
 
 typedef xr_vector<std::pair<shared_str,int> >	STORY_PAIRS;
 typedef STORY_PAIRS								SPAWN_STORY_PAIRS;
-LPCSTR											_INVALID_STORY_ID		= "INVALID_STORY_ID";
-LPCSTR											_INVALID_SPAWN_STORY_ID	= "INVALID_SPAWN_STORY_ID";
+const char*											_INVALID_STORY_ID		= "INVALID_STORY_ID";
+const char*											_INVALID_SPAWN_STORY_ID	= "INVALID_SPAWN_STORY_ID";
 STORY_PAIRS										story_ids;
 SPAWN_STORY_PAIRS								spawn_story_ids;
 
@@ -56,7 +57,7 @@ bool valid_object_id						(const CALifeSimulator *self_, ALife::_OBJECT_ID objec
 	return			(object_id != 0xffff);
 }
 
-CSE_ALifeDynamicObject *alife_object		(const CALifeSimulator *self_, LPCSTR name)
+CSE_ALifeDynamicObject *alife_object		(const CALifeSimulator *self_, const char* name)
 {
 	VERIFY			(self_);
 	
@@ -81,41 +82,43 @@ CSE_ALifeDynamicObject *alife_story_object	(const CALifeSimulator *self_, ALife:
 }
 
 template <typename _id_type>
-void generate_story_ids		(
-	STORY_PAIRS &result,
+void generate_story_ids
+(
+	STORY_PAIRS& result,
 	_id_type	INVALID_ID,
-	LPCSTR		section_name,
-	LPCSTR		INVALID_ID_STRING,
-	LPCSTR		invalid_id_description,
-	LPCSTR		invalid_id_redefinition,
-	LPCSTR		duplicated_id_description
+	const char* section_name,
+	const char* INVALID_ID_STRING,
+	const char* invalid_id_description,
+	const char* invalid_id_redefinition,
+	const char* duplicated_id_description
 )
 {
-	result.clear			();
+	result.clear();
 
-    CInifile				*Ini = pGameIni;
-    
-    LPCSTR					N,V;
-	u32 					k;
-	shared_str				temp;
-    LPCSTR					section = section_name;
-    R_ASSERT				(Ini->section_exist(section));
+	CInifile* Ini = pGameIni;
 
-	for (k = 0; Ini->r_line(section,k,&N,&V); ++k) {
-		temp				= Ini->r_string_wb(section,N);
-		
-		R_ASSERT3			(!strchr(*temp,' '),invalid_id_description,*temp);
-		R_ASSERT2			(xr_strcmp(*temp,INVALID_ID_STRING),invalid_id_redefinition);
-		
+	const char* N, * V;
+	u32 k;
+	shared_str temp;
+	const char* section = section_name;
+	R_ASSERT(Ini->section_exist(section));
+
+	for (k = 0; Ini->r_line(section, k, &N, &V); ++k)
+	{
+		temp = Ini->r_string_wb(section, N);
+
+		R_ASSERT3(!strchr(*temp, ' '), invalid_id_description, *temp);
+		R_ASSERT2(xr_strcmp(*temp, INVALID_ID_STRING), invalid_id_redefinition);
+
 		STORY_PAIRS::const_iterator	I = result.begin();
 		STORY_PAIRS::const_iterator	E = result.end();
-		for ( ; I != E; ++I)
-			R_ASSERT3		((*I).first != temp,duplicated_id_description,*temp);
-		
-		result.push_back	(std::make_pair(*temp,atoi(N)));
+		for (; I != E; ++I)
+			R_ASSERT3((*I).first != temp, duplicated_id_description, *temp);
+
+		result.push_back(std::make_pair(*temp, atoi(N)));
 	}
 
-	result.push_back		(std::make_pair(INVALID_ID_STRING,INVALID_ID));
+	result.push_back(std::make_pair(INVALID_ID_STRING, INVALID_ID));
 }
 
 void kill_entity0			(CALifeSimulator *alife, CSE_ALifeMonsterAbstract *monster, const GameGraph::_GRAPH_ID &game_vertex_id)
@@ -160,9 +163,10 @@ CSE_ALifeDynamicObject *CALifeSimulator__create	(CALifeSimulator *self_, ALife::
 	{
 		Msg("! Spawn id[%i] not found in spawns list!", spawn_id);
 		g_pScriptEngine->print_stack();
+		return nullptr;
 	}
 
-	CSE_ALifeDynamicObject				*spawn = smart_cast<CSE_ALifeDynamicObject*>(&vertex->data()->object());
+	CSE_ALifeDynamicObject* spawn = vertex->data()->object().cast_alife_dynamic_object();
 	THROW								(spawn);
 
 	CSE_ALifeDynamicObject				*object;
@@ -171,7 +175,7 @@ CSE_ALifeDynamicObject *CALifeSimulator__create	(CALifeSimulator *self_, ALife::
 	return								(object);
 }
 
-CSE_Abstract *CALifeSimulator__spawn_item		(CALifeSimulator *self_, LPCSTR section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id)
+CSE_Abstract *CALifeSimulator__spawn_item		(CALifeSimulator *self_, const char* section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id)
 {
 	THROW								(self_);
 	if (!pSettings->section_exist(section))
@@ -183,7 +187,7 @@ CSE_Abstract *CALifeSimulator__spawn_item		(CALifeSimulator *self_, LPCSTR secti
 	return								(self_->spawn_item(section,position,level_vertex_id,game_vertex_id,ALife::_OBJECT_ID(-1)));
 }
 
-CSE_Abstract *CALifeSimulator__spawn_item2		(CALifeSimulator *self_, LPCSTR section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent)
+CSE_Abstract *CALifeSimulator__spawn_item2		(CALifeSimulator *self_, const char* section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent)
 {
 	if (!pSettings->section_exist(section))
 	{
@@ -208,7 +212,7 @@ CSE_Abstract *CALifeSimulator__spawn_item2		(CALifeSimulator *self_, LPCSTR sect
 	packet.w_stringZ					(section);
 	
 	CSE_Abstract						*item = self_->spawn_item(section,position,level_vertex_id,game_vertex_id,id_parent,false);
-	item->Spawn_Write					(packet,FALSE);
+	item->Spawn_Write					(packet,false);
 	self_->server().FreeID				(item->ID,0);
 	F_entity_Destroy					(item);
 
@@ -222,7 +226,7 @@ CSE_Abstract *CALifeSimulator__spawn_item2		(CALifeSimulator *self_, LPCSTR sect
 }
 
 // Allows to call alife():register(se_obj) manually afterward so that packet editing can be done safely when spawning object with a parent
-CSE_Abstract *CALifeSimulator__spawn_item3(CALifeSimulator *self, LPCSTR section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, bool reg = true)
+CSE_Abstract *CALifeSimulator__spawn_item3(CALifeSimulator *self, const char* section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, bool reg = true)
 {
 	if (reg == true)
 		return CALifeSimulator__spawn_item2(self, section, position, level_vertex_id, game_vertex_id, id_parent);
@@ -250,7 +254,7 @@ CSE_Abstract *CALifeSimulator__spawn_item3(CALifeSimulator *self, LPCSTR section
 	return								(item);
 }
 
-CSE_Abstract *CALifeSimulator__spawn_ammo		(CALifeSimulator *self_, LPCSTR section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, int ammo_to_spawn)
+CSE_Abstract *CALifeSimulator__spawn_ammo		(CALifeSimulator *self_, const char* section, const Fvector &position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, int ammo_to_spawn)
 {
 //	if (id_parent == ALife::_OBJECT_ID(-1))
 //		return							(self->spawn_item(section,position,level_vertex_id,game_vertex_id,id_parent));
@@ -266,7 +270,7 @@ CSE_Abstract *CALifeSimulator__spawn_ammo		(CALifeSimulator *self_, LPCSTR secti
 	if (!object || !object->m_bOnline) {
 		CSE_Abstract					*item = self_->spawn_item(section,position,level_vertex_id,game_vertex_id,id_parent);
 
-		CSE_ALifeItemAmmo				*ammo = smart_cast<CSE_ALifeItemAmmo*>(item);
+		CSE_ALifeItemAmmo				*ammo = item->cast_item_ammo();
 		THROW							(ammo);
 		THROW							(ammo->m_boxSize >= ammo_to_spawn);
 		ammo->a_elapsed					= (u16)ammo_to_spawn;
@@ -280,12 +284,12 @@ CSE_Abstract *CALifeSimulator__spawn_ammo		(CALifeSimulator *self_, LPCSTR secti
 	
 	CSE_Abstract						*item = self_->spawn_item(section,position,level_vertex_id,game_vertex_id,id_parent,false);
 
-	CSE_ALifeItemAmmo					*ammo = smart_cast<CSE_ALifeItemAmmo*>(item);
+	CSE_ALifeItemAmmo					*ammo = item->cast_item_ammo();
 	THROW								(ammo);
 	THROW								(ammo->m_boxSize >= ammo_to_spawn);
 	ammo->a_elapsed						= (u16)ammo_to_spawn;
 
-	item->Spawn_Write					(packet,FALSE);
+	item->Spawn_Write					(packet,false);
 	self_->server().FreeID				(item->ID,0);
 	F_entity_Destroy					(item);
 
@@ -312,7 +316,7 @@ void CALifeSimulator__release(CALifeSimulator* self_, CSE_Abstract* object, bool
 		return;
 	}
 
-	CSE_ALifeObject* alife_object = smart_cast<CSE_ALifeObject*>(object);
+	CSE_ALifeObject* alife_object = object->cast_alife_object();
 
 	if (alife_object != nullptr && !alife_object->m_bOnline)
 	{
@@ -326,7 +330,7 @@ void CALifeSimulator__release(CALifeSimulator* self_, CSE_Abstract* object, bool
 	packet.w_u32(Level().timeServer());
 	packet.w_u16(GE_DESTROY);
 	packet.w_u16(object->ID);
-	Level().Send(packet, net_flags(TRUE, TRUE));
+	Level().Send(packet, net_flags(true, true));
 }
 
 void CALifeSimulator__release2(CALifeSimulator *self, CSE_Abstract *object)
@@ -335,9 +339,9 @@ void CALifeSimulator__release2(CALifeSimulator *self, CSE_Abstract *object)
 						 
 }
 
-LPCSTR get_level_name							(const CALifeSimulator *self_, int level_id)
+const char* get_level_name							(const CALifeSimulator *self_, int level_id)
 {
-	LPCSTR								result_ = *ai().game_graph().header().level((GameGraph::_LEVEL_ID)level_id).name();
+	const char*								result_ = *ai().game_graph().header().level((GameGraph::_LEVEL_ID)level_id).name();
 	return								(result_);
 }
 
@@ -353,7 +357,7 @@ KNOWN_INFO_VECTOR* registry(const CALifeSimulator* self_, const ALife::_OBJECT_I
 	return (self_->registry().get<CInfoPortionRegistry>().object(id, true));
 }
 
-bool has_info									(const CALifeSimulator *self_, const ALife::_OBJECT_ID &id, LPCSTR info_id)
+bool has_info									(const CALifeSimulator *self_, const ALife::_OBJECT_ID &id, const char* info_id)
 {
 	const KNOWN_INFO_VECTOR				*known_info = registry(self_,id);
 	if (!known_info)
@@ -365,7 +369,7 @@ bool has_info									(const CALifeSimulator *self_, const ALife::_OBJECT_ID &id
 	return								(true);
 }
 
-bool dont_has_info								(const CALifeSimulator *self_, const ALife::_OBJECT_ID &id, LPCSTR info_id)
+bool dont_has_info								(const CALifeSimulator *self_, const ALife::_OBJECT_ID &id, const char* info_id)
 {
 	THROW								(self_);
 	// absurdly, but only because of scriptwriters needs
@@ -377,7 +381,7 @@ void set_objects_per_update(CALifeSimulator* self, u32 count)
 	self->objects_per_update(count);
 }
 
-void AlifeGiveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, LPCSTR info_id)
+void AlifeGiveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, const char* info_id)
 {
 	KNOWN_INFO_VECTOR *known_info = alife->registry().get<CInfoPortionRegistry>().object(id, true);
 	if (!known_info)
@@ -385,13 +389,13 @@ void AlifeGiveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, LP
 
 	if (std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(info_id)) == known_info->end())
 	{
-		known_info->push_back(info_id);
+		known_info->push_back(INFO_DATA(info_id, Level().GetGameTime()));
 	}
 
 	return;
 }
 
-void AlifeRemoveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, LPCSTR info_id)
+void AlifeRemoveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, const char* info_id)
 {
 	KNOWN_INFO_VECTOR	*known_info = alife->registry().get<CInfoPortionRegistry>().object(id, true);
 	if (!known_info)
@@ -406,15 +410,15 @@ void teleport_object(CALifeSimulator* alife, ALife::_OBJECT_ID id, GameGraph::_G
 
 void IterateInfo(const CALifeSimulator* alife, const ALife::_OBJECT_ID& id, const luabind::functor<bool>& functor)
 {
-	const KNOWN_INFO_VECTOR* known_info = registry(alife, id);
+	const auto known_info = registry(alife, id);
 	if (!known_info)
 		return;
 
-	xr_vector<shared_str>::const_iterator	I = known_info->begin();
-	xr_vector<shared_str>::const_iterator	E = known_info->end();
-	for (; I != E; ++I)
-		if (functor(id, (LPCSTR)(*I).c_str()) == true)
+	for (const auto& it : *known_info)
+	{
+		if (functor(id, (const char*)(it).info_id.c_str()))
 			return;
+	}
 }
 
 CSE_Abstract* reprocess_spawn(CALifeSimulator* self, CSE_Abstract* object)
@@ -423,7 +427,7 @@ CSE_Abstract* reprocess_spawn(CALifeSimulator* self, CSE_Abstract* object)
 	packet.w_begin(M_SPAWN);
 	packet.w_stringZ(object->s_name);
 
-	object->Spawn_Write(packet, FALSE);
+	object->Spawn_Write(packet, false);
 	self->server().FreeID(object->ID, 0);
 	F_entity_Destroy(object);
 
@@ -436,7 +440,7 @@ CSE_Abstract* reprocess_spawn(CALifeSimulator* self, CSE_Abstract* object)
 	return	(self->server().Process_spawn(packet, clientID));
 }
 
-CSE_Abstract* try_to_clone_object(CALifeSimulator* self, CSE_Abstract* object, LPCSTR section, const Fvector& position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, bool bRegister = true)
+CSE_Abstract* try_to_clone_object(CALifeSimulator* self, CSE_Abstract* object, const char* section, const Fvector& position, u32 level_vertex_id, GameGraph::_GRAPH_ID game_vertex_id, ALife::_OBJECT_ID id_parent, bool bRegister = true)
 {
 	CSE_ALifeItemWeaponMagazined* wpnmag = smart_cast<CSE_ALifeItemWeaponMagazined*>(object);
 	if (wpnmag)
@@ -452,7 +456,7 @@ CSE_Abstract* try_to_clone_object(CALifeSimulator* self, CSE_Abstract* object, L
 		clone->wpn_flags = wpnmag->wpn_flags;
 		clone->m_addon_flags = wpnmag->m_addon_flags;
 		clone->m_fCondition = wpnmag->m_fCondition;
-		clone->ammo_type = wpnmag->ammo_type;
+		clone->a_ammo_type = wpnmag->a_ammo_type;
 		clone->m_upgrades = wpnmag->m_upgrades;
 		clone->a_elapsed = wpnmag->a_elapsed;
 
@@ -468,6 +472,41 @@ xr_vector<u16>& get_children(const CALifeSimulator* self, CSE_Abstract* object)
 	return object->children;
 }
 
+void set_start_position_from_smart(const char* smartName)
+{
+    string64 tmp;
+    xr_sprintf(tmp, "%s", smartName);
+    g_start_position_smart = tmp;
+}
+void set_start_position(Fvector& pos)
+{
+    g_start_position = pos;
+}
+void set_start_game_vertex_id(int id)
+{
+    g_start_game_vertex_id = id;
+}
+
+int get_marshalized_data(lua_State* L)
+{
+	auto& buf = ai().alife().marshal_save_data;
+    lua_pushlstring(L, (const char*)buf.data(), buf.size());
+	return 1;
+}
+
+void set_marshalized_data(lua_State* L)
+{
+	size_t len;
+	const char *data = lua_tolstring(L, 1, &len);
+	if (!data)
+	{
+		return;
+	}
+	auto& buf = const_cast<CALifeSimulator&>(ai().alife()).marshal_save_data;
+	buf.resize(len);
+	std::memcpy(buf.data(), data, len);
+}
+
 #pragma optimize("s",on)
 void CALifeSimulator::script_register			(lua_State *L)
 {
@@ -478,7 +517,7 @@ void CALifeSimulator::script_register			(lua_State *L)
 			.def("level_id",				&get_level_id)
 			.def("level_name",				&get_level_name)
 			.def("object", (CSE_ALifeDynamicObject * (*) (const CALifeSimulator*, ALife::_OBJECT_ID))(alife_object))
-			.def("object", (CSE_ALifeDynamicObject * (*) (const CALifeSimulator*, LPCSTR))(alife_object))
+			.def("object", (CSE_ALifeDynamicObject * (*) (const CALifeSimulator*, const char*))(alife_object))
 			.def("object", (CSE_ALifeDynamicObject * (*) (const CALifeSimulator*, ALife::_OBJECT_ID, bool))(alife_object))
 			.def("story_object",			(CSE_ALifeDynamicObject *(*) (const CALifeSimulator *,ALife::_STORY_ID))(alife_story_object))
 			.def("set_switch_online",		(void (CALifeSimulator::*) (ALife::_OBJECT_ID,bool))(&CALifeSimulator::set_switch_online))
@@ -508,18 +547,29 @@ void CALifeSimulator::script_register			(lua_State *L)
 			.def("switch_distance",			&CALifeSimulator::switch_distance)
 			.def("set_switch_distance",		&CALifeSimulator::set_switch_distance)
 			.def("objects",					&alife_objects, return_stl_pair_iterator)
-			.def("jump_to_level",			(void (CALifeSimulator::*) (LPCSTR))(&CALifeSimulator::jump_to_level))
+			.def("jump_to_level",			(void (CALifeSimulator::*) (const char*))(&CALifeSimulator::jump_to_level))
 
 			.def("teleport_object", &::teleport_object)
 			.def("iterate_info", &IterateInfo)
 			.def("clone_weapon", &try_to_clone_object)
 			.def("register", &reprocess_spawn)
 			.def("set_objects_per_update", &set_objects_per_update)
-			.def("set_process_time", &set_process_time)
-			.def("get_children", &get_children, return_stl_iterator)
+			.def("set_process_time", &CALifeSimulator::set_process_time)
+			.def("get_children", &get_children, return_stl_iterator),
 
-		,def("alife",						&alife)
+        def("alife", &alife),
+        def("set_start_position_from_smart", &set_start_position_from_smart),
+        def("set_start_position", &set_start_position),
+        def("set_start_game_vertex_id", &set_start_game_vertex_id),
+        def("get_marshalized_data", &get_marshalized_data, raw<1>()),
+        def("set_marshalized_data", &set_marshalized_data, raw<1>())
 	];
+	
+	module(L, "alife_const")[
+		def("dummy_alife", &alife)
+	];
+	object alife_consts = get_globals(L)["alife_const"];
+	alife_consts["invalid_object_id"] = ALife::_OBJECT_ID(-1);
 
 	{
 		if (story_ids.empty())

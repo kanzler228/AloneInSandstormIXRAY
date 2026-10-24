@@ -5,8 +5,9 @@
 //	Description : UI Map Legend Wnd (PDA : Task) class impl
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIMapLegend.h"
+#include "PdaUiSound.h"
 
 #include "../../xrUI/xrUIXmlParser.h"
 #include "../../xrUI/UIXmlInit.h"
@@ -28,7 +29,7 @@ UIMapLegend::~UIMapLegend()
 	xr_delete( m_list );
 }
 
-void UIMapLegend::init_from_xml( CUIXml& xml, LPCSTR path )
+void UIMapLegend::init_from_xml( CUIXml& xml, const char* path )
 {
 	CUIXmlInit::InitWindow( xml, path, 0, this );
 
@@ -72,6 +73,10 @@ void UIMapLegend::SendMessage( CUIWindow* pWnd, s16 msg, void* pData )
 	{
 		if ( msg == BUTTON_DOWN )
 		{
+			if (m_pUiSounds)
+			{
+				m_pUiSounds->Play(EPdaUiSound::PanelClose);
+			}
 			Show( false );
 			return;
 		}
@@ -117,6 +122,6 @@ void UIMapLegendItem::init_from_xml( CUIXml& xml, int index )
 	m_text->AdjustHeightToText();
 	
 	float h = m_text->GetWndPos().y + m_text->GetHeight();
-	h = _max( h, GetHeight() );
+	h = std::max( h, GetHeight() );
 	SetHeight( h );
 }

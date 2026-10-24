@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "bloodsucker.h"
 #include "bloodsucker_state_manager.h"
 #include "../../../Actor.h"
@@ -60,7 +60,7 @@ CAI_Bloodsucker::CAI_Bloodsucker()
 	collision_off					= 	false;
 	m_force_visibility_state		=	unset;
 	m_runaway_invisible_time		=	0;
-	using namespace						detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 	m_critical_hit_chance			=	default_critical_hit_chance;
 }
 
@@ -69,7 +69,7 @@ CAI_Bloodsucker::~CAI_Bloodsucker()
 	xr_delete	(StateMan);
 }
 
-void CAI_Bloodsucker::Load(LPCSTR section) 
+void CAI_Bloodsucker::Load(const char* section) 
 {
 	inherited::Load(section);
 
@@ -232,7 +232,7 @@ void CAI_Bloodsucker::Load(LPCSTR section)
 
 	invisible_particle_name			= pSettings->r_string(section,"Particle_Invisible");
 
-	using namespace detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 
 	READ_IF_EXISTS(pSettings, r_float, section, "separate_factor", 0.f);
 
@@ -263,8 +263,6 @@ void CAI_Bloodsucker::reinit()
 	CControlledActor::reinit	();
 	m_visual_default			= cNameVisual();
 
-	if(CCustomMonster::use_simplified_visual())	return;
-
 	Bones.Reset					();
 
 	com_man().ta_fill_data(anim_triple_vampire, "vampire_0", "vampire_1", "vampire_2", TA_EXECUTE_LOOPED, TA_DONT_SKIP_PREPARE, 0);//ControlCom::eCapturePath | ControlCom::eCaptureMovement);
@@ -286,12 +284,19 @@ void CAI_Bloodsucker::reinit()
 	m_predator					= false;
 	m_vis_state					= 0;
 
-	start_invisible_predator();
+	if  (g_Alive())
+	{
+		start_invisible_predator();
+	}
 }
 
-void CAI_Bloodsucker::reload(LPCSTR section)
+void CAI_Bloodsucker::reload(const char* section)
 {
 	inherited::reload(section);
+	if (!g_Alive())
+	{
+		return;
+	}
 
 	sound().add(pSettings->r_string(section,"Sound_Vampire_Grasp"),				DEFAULT_SAMPLE_COUNT,	SOUND_TYPE_MONSTER_ATTACKING, MonsterSound::eHighPriority + 4,	MonsterSound::eBaseChannel,	eVampireGrasp,					"bip01_head");
 	sound().add(pSettings->r_string(section,"Sound_Vampire_Sucking"),			DEFAULT_SAMPLE_COUNT,	SOUND_TYPE_MONSTER_ATTACKING, MonsterSound::eHighPriority + 3,	MonsterSound::eBaseChannel,	eVampireSucking,				"bip01_head");
@@ -302,7 +307,7 @@ void CAI_Bloodsucker::reload(LPCSTR section)
 	sound().add(pSettings->r_string(section,"Sound_Alien"),						DEFAULT_SAMPLE_COUNT,	SOUND_TYPE_MONSTER_ATTACKING, MonsterSound::eCriticalPriority,	u32(MonsterSound::eCaptureAllChannels),	eAlien,				"bip01_head");
 }
 
-void CAI_Bloodsucker::LoadVampirePPEffector(LPCSTR section)
+void CAI_Bloodsucker::LoadVampirePPEffector(const char* section)
 {
 	pp_vampire_effector.duality.h			= pSettings->r_float(section,"duality_h");
 	pp_vampire_effector.duality.v			= pSettings->r_float(section,"duality_v");
@@ -329,8 +334,8 @@ void CAI_Bloodsucker::vfAssignBones()
 {
 	// Установка callback на кости
 
-	bone_spine =	&smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(smart_cast<IKinematics*>(Visual())->LL_BoneID("bip01_spine"));
-	bone_head =		&smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(smart_cast<IKinematics*>(Visual())->LL_BoneID("bip01_head"));
+	bone_spine =	&PKinematics(Visual())->LL_GetBoneInstance(PKinematics(Visual())->LL_BoneID("bip01_spine"));
+	bone_head =		&PKinematics(Visual())->LL_GetBoneInstance(PKinematics(Visual())->LL_BoneID("bip01_head"));
 	if(!PPhysicsShell())//нельзя ставить колбеки, если создан физ шел - у него стоят свои колбеки!!!
 	{
 		bone_spine->set_callback(bctCustom,BoneCallback,this);
@@ -398,7 +403,7 @@ void CAI_Bloodsucker::SatisfyVampire ()
 	float health				=	conditions().GetHealth();
 	health						+=	m_vampire_gain_health;
 
-	health						=	_min(health, conditions().GetMaxHealth());
+	health						= std::min(health, conditions().GetMaxHealth());
 	conditions().SetHealth			(health);
 }
 
@@ -420,31 +425,31 @@ void CAI_Bloodsucker::CheckSpecParams(u32 spec_params)
 
 }
 
-BOOL CAI_Bloodsucker::net_Spawn (CSE_Abstract* DC) 
+bool CAI_Bloodsucker::net_Spawn (CSE_Abstract* DC) 
 {
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 
 	vfAssignBones();
 
-	return(TRUE);
+	return(true);
 }
 
 float   CAI_Bloodsucker::get_full_visibility_radius ()
 {
-	using namespace detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 	return override_if_debug(full_visibility_radius_string, m_full_visibility_radius);
 }
 
 float   CAI_Bloodsucker::get_partial_visibility_radius ()
 {
-	using namespace detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 	return override_if_debug(partial_visibility_radius_string, m_partial_visibility_radius);
 }
 
 TTime   CAI_Bloodsucker::get_visibility_state_change_min_delay ()
 {
-	using namespace detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 	return override_if_debug(visibility_state_change_min_delay_string, m_visibility_state_change_min_delay);
 }
 
@@ -502,9 +507,7 @@ void   CAI_Bloodsucker::force_visibility_state (int state)
 
 void   CAI_Bloodsucker::update_invisibility ()
 {
-	if(CCustomMonster::use_simplified_visual())	return;
-
-	using namespace							detail::bloodsucker;
+	using namespace ::detail::bloodsucker;
 
 	if ( !g_Alive() )
 	{
@@ -635,7 +638,7 @@ void CAI_Bloodsucker::shedule_Update(u32 dt)
 	
 	if (!g_Alive())	
 	{
-		setVisible(TRUE);
+		setVisible(true);
 		if ( state_invisible )
 		{
 			stop_invisible_predator();
@@ -648,7 +651,7 @@ void CAI_Bloodsucker::shedule_Update(u32 dt)
 		return;
 
 	if (!CControlledActor::is_turning() && !m_client_effector) {
-		IKinematics* pK = smart_cast<IKinematics*>(Visual());
+		IKinematics* pK = PKinematics(Visual());
 		Fmatrix bone_transform;
 		bone_transform = pK->LL_GetTransform(pK->LL_BoneID("bip01_head"));
 
@@ -735,7 +738,7 @@ void CAI_Bloodsucker::jump(const Fvector &position, float factor)
 	sound().play			(MonsterSound::eMonsterSoundAggressive);
 }
 
-void CAI_Bloodsucker::set_drag_jump(CEntityAlive* e, LPCSTR s, const Fvector &position, float factor)
+void CAI_Bloodsucker::set_drag_jump(CEntityAlive* e, const char* s, const Fvector &position, float factor)
 {
 	j_position = position;
 	j_factor = factor;
@@ -758,7 +761,7 @@ void CAI_Bloodsucker::start_drag()
 {
 	if(m_animated){
 		com_man().script_capture(ControlCom::eControlAnimation);
-		smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle("boloto_attack_link_bone",TRUE,animation_end_jump,this);
+		Visual()->dcast_PKinematicsAnimated()->PlayCycle("boloto_attack_link_bone", true, animation_end_jump, this);
 		m_animated = false;
 	}
 }
@@ -780,11 +783,16 @@ void CAI_Bloodsucker::predator_start()
 		}
 		m_predator = false;
 	}
-	if (m_predator)					return;
+	
+	if (m_predator)
+	{
+		return;
+	}
 
 	cNameVisual_set(m_visual_predator);
-	CDamageManager::reload(*cNameSect(),"damage",pSettings);
 
+	TDamageManager* DmgManager = GetComponent<TDamageManager>();
+	DmgManager->reload(*cNameSect(),"damage",pSettings);
 
 	if (IsGameTypeSingle() || OnServer())
 		control().animation().restart();
@@ -800,7 +808,7 @@ void CAI_Bloodsucker::predator_start()
 
 			// 			ApplyAnimation(mid.idx, mid.slot, u_last_motion_no_loop); <---------- OMP
 			MotionID motion;
-			IKinematicsAnimated* ik_anim_obj = smart_cast<IKinematicsAnimated*>(Visual());
+			IKinematicsAnimated* ik_anim_obj = Visual()->dcast_PKinematicsAnimated();
 			if (u_last_motion_idx != mid.idx || u_last_motion_slot != mid.slot)
 			{
 				u_last_motion_idx = mid.idx;
@@ -813,7 +821,7 @@ void CAI_Bloodsucker::predator_start()
 					u16 bone_or_part = ik_anim_obj->LL_GetMotionDef(motion)->bone_or_part;
 					if (bone_or_part == u16(-1)) bone_or_part = ik_anim_obj->LL_PartID("default");
 
-					CStepManager::on_animation_start(motion, ik_anim_obj->LL_PlayCycle(bone_or_part, motion, TRUE,
+					CStepManager::on_animation_start(motion, ik_anim_obj->LL_PlayCycle(bone_or_part, motion, true,
 						ik_anim_obj->LL_GetMotionDef(motion)->Accrue(), ik_anim_obj->LL_GetMotionDef(motion)->Falloff(),
 						ik_anim_obj->LL_GetMotionDef(motion)->Speed(), loop, 0, 0, 0));
 				}
@@ -823,12 +831,13 @@ void CAI_Bloodsucker::predator_start()
 
 		}
 	}
-	
-	CParticlesPlayer::StartParticles(invisible_particle_name,Fvector().set(0.0f,0.1f,0.0f),ID());		
-	sound().play					(CAI_Bloodsucker::eChangeVisibility);
 
-	m_predator						= true;
-	//state_invisible				= false;
+	TParticlesPlayer* PPlayer = GetOrCreateComponent<TParticlesPlayer>();
+	PPlayer->StartParticles(invisible_particle_name,Fvector().set(0.0f,0.1f,0.0f),ID());
+
+	sound().play(CAI_Bloodsucker::eChangeVisibility);
+
+	m_predator = true;
 }
 
 void CAI_Bloodsucker::predator_stop()
@@ -851,7 +860,8 @@ void CAI_Bloodsucker::predator_stop()
 	cNameVisual_set(*m_visual_default);
 	character_physics_support()->in_ChangeVisual();
 
-	CDamageManager::reload(*cNameSect(),"damage",pSettings);
+	TDamageManager* DmgManager = GetComponent<TDamageManager>();
+	DmgManager->reload(*cNameSect(),"damage",pSettings);
 
 	if (IsGameTypeSingle() || OnServer())
 		control().animation().restart();
@@ -867,7 +877,7 @@ void CAI_Bloodsucker::predator_stop()
 
 			// 			ApplyAnimation(mid.idx, mid.slot, u_last_motion_no_loop); <---------- OMP
 			MotionID motion;
-			IKinematicsAnimated* ik_anim_obj = smart_cast<IKinematicsAnimated*>(Visual());
+			IKinematicsAnimated* ik_anim_obj = Visual()->dcast_PKinematicsAnimated();
 			if (u_last_motion_idx != mid.idx || u_last_motion_slot != mid.slot)
 			{
 				u_last_motion_idx = mid.idx;
@@ -880,7 +890,7 @@ void CAI_Bloodsucker::predator_stop()
 					u16 bone_or_part = ik_anim_obj->LL_GetMotionDef(motion)->bone_or_part;
 					if (bone_or_part == u16(-1)) bone_or_part = ik_anim_obj->LL_PartID("default");
 
-					CStepManager::on_animation_start(motion, ik_anim_obj->LL_PlayCycle(bone_or_part, motion, TRUE,
+					CStepManager::on_animation_start(motion, ik_anim_obj->LL_PlayCycle(bone_or_part, motion, true,
 						ik_anim_obj->LL_GetMotionDef(motion)->Accrue(), ik_anim_obj->LL_GetMotionDef(motion)->Falloff(),
 						ik_anim_obj->LL_GetMotionDef(motion)->Speed(), loop, 0, 0, 0));
 				}
@@ -888,9 +898,10 @@ void CAI_Bloodsucker::predator_stop()
 		}
 	}
 
-	CParticlesPlayer::StartParticles(invisible_particle_name,Fvector().set(0.0f,0.1f,0.0f),ID());		
-	sound().play					(CAI_Bloodsucker::eChangeVisibility);
-	m_predator						= false;
+	TParticlesPlayer* PPlayer = GetOrCreateComponent<TParticlesPlayer>();
+	PPlayer->StartParticles(invisible_particle_name,Fvector().set(0.0f,0.1f,0.0f),ID());
+	sound().play(CAI_Bloodsucker::eChangeVisibility);
+	m_predator = false;
 }
 
 void CAI_Bloodsucker::predator_freeze()
@@ -951,13 +962,21 @@ void CAI_Bloodsucker::stop_invisible_predator()
 void CAI_Bloodsucker::manual_activate()
 {
 	state_invisible = true;
-	setVisible		(FALSE);
+	setVisible		(false);
 }
 
 void CAI_Bloodsucker::manual_deactivate()
 {
 	state_invisible = false;
-	setVisible		(TRUE);
+	setVisible		(true);
+}
+
+bool CAI_Bloodsucker::AlwaysTheCrow()
+{
+	if (m_visibility_state == no_visibility)
+		return true;
+
+	return inherited::AlwaysTheCrow();
 }
 
 void   CAI_Bloodsucker::renderable_Render ()
@@ -998,7 +1017,7 @@ void CAI_Bloodsucker::sendToStartVampire(CActor* pA)
 	//tmp_packet.w_u16(pA->ID());
 	CSE_Abstract* e_who = Level().Server->ID_to_entity(pA->ID());
 	xrClientData* xrCData = e_who->owner;
-	Level().Server->SendTo(xrCData->ID, tmp_packet, net_flags(TRUE, TRUE));
+	Level().Server->SendTo(xrCData->ID, tmp_packet, net_flags(true, true));
 }
 
 void CAI_Bloodsucker::sendToStopVampire()
@@ -1008,7 +1027,7 @@ void CAI_Bloodsucker::sendToStopVampire()
 	//tmp_packet.w_u16(CControlledActor::m_actor->ID());
 	CSE_Abstract* e_who = Level().Server->ID_to_entity(CControlledActor::m_actor->ID());
 	xrClientData* xrCData = e_who->owner;
-	Level().Server->SendTo(xrCData->ID, tmp_packet, net_flags(TRUE, TRUE));
+	Level().Server->SendTo(xrCData->ID, tmp_packet, net_flags(true, true));
 }
 
 #include "../../../HUDManager.h"
@@ -1022,7 +1041,7 @@ void CAI_Bloodsucker::OnEvent(NET_Packet& P, u16 type)
 		if (Actor())
 		{
 			CControlledActor::install(Actor());
-			IKinematics* pK = smart_cast<IKinematics*>(Visual());
+			IKinematics* pK = PKinematics(Visual());
 			Fmatrix bone_transform;
 			bone_transform = pK->LL_GetTransform(pK->LL_BoneID("bip01_head"));
 
@@ -1043,9 +1062,9 @@ void CAI_Bloodsucker::OnEvent(NET_Packet& P, u16 type)
 			Actor()->set_inventory_disabled(true);
 			Actor()->set_pda_disabled(true);
 
-			if (Actor()->HudAnimator()->IsActive())
+			if (Actor()->HudAnimator()->IsAnyAnimatorActive())
 			{
-				Actor()->HudAnimator()->StopAnimator();
+				Actor()->HudAnimator()->StopGetAnimator();
 			}
 		}
 		break;

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIDragDropReferenceList.h"
 #include "UICellItem.h"
 #include "UICellItemFactory.h"
@@ -12,6 +12,8 @@
 #include "../../xrUI/UICursor.h"
 #include "UICellItemFactory.h"
 
+using namespace InventoryUtilities;
+
 CUIDragDropReferenceList::CUIDragDropReferenceList()
 {
 	AddCallbackStr("cell_item_reference", WINDOW_LBUTTON_DB_CLICK, CUIWndCallback::void_function(this, &CUIDragDropReferenceList::OnItemDBClick));
@@ -23,7 +25,7 @@ void CUIDragDropReferenceList::Initialize()
 {
 	for(int i=0; i<m_container->CellsCapacity().x; i++)
 	{
-		m_references.push_back(new CUIStatic());
+		m_references.push_back(new CUI3dStatic());
 		Fvector2 pos = Fvector2().set((m_container->CellSize().x+m_container->CellsSpacing().x)*i,0);
 		m_references.back()->SetAutoDelete(true);
 		m_references.back()->SetWndPos(pos);
@@ -63,9 +65,68 @@ bool CUIDragDropReferenceList::SetItem(CUICellItem* itm, Fvector2 abs_pos)
 	return true;
 }
 
+bool CUIDragDropReferenceList::SetItemAtQuickSlotCell(CUICellItem* itm, u8 slotIndex)
+{
+	const Ivector2 dest_cell_pos = Ivector2().set(slotIndex, 0);
+	if (!m_container->ValidCell(dest_cell_pos))
+	{
+		return false;
+	}
+
+	const Ivector2 itmGridSize = itm->GetGridSize();
+	const bool hasRoom = m_container->IsRoomFree(dest_cell_pos, itmGridSize);
+	if (hasRoom)
+	{
+		SetItem(itm, dest_cell_pos);
+	}
+	else
+	{
+		CUICell& cellRef = GetCellAt(dest_cell_pos);
+		CUICellItem* old_itm = cellRef.m_item;
+
+		if (itmGridSize.x > m_container->m_cellsCapacity.x || itmGridSize.y > m_container->m_cellsCapacity.y)
+		{
+			return false;
+		}
+
+		if (old_itm != nullptr)
+		{
+			RemoveItem(old_itm, false);
+		}
+		SetItem(itm, dest_cell_pos);
+	}
+
+	return true;
+}
+
 void CUIDragDropReferenceList::SetItem(CUICellItem* itm, Ivector2 cell_pos)
 {
-	CUIStatic* ref = m_references[cell_pos.x];
+	CUI3dStatic *ref = m_references[cell_pos.x];
+	static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
+	if (enable3DIcons)
+	{
+		const PIItem iitem = static_cast<PIItem>(itm->m_pData);
+		ref->SetVisual(iitem->m_3d_static_visual_name);
+		ref->SetScaleFactor(iitem->m_3d_static_scale);
+		Fvector fRot = iitem->m_3d_static_rotate;
+		if (GetVerticalPlacement())
+		{
+			fRot.x += deg2rad(90.f);
+			fRot.y -= deg2rad(180.f);
+		}
+		ref->SetXYZ(fRot);
+		itm->SetVisual(iitem->m_3d_static_visual_name);
+		itm->SetScaleFactor(iitem->m_3d_static_scale);
+		if (GetVerticalPlacement())
+		{
+			fRot.x += deg2rad(90.f);
+			fRot.y -= deg2rad(180.f);
+		}
+		itm->SetXYZ(fRot);
+	}
+	else
+		ref->SetVisual(nullptr);
+
 	ref->SetShader(itm->GetShader());
 	ref->SetTextureRect(itm->GetTextureRect());
 	ref->TextureOn();
@@ -95,19 +156,28 @@ CUICellItem* CUIDragDropReferenceList::RemoveItem(CUICellItem* itm, bool force_r
 	return nullptr;
 }
 
-void CUIDragDropReferenceList::LoadItemTexture(LPCSTR section, Ivector2 cell_pos)
+void CUIDragDropReferenceList::LoadItemTexture(const char* section, Ivector2 cell_pos)
 {
-	CUIStatic* ref = m_references[cell_pos.x];
+	CUI3dStatic* ref = m_references[cell_pos.x];
+	InventoryIconParams icons_struct = GetInventoryIconParams(section);
+	static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
+	if (enable3DIcons)
+	{
+        ref->SetVisual(icons_struct._3d_static_visual);
+        ref->SetXYZ(icons_struct._3d_static_rotate);
+        ref->SetScaleFactor(icons_struct._3d_static_scale);
+	}
+	else
+		ref->SetVisual(nullptr);
 
-	const char* icons_texture = READ_IF_EXISTS(pSettings, r_string, section, "icons_texture", nullptr);
-	ref->SetShader(InventoryUtilities::GetEquipmentIconsShader(icons_texture));
+	ref->SetShader(GetEquipmentIconsShader(icons_struct.icons_texture));
 
-	float scaleIcon = READ_IF_EXISTS(pSettings, r_float, section, "inv_scale", 1.0f);
+	float scaleIcon = icons_struct.scaleIcon;
 	Frect texture_rect;
-	texture_rect.x1 = pSettings->r_float(section, "inv_grid_x") * INV_GRID_WIDTH(scaleIcon);
-	texture_rect.y1 = pSettings->r_float(section, "inv_grid_y") * INV_GRID_HEIGHT(scaleIcon);
-	texture_rect.x2 = pSettings->r_float(section, "inv_grid_width") * INV_GRID_WIDTH(scaleIcon);
-	texture_rect.y2 = pSettings->r_float(section, "inv_grid_height") * INV_GRID_HEIGHT(scaleIcon);
+	texture_rect.x1 = icons_struct.inv_grid_x * INV_GRID_WIDTH(scaleIcon);
+	texture_rect.y1 = icons_struct.inv_grid_y * INV_GRID_HEIGHT(scaleIcon);
+	texture_rect.x2 = icons_struct.inv_grid_width * INV_GRID_WIDTH(scaleIcon);
+	texture_rect.y2 = icons_struct.inv_grid_height  * INV_GRID_HEIGHT(scaleIcon);
 	texture_rect.rb.add(texture_rect.lt);
 	ref->SetTextureRect(texture_rect);
 	ref->TextureOn();
@@ -120,16 +190,13 @@ void CUIDragDropReferenceList::ReloadReferences(CInventoryOwner* pActor)
 	if (!pActor)
 		return;
 
-	if(m_drag_item)
-		DestroyDragItem();
-
-	m_container->ClearAll(true);
-	m_selected_item	= nullptr;
+	// Full list ClearAll: drag end + generation bump + observer invalidation + owned cell destroy
+	ClearAll(true);
 
 	for(u8 i=0; i<m_container->CellsCapacity().x; i++)
 	{
-		CUIStatic* ref = m_references[i];
-		LPCSTR item_name = ACTOR_DEFS::g_quick_use_slots[i];
+		CUI3dStatic* ref = m_references[i];
+		const char* item_name = ACTOR_DEFS::g_quick_use_slots[i];
 		if(item_name && xr_strlen(item_name))
 		{
 			PIItem itm = pActor->inventory().GetAny(item_name);

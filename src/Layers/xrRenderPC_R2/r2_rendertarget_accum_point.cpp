@@ -42,16 +42,16 @@ void CRenderTarget::accum_point		(light* L)
 	// *** thus can cope without stencil clear with 127 lights
 	// *** in practice, 'cause we "clear" it back to 0x1 it usually allows us to > 200 lights :)
 	RCache.set_Element				(s_accum_mask->E[SE_MASK_POINT]);			// masker
-	RCache.set_ColorWriteEnable		(FALSE);
+	RCache.set_ColorWriteEnable		(false);
 
 	// backfaces: if (stencil>=1 && zfail)	stencil = light_id
-	RCache.set_CullMode				(CULL_CW);
-	RCache.set_Stencil				(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0x01,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::FRONT);
+	RCache.set_Stencil				(true,D3DCMP_LESSEQUAL,dwLightMarkerID,0x01,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE);
 	draw_volume						(L);
 
 	// frontfaces: if (stencil>=light_id && zfail)	stencil = 0x1
-	RCache.set_CullMode				(CULL_CCW);
-	RCache.set_Stencil				(TRUE,D3DCMP_LESSEQUAL,0x01,0xff,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+	RCache.set_Stencil				(true,D3DCMP_LESSEQUAL,0x01,0xff,0xff,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_REPLACE);
 	draw_volume						(L);
 
 	// nv-stencil recompression
@@ -60,11 +60,7 @@ void CRenderTarget::accum_point		(light* L)
 	// *****************************	Minimize overdraw	*************************************
 	// Select shader (front or back-faces), *** back, if intersect near plane
 	RCache.set_ColorWriteEnable				();
-	RCache.set_CullMode						(CULL_CW);		// back
-	/*
-	if (bIntersect)	RCache.set_CullMode		(CULL_CW);		// back
-	else			RCache.set_CullMode		(CULL_CCW);		// front
-	*/
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::FRONT);
 
 	// 2D texgens 
 	Fmatrix			m_Texgen;			u_compute_texgen_screen	(m_Texgen	);
@@ -90,34 +86,12 @@ void CRenderTarget::accum_point		(light* L)
 		RCache.set_c					("Ldynamic_color",	L_clr.x,L_clr.y,L_clr.z,L_spec);
 		RCache.set_c					("m_texgen",		m_Texgen);
 
-		// Fetch4 : enable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET4  MAKEFOURCC('G','E','T','4') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET4 );
-		}
-
 		// Render if (stencil >= light_id && z-pass)
-		RCache.set_Stencil				(TRUE,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0x00,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP);
+		RCache.set_Stencil				(true,D3DCMP_LESSEQUAL,dwLightMarkerID,0xff,0x00,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP);
 		draw_volume						(L);
-
-		// Fetch4 : disable
-		if (RImplementation.o.HW_smap_FETCH4)	{
-			//. we hacked the shader to force smap on S0
-#			define FOURCC_GET1  MAKEFOURCC('G','E','T','1') 
-			RDevice->SetSamplerState	( 0, D3DSAMP_MIPMAPLODBIAS, FOURCC_GET1 );
-		}
 	}
 
-	// blend-copy
-	if (!RImplementation.o.fp16_blend)	{
-		u_setrt						(rt_Accumulator,nullptr,nullptr,RDepth);
-		RCache.set_Element			(s_accum_mask->E[SE_MASK_ACCUM_VOL]	);
-		RCache.set_c				("m_texgen",		m_Texgen);
-		draw_volume					(L);
-	}
-
-	CHK_DX		(RDevice->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE));
+	GRHI->StateManager->EnableScissoring(false);
 
 	//dwLightMarkerID					+=	2;	// keep lowest bit always setted up
 	increment_light_marker();

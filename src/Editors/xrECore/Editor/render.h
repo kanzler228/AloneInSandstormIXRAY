@@ -22,16 +22,16 @@ class ISpatial;
 
 class CBlender_accum : public IBlender {
 public:
-	virtual LPCSTR getComment() {
+	virtual const char* getComment() {
 		return "INTERNAL: accumulate light";
 	}
 
-	virtual BOOL canBeDetailed() {
-		return FALSE;
+	virtual bool canBeDetailed() {
+		return false;
 	}
 
-	virtual BOOL canBeLMAPped() {
-		return FALSE;
+	virtual bool canBeLMAPped() {
+		return false;
 	}
 
 	virtual void Compile(CBlender_Compile& C);
@@ -99,11 +99,11 @@ public:
 	ref_geom g_accum_point;
 	ref_geom g_accum_spot;
 
-	IDirect3DVertexBuffer9* g_accum_point_vb;
-	IDirect3DIndexBuffer9* g_accum_point_ib;
+	IRHIBuffer* g_accum_point_vb;
+	IRHIBuffer* g_accum_point_ib;
 
-	IDirect3DVertexBuffer9* g_accum_spot_vb;
-	IDirect3DIndexBuffer9* g_accum_spot_ib;
+	IRHIBuffer* g_accum_spot_vb;
+	IRHIBuffer* g_accum_spot_ib;
 
 	virtual	void					set_blur(float	f) {}
 	virtual	void					set_gray(float	f) {}
@@ -136,7 +136,8 @@ class	ECORE_API CRender : public IRender_interface
 {
 	CRenderTarget* Target;
 	Fmatrix					current_matrix;
-	BOOL val_bInvisible;
+	bool val_bInvisible;
+	bool val_bUI;
 	u32 dwFrameCalc = 0;
 public:
 	// options
@@ -155,9 +156,9 @@ public:
 
 public:
 	// Occlusion culling
-	virtual BOOL			occ_visible(Fbox& B);
-	virtual BOOL			occ_visible(sPoly& P);
-	virtual BOOL			occ_visible(vis_data& P);
+	virtual bool			occ_visible(Fbox& B);
+	virtual bool			occ_visible(sPoly& P);
+	virtual bool			occ_visible(vis_data& P);
 
 	// Constructor/destructor
 	CRender();
@@ -172,9 +173,10 @@ public:
 
 	virtual	void					Calculate();
 	virtual void					Render();
+	virtual void					RenderUI(Fcolor* = nullptr);
 
 	virtual void					set_Transform(Fmatrix* M);
-	virtual void					add_Visual(IRenderVisual* visual);
+	virtual void					add_Visual(IRenderVisual* visual, bool) override;
 
 	virtual ref_shader		getShader(int id);
 	virtual	CRenderTarget* getTarget() { return Target; }
@@ -183,14 +185,14 @@ public:
 
 	void					reset_begin();
 	void					reset_end();
-	virtual IRenderVisual* model_Create(LPCSTR name, IReader* data = 0);
-	virtual IRenderVisual* model_CreateChild(LPCSTR name, IReader* data);
-	virtual IRenderVisual* model_CreatePE(LPCSTR name);
-	virtual IRenderVisual* model_CreateParticles(LPCSTR name);
+	virtual IRenderVisual* model_Create(const char* name, IReader* data = nullptr);
+	virtual IRenderVisual* model_CreateChild(const char* name, IReader* data);
+	virtual IRenderVisual* model_CreatePE(const char* name);
+	virtual IRenderVisual* model_CreateParticles(const char* name);
 
 	virtual IRender_DetailModel* model_CreateDM(IReader* R);
 	virtual IRenderVisual* model_Duplicate(IRenderVisual* V);
-	virtual void			model_Delete(IRenderVisual*& V, BOOL bDiscard = TRUE);
+	virtual void			model_Delete(IRenderVisual*& V, bool bDiscard = true);
 	virtual void			model_Delete(IRender_DetailModel*& F)
 	{
 		if (F)
@@ -198,7 +200,7 @@ public:
 			CDetail* D = (CDetail*)F;
 			D->Unload();
 			xr_delete(D);
-			F = NULL;
+			F = nullptr;
 		}
 	}
 	void 					model_Render(IRenderVisual* m_pVisual, const Fmatrix& mTransform, int priority, bool strictB2F, float m_fLOD);
@@ -209,6 +211,8 @@ public:
 	virtual void			add_SkeletonWallmark(intrusive_ptr<CSkeletonWallmark> wm) {};
 	virtual void			add_SkeletonWallmark(const Fmatrix* xf, CKinematics* obj, ref_shader& sh, const Fvector& start, const Fvector& dir, float size) {};
 
+	virtual StaticWallmarkHandle::WallmarkHandlePtr add_DynamicWallmark(const wm_shader& S, const Fvector& P, float w, float h, float r, CDB::TRI* T, Fvector* V) override { return nullptr;}
+
 	virtual void			add_SkeletonWallmark(const Fmatrix* xf, IKinematics* obj, IWallMarkArray* pArray, const Fvector& start, const Fvector& dir, float size) {}
 	// Render mode
 	virtual void			rmNear();
@@ -216,8 +220,8 @@ public:
 	virtual void			rmNormal();
 
 	IC void apply_lmaterial() {
-		R_constant* C = &*RCache.get_c("s_base"); // get sampler
-		if(0 == C)			return;
+		RHIShaderConstant* C = &*RCache.get_c("s_base"); // get sampler
+		if(nullptr == C)			return;
 		VERIFY(RC_dest_sampler == C->destination);
 		VERIFY(RC_sampler == C->type);
 		CTexture* T = RCache.get_ActiveTexture(u32(C->samp.index));
@@ -229,13 +233,14 @@ public:
 		RCache.hemi.set_material(0.7, 1, 0, (mtl + .5f) / 4.f);
 	}
 
-	virtual LPCSTR			getShaderPath()
+	virtual const char*			getShaderPath()
 	{
 		return "editor\\";
 	}
 
-
-	virtual IDirect3DBaseTexture9* texture_load(LPCSTR	fname, u32& mem_size);
+	IRHISurface* load_texture(const char* fname, u32& msize, bool bStaging = false) override;
+	bool get_texture_metadata(const char* fname, RHITextureMetadata* p_data) override;
+	virtual IDirect3DBaseTexture9* texture_load(const char*	fname, u32& mem_size);
 
 	virtual DWORD					get_dx_level();
 
@@ -246,7 +251,7 @@ public:
 		virtual	void					level_Load(IReader*);
 	virtual void					level_Unload();
 
-	//virtual IDirect3DBaseTexture9*	texture_load			(LPCSTR	fname, u32& msize)					= 0;
+	//virtual IDirect3DBaseTexture9*	texture_load			(const char*	fname, u32& msize)					= 0;
 
 	// Information
 	virtual	void					Statistics(CGameFont* F) {};
@@ -258,24 +263,19 @@ public:
 
 	// Main 
 	IC		void					set_Frustum(CFrustum* O) { VERIFY(O);	View = O; }
-	virtual void					set_HUD(BOOL 		V);
-	virtual BOOL					get_HUD();
-	virtual void					set_Invisible(BOOL 		V);
+	virtual	void					set_UI(bool 		V);
+	virtual void					set_HUD(bool 		V);
+	virtual bool					get_HUD();
+	virtual void					set_Invisible(bool 		V);
 	virtual void					flush();
 	virtual void					set_Object(IRenderable* O);
 	virtual	void					add_Occluder(Fbox2& bb_screenspace);	// mask screen region as oclluded (-1..1, -1..1)
 	virtual void					add_Geometry(IRenderVisual* V);	// add visual(s)	(all culling performed)
-//	virtual void					add_StaticWallmark		(ref_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* V)=0;
 	virtual void					add_StaticWallmark(const wm_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* V) {}
+
 	//	Prefer this function when possible
 	virtual void					add_StaticWallmark(IWallMarkArray* pArray, const Fvector& P, float s, CDB::TRI* T, Fvector* V) {}
 	virtual void					clear_static_wallmarks() {}
-	//virtual void					add_SkeletonWallmark	(intrusive_ptr<CSkeletonWallmark> wm)						= 0;
-	//virtual void					add_SkeletonWallmark	(const Fmatrix* xf, CKinematics* obj, ref_shader& sh, const Fvector& start, const Fvector& dir, float size)=0;
-
-	//virtual IBlender*				blender_create			(CLASS_ID cls)								= 0;
-	//virtual void					blender_destroy			(IBlender* &)								= 0;
-
 	virtual IRender_ObjectSpecific* ros_create(IRenderable* parent);
 	virtual void					ros_destroy(IRender_ObjectSpecific*&);
 
@@ -287,11 +287,11 @@ public:
 
 	// Models
 	virtual void					models_Prefetch();
-	virtual void					models_Clear(BOOL b_complete);
+	virtual void					models_Clear(bool b_complete);
 
 	// Main
 
-	virtual void					Screenshot(ScreenshotMode mode = SM_NORMAL, LPCSTR name = 0);
+	virtual void					Screenshot(ScreenshotMode mode = SM_NORMAL, const char* name = nullptr);
 	virtual	void					Screenshot(ScreenshotMode mode, CMemoryWriter& memory_writer);
 	virtual void					ScreenshotAsyncBegin();
 	virtual void					ScreenshotAsyncEnd(CMemoryWriter& memory_writer);
@@ -324,13 +324,13 @@ public:
 protected:
 	xr_vector<D3D_SHADER_MACRO> m_ShaderOptions;
 
-	virtual	void					ScreenshotImpl(ScreenshotMode mode, LPCSTR name, CMemoryWriter* memory_writer) {};
+	virtual	void					ScreenshotImpl(ScreenshotMode mode, const char* name, CMemoryWriter* memory_writer) {};
 	HRESULT					shader_compile(
-		LPCSTR							name,
+		const char*							name,
 		DWORD const* pSrcData,
 		UINT                            SrcDataLen,
-		LPCSTR                          pFunctionName,
-		LPCSTR                          pTarget,
+		const char*                          pFunctionName,
+		const char*                          pTarget,
 		DWORD                           Flags,
 		void*& result
 	) override;

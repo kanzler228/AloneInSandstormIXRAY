@@ -6,18 +6,18 @@
 
 #include "game_cl_base.h"
 #include "Level.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class UITeamState;
 class UITeamPanels;	//for switching teams
 class CUIStatsIcon;
 
-class UIPlayerItem : 
+class UIPlayerItem final :
 	public CUIWindow
 {
 private:
 	typedef CUIWindow									inherited;
-	typedef associative_vector<shared_str, CUITextWnd*>		TMapStrToUIText;
+	typedef associative_vector<shared_str, CUIStatic*>		TMapStrToUIText;
 	typedef associative_vector<shared_str, CUIStatsIcon*>	TMapStrToUIStatic;
 	// this is for the case when user disconnects.
 	// we just call method RemovePlayer
@@ -50,7 +50,7 @@ private:
 public:
 	UIPlayerItem(ETeam team, ClientID const & clientId, UITeamState* tstate, UITeamPanels* tpanels);
 	virtual ~UIPlayerItem();
-	void Init(CUIXml& uiXml, LPCSTR playerNode, int index);
+	void Init(CUIXml& uiXml, const char* playerNode, int index);
 	s32 GetPlayerCheckPoints() const;
 	virtual void Update();
 	virtual CUIWindow* ui_cast_window() { return this; }

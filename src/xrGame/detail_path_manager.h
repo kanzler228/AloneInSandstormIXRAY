@@ -10,7 +10,7 @@
 
 #include "restricted_object.h"
 #include "detail_path_manager_space.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 using namespace DetailPathManager;
 
@@ -21,7 +21,7 @@ public:
 		float			angular_velocity; 
 		float			real_angular_velocity; 
 
-		STravelParams(){}
+		STravelParams() = default;
 		STravelParams(float l, float a) : linear_velocity(l), angular_velocity(a), real_angular_velocity(a) {}
 		STravelParams(float l, float a, float ra) : linear_velocity(l), angular_velocity(a), real_angular_velocity(ra) {}
 	};
@@ -29,7 +29,7 @@ public:
 	struct STravelParamsIndex : public STravelParams {
 		u32				index;
 		
-		STravelParamsIndex(){}
+		STravelParamsIndex() = default;
 		STravelParamsIndex(float l, float a, u32 i) : STravelParams(l,a), index(i) {}
 	};
 
@@ -162,7 +162,7 @@ protected:
 	friend class CDetailPathBuilder;
 #ifdef DEBUG_DRAW
 	friend class CLevelGraph;
-	friend class CCustomMonster;
+	friend class CCreature;
 #endif
 
 public:

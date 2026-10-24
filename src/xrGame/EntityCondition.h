@@ -30,7 +30,7 @@ enum EBoostParams{
 	eBoostMaxCount,
 };
 
-static const LPCSTR ef_boosters_section_names[] =
+static const char* ef_boosters_section_names[] =
 {
 	"boost_health_restore",
 	"boost_power_restore",
@@ -54,6 +54,7 @@ static const LPCSTR ef_boosters_section_names[] =
 struct SBooster
 {
 	float fBoostTime = 0.0f;
+	float fBoostMaxTime = 0.0f;
 	float fBoostValue = 0.0f;
 	EBoostParams m_type = eBoostMaxCount;
 	SBooster() = default;
@@ -71,6 +72,7 @@ struct SMedicineInfluenceValues{
 	float fWoundsHeal;
 	float fMaxPowerUp;
 	float fAlcohol;
+	float fIntoxication;
 	float fTimeTotal;
 	float fTimeCurrent;
 
@@ -88,7 +90,8 @@ public:
 	virtual					~CEntityConditionSimple	();
 
 	IC		 float				GetHealth				() const				{return m_fHealth;}
-	IC		 void				SetHealth				( const float value ) 	{ m_fHealth = value; }
+	IC		 void				SetHealth				( const float value ) 	{ m_fHealth = value; clamp(m_fHealth, 0.0f, m_fHealthMax);
+	}
 	IC		 float 				GetMaxHealth			() const				{return m_fHealthMax;}
 	IC const float&				health					() const				{return	m_fHealth;}
 	IC		 float&				max_health				()						{return	m_fHealthMax;}
@@ -100,12 +103,18 @@ private:
 	bool					m_use_limping_state;
 	CEntityAlive			*m_object;
 
+	static HitImmunity::HitTypeSVec m_GlobalWoundsFactorsForHitTypes;
+	static HitImmunity::HitTypeSVec m_GlobalBleedingsFactorsForHitTypes;
+
+	HitImmunity::HitTypeSVec m_WoundsFactorsForHitTypes = {};
+	HitImmunity::HitTypeSVec m_BleedingsFactorsForHitTypes = {};
+
 public:
 							CEntityCondition		(CEntityAlive *object);
 	virtual					~CEntityCondition		();
 
-	virtual void			LoadCondition			(LPCSTR section);
-	virtual void			LoadTwoHitsDeathParams	(LPCSTR section);
+	virtual void			LoadCondition			(const char* section);
+	virtual void			LoadTwoHitsDeathParams	(const char* section);
 	virtual void			remove_links			(const CObject *object);
 
 	virtual void			save					(NET_Packet &output_packet);
@@ -132,6 +141,7 @@ public:
 	IC float				GetMaxPower				() const			{return m_fPowerMax;};
 
 	void 					ChangeBleeding			(const float percent);
+	void 					ChangeWoundsByType		(const float percent, ALife::EHitType type);
 
 	void 					ChangeCircumspection	(const float value);
 	void 					ChangeEntityMorale		(const float value);
@@ -145,12 +155,19 @@ public:
 
 	
 	//скорость потери крови из всех открытых ран 
-	float					BleedingSpeed			();
+	float					BleedingSpeed			(int hit_type_mask = -1);
 
 	CObject*				GetWhoHitLastTime		() {return m_pWho;}
 	u16						GetWhoHitLastTimeID		() {return m_iWhoID;}
 
 	CWound*					AddWound				(float hit_power, ALife::EHitType hit_type, u16 element);
+
+	float					CorrectBleedingForHitType(ALife::EHitType hit_type, float bleeding);
+	float					GetWoundComponentByHitType(CWound* wound, ALife::EHitType hit_type);
+	void					SetWoundComponentByHitType(CWound* wound, float value, ALife::EHitType hit_type);
+	float					CalcModifiedWoundTotalSize(CWound* wound, int hit_type_mask = -1);
+	bool					ChangeBleedingForWound(CWound* wound, float percent, float min_wound_size, int hit_type_mask = -1);
+	void					ChangeBleedingCustom(float percent, int hit_type_mask = -1);
 
 	IC void 				SetCanBeHarmedState		(bool CanBeHarmed) 			{m_bCanBeHarmed = CanBeHarmed;}
 	IC bool					CanBeHarmed				() const					{return OnServer() && m_bCanBeHarmed;};
@@ -166,8 +183,13 @@ public:
 	PLAYER_ADDICTION_BASE(Alcohol);
 	PLAYER_ADDICTION_BASE(Thirst);
 	PLAYER_ADDICTION_BASE(Sleepiness);
+	PLAYER_ADDICTION_BASE(Intoxication);
 	using WOUND_VECTOR = xr_vector<CWound*>;
 	using WOUND_VECTOR_IT = WOUND_VECTOR::iterator;
+
+	//изменение силы хита в зависимости от надетого костюма
+	//(только для InventoryOwner)
+	float					HitOutfitEffect(float hit_power, ALife::EHitType hit_type, u16 element, float ap, bool& add_wound);
 
 protected:
 	void					UpdateHealth			();
@@ -177,10 +199,6 @@ protected:
 
 	void					UpdateEntityMorale		();
 
-
-	//изменение силы хита в зависимости от надетого костюма
-	//(только для InventoryOwner)
-	float					HitOutfitEffect			(float hit_power, ALife::EHitType hit_type, s16 element, float ap, bool& add_wound );
 	//изменение потери сил в зависимости от надетого костюма
 	float					HitPowerEffect			(float power_loss);
 	
@@ -227,7 +245,7 @@ protected:
 		float			m_fV_Bleeding;
 		float			m_fV_WoundIncarnation;
 		float			m_fV_HealthRestore;
-		void			load(LPCSTR sect, LPCSTR prefix);
+		void			load(const char* sect, const char* prefix);
 	};
 	
 	SConditionChangeV m_change_v;
@@ -235,6 +253,7 @@ protected:
 	float				m_fMinWoundSize;
 	bool				m_bIsBleeding;		//есть кровотечение
 
+public:
 	//части хита, затрачиваемые на уменьшение здоровья и силы
 	float				m_fHealthHitPart;
 	float				m_fPowerHitPart;
@@ -274,7 +293,6 @@ protected:
 	u16					m_iWhoID;
 
 	//для передачи параметров из DamageManager
-	float				m_fHitBoneScale;
 	float				m_fWoundBoneScale;
 
 	float				m_limping_threshold;
@@ -284,6 +302,8 @@ protected:
 	BOOSTER_MAP			m_booster_influences;
 
 public:
+	float				m_fHitBoneScale;
+
 	virtual void					reinit				();
 	
 	IC const	float				fdelta_time			() const 	{return		(m_fDeltaTime);			}

@@ -5,6 +5,7 @@
 #define PSLibraryH
 
 #include "../../Include/xrRender/particles_systems_library_interface.hpp"
+#include "../../xrEngine/ParticleAnimCurveInterface.h"
 
 namespace PS {
 	class CPEDef;
@@ -16,24 +17,36 @@ namespace PS {
 	
     using PGDVec = xr_vector<CPGDef*>;
     using PGDIt = PGDVec::iterator;
+
+	class CPACDef;
+
+	using PACDVec = xr_vector<CPACDef*>;
+	using PACDIt = PACDVec::iterator;
 } // namespace PS
 
-class ECORE_API CPSLibrary : public particles_systems::library_interface {
+class ECORE_API CPSLibrary : public particles_systems::library_interface, public PS::IPACLibrary {
 	PS::PEDVec			m_PEDs;
     PS::PGDVec			m_PGDs;
+	PS::PACDVec			m_PACDs;
     xr_vector<shared_str> m_all_ps;
 #ifdef _EDITOR    
     xr_string			m_CurrentParticles;
 public:
-	void 	 	FindByName		(LPCSTR new_name, bool& res);
+	void 	 	FindByName		(const char* new_name, bool& res);
 #endif
 
 public:
-    bool 				Load			(LPCSTR nm);
-    bool				Save			(LPCSTR nm);
-    
-	bool				Load2			();
-	bool				Save2			();
+	// stream
+    bool Load(const char* nm);
+	bool LoadOriginal(IReader& F);
+	bool LoadExtended(IReader& F);
+	
+    bool Save(const char* nm);
+
+	// individuals INI
+	bool Load2();
+	bool Save2();
+	
 public:
 						CPSLibrary		(){;}
     		 			~CPSLibrary		(){;}
@@ -41,22 +54,33 @@ public:
     void				OnCreate		();
     void				OnDestroy		();
 
-    PS::CPEDef*			FindPED			(LPCSTR name);
-    PS::PEDIt			FindPEDIt		(LPCSTR name);
-    PS::CPGDef*			FindPGD			(LPCSTR name);
-    PS::PGDIt			FindPGDIt		(LPCSTR name);
+    PS::CPEDef*			FindPED			(const char* name);
+    PS::PEDIt			FindPEDIt		(const char* name);
+    PS::CPGDef*			FindPGD			(const char* name);
+	PS::PGDIt			FindPGDIt		(const char* name);
+	PS::CPACDef*		FindPACD		(const char* name);
+	PS::PACDIt			FindPACDIt		(const char* name);
+
+	virtual PS::IPAC*	FindIPAC		(const char* name) override;
 
     // get object properties methods
+	IC const PS::PEDVec& VecPEDs		()	{ return m_PEDs; }
     IC PS::PEDIt		FirstPED		()	{return m_PEDs.begin();}
     IC PS::PEDIt		LastPED			()	{return m_PEDs.end();}
+	IC const PS::PGDVec& VecPGDs		()	{ return m_PGDs; }
     IC PS::PGDIt		FirstPGD		()	{return m_PGDs.begin();}
     IC PS::PGDIt		LastPGD			()	{return m_PGDs.end();}
+	IC const PS::PACDVec& VecPACDs		()	{ return m_PACDs; }
+	IC PS::PACDIt		FirstPACD		()	{return m_PACDs.begin();}
+	IC PS::PACDIt		LastPACD			()	{return m_PACDs.end();}
 
-    PS::CPEDef*			AppendPED		(PS::CPEDef* src=0);
-    PS::CPGDef*			AppendPGD		(PS::CPGDef* src=0);
-    void				Remove			(LPCSTR name);
-    void				RenamePED		(PS::CPEDef* src, LPCSTR new_name);
-    void				RenamePGD		(PS::CPGDef* src, LPCSTR new_name);
+    PS::CPEDef*			AppendPED		(PS::CPEDef* src=nullptr);
+    PS::CPGDef*			AppendPGD		(PS::CPGDef* src=nullptr);
+    PS::CPACDef*		AppendPACD		(PS::CPACDef* src=nullptr);
+    void				Remove			(const char* name);
+    void				RenamePED		(PS::CPEDef* src, const char* new_name);
+    void				RenamePGD		(PS::CPGDef* src, const char* new_name);
+    void				RenamePACD		(PS::CPACDef* src, const char* new_name);
 
     void				Reload			();
     bool				Save			();
@@ -71,11 +95,32 @@ public:
 #define PS_LIB_SIGN 			"PS_LIB"
 
 #define PS_VERSION				0x0001
+
+namespace PS
+{
+	enum class Version: u16
+	{
+		Original = 0x0001,
+		Extended,
+		MAX,
+		Latest = MAX - 1,
+	};
+
+	enum class Chunks: u32
+	{
+		VERSION = 0x0001,
+		// Original chunks
+		ORIGINAL_FIRSTGEN,
+		ORIGINAL_SECONDGEN,
+		ORIGINAL_THIRDGEN,
+		// Extended chunks
+		EXTENDED_PE = VERSION+1,
+		EXTENDED_PG,
+		EXTENDED_PAC,
+	};
+}
+
 //----------------------------------------------------
-#define PS_CHUNK_VERSION		0x0001
-#define PS_CHUNK_FIRSTGEN		0x0002
-#define PS_CHUNK_SECONDGEN		0x0003
-#define PS_CHUNK_THIRDGEN		0x0004
 
 #endif /*_INCDEF_PSLibrary_H_*/
 

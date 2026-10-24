@@ -1,12 +1,11 @@
 #include "StdAfx.h"
 #include "Level.h"
-#include "xrServerMapSync.h"
 #include "../xrCore/stream_reader.h"
 #include "MainMenu.h"
 #include "../xrEngine/string_table.h"
 #include "../xrEngine/XR_IOConsole.h"
 
-static const u32 r_buffer_size = 131072;	//128 Kb
+static constexpr u32 r_buffer_size = 131072;	//128 Kb
 void CLevel::CalculateLevelCrc32()
 {
 	void* read_buffer	= _alloca(r_buffer_size);
@@ -38,7 +37,7 @@ bool CLevel::synchronize_map_data()
 {
 	if (!OnClient() && !IsDemoSave())
 	{
-		deny_m_spawn		= FALSE;
+		deny_m_spawn		= false;
 		map_data.m_map_sync_received	= true;
 		return synchronize_client();
 	}
@@ -78,7 +77,7 @@ bool CLevel::synchronize_map_data()
 	}
 	if (map_data.IsInvalidClientChecksum())
 	{
-		connected_to_server	= FALSE;
+		connected_to_server	= false;
 		return false;	//!!!
 	}
 	return synchronize_client();
@@ -92,13 +91,13 @@ bool	CLevel::synchronize_client()
 		NET_Packet	P;
 		P.w_begin	(M_CLIENT_REQUEST_CONNECTION_DATA);
 		
-		Send		(P, net_flags(TRUE, TRUE, TRUE, TRUE));
-		sended_request_connection_data = TRUE;
+		Send		(P, net_flags(true, true, true, true));
+		sended_request_connection_data = true;
 	}
 //---------------------------------------------------------------------------
 	if (game_configured)
 	{
-		deny_m_spawn = FALSE;
+		deny_m_spawn = false;
 		return true;
 	}
 #ifdef DEBUG
@@ -123,7 +122,7 @@ void LevelMapSyncData::CheckToSendMapSync()
 		P.w_stringZ	(m_name);
 		P.w_stringZ	(m_map_version);
 		P.w_u32		(m_level_geom_crc32);
-		Level().Send(P, net_flags(TRUE, TRUE, TRUE, TRUE));
+		Level().Send(P, net_flags(true, true, true, true));
 		m_sended_map_name_request = true;
 		invalid_geom_checksum = false;
 		m_map_sync_received = false;

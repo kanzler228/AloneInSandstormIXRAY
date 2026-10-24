@@ -6,11 +6,11 @@
 //	Description : inventory upgrade UI class implementation
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "object_broker.h"
 #include "../../xrEngine/string_table.h"
-
+#include "../../xrEngine/xr_input.h"
 #include "UIInvUpgrade.h"
 
 #include "../../xrUI/xrUIXmlParser.h"
@@ -58,7 +58,7 @@ UIUpgrade::~UIUpgrade()
 	xr_delete(m_point);
 }
 
-void UIUpgrade::init_upgrade(LPCSTR upgrade_id, CInventoryItem& item)
+void UIUpgrade::init_upgrade(const char* upgrade_id, CInventoryItem& item)
 {
 	VERIFY(upgrade_id && xr_strcmp(upgrade_id, ""));
 	m_upgrade_id = upgrade_id;
@@ -152,7 +152,7 @@ void UIUpgrade::load_from_xml(CUIXml& ui_xml, int i_column, int i_cell, Frect co
 	}
 }
 
-void UIUpgrade::set_texture(Layer layer, LPCSTR texture)
+void UIUpgrade::set_texture(Layer layer, const char* texture)
 {
 	switch (layer)
 	{
@@ -229,7 +229,8 @@ void UIUpgrade::Update()
 
 	if (m_point != nullptr)
 	{
-		m_point->Show(get_upgrade()->get_highlight());
+		static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
+		m_point->Show(get_upgrade()->get_highlight() && !enable3DIcons);
 	}
 }
 
@@ -259,13 +260,16 @@ bool UIUpgrade::OverrideFreeButtonState(const UIUpgrade::Upgrade_type* my_upgrad
 
 void UIUpgrade::update_upgrade_state()
 {
-	if (m_bCursorOverWindow || m_point && m_point->CursorOverWindow())
+	if (!pInput->GetControllerMode())
 	{
-		on_over_window();
-	}
-	else
-	{
-		m_button_state = BUTTON_FREE;
+		if (m_bCursorOverWindow || m_point && m_point->CursorOverWindow())
+		{
+			on_over_window();
+		}
+		else
+		{
+			m_button_state = BUTTON_FREE;
+		}
 	}
 
 	if (m_state_lock)
@@ -375,6 +379,11 @@ bool UIUpgrade::OnMouseAction(float x, float y, EUIMessages mouse_action)
 
 void UIUpgrade::OnFocusReceive()
 {
+	if (pInput->GetControllerMode())
+	{
+		return;
+	}
+
 	inherited::OnFocusReceive();
 	update_mask();
 	highlight_relation(true);
@@ -382,11 +391,35 @@ void UIUpgrade::OnFocusReceive()
 
 void UIUpgrade::OnFocusLost()
 {
+	if (pInput->GetControllerMode())
+	{
+		return;
+	}
+
 	inherited::OnFocusLost();
 	highlight_relation(false);
 
 	m_parent_wnd->set_info_cur_upgrade(nullptr);
 	m_button_state = BUTTON_FREE;
+}
+
+void UIUpgrade::SetSelected(bool status)
+{
+	if (status)
+	{
+		m_button_state = BUTTON_FOCUSED;
+		update_upgrade_state();
+		update_mask();
+		highlight_relation(true);
+	}
+	else
+	{
+		highlight_relation(false);
+		m_parent_wnd->set_info_cur_upgrade(nullptr);
+		m_button_state = BUTTON_FREE;
+		update_upgrade_state();
+		update_mask();
+	}
 }
 
 void UIUpgrade::OnClick()

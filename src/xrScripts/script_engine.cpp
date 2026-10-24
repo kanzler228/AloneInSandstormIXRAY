@@ -17,9 +17,15 @@
 #include "script_callback_ex.h"
 #include <luabind/class_info.hpp>
 
+#ifdef IXRAY_PROFILER_TRACY
+	#define TRACY_CALLSTACK 8
+		#include <tracy/TracyLua.hpp>
+	#undef TRACY_CALLSTACK
+#endif
+
 SCRIPTS_API CScriptEngine* g_pScriptEngine = nullptr;
 
-void jit_command(lua_State*, LPCSTR);
+void jit_command(lua_State*, const char*);
 
 CScriptEngine::CScriptEngine			()
 {
@@ -90,30 +96,14 @@ void lua_cast_failed(lua_State *L, LUABIND_TYPE_INFO info)
 	Debug.fatal(DEBUG_INFO,"LUA error: cannot cast lua value to %s",info->name());
 }
 
-void CScriptEngine::setup_callbacks		()
+void CScriptEngine::setup_callbacks()
 {
-	{
 #ifdef LUABIND_NO_EXCEPTIONS
-		luabind::set_error_callback		(CScriptEngine::lua_error);
+	luabind::set_error_callback(CScriptEngine::lua_error);
+	luabind::set_cast_failed_callback(lua_cast_failed);
 #endif
 
-#if 0
-		luabind::set_pcall_callback
-		(
-			[](lua_State* L) ->void
-			{  
-				lua_pushcfunction(L, CScriptEngine::lua_pcall_failed);
-			}
-		);
-#endif
-	}
-
-#ifdef LUABIND_NO_EXCEPTIONS
-	luabind::set_cast_failed_callback	(lua_cast_failed);
-#endif
-
-	lua_atpanic							(lua(),CScriptEngine::lua_panic);
-//	luabind::disable_super_deprecation();
+	lua_atpanic(lua(), CScriptEngine::lua_panic);
 }
 
 #ifdef DEBUG
@@ -130,9 +120,10 @@ int auto_load(lua_State* L)
 	int StackSize = lua_gettop(L);
 	bool IsTable = lua_istable(L, 1);
 
-	if ((StackSize < 2) || !IsTable || !lua_isstring(L, 2)) {
+	if ((StackSize < 2) || !IsTable || !lua_isstring(L, 2))
+	{
 		lua_pushnil(L);
-		return		(1);
+		return 1;
 	}
 
 	xr_string file_name_space = lua_tostring(L, 2);
@@ -147,9 +138,8 @@ int auto_load(lua_State* L)
 		lua_pushnil(L);
 	}
 
-	return (1);
+	return 1;
 }
-
 
 void CScriptEngine::setup_auto_load		()
 {
@@ -162,7 +152,6 @@ void CScriptEngine::setup_auto_load		()
 	luaL_getmetatable					(lua(),"XRAY_AutoLoadMetaTable");
 	lua_setmetatable					(lua(),-2);
 	//. ??????????
-	// lua_settop							(lua(),-0);
 
 	//Alun: Allow directory structuring for scripts
 	xray_scripts.clear();
@@ -192,9 +181,22 @@ void CScriptEngine::setup_auto_load		()
 
 void CScriptEngine::init()
 {
+	for (int Iter = ScriptEngine::EScriptProcessors::eScriptProcessorLevel; Iter <= ScriptEngine::EScriptProcessors::eScriptProcessorHelper; Iter++)
+	{
+		if (CScriptProcess* ScriptProces = script_process((ScriptEngine::EScriptProcessors)Iter))
+		{
+			ScriptProces->DestroyScripts();
+		}
+	}
+
 	CScriptStorage::reinit();
 
 	luabind::open(lua());
+#ifdef IXRAY_PROFILER_TRACY
+	tracy::LuaRegister(lua());
+#endif
+
+
 	luabind::bind_class_info(lua());
 	setup_callbacks();
 	g_object_factory->export_classes(lua());
@@ -223,12 +225,14 @@ void CScriptEngine::init()
 		DebbugerAttach();
 	}
 
-	if (g_pAddonsManager != nullptr)
+	if (GAddonsManager != nullptr)
 	{
-		for (auto& Addon : g_pAddonsManager->Addons)
+		for (auto& Addon : GAddonsManager->Addons)
 		{
 			if (Addon.ScriptInit.size() == 0)
+			{
 				continue;
+			}
 
 			LoadScriptToGlobal(lua(), Addon.ScriptInit.c_str(), false);
 		}
@@ -250,38 +254,39 @@ void CScriptEngine::remove_script_process	(const EScriptProcessors &process_id)
 
 void CScriptEngine::load_common_scripts()
 {
-#ifdef DBG_DISABLE_SCRIPTS
-	return;
-#endif
-	string_path		S;
-	FS.update_path	(S,"$game_config$","script.ltx");
-	CInifile		*l_tpIniFile = new CInifile(S);
-	R_ASSERT		(l_tpIniFile);
-	if (!l_tpIniFile->section_exist("common")) {
-		xr_delete			(l_tpIniFile);
+	string_path S;
+	FS.update_path(S, _game_config_, "script.ltx");
+	CInifile* l_tpIniFile = new CInifile(S);
+	R_ASSERT(l_tpIniFile);
+
+	if (!l_tpIniFile->section_exist("common"))
+	{
+		xr_delete(l_tpIniFile);
 		return;
 	}
 
-	if (l_tpIniFile->line_exist("common","script")) {
-		LPCSTR			caScriptString = l_tpIniFile->r_string("common","script");
-		u32				n = _GetItemCount(caScriptString);
-		string256		I;
-		for (u32 i=0; i<n; ++i) {
-			process_file(_GetItem(caScriptString,i,I));
-			xr_strcat	(I,"_initialize");
-			if (object("_G",I,LUA_TFUNCTION)) {
-//				lua_dostring			(lua(),xr_strcat(I,"()"));
+	if (l_tpIniFile->line_exist("common", "script"))
+	{
+		const char* caScriptString = l_tpIniFile->r_string("common", "script");
+		u32 n = _GetItemCount(caScriptString);
+		string256 I;
+		for (u32 i = 0; i < n; ++i)
+		{
+			process_file(_GetItem(caScriptString, i, I));
+			xr_strcat(I, "_initialize");
+			if (object("_G", I, LUA_TFUNCTION))
+			{
 				luabind::functor<void>	f;
-				R_ASSERT				(functor(I,f));
-				f						();
+				R_ASSERT(functor(I, f));
+				f();
 			}
 		}
 	}
 
-	xr_delete			(l_tpIniFile);
+	xr_delete(l_tpIniFile);
 }
 
-shared_str ParseFolder(LPCSTR file_name, FS_FileSet& SET)
+shared_str ParseFolder(const char* file_name, FS_FileSet& SET)
 {
 	bool Finded = false;
 
@@ -313,7 +318,7 @@ shared_str ParseFolder(LPCSTR file_name, FS_FileSet& SET)
 		return nullptr;
 }
 
-void CScriptEngine::process_file_if_exists(LPCSTR file_name, bool warn_if_not_exist)
+void CScriptEngine::process_file_if_exists(const char* file_name, bool warn_if_not_exist)
 {
 	if (!*file_name)
 		return;
@@ -338,12 +343,12 @@ void CScriptEngine::process_file_if_exists(LPCSTR file_name, bool warn_if_not_ex
 
 }
 
-void CScriptEngine::process_file	(LPCSTR file_name)
+void CScriptEngine::process_file	(const char* file_name)
 {
 	process_file_if_exists	(file_name,true);
 }
 
-void CScriptEngine::process_file	(LPCSTR file_name, bool reload_modules)
+void CScriptEngine::process_file	(const char* file_name, bool reload_modules)
 {
 	m_reload_modules		= reload_modules;
 	process_file_if_exists	(file_name,true);
@@ -356,7 +361,7 @@ void CScriptEngine::register_script_classes		()
 	return;
 #endif
 	string_path					S;
-	FS.update_path				(S,"$game_config$","script.ltx");
+	FS.update_path				(S,_game_config_,"script.ltx");
 	CInifile					*l_tpIniFile = new CInifile(S);
 	R_ASSERT					(l_tpIniFile);
 
@@ -378,7 +383,7 @@ void CScriptEngine::register_script_classes		()
 	}
 }
 
-bool CScriptEngine::function_object(LPCSTR function_to_call, luabind::object &object, int type)
+bool CScriptEngine::function_object(const char* function_to_call, luabind::object &object, int type)
 {
 	if (!xr_strlen(function_to_call))
 		return				(false);
@@ -405,7 +410,7 @@ bool CScriptEngine::function_object(LPCSTR function_to_call, luabind::object &ob
 	return					(true);
 }
 
-bool CScriptEngine::no_file_exists	(LPCSTR file_name, u32 string_length)
+bool CScriptEngine::no_file_exists	(const char* file_name, u32 string_length)
 {
 	if (m_last_no_file_length != string_length)
 		return				(false);
@@ -413,7 +418,7 @@ bool CScriptEngine::no_file_exists	(LPCSTR file_name, u32 string_length)
 	return					(!memcmp(m_last_no_file,file_name,string_length*sizeof(char)));
 }
 
-void CScriptEngine::add_no_file		(LPCSTR file_name, u32 string_length)
+void CScriptEngine::add_no_file		(const char* file_name, u32 string_length)
 {
 	m_last_no_file_length	= string_length;
 	CopyMemory				(m_last_no_file,file_name,(string_length+1)*sizeof(char));

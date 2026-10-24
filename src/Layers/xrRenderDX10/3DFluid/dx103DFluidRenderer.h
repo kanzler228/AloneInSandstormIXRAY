@@ -26,8 +26,8 @@ public:
 
 	void	Draw(const dx103DFluidData &FluidData);
 
-	static LPCSTR*	GetRTNames() { return m_pRTNames; }
-	static LPCSTR*	GetResourceRTNames() { return m_pResourceRTNames; }
+	static const char**	GetRTNames() { return m_pRTNames; }
+	static const char**	GetResourceRTNames() { return m_pResourceRTNames; }
 
 private:
 	enum RendererShader
@@ -86,10 +86,10 @@ private:
 	DirectX::XMMATRIX m_gridMatrix;
 	//Fmatrix		m_gridMatrix;
 
-	DxgiFormat				RTFormats[ RRT_NumRT ];
+	ERHI_FORMAT				RTFormats[ RRT_NumRT ];
 	ref_rt					RT[ RRT_NumRT ];
-	static LPCSTR			m_pRTNames[ RRT_NumRT ];
-	static LPCSTR			m_pResourceRTNames[ RRT_NumRT ];
+	static const char*			m_pRTNames[ RRT_NumRT ];
+	static const char*			m_pResourceRTNames[ RRT_NumRT ];
 
 	ref_selement	m_RendererTechnique[ RS_NumShaders ];
 
@@ -97,14 +97,14 @@ private:
 	ref_texture		m_HHGGTexture;
 
 	ref_geom					m_GeomGridBox;
-	ID3DVertexBuffer			*m_pGridBoxVertexBuffer;
-	ID3DIndexBuffer				*m_pGridBoxIndexBuffer;
+	IRHIBuffer* m_pGridBoxVertexBuffer;
+	IRHIBuffer* m_pGridBoxIndexBuffer;
+	IRHIBuffer *m_pQuadVertexBuffer;
+
 	int							m_iGridBoxVertNum;
 	int							m_iGridBoxFaceNum;
 
 	ref_geom					m_GeomQuadVertex;
-	ID3DVertexBuffer			*m_pQuadVertexBuffer;
-
 	//	Cache vectors to avoid memory reallocations
 	//	TODO: DX10: Reserve memory on object creation
 	xr_vector<ISpatialShared>		m_lstRenderables;

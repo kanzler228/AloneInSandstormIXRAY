@@ -65,8 +65,7 @@ void CHelicopter::MGunUpdateFire()
 	else
 		no_fire_time = -1;
 
-	CShootingObject::UpdateFlameParticles();
-	CShootingObject::UpdateLight();
+	CShootingObject::UpdateEffects();
 
 	if(!IsWorking()) {
 		clamp(fShotTimeCounter,0.0f, flt_max);
@@ -135,14 +134,13 @@ void CHelicopter::OnShot		()
 
 	FireBullet(fire_pos, fire_dir, fireDispersionBase, m_CurrentAmmo, ID(), ID(), OnServer());
 
-	StartShotParticles	();
 	if(m_bLightShotEnabled) 
 		Light_Start			();
 
 
-	StartFlameParticles		();
-	StartSmokeParticles		(fire_pos, zero_vel);
-	OnShellDrop				(fire_pos, zero_vel);
+	StartFlameParticle();
+	StartSmokeParticle(zero_vel);
+	StartShellParticle(zero_vel);
 
     m_sounds_layered.PlaySound("m_sndShot", fire_pos, this, false, false, true);
 }
@@ -152,7 +150,7 @@ void CHelicopter::MGunFireStart()
 	if(!m_use_mgun_on_attack)
 		return;
 
-	if(FALSE==IsWorking() && m_enemy.bUseFireTrail){
+	if(false==IsWorking() && m_enemy.bUseFireTrail){
 		//start calc fire trail
 		m_enemy.fStartFireTime			= Device.fTimeGlobal;
 		Fvector fp = get_CurrentFirePoint();
@@ -180,7 +178,6 @@ void CHelicopter::MGunFireStart()
 void CHelicopter::MGunFireEnd()
 {
 	CShootingObject::FireEnd	();
-	StopFlameParticles			();
 	m_enemy.fStartFireTime		= -1.0f;
 }
 
@@ -235,7 +232,7 @@ void CHelicopter::UpdateWeapons		()
 
 void CHelicopter::UpdateMGunDir()
 {
-	IKinematics* K		= smart_cast<IKinematics*>(Visual());
+	IKinematics* K		= PKinematics(Visual());
 	m_fire_bone_xform	= K->LL_GetTransform(m_fire_bone);
 
 	m_fire_bone_xform.mulA_43	(XFORM());
@@ -255,7 +252,7 @@ void CHelicopter::UpdateMGunDir()
 	m_right_rocket_bone_xform.c.y += 1.0f;
 	//.fake
 
-	m_allow_fire		= TRUE;
+	m_allow_fire		= true;
 	Fmatrix XFi;
 	XFi.invert			(XFORM());
 	Fvector dep;
@@ -265,26 +262,26 @@ void CHelicopter::UpdateMGunDir()
 		m_tgt_rot.x		= angle_normalize_signed(m_bind_rot.x-A_.getP());
 		float sv_x		= m_tgt_rot.x;
 		clamp			(m_tgt_rot.x,-m_lim_x_rot.y,-m_lim_x_rot.x);
-		if (!fsimilar(sv_x,m_tgt_rot.x,EPS_L)) m_allow_fire=FALSE;
+		if (!fsimilar(sv_x,m_tgt_rot.x,EPS_L)) m_allow_fire=false;
 	}
 	{// y angle
 		Fvector A_;		A_.sub(dep,m_bind_y);	m_i_bind_y_xform.transform_dir(A_); A_.normalize();
 		m_tgt_rot.y		= angle_normalize_signed(m_bind_rot.y-A_.getH());
 		float sv_y		= m_tgt_rot.y;
 		clamp			(m_tgt_rot.y,-m_lim_y_rot.y,-m_lim_y_rot.x);
-		if (!fsimilar(sv_y,m_tgt_rot.y,EPS_L)) m_allow_fire=FALSE;
+		if (!fsimilar(sv_y,m_tgt_rot.y,EPS_L)) m_allow_fire=false;
 	}
 	
 	if ((angle_difference(m_cur_rot.x,m_tgt_rot.x)>deg2rad(m_barrel_dir_tolerance))||
 		(angle_difference(m_cur_rot.y,m_tgt_rot.y)>deg2rad(m_barrel_dir_tolerance)))
-		m_allow_fire=FALSE;
+		m_allow_fire=false;
 
 }
 
 void CHelicopter::startRocket(u16 idx)
 {
 	if((getRocketCount()>=1)&&m_use_rocket_on_attack) {
-		CExplosiveRocket* pGrenade = smart_cast<CExplosiveRocket*>(getCurrentRocket());
+		CExplosiveRocket* pGrenade = getCurrentRocket()->cast_explosive_rocket();
 		VERIFY(pGrenade);
 		pGrenade->SetInitiator(this->ID());
 		

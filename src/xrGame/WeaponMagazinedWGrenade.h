@@ -9,15 +9,15 @@ class CWeaponFakeGrenade;
 class CWeaponMagazinedWGrenade : public CWeaponMagazined,
 								 public CRocketLauncher
 {
-	typedef CWeaponMagazined inherited;
+	using inherited = CWeaponMagazined;
 public:
-					CWeaponMagazinedWGrenade	(ESoundTypes eSoundType=SOUND_TYPE_WEAPON_SUBMACHINEGUN);
-	virtual			~CWeaponMagazinedWGrenade	();
+	CWeaponMagazinedWGrenade() = default;
+	virtual	~CWeaponMagazinedWGrenade() = default;
 
-	virtual void	Load				(LPCSTR section);
-	virtual void	LoadSounds			(LPCSTR section) override;
+	virtual void	Load				(const char* section);
+	virtual void	LoadSounds			(const char* section) override;
 	
-	virtual BOOL	net_Spawn			(CSE_Abstract* DC);
+	virtual bool	net_Spawn			(CSE_Abstract* DC);
 	virtual void	net_Destroy			();
 	virtual void	net_Export			(NET_Packet& P);
 	virtual void	net_Import			(NET_Packet& P);
@@ -39,7 +39,7 @@ public:
 	virtual void	FireEnd					();
 			void	LaunchGrenade_Correct	(Fvector3* v);
 	
-	virtual void	OnStateSwitch	(u32 S);
+	virtual void	OnStateSwitch	(u8 S);
 	
 	virtual void	switch2_Hiding() override;
 	virtual void	switch2_Showing() override;
@@ -57,7 +57,7 @@ public:
 	//переключение в режим подствольника
 	virtual bool	SwitchMode		();
 	void			PerformSwitchGL	();
-	void			OnAnimationEnd	(u32 state);
+	void			OnAnimationEnd	(u8 state);
 	virtual bool	GetBriefInfo			(II_BriefInfo& info);
 
 	virtual bool	IsNecessaryItem	    (const shared_str& item_sect);
@@ -70,12 +70,13 @@ public:
 	virtual shared_str SetCurrentShootAnimation();
 	
 	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() { return this; }
+	virtual CRocketLauncher* cast_rocket_launcher() override { return this; }
 
 	virtual bool	IsGrenadeMode() const { return m_bGrenadeMode; }
 private:
 	virtual	void	net_Spawn_install_upgrades	( Upgrades_type saved_upgrades );
-	virtual bool	install_upgrade_impl		( LPCSTR section, bool test );
-	virtual	bool	install_upgrade_ammo_class	( LPCSTR section, bool test );
+	virtual bool	install_upgrade_impl		( const char* section, bool test );
+	virtual	bool	install_upgrade_ammo_class	( const char* section, bool test );
 	
 			int		GetAmmoCount2				( u8 ammo2_type ) const;
 
@@ -85,17 +86,14 @@ protected:
 public:
 	//дополнительные параметры патронов 
 	//для подствольника
-//-	CWeaponAmmo*			m_pAmmo2;
-	xr_vector<shared_str>	m_ammoTypes2;
-	u8						m_ammoType2;
+	xr_vector<shared_str>	m_ammoTypes2 = {};
 
-	int						iMagazineSize2;
-	xr_vector<CCartridge>	m_magazine2;
+	int						iMagazineSize2 = 0;
+	xr_vector<CCartridge>	m_magazine2 = {};
 
-	bool					m_bGrenadeMode;
+	bool					m_bGrenadeMode = false;
 
 	CCartridge				m_DefaultCartridge2;
-	u8						iAmmoElapsed2;
 
 	virtual u8				GetTargetAmmoType(bool for_grenade_mode = false) const override;
 	virtual u8				GetAmmoType(bool for_grenade_mode = false) const override;
@@ -103,4 +101,7 @@ public:
 	virtual int	GetCurrentElapsed(bool for_grenade_mode = false) const override;
 
 	virtual void UpdateGrenadeVisibility(bool visibility);
+
+	//название косточки для гранаты подствольника в HUD
+	shared_str grenade_bone_name;
 };

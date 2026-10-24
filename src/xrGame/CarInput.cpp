@@ -1,8 +1,7 @@
 #include "StdAfx.h"
 
 #ifdef DEBUG
-
-#include "PHDebug.h"
+#	include "PHDebug.h"
 #endif
 #include "alife_space.h"
 #include "Hit.h"
@@ -16,6 +15,9 @@
 #include "../Include/xrRender/Kinematics.h"
 #include "Level.h"
 #include "CarWeapon.h"
+#include "../xrEngine/xr_input.h"
+#include "script_game_object.h"
+#include "visual_memory_manager.h"
 
 void CCar::OnMouseMove(int dx, int dy)
 {
@@ -23,17 +25,101 @@ void CCar::OnMouseMove(int dx, int dy)
 		return;
 
 	CCameraBase* C = active_camera;
-	float scale = (C->f_fov / g_fov) * psMouseSens * psMouseSensScale / 50.f;
+	float Scale = (C->f_fov / g_fov) * psMouseSens * psMouseSensScale / 50.f;
 	if (dx)
 	{
-		float d = float(dx) * scale;
-		C->Move((d < 0) ? kLEFT : kRIGHT, _abs(d));
+		float Delta = float(dx) * Scale;
+		C->Move((Delta < 0) ? kLEFT : kRIGHT, std::abs(Delta));
 	}
 
 	if (dy)
 	{
-		float d = ((psMouseInvert.test(1)) ? -1 : 1) * float(dy) * scale * 3.f / 4.f;
-		C->Move((d > 0) ? kUP : kDOWN, _abs(d));
+		float Delta = (psMouseInvert ? -1 : 1) * float(dy) * Scale * 3.f / 4.f;
+		C->Move((Delta > 0) ? kUP : kDOWN, std::abs(Delta));
+	}
+}
+
+void CCar::OnGamepadAxisMove(int id, Fvector2 value)
+{
+	if (!IsMyCar())
+		return;
+
+	// left stick
+	if (id == 0)
+	{
+		if (!fis_zero(value.x))
+		{
+			(value.x > 0.f) ? PressRight() : PressLeft();
+		}
+		else if (pInput->GetControllerMode())
+		{
+			ReleaseLeft();
+			ReleaseRight();
+		}
+
+		if (OwnerActor())
+		{
+			OwnerActor()->steer_Vehicle(value.x);
+		}
+	}
+	// right stick
+	else if (id == 1)
+	{
+		CCameraBase* C = active_camera;
+		float scale = (C->f_fov / g_fov) * psGamepadSens * Device.fTimeDelta * psMouseSensScale;
+		if (value.x)
+		{
+			float d = value.x * scale * 8;
+			C->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
+		}
+
+		if (value.y)
+		{
+			float d = (psGamepadInvert ? -1 : 1) * value.y * scale * 3.f / 4.f;
+			d *= 8;
+			C->Move((d > 0) ? kUP : kDOWN, std::abs(d));
+		}
+	}
+	// triggers
+	else if (id == 2)
+	{
+		if (!fis_zero(value.x))
+		{
+			PressBack();
+		}
+		else if (pInput->GetControllerMode())
+		{
+			ReleaseBack();
+		}
+
+		if (!fis_zero(value.y))
+		{
+			PressForward();
+		}
+		else if (pInput->GetControllerMode())
+		{
+			ReleaseForward();
+		}
+	}
+}
+
+void CCar::OnGyroscopeMove(Fvector3 value)
+{
+	if (!IsMyCar())
+		return;
+
+	CCameraBase* C = active_camera;
+	float scale = (C->f_fov / g_fov) * Device.fTimeDelta * psMouseSensScale;
+	if (value.x)
+	{
+		float d = (psGyroscopeInvertX ? -1 : 1) * value.x * scale;
+		C->Move((d < 0) ? kUP : kDOWN, std::abs(d));
+	}
+
+	if (value.y)
+	{
+		float d = (psGyroscopeInvertY ? -1 : 1) * value.y * scale;
+		C->Move((d > 0) ? kLEFT : kRIGHT, std::abs(d));
 	}
 }
 
@@ -66,7 +152,7 @@ bool CCar::bfAssignObject(CScriptEntityAction *tpEntityAction)
 	if (l_tObjectAction.m_bCompleted || !xr_strlen(l_tObjectAction.m_caBoneName))
 		return((l_tObjectAction.m_bCompleted = true) == false);
 
-	s16	l_sBoneID = smart_cast<IKinematics*>(Visual())->LL_BoneID(l_tObjectAction.m_caBoneName);
+	s16	l_sBoneID = PKinematics(Visual())->LL_BoneID(l_tObjectAction.m_caBoneName);
 	if (is_Door(l_sBoneID)) {
 		switch(l_tObjectAction.m_tGoalType) {
 			case MonsterSpace::eObjectActionActivate : {
@@ -116,17 +202,17 @@ bool CCar::bfAssignObject(CScriptEntityAction *tpEntityAction)
 void CCar::vfProcessInputKey	(int iCommand, bool bPressed)
 {
 	if (bPressed)
-		OnKeyboardPress			(iCommand);
+		OnKeyboardPress			(get_action_dik((EGameActions)iCommand));
 	else
-		OnKeyboardRelease		(iCommand);
+		OnKeyboardRelease		(get_action_dik((EGameActions)iCommand));
 }
 
-void CCar::OnKeyboardPress(int cmd)
+void CCar::OnKeyboardPress(int dik)
 {
 	if (!IsMyCar() && !g_dedicated_server)
 		return;
 
-	switch (cmd)	
+	switch (get_binded_action(dik))	
 	{
 	case kCAM_1:	OnCameraChange(ectFirst);	break;
 	case kCAM_2:
@@ -136,16 +222,31 @@ void CCar::OnKeyboardPress(int cmd)
 			OnCameraChange(ectFirst);
 		break;
 	case kCAM_3:	OnCameraChange(ectFree);	break;
-	case kACCEL:	TransmissionUp();			break;
-	case kCROUCH:	TransmissionDown();			break;
 	case kFWD:		PressForward();				break;
 	case kBACK:		PressBack();				break;
 	case kR_STRAFE:	PressRight();				if (OwnerActor()) OwnerActor()->steer_Vehicle(1);	break;
 	case kL_STRAFE:	PressLeft();				if (OwnerActor()) OwnerActor()->steer_Vehicle(-1);break;
-	case kJUMP:		PressBreaks();				break;
-	case kDETECTOR: SwitchEngine();				break;
+	case kDETECTOR: 
+		SwitchEngine();
+		break;
 	case kTORCH:	m_lights.SwitchHeadLights();break;
 	case kUSE:									break;
+	};
+
+	switch (get_binded_action(dik, agTransport))
+	{
+	case kTRANSMISSION_UP:		
+		TransmissionUp();		
+		break;
+	case kTRANSMISSION_DOWN:	
+		TransmissionDown();			
+		break;
+	case kBRAKE:		
+		PressBreaks();				
+		break;
+	case kENGINE:
+		SwitchEngine();
+		break;
 	};
 
 	if (OnClient())
@@ -154,25 +255,43 @@ void CCar::OnKeyboardPress(int cmd)
 		CGameObject::u_EventGen(P, GE_GAME_EVENT, Owner()->ID());
 		P.w_u16(GAME_EVENT_MP_CAR_INPUT);
 		P.w_u16(ID());
-		P.w_u8(cmd);
+		P.w_u8(dik);
 		P.w_u8(true);
 		CGameObject::u_EventSend(P);
 	}
 }
 
-void CCar::OnKeyboardRelease(int cmd)
+void CCar::OnGamepadKeyPress(int id)
 {
 	if (!IsMyCar() && !g_dedicated_server)
 		return;
 
-	switch (cmd)	
+	switch (get_binded_action(id))	
 	{
-	case kACCEL:break;
-	case kFWD:		ReleaseForward();			break;
-	case kBACK:		ReleaseBack();				break;
-	case kL_STRAFE:	ReleaseLeft();				if (OwnerActor()) OwnerActor()->steer_Vehicle(0);	break;
-	case kR_STRAFE:	ReleaseRight();				if (OwnerActor()) OwnerActor()->steer_Vehicle(0);	break;
-	case kJUMP:		ReleaseBreaks();			break;
+	case kCAM_2:
+		if (active_camera->tag != ectChase)
+			OnCameraChange(ectChase);
+		else
+			OnCameraChange(ectFirst);
+		break;
+	case kTORCH:	m_lights.SwitchHeadLights();break;
+	case kUSE:									break;
+	};
+
+	switch (get_binded_action(id, agTransport))
+	{
+	case kENGINE:
+		SwitchEngine();
+		break;
+	case kBRAKE:		
+		PressBreaks();				
+		break;
+	case kTRANSMISSION_UP:	
+		TransmissionUp();			
+		break;
+	case kTRANSMISSION_DOWN:	
+		TransmissionDown();			
+		break;
 	};
 
 	if (OnClient())
@@ -181,7 +300,59 @@ void CCar::OnKeyboardRelease(int cmd)
 		CGameObject::u_EventGen(P, GE_GAME_EVENT, Owner()->ID());
 		P.w_u16(GAME_EVENT_MP_CAR_INPUT);
 		P.w_u16(ID());
-		P.w_u8(cmd);
+		P.w_u8(get_binded_action(id));
+		P.w_u8(true);
+		CGameObject::u_EventSend(P);
+	}
+}
+
+void CCar::OnKeyboardRelease(int dik)
+{
+	if (!IsMyCar() && !g_dedicated_server)
+		return;
+
+	switch (get_binded_action(dik))	
+	{
+	case kFWD:		ReleaseForward();			break;
+	case kBACK:		ReleaseBack();				break;
+	case kL_STRAFE:	ReleaseLeft();				if (OwnerActor()) OwnerActor()->steer_Vehicle(0);	break;
+	case kR_STRAFE:	ReleaseRight();				if (OwnerActor()) OwnerActor()->steer_Vehicle(0);	break;
+	};
+
+	switch (get_binded_action(dik, agTransport))
+	{
+	case kBRAKE:		ReleaseBreaks();			break;
+	};
+
+	if (OnClient())
+	{
+		NET_Packet P;
+		CGameObject::u_EventGen(P, GE_GAME_EVENT, Owner()->ID());
+		P.w_u16(GAME_EVENT_MP_CAR_INPUT);
+		P.w_u16(ID());
+		P.w_u8(dik);
+		P.w_u8(false);
+		CGameObject::u_EventSend(P);
+	}
+}
+
+void CCar::OnGamepadKeyRelease(int id)
+{
+	if (!IsMyCar() && !g_dedicated_server)
+		return;
+
+	switch (get_binded_action(id, agTransport))
+	{
+	case kBRAKE:		ReleaseBreaks();			break;
+	};
+
+	if (OnClient())
+	{
+		NET_Packet P;
+		CGameObject::u_EventGen(P, GE_GAME_EVENT, Owner()->ID());
+		P.w_u16(GAME_EVENT_MP_CAR_INPUT);
+		P.w_u16(ID());
+		P.w_u8(id);
 		P.w_u8(false);
 		CGameObject::u_EventSend(P);
 	}
@@ -225,43 +396,33 @@ float CCar::FireDirDiff()
 	if(m_car_weapon) return m_car_weapon->FireDirDiff();
 	return 0.0f;
 }
-#include "script_game_object.h"
-#include "car_memory.h"
-#include "visual_memory_manager.h"
 
-bool CCar::isObjectVisible			(CScriptGameObject* O_)
+bool CCar::isObjectVisible(CScriptGameObject* O_)
 {
-	if(m_memory)
+	if (!O_)
 	{
-		return m_memory->visual().visible_now(&O_->object());
-	}else
-	{
-
-		if(!O_)
-		{
-			Msg("Attempt to call CCar::isObjectVisible method wihth passed nullptr parameter");
-			return false;
-		}
-		CObject* O = &O_->object();
-		Fvector dir_to_object;
-		Fvector to_point;
-		O->Center(to_point);
-		
-		Fvector				from_point;
-		Center				(from_point);
-	
-		if(HasWeapon())
-		{
-			from_point.y		= XFORM().c.y + m_car_weapon->_height();
-		}
-
-		dir_to_object.sub(to_point,from_point).normalize_safe();
-		float ray_length = from_point.distance_to(to_point);
-
-
-		BOOL res = Level().ObjectSpace.RayTest(from_point, dir_to_object, ray_length, collide::rqtStatic, nullptr, nullptr);
-		return (0==res);
+		Msg("Attempt to call CCar::isObjectVisible method wihth passed nullptr parameter");
+		return false;
 	}
+
+	CObject* O = &O_->object();
+	Fvector Dist2Obj;
+	Fvector Point;
+	O->Center(Point);
+
+	Fvector From;
+	Center(From);
+
+	if (HasWeapon())
+	{
+		From.y = XFORM().c.y + m_car_weapon->_height();
+	}
+
+	Dist2Obj.sub(Point, From).normalize_safe();
+	float RayLen = From.distance_to(Point);
+
+	bool res = Level().ObjectSpace.RayTest(From, Dist2Obj, RayLen, collide::rqtStatic, nullptr, nullptr);
+	return (0 == res);
 }
 
 bool CCar::HasWeapon()

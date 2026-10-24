@@ -9,11 +9,6 @@
 #define EOBJ_OMOTION_VERSION   	0x0005
 #define EOBJ_SMOTION_VERSION   	0x0007
 
-#ifdef _LW_EXPORT
-	extern void ReplaceSpaceAndLowerCase(shared_str& s);
-#endif
-
-
 //------------------------------------------------------------------------------------------
 // CCustomMotion
 //------------------------------------------------------------------------------------------
@@ -34,9 +29,6 @@ CCustomMotion::~CCustomMotion()
 
 void CCustomMotion::Save(IWriter& F)
 {
-#ifdef _LW_EXPORT
-	ReplaceSpaceAndLowerCase(name);
-#endif
 	F.w_stringZ	(name);
 	F.w_u32		(iFrameStart);
 	F.w_u32		(iFrameEnd);
@@ -188,16 +180,16 @@ float COMotion::GetLength(float* mn, float* mx)
 		if ((ln=envs[ch]->GetLength(mn,mx))>len) len=ln;
 	return len;
 }
-BOOL COMotion::ScaleKeys(float from_time, float to_time, float scale_factor)
+bool COMotion::ScaleKeys(float from_time, float to_time, float scale_factor)
 {
-	BOOL bRes=TRUE;
+	bool bRes=true;
 	for (int ch=0; ch<ctMaxChannel; ch++)
-		if (FALSE==(bRes=envs[ch]->ScaleKeys(from_time, to_time, scale_factor, 1.f/fFPS))) break;
+		if (false==(bRes=envs[ch]->ScaleKeys(from_time, to_time, scale_factor, 1.f/fFPS))) break;
 	return bRes;
 }
-BOOL COMotion::NormalizeKeys(float from_time, float to_time, float speed)
+bool COMotion::NormalizeKeys(float from_time, float to_time, float speed)
 {
-	if (to_time<from_time) return FALSE;
+	if (to_time<from_time) return false;
 	CEnvelope* E 	= Envelope(ctPositionX);
 	float new_tm	= 0;
 	float t0		= E->keys.front()->time;
@@ -241,7 +233,7 @@ BOOL COMotion::NormalizeKeys(float from_time, float to_time, float speed)
 		}
 	}
 */
-	return TRUE;
+	return true;
 }
 
 

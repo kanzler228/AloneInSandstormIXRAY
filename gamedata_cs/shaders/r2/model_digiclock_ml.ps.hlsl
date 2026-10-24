@@ -4,11 +4,6 @@
 uniform	float4 		m_digiclock;
 uniform	float4 		m_affects;
 
-float get_noise(float2 co)
-{
-	return (frac(sin(dot(co.xy ,float2(12.9898,78.233))) * 43758.5453))*0.5;
-};
-
 f_deffer 	main	( p_flat I )
 {
   f_deffer	O;
@@ -40,9 +35,9 @@ f_deffer 	main	( p_flat I )
 	D.rgb += t_noise.rgb*noise+0.1;
 
 	// 2. Standart output
-	O.N          = float4		(normalize((float3)I.N.xyz), 					h			);
-	O.P    = float4 	(I.position.xyz + O.N.xyz*def_virtualh/2.0f, 	ms			);
-	O.C			= float4		(D.rgb,											def_gloss	);	// OUT: rgb.gloss
+	O.N          = float4		(normalize((float3)I.N.xyz), h);
+	O.P          = float4 	(I.position.xyz + O.N.xyz*def_virtualh/2.0f, ms);
+	O.C			 = float4		(D.rgb, def_gloss);	// OUT: rgb.gloss
 
 	return O;
 }

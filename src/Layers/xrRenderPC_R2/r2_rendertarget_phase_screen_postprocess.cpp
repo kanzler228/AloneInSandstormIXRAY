@@ -1,4 +1,8 @@
 #include "stdafx.h"
+#include "../../xrEngine/IGame_Persistent.h"
+
+bool UseGasmak = false;
+bool UseRainDrops = false;
 
 void CRenderTarget::RenderEffect(ScreenPostProcessType postProcessType) {
 	u_setrt(rt_Generic_0, nullptr, nullptr, nullptr);
@@ -16,7 +20,7 @@ void CRenderTarget::RenderEffect(ScreenPostProcessType postProcessType) {
 	p1.set((_w + .5f) / _w, (_h + .5f) / _h);
 
 	// Configure rendering settings
-	RCache.set_CullMode(CULL_NONE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
 	RCache.set_Stencil(false);
 
 	// Lock and set vertices
@@ -32,8 +36,8 @@ void CRenderTarget::RenderEffect(ScreenPostProcessType postProcessType) {
 	RCache.set_Geometry(g_combine);
 
 	// Render
-	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
-	RDevice->StretchRect(rt_Generic_0->pRT, 0, rt_Color->pRT, 0, D3DTEXF_NONE);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
+	GRHI->CopySurface(rt_Color->pRT, rt_Generic_0->pRT);
 }
 
 void CRenderTarget::PhaseAberration() {
@@ -46,4 +50,26 @@ void CRenderTarget::PhaseVignette() {
 
 void CRenderTarget::PhaseSaturation() {
 	RenderEffect(ScreenPostProcessType::Saturation);
+}
+
+void CRenderTarget::PhaseRaindrops()
+{
+	const bool ItemCfgHudRainDropsAvailable = g_pGamePersistent->ShaderParams.ItemCfgHudRainDropsAvailable;
+	if (!ItemCfgHudRainDropsAvailable)
+	{
+		return;
+	}
+
+	const float condition = g_pGamePersistent->ShaderParams.HelmetCondition;
+	if (condition < 0)
+	{
+		return;
+	}
+
+	if (g_pGamePersistent->Environment().wetness_factor < EPS_L)
+	{
+		return;
+	}
+
+	RenderEffect(ScreenPostProcessType::Raindrops);
 }

@@ -8,13 +8,16 @@
 
 #pragma once
 
-#include "../../CustomMonster.h"
+#include "../../Creature.h"
 #include "../../ObjectHandler.h"
 #include "../../AI_PhraseDialogManager.h"
 #include "../../step_manager.h"
 #include "../../../xrScripts/script_export_space.h"
 
 #include "ai_stalker_state_net.h"
+#include "ai_stalker_space.h"
+#include "ai_monster_space.h"
+#include "stalker_animation_names.h"
 
 #ifdef DEBUG
 	template <typename _object_type>
@@ -42,14 +45,6 @@
 		CPropertyEvaluator<CScriptGameObject>*
 	>								script_planner;
 #endif
-
-namespace MonsterSpace {
-	enum EMovementDirection;
-};
-
-namespace StalkerSpace {
-	enum EBodyAction;
-};
 
 namespace smart_cover {
 	class cover;
@@ -79,8 +74,6 @@ namespace stalker_interpolation
 	};
 };
 
-enum ECriticalWoundType;
-
 class CALifeSimulator;
 class CCharacterPhysicsSupport;
 class CWeapon;
@@ -103,14 +96,14 @@ struct SBoneProtections;
 class CDangerLocation;
 class CRestrictedObject;
 
-class CAI_Stalker : 
-	public CCustomMonster, 
+class CAI_Stalker final : 
+	public CCreature, 
 	public CObjectHandler,
 	public CAI_PhraseDialogManager,
 	public CStepManager
 {
 private:
-	typedef CCustomMonster								inherited;
+	typedef CCreature								inherited;
 
 public:
 	using inherited::useful;
@@ -210,31 +203,30 @@ public:
 	virtual	CCharacterPhysicsSupport*	character_physics_support	()						{return m_pPhysics_support;}
 	virtual	const CCharacterPhysicsSupport*	character_physics_support() const 			{return m_pPhysics_support;}
 	virtual CPHDestroyable*				ph_destroyable				()						;
-	virtual CAttachmentOwner*			cast_attachment_owner		()						{return this;}
-	virtual CInventoryOwner*			cast_inventory_owner		()						{return this;}
+	virtual CAttachmentOwner*			cast_attachment_owner		() override				{return this;}
+	virtual CInventoryOwner*			cast_inventory_owner		() override				{return this;}
 	virtual CEntityAlive*				cast_entity_alive			()						{return this;}
 	virtual CEntity*					cast_entity					()						{return this;}
-	virtual CGameObject*				cast_game_object			()						{return this;}
+	virtual CGameObject*				cast_game_object			() override				{return this;}
 	virtual CPhysicsShellHolder*		cast_physics_shell_holder	()						{return this;}
-	virtual CParticlesPlayer*			cast_particles_player		()						{return this;}
 	virtual	Feel::Sound*				dcast_FeelSound				()						{return this;}
 	virtual CAI_Stalker*				cast_stalker				()						{return this;}
-	virtual CCustomMonster*				cast_custom_monster			()						{return this;}
+	virtual CCreature*				cast_creature			()						{return this;}
 	virtual CScriptEntity*				cast_script_entity			()						{return this;}
 	virtual CPhraseDialogManager*		cast_phrase_dialog_manager	()						{return this;}
 	virtual CAI_PhraseDialogManager*	cast_ai_phrase_dialog_manager()						{return this;}
 
 public:
 			void						init								();
-	virtual void						Load								(LPCSTR	section );				
+	virtual void						Load								(const char*	section );				
 	virtual	void						reinit								();
-	virtual void						reload								(LPCSTR	section );				
-	virtual void						LoadSounds							(LPCSTR section );
+	virtual void						reload								(const char*	section );				
+	virtual void						LoadSounds							(const char* section );
 	
 	static void BoneCallback(CBoneInstance* B);
 	void LookAtActor(CBoneInstance* headBone);
 
-	virtual BOOL						net_Spawn							(CSE_Abstract* DC);
+	virtual bool						net_Spawn							(CSE_Abstract* DC);
 
 	virtual void						net_Export							(NET_Packet& P);
 	virtual void						net_Import							(NET_Packet& P);
@@ -244,7 +236,7 @@ public:
 
 	virtual void						net_Destroy							();
 	virtual void						net_Save							(NET_Packet& P);
-	virtual	BOOL						net_SaveRelevant					();
+	virtual	bool						net_SaveRelevant					();
 	virtual void						net_Relcase							(CObject*	 O);
 
 	//save/load server serialization
@@ -255,10 +247,10 @@ public:
 	virtual void						shedule_Update						(u32 dt);
 	virtual void						Think								();
 	virtual void						SelectAnimation						(const Fvector& _view, const Fvector& _move, float speed );
-	virtual BOOL						UsedAI_Locations					();
+	virtual bool						UsedAI_Locations					();
 
-	virtual void						g_WeaponBones						(int &L, int &R1, int &R2);
-	virtual void						g_fireParams						(const CHudItem* pHudItem, Fvector& P, Fvector& D);
+	virtual void						g_WeaponBones						(u16 &L, u16 &R1, u16 &R2) final override;
+	virtual void						g_fireParams						(const CHudItem* pHudItem, Fvector& P, Fvector& D) final override;
 	virtual void						HitSignal							(float P,	Fvector& vLocalDir, CObject* who, s16 element);
 	virtual void						Die									(CObject* who);
 
@@ -270,7 +262,7 @@ public:
 	virtual void						Exec_Look							(float dt);
 	virtual	void						Hit									(SHit* pHDS);
 	virtual	void						PHHit								(SHit &H);
-	virtual BOOL						feel_vision_isRelevant				(CObject* who);
+	virtual bool						feel_vision_isRelevant				(CObject* who);
 	virtual float						Radius								() const;
 
 	virtual void						ChangeVisual						( shared_str NewVisual );
@@ -333,7 +325,7 @@ public:
 			bool						ready_to_detour			();
 			void						update_best_item_info	();
 			void						update_best_item_info_impl();
-			void						ResetBoneProtections	(LPCSTR imm_sect, LPCSTR bone_sect);
+			void						ResetBoneProtections	(const char* imm_sect, const char* bone_sect);
 	virtual float						GetWeaponAccuracy		() const;
 	virtual bool						unlimited_ammo			();
 	virtual bool						infinite_fire() override;
@@ -392,9 +384,9 @@ public:
 	IC		float						start_pick_distance		() const;
 			bool						fire_make_sense			();
 			
-	virtual LPCSTR						Name					() const;
-	virtual BOOL						feel_touch_contact		(CObject* O);
-	virtual BOOL						feel_touch_on_contact	(CObject* O);
+	virtual const char*						Name					() const;
+	virtual bool						feel_touch_contact		(CObject* O);
+	virtual bool						feel_touch_on_contact	(CObject* O);
 
 	//флаги, какие действия совершал актер по отношению к сталкеру
 	//(помог, атаковал и т.д.)
@@ -507,8 +499,6 @@ public:
 	IC		Fvector						weapon_shot_effector_direction	(const Fvector &current) const;
 	virtual void						UpdateCamera					();
 	virtual	bool						can_attach						(const CInventoryItem *inventory_item) const;
-	// because we don't want to use this feature for stalkers
-	virtual	bool						use_simplified_visual			() const {return false; } //(already_dead());};
 #ifdef DEBUG
 			void						debug_planner					(const script_planner *planner);
 #endif
@@ -828,7 +818,7 @@ private:
 	virtual bool						critical_wound_external_conditions_suitable	();
 	virtual void						critical_wounded_state_start				();
 
-			void						fill_bones_body_parts						(LPCSTR bone_id, const ECriticalWoundType &wound_type);
+			void						fill_bones_body_parts						(const char* bone_id, const ECriticalWoundType &wound_type);
 public:
 	typedef xr_vector<float>			CRITICAL_WOUND_WEIGHTS;
 
@@ -901,7 +891,7 @@ public:
 	typedef xr_delegate<void (Fmatrix& )>							EyeMatrixCallback;
 
 private:
-	virtual BOOL						AlwaysTheCrow								();
+	virtual bool						AlwaysTheCrow								();
 
 public:
 	IC		void						take_items_enabled							(bool value);

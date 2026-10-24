@@ -1,8 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "Restrictions.h"
 #ifdef DEBUG
-#	include "../../xrEngine/xr_ioconsole.h"
 #	include "../../xrEngine/xr_ioc_cmd.h"
 #endif //#ifdef DEBUG
 #include "../../xrEngine/string_table.h"
@@ -46,8 +45,7 @@ CRestrictions::CRestrictions()
 	m_bInited				= false;
 }
 
-CRestrictions::~CRestrictions()
-{}
+CRestrictions::~CRestrictions() = default;
 
 void CRestrictions::InitGroups()
 {
@@ -56,7 +54,7 @@ void CRestrictions::InitGroups()
 
 	// create groups
 	u32 c					=  pSettings->line_count("mp_item_groups");
-	LPCSTR					line, name;
+	const char*					line, *name;
 
 	for (u32 i = 0; i<c; ++i)
 	{
@@ -120,7 +118,7 @@ bool CRestrictions::IsAvailable(const shared_str& itm)
 	return					(_r<=m_rank);
 }
 
-void CRestrictions::AddGroup(LPCSTR group, LPCSTR lst)
+void CRestrictions::AddGroup(const char* group, const char* lst)
 {// private
 	VERIFY							(m_bInited);
 
@@ -234,7 +232,7 @@ const CRestrictions::restr_item* CRestrictions::find_restr_item(const u32& rank,
 void CRestrictions::Dump() const
 {
 #ifndef MASTER_GOLD
-	Msg("------------item groups ---count=[%d]-------------------",m_goups.size());
+	Msg("------------item groups ---count=[%zu]-------------------",m_goups.size());
 	Groups::const_iterator it = m_goups.begin();
 	Groups::const_iterator it_e = m_goups.end();
 	for(; it!=it_e; ++it)
@@ -252,9 +250,9 @@ void CRestrictions::Dump() const
 		rank_rest_vec::const_iterator it_		= v.begin();
 		rank_rest_vec::const_iterator it_e_		= v.end();
 		if(i<_RANK_COUNT)
-			Msg("---	for rank %d  ---count=[%d]", i, v.size());
+			Msg("---	for rank %d  ---count=[%zu]", i, v.size());
 		else
-			Msg("---	base restrictions ---count=[%d]", v.size());
+			Msg("---	base restrictions ---count=[%zu]", v.size());
 
 		for(;it_!=it_e_;++it_)
 		{

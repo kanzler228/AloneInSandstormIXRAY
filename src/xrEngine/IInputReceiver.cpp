@@ -24,28 +24,46 @@ void	IInputReceiver::IR_GetLastMouseDelta			(Ivector2& p)
 
 void IInputReceiver::IR_OnDeactivate					(void)
 {
-	int i;
-	for (i = 0; i < CInput::COUNT_KB_BUTTONS; i++ )
-		if (IR_GetKeyState(i)) {	
+	for (size_t i = 0; i < CInput::COUNT_KB_BUTTONS; i++)
+	{
+		if (IR_GetKeyState(i))
+		{
 			IR_OnKeyboardRelease(i);
 		}
-	for (i = 0; i < CInput::COUNT_MOUSE_BUTTONS; i++ )
-		if (IR_GetBtnState(i)) {
+	}
+	for (size_t i = 0; i < CInput::COUNT_MOUSE_BUTTONS; i++)
+	{
+		if (IR_GetBtnState(i))
+		{
 			IR_OnMouseRelease(i);
 		}
+	}
+	for (size_t i = 0; i < GAMEPAD_BUTTON_COUNT_REAL; i++)
+	{
+		if (IR_GetGamepadKeyState(i))
+		{
+			IR_GamepadKeyRelease(i);
+		}
+	}
 }
 
 void IInputReceiver::IR_OnActivate(void)
 {
 }
 
-BOOL IInputReceiver::IR_GetKeyState(int dik)
+bool IInputReceiver::IR_GetKeyState(int dik)
 {
 	VERIFY(pInput);
 	return pInput->iGetAsyncKeyState(dik);
 }
 
-BOOL IInputReceiver::IR_GetBtnState(int btn)
+bool IInputReceiver::IR_GetGamepadKeyState(int id)
+{
+	VERIFY(pInput);
+	return pInput->iGetAsyncGamepadKeyState(id);
+}
+
+bool IInputReceiver::IR_GetBtnState(int btn)
 {
 	VERIFY(pInput);
 	return pInput->iGetAsyncBtnState(btn);

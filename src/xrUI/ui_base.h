@@ -1,9 +1,11 @@
 #pragma once
 
 class CUICursor;
+class CUIWindow;
 class CUIGameCustom;
 
 #include "ui_defs.h"
+#include "../../Include/xrRender/SVGTypes.h"
 
 class UI_API CDeviceResetNotifier :
 	public pureDeviceReset
@@ -29,10 +31,15 @@ class UI_API ui_core:
 	Fvector2		m_pp_scale_;
 	Fvector2		m_scale_;
 	Fvector2*		m_current_scale;
-
+	ui_shader m_empty_default;
 public:
 	xr_stack<Frect> m_Scissors;
-	
+
+#ifdef DEBUG_DRAW
+	xr_hash_set<CUIWindow*> LastFrameWidgets;
+	void RenderUIDebugger();
+	bool UIDebuggerMouseMove(CUIWindow*, bool);
+#endif
 					ui_core							();
 					~ui_core						();
 	CFontManager&	Font							()								{return *g_FontManager;}
@@ -59,7 +66,17 @@ public:
 	static	bool	is_widescreen					();
 	static	bool	is_ultrawide					();
 	static	float	get_current_kx					();
-	shared_str		get_xml_name					(LPCSTR fn);
+	static	float	get_current_zx					();
+	static	float	get_current_zy					();
+	shared_str		get_xml_name					(const char* fn);
+
+	const ui_shader& GetVectorShader(const std::string_view& subpath, float requested_width, float requested_height);
+	const ui_shader& GetVectorShader(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint);
+	const ui_shader& GetVectorShader(const char* pSubpath, float requested_width, float requested_height);
+	const ui_shader& GetVectorShader(const char* pSubpath, float requested_width, float requested_height, SVGTintRGBA tint);
+
+	Frect GetVectorUV(const std::string_view& subpath, float requested_width, float requested_height);
+	Frect GetVectorUV(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint);
 	
 	IUIRender::ePointType		m_currentPointType;
 };

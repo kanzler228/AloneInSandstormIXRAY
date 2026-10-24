@@ -17,9 +17,9 @@
 #endif
 
 #ifdef	DEBUG
-BOOL dbg_imotion_draw_skeleton = FALSE;
-BOOL dbg_imotion_draw_velocity = FALSE;
-BOOL dbg_imotion_collide_debug = FALSE;
+bool dbg_imotion_draw_skeleton = false;
+bool dbg_imotion_draw_velocity = false;
+bool dbg_imotion_collide_debug = false;
 float dbg_imotion_draw_velocity_scale = 0.01f;
 
 #endif
@@ -40,7 +40,7 @@ shell_motion_has_history( false )
 
 };
 
-static void interactive_motion_diag( LPCSTR message, const CBlend &b, CPhysicsShell *s, float time_left )
+static void interactive_motion_diag( const char* message, const CBlend &b, CPhysicsShell *s, float time_left )
 {
 #ifdef	DEBUG
 	if(!death_anim_debug)
@@ -52,12 +52,12 @@ static void interactive_motion_diag( LPCSTR message, const CBlend &b, CPhysicsSh
 	VERIFY( KA );
 	CPhysicsShellHolder* O = smart_cast<CPhysicsShellHolder*>(s->get_ElementByStoreOrder( 0 )->PhysicsRefObject());
 	VERIFY( O );
-	LPCSTR motion_name = KA->LL_MotionDefName_dbg( m ).first;
+	const char* motion_name = KA->LL_MotionDefName_dbg( m ).first;
 	Msg( "death anims - interactive_motion:- %s, motion: %s, blend time %f , total blend time %f , time left: %f , obj: %s, model:  %s ", message, motion_name, b.timeCurrent, b.timeTotal, time_left, O->cName().c_str(), O->cNameVisual().c_str());
 #endif
 }
 
-void imotion_position::	interactive_motion_diagnostic( LPCSTR message )
+void imotion_position::	interactive_motion_diagnostic( const char* message )
 {
 #ifdef	DEBUG
 	VERIFY( blend );
@@ -108,7 +108,7 @@ void disable_bone_calculation(IKinematics &K, bool v )
 		if( bi.callback_param()!=0 )
 			continue;
 #ifdef DEBUG
-		if( v && bi.callback_overwrite() == BOOL(v) )
+		if( v && bi.callback_overwrite() == bool(v) )
 			Msg( "! bone callback_overwrite may have different states" );
 #endif
 		bi.set_callback_overwrite( v );
@@ -181,7 +181,7 @@ void imotion_position::state_start( )
 	obj->processing_activate();
 	shell->Disable( );
 	//K->LL_SetBoneRoot( 0 );
-	shell->EnabledCallbacks( FALSE );
+	shell->EnabledCallbacks( false );
 	init_bones();
 
 
@@ -194,7 +194,7 @@ void imotion_position::state_start( )
 	{
 		interactive_motion_diagnostic("stoped immediately");
 		switch_to_free	( );
-		flags.set(fl_not_played,TRUE);
+		flags.set(fl_not_played,true);
 		return;
 	}
 	move( float( Device.dwTimeDelta )/1000, *KA );
@@ -280,7 +280,7 @@ void	imotion_position::state_end( )
 
 	save_fixes( K );
 	
-	shell->EnabledCallbacks( TRUE );
+	shell->EnabledCallbacks( true );
 
 	restore_fixes( );
 
@@ -304,12 +304,12 @@ void	imotion_position::state_end( )
 	if( root!=0 )
 	{
 		K->LL_GetTransform( 0 ).set( Fidentity );
-		K->LL_SetBoneVisible( 0, FALSE, FALSE );
+		K->LL_SetBoneVisible( 0, false, false );
 		u16 bip01 = K->LL_BoneID( "bip01" );
 		if( bip01 != BI_NONE && bip01 != root )
 		{
 			K->LL_GetTransform( bip01 ).set( Fidentity );
-			K->LL_SetBoneVisible( bip01, FALSE, FALSE );
+			K->LL_SetBoneVisible( bip01, false, false );
 		}
 	}
 
@@ -568,7 +568,7 @@ float imotion_position::motion_collide( float dt, IKinematicsAnimated& KA )
 	if( time_to_end <  ( max_collide_timedelta + end_delta ) )
 	{
 		interactive_motion_diagnostic( make_string<const char*>( "motion_collide 0: stoped: time out, time delta %f", dt ) );
-		flags.set( fl_switch_dm_toragdoll, TRUE );			
+		flags.set( fl_switch_dm_toragdoll, true );			
 		return advance_time;
 	}
 	if( depth > depth_resolve )
@@ -603,7 +603,7 @@ float imotion_position::motion_collide( float dt, IKinematicsAnimated& KA )
 		if( depth > depth0  )
 		{
 			interactive_motion_diagnostic( make_string<const char*>( "motion_collide 1: stoped: colide: %s, depth %f", collide_diag().c_str(), depth ));
-			flags.set( fl_switch_dm_toragdoll, TRUE );
+			flags.set( fl_switch_dm_toragdoll, true );
 		} 
 		else
 		{
@@ -622,7 +622,7 @@ float imotion_position::motion_collide( float dt, IKinematicsAnimated& KA )
 			if( depth > depth_resolve  )
 			{
 				interactive_motion_diagnostic( make_string<const char*>( "motion_collide 2: stoped: colide: %s, depth %f", collide_diag().c_str(), depth ));
-				flags.set( fl_switch_dm_toragdoll, TRUE );
+				flags.set( fl_switch_dm_toragdoll, true );
 			}
 		}
 		restore_blends( saved_blends );// rs1
@@ -669,7 +669,7 @@ void imotion_position::	init_bones()
 		VERIFY(!bi.callback());
 		VERIFY(!bi.callback_param());
 		if(bi.callback_overwrite())
-			bi.set_callback( bctCustom, 0, (void*)1, TRUE ); 
+			bi.set_callback( bctCustom, 0, (void*)1, true ); 
 	}
 */
 }

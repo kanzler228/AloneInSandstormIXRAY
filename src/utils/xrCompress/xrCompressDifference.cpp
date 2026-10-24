@@ -86,7 +86,7 @@ struct file_comparer{
 
 int ProcessDifference()
 {
-	LPCSTR params = GetCommandLineA();
+	const char* params = GetCommandLineA();
 	Flags32 _flags;
 	_flags.zero();
 	if(strstr(params,"-diff /?")){
@@ -111,21 +111,27 @@ int ProcessDifference()
 	xr_vector<char*>*	file_list_new		= nullptr;
 	xr_vector<char*>*	folder_list_new		= nullptr;
 
-	sscanf					(strstr(params,"-diff ")+6,"%[^ ] ",new_folder);
-	sscanf					(strstr(params,"-diff ")+6+xr_strlen(new_folder)+1,"%[^ ] ",old_folder);
-	sscanf					(strstr(params,"-out ")+5,"%[^ ] ",target_folder);
+	const char* diff = strstr(params, "-diff ");
+	const char* output = strstr(params, "-out ");
+	if (!diff || !output ||
+		sscanf(diff + 6, "%519s %519s", new_folder, old_folder) != 2 ||
+		sscanf(output + 5, "%519s", target_folder) != 1)
+	{
+		printf("Invalid difference parameters. Specify -diff <new> <old> -out <output>.\n");
+		return 1;
+	}
 
 	if(strstr(params,"-nofileage")){
-		_flags.set(file_comparer::eDontCheckFileAge, TRUE);
+		_flags.set(file_comparer::eDontCheckFileAge, true);
 	};
 	if(strstr(params,"-nocrc")){
-		_flags.set(file_comparer::eDontCheckCRC, TRUE);
+		_flags.set(file_comparer::eDontCheckCRC, true);
 	};
 	if(strstr(params,"-nobinary")){
-		_flags.set(file_comparer::eDontCheckBinary, TRUE);
+		_flags.set(file_comparer::eDontCheckBinary, true);
 	};
 	if(strstr(params,"-nosize")){
-		_flags.set(file_comparer::eDontCheckFileSize, TRUE);
+		_flags.set(file_comparer::eDontCheckFileSize, true);
 	};
 
 	FS_new = new CLocatorAPI	();
@@ -138,7 +144,7 @@ int ProcessDifference()
 	file_list_old	= FS_old->file_list_open	("$target_folder$",FS_ListFiles);
 	folder_list_old	= FS_old->file_list_open	("$target_folder$",FS_ListFolders);
 
-	xr_vector<LPCSTR> target_file_list;
+	xr_vector<const char*> target_file_list;
 	target_file_list.reserve(file_list_new->size());
 
 	for(u32 i=0; i<file_list_new->size();++i){
@@ -155,7 +161,7 @@ int ProcessDifference()
 	u32 total = target_file_list.size();
 	for(u32 i=0; i<total; ++i)
 	{
-		LPCSTR fn = target_file_list[i];
+		const char* fn = target_file_list[i];
 		xr_sprintf(stats,"%d of %d (%3.1f%%)", i, total, 100.0f*((float)i/(float)total));
 		//SetConsoleTitleA(stats);
 

@@ -1,7 +1,8 @@
 #pragma once
 #include "GameFont.h"
 
-class ENGINE_API CFontManager : public pureDeviceReset
+class ENGINE_API CFontManager final :
+	public pureDeviceReset
 {
 public:
 	// Hud font
@@ -12,9 +13,10 @@ public:
 	CGameFont* pFontStat;
 
 	xr_map<shared_str, CGameFont*> Fonts;
+	xr_map<u16, shared_str> GamepadButtonMappings;
 
 	CFontManager();
-	~CFontManager();
+	virtual ~CFontManager();
 
 	void InitializeFonts();
 

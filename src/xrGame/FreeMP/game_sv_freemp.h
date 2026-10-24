@@ -3,7 +3,7 @@
 #include "game_sv_mp.h"
 #include "../../xrEngine/pure_relcase.h"
 
-class game_sv_freemp :
+class game_sv_freemp final :
 	public game_sv_mp, 
 	private pure_relcase
 {
@@ -20,11 +20,11 @@ public:
 	virtual		bool				UseSKin() const { return false; }
 	virtual		void				SetSkin(CSE_Abstract* E, u16 Team, u16 ID);
 
-	virtual		LPCSTR				type_name() const { return "freemp"; };
+	virtual		const char*				type_name() const { return "freemp"; };
 	void							net_Relcase(CObject* O) {};
 
 	void									AddMoneyToPlayer(game_PlayerState* ps, s32 amount);
-	void									SpawnItemToActor(u16 actorId, LPCSTR name);
+	void									SpawnItemToActor(u16 actorId, const char* name);
 	virtual		void				on_death(CSE_Abstract* e_dest, CSE_Abstract* e_src);
 	virtual		void				OnTransferMoney(NET_Packet& P, ClientID const& clientID);
 
@@ -39,14 +39,16 @@ public:
 	virtual		void				Update();
 
 	virtual		void				RespawnPlayer(ClientID id_who, bool NoSpectator);
-	virtual		BOOL                OnTouch(u16 eid_who, u16 eid_what, BOOL bForced = false);
+	virtual		bool                OnTouch(u16 eid_who, u16 eid_what, bool bForced = false);
 	virtual		void				OnDetach(u16 eid_who, u16 eid_what);
 	virtual		void				OnPlayerTrade(NET_Packet& P, ClientID const& clientID);
 
 	// drop items after death
 	virtual		void				FillDeathActorRejectItems(CSE_ActorMP* actor, xr_vector<CSE_Abstract*>& to_reject);
-	BOOL			 	            OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item);
+	bool			 	            OnTouchPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item);
 	void			             	OnDetachPlayersBag(CSE_ActorMP* actor, CSE_Abstract* item);
+
+	virtual game_sv_freemp* cast_game_sv_freemp() override { return this; }
 
 private:
 	xr_hash_map<u64, xr_vector<shared_str>> DoSpawnList;

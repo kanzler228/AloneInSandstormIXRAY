@@ -8,12 +8,12 @@
 #include "Level.h"
 #include "game_cl_base.h"
 #include "../xrEngine/IGame_Persistent.h"
-
+#include "ui/UIGameCustom.h"
 #include "../../xrUI/ui_base.h"
 #include "InventoryOwner.h"
 #include "relation_registry.h"
 #include "character_info.h"
-
+#include "ui/UIRadialMenuWeapon.h"
 #include "../xrEngine/string_table.h"
 #include "entity_alive.h"
 
@@ -29,13 +29,6 @@ u32 C_ON_ENEMY = color_rgba(0xff,0,0,0x80);
 u32 C_ON_NEUTRAL = color_rgba(0xff,0xff,0x80,0x80);
 u32 C_ON_FRIEND = color_rgba(0,0xff,0,0x80);
 u32 C_DEFAULT = color_rgba(0xff, 0xff, 0xff, 0x80);
-
-#define C_SIZE		0.025f
-#define NEAR_LIM	0.5f
-
-#define SHOW_INFO_SPEED		0.5f
-#define HIDE_INFO_SPEED		10.f
-
 
 IC	float	recon_mindist	()		{
 	return 2.f;
@@ -54,7 +47,7 @@ CHUDTarget::CHUDTarget	()
 {    
 	targetFont			= nullptr;
 	bInitialized		= false;
-	fuzzyShowInfo		= 0.f;
+	accumulatedTime		= 0.f;
 	PP.RQ.range			= 0.f;
 
 	PP.RQ.set				(nullptr, 0.f, -1);
@@ -63,9 +56,7 @@ CHUDTarget::CHUDTarget	()
 	m_bShowCrosshair	= false;
 }
 
-CHUDTarget::~CHUDTarget	()
-{
-}
+CHUDTarget::~CHUDTarget	() = default;
 
 
 void CHUDTarget::Load		()
@@ -77,8 +68,8 @@ void CHUDTarget::Load		()
 	u32 color;
 	xml.Load(CONFIG_PATH, UI_PATH, "backend\\hud_target.xml");
 
-	LPCSTR texture = xml.Read("texture", 0, "ui\\cursor");
-	LPCSTR shader = xml.Read("shader", 0, "hud\\cursor");
+	const char* texture = xml.Read("texture", 0, "ui\\cursor");
+	const char* shader = xml.Read("shader", 0, "hud\\cursor");
 
 	colorEnemy = CUIXmlInit::GetColor(xml, "enemy_color", 0, color_rgba(0xff, 0, 0, 0x80));
 	colorFriend = CUIXmlInit::GetColor(xml, "friend_color", 0, color_rgba(0, 0xff, 0, 0x80));
@@ -99,7 +90,7 @@ void CHUDTarget::ShowCrosshair(bool b)
 }
 //. fVisTransparencyFactor
 float fCurrentPickPower;
-ICF static BOOL pick_trace_callback(collide::rq_result& result, LPVOID params)
+ICF static bool pick_trace_callback(collide::rq_result& result, LPVOID params)
 {
 	SPickParam*	pp			= (SPickParam*)params;
 //	collide::rq_result* RQ	= pp->RQ;
@@ -108,23 +99,23 @@ ICF static BOOL pick_trace_callback(collide::rq_result& result, LPVOID params)
 	if(result.O)
 	{	
 		pp->RQ				= result;
-		return FALSE;
+		return false;
 	}else
 	{
 		//получить треугольник и узнать его материал
-		CDB::TRI* T		= Level().ObjectSpace.GetStaticTris()+result.element;
+		CDB::TRI& T		= Level().ObjectSpace.GetStaticTris()[result.element];
 		
-		SGameMtl* mtl = GMLib.GetMaterialByIdx(T->material);
+		SGameMtl* mtl = GMLib.GetMaterialByIdx(T.material);
 		pp->power		*= mtl->fVisTransparencyFactor;
 		if(pp->power>0.34f)
 		{
-			return TRUE;
+			return true;
 		}
 //.		if (mtl->Flags.is(SGameMtl::flPassable)) 
-//.			return TRUE;
+//.			return true;
 	}
 	pp->RQ					= result;
-	return					FALSE;
+	return					false;
 }
 
 void CHUDTarget::CursorOnFrame ()
@@ -159,17 +150,26 @@ void CHUDTarget::Render()
 	}
 	const static bool noHUDonMaster = EngineExternal()[EEngineExternalUI::DisableHudRenderingOnMaster];
 	bool renderHUDTarget = noHUDonMaster ? g_SingleGameDifficulty < egdVeteran : true;
-	BOOL  b_do_rendering = ( psHUD_Flags.is(HUD_CROSSHAIR|HUD_CROSSHAIR_RT|HUD_CROSSHAIR_RT2) && renderHUDTarget );
+	bool  b_do_rendering = ( psHUD_Flags.is(HUD_CROSSHAIR|HUD_CROSSHAIR_RT|HUD_CROSSHAIR_RT2) && renderHUDTarget );
 	
 	if(!b_do_rendering)
+	{
 		return;
-
+	}
+	
 	if (load_screen_renderer.IsActive())
+	{
 		return;
+	}
+
+	if (CurrentGameUI() && CurrentGameUI()->RadialMenuWeapon() && CurrentGameUI()->RadialMenuWeapon()->IsShown())
+	{
+		return;
+	}
 
 	VERIFY				(g_bRendering);
 
-	CActor* Actor = smart_cast<CActor*>(Level().CurrentEntity());
+	CActor* Actor = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_actor() : nullptr;
 	if (!Actor)
 		return;
 
@@ -180,7 +180,7 @@ void CHUDTarget::Render()
 
 	CObject*	O		= Level().CurrentEntity();
 	if (0==O)			return;
-	CEntity*	E		= smart_cast<CEntity*>(O);
+	CEntity*	E		= O->cast_entity();
 	if (0==E)			return;
 
 	Fvector p1			= Device.vCameraPosition;
@@ -208,11 +208,11 @@ void CHUDTarget::Render()
 
 		if ((PP.RQ.O && PP.RQ.O->getVisible()) || is_poltergeist)
 		{
-			CEntityAlive* E_ = smart_cast<CEntityAlive*>(PP.RQ.O);
-			CEntityAlive* pCurEnt = smart_cast<CEntityAlive*>(Level().CurrentEntity());
-			PIItem l_pI = smart_cast<PIItem>(PP.RQ.O);
-			CActor* pActor = smart_cast<CActor*>	(PP.RQ.O);
-			CInventoryOwner* our_inv_owner = smart_cast<CInventoryOwner*>(pCurEnt);
+			CEntityAlive* E_ = PP.RQ.O->cast_entity_alive();
+			CEntityAlive* pCurEnt = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_entity_alive() : nullptr;
+			PIItem l_pI = PP.RQ.O->cast_inventory_item();
+			CActor* pActor = PP.RQ.O->cast_actor();
+			CInventoryOwner* our_inv_owner = pCurEnt != nullptr ? pCurEnt->cast_inventory_owner() : nullptr;
 
 			if (E_ && E_->g_Alive())
 			{
@@ -222,7 +222,7 @@ void CHUDTarget::Render()
 				}
 				else if (!pActor || (pActor && IsGameTypeSingleCompatible()))
 				{
-					CInventoryOwner* others_inv_owner = smart_cast<CInventoryOwner*>(E_);
+					CInventoryOwner* others_inv_owner = E_->cast_inventory_owner();
 
 					if (our_inv_owner && others_inv_owner)
 					{
@@ -236,31 +236,26 @@ void CHUDTarget::Render()
 							C = colorFriend; break;
 						}
 
-						if (fuzzyShowInfo > 0.5f)
-						{
-							targetFont->SetColor(subst_alpha(C, u8(iFloor(255.f * (fuzzyShowInfo - 0.5f) * 2.f))));
-							targetFont->OutNext("%s", *g_pStringTable->translate(others_inv_owner->Name()));
-							targetFont->OutNext("%s", *g_pStringTable->translate(others_inv_owner->CharacterInfo().Community().id()));
-						}
+						targetFont->SetColor(subst_alpha(C, static_cast<u32>(lerp(0.f, 255.f, accumulatedTime))));
+						targetFont->OutNext("%s", *g_pStringTable->translate(others_inv_owner->Name()));
+						targetFont->OutNext("%s", *g_pStringTable->translate(others_inv_owner->CharacterInfo().Community().id()));
 					}
 				}
-				fuzzyShowInfo += SHOW_INFO_SPEED * Device.fTimeDelta;
+				accumulatedTime += SHOW_INFO_SPEED * Device.fTimeDelta;
 			}
-			else if (l_pI && our_inv_owner && PP.RQ.range < 2.0f * 2.0f)
+			else if (l_pI && our_inv_owner && PP.RQ.range < PICKUP_DISTANCE && l_pI->NameItem() && l_pI->CanTake())
 			{
-				if (fuzzyShowInfo > 0.5f && l_pI->NameItem())
-				{
-					targetFont->SetColor(subst_alpha(C, u8(iFloor(255.f * (fuzzyShowInfo - 0.5f) * 2.f))));
-					targetFont->OutNext("%s", l_pI->NameItem());
-				}
-				fuzzyShowInfo += SHOW_INFO_SPEED * Device.fTimeDelta;
+				targetFont->SetColor(subst_alpha(C, static_cast<u32>(lerp(0.f, 255.f, accumulatedTime))));
+				targetFont->OutNext("%s", l_pI->NameItem());
+
+				accumulatedTime += SHOW_INFO_SPEED * Device.fTimeDelta;
 			}
 		}
 		else
 		{
-			fuzzyShowInfo -= HIDE_INFO_SPEED*Device.fTimeDelta;
+			accumulatedTime -= HIDE_INFO_SPEED * Device.fTimeDelta;
 		}
-		clamp(fuzzyShowInfo,0.f,1.f);
+		clamp(accumulatedTime,0.f,1.f);
 	}
 
 	if (psHUD_Flags.test(HUD_CROSSHAIR_DIST))

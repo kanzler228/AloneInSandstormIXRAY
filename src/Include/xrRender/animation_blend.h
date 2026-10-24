@@ -54,11 +54,11 @@ public:
 	float			blendPower = 0.0f;			
 	float			speed = 0.0f;
 
-	BOOL			playing = false;
-	BOOL			stop_at_end_callback = false;
-	BOOL			update_callback = false;
-	BOOL			stop_at_end = false;
-	BOOL			fall_at_end = false;
+	bool			playing = false;
+	bool			stop_at_end_callback = false;
+	bool			update_callback = false;
+	bool			stop_at_end = false;
+	bool			fall_at_end = false;
 	PlayCallback	Callback = nullptr;
 	void*			CallbackParam = nullptr;
 
@@ -144,7 +144,7 @@ IC void CBlend::update_play( float dt, PlayCallback _Callback )
 	if ( _Callback &&  stop_at_end_callback )	
 		_Callback( this );		// callback only once
 
-	stop_at_end_callback		= FALSE;
+	stop_at_end_callback		= false;
 
 	if( fall_at_end )
 	{

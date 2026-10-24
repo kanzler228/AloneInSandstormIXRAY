@@ -22,7 +22,7 @@ public:
 	virtual CUICellItem* ui_cast_cell_item() { return this; }
 };
 
-class CUIAmmoCellItem :public CUIInventoryCellItem
+class CUIAmmoCellItem final :public CUIInventoryCellItem
 {
 	typedef  CUIInventoryCellItem	inherited;
 protected:
@@ -40,7 +40,7 @@ public:
 	virtual CUICellItem* ui_cast_cell_item() { return this; }
 };
 
-class CUIWeaponCellItem :public CUIInventoryCellItem
+class CUIWeaponCellItem final :public CUIInventoryCellItem
 {
 	typedef  CUIInventoryCellItem	inherited;
 public:
@@ -53,7 +53,7 @@ protected:
 	void						DestroyIcon					(eAddonType);
 	void						RefreshOffset				();
 	CUIStatic*					GetIcon						(eAddonType);
-	void						InitAddon					(CUIStatic* s, LPCSTR section, Fvector2 offset, bool use_heading);
+	void						InitAddon					(CUIStatic* s, const char* section, Fvector2 offset, bool use_heading);
 	bool						is_scope					();
 	bool						is_silencer					();
 	bool						is_launcher					();
@@ -75,12 +75,12 @@ public:
 	virtual CUICellItem* ui_cast_cell_item() { return this; }
 };
 
-class CBuyItemCustomDrawCell :public ICustomDrawCellItem
+class CBuyItemCustomDrawCell final :public ICustomDrawCellItem
 {
 	CGameFont*			m_pFont;
 	string16			m_string;
 public:
-						CBuyItemCustomDrawCell	(LPCSTR str, CGameFont* pFont);
+						CBuyItemCustomDrawCell	(const char* str, CGameFont* pFont);
 	virtual void		OnDraw					(CUICellItem* cell);
 
 };

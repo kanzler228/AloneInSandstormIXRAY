@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "xrLightVertex.h"
-#include "../xrForms/xrThread.h"
 #include "xrFace.h"
 #include "xrLC_GlobalData.h"
 #include "light_point.h"
 
 #include "../../xrCore/Collision/xrCDB.h"
+#include "CUDA/xrCuda_PackedLights.h"
+#include "xrDeflector.h"
+
 //-----------------------------------------------------------------------
 typedef	xr_multimap<float,vecVertex>	mapVert;
 typedef	mapVert::iterator				mapVertIt;
@@ -49,6 +51,7 @@ void	g_trans_register_internal		(Vertex* V)
 	ins->second.reserve		(32);
 	ins->second.push_back	(V);
 }
+
 void	g_trans_register	(Vertex* V)
 {
 	g_trans_CS.Enter			();
@@ -57,117 +60,107 @@ void	g_trans_register	(Vertex* V)
 }
 
 //////////////////////////////////////////////////////////////////////////
-const u32				VLT_END		= u32(-1);
-class CVertexLightTasker
-{
-	xrCriticalSection	cs;
-	volatile u32		index;	
-public:
-	CVertexLightTasker	() : index(0)
-	{};
-	
-	void	init		()
-	{
-		index			= 0;
-	}
-
-	u32		get			()
-	{
-		cs.Enter		();
-		u32 _res		=	index;
-		if (_res>=lc_global_data()->g_vertices().size())	_res	=	VLT_END;
-		else							index	+=	1;
-		cs.Leave		();
-		return			_res;
-	}
-};
-CVertexLightTasker		VLT;
-
 bool GetTranslucency(const Vertex* V,float &v_trans )
 {
 	// Get transluency factor
 			
-	bool		bVertexLight= FALSE;
+	bool		bVertexLight= false;
 	u32 		L_flags		= 0;
 	for (u32 f=0; f<V->m_adjacents.size(); ++f)
 	{
 		Face*	F								=	V->m_adjacents[f];
 		v_trans									+=	F->Shader().vert_translucency;
 		if	(F->Shader().flags.bLIGHT_Vertex)	
-			bVertexLight		= TRUE;
+			bVertexLight		= true;
 	}
 	v_trans				/=	float(V->m_adjacents.size());
 	return bVertexLight;
 }
 
-class CVertexLightThread : public CThread
-{
-public:
-	CVertexLightThread(u32 ID) : CThread(ID)
-	{
-		thMessages	= FALSE;
-	}
-	virtual void		Execute	()
-	{
-		u32	counter		= 0;
-		for (;; counter++)
-		{
-			u32 id				= VLT.get();
-			if (id==VLT_END)	break;
-
-			Vertex* V		= lc_global_data()->g_vertices()[id];
-
-			R_ASSERT		(V);
-
-			float		v_trans		= 0.f;
-
-			if (GetTranslucency( V, v_trans ))	
-			{
-				base_color_c		vC, old;
-				V->C._get			(old);
-
-				CDB::COLLIDER	DB;
-				DB.ray_options	(0);
-
-				u32 flags = (lc_global_data()->b_nosun() ? LP_dont_sun : 0) | LP_dont_hemi;
-  				LightPoint			(&DB, lc_global_data()->RCAST_Model(), vC, V->P, V->N, lc_global_data()->L_static(), flags, 0);
-
-				vC._tmp_			= v_trans;
-				vC.mul				(.5f);
-				vC.hemi				= old.hemi;			// preserve pre-calculated hemisphere
-				V->C._set			(vC);
-
-				g_trans_register	(V);
-			}
-
-			thProgress = float(counter) / float(lc_global_data()->g_vertices().size());
-		}
-	}
-};
-
+xr_atomic_u32 TasksIds = 0;
 void LightVertex()
 {
 	g_trans = new mapVert();
 
 	// Start threads, wait, continue --- perform all the work
+	UpdateCurrentPhase("Vertex");
+
 	Status("Calculating...");
 
-	CThreadManager Threads;
-	VLT.init();
-	CTimer start_time;	
-	start_time.Start();
-
-	const u32 NUM_THREADS = CPU::ID.n_threads - 2;
-
-	for (u32 thID = 0; thID < NUM_THREADS; thID++)
+	u32 flags = LGetCurrentFlags() | LP_dont_hemi;
+ 	if (!gCompilerMode.CUDA)
 	{
-		Threads.start(new CVertexLightThread(thID));
+ 		TasksIds = 0;
+		xr_std_parallel_for([flags]()
+		{
+			while (true)
+			{
+				u32 tID = TasksIds.fetch_add(1);
+				if (tID >= lc_global_data()->g_vertices().size()) break;
+
+				Vertex* V = lc_global_data()->g_vertices()[tID];
+				float		v_trans = 0.f;
+				if (GetTranslucency(V, v_trans))
+				{
+					base_color_c		vC, old;
+					V->C._get(old);
+
+					LightPoint(EmbreeMain, vC, V->P, V->N, lc_global_data()->L_static(), flags, 0);
+
+					vC._tmp_ = v_trans;
+					vC.mul(.5f);
+					vC.hemi = old.hemi;			// preserve pre-calculated hemisphere
+					V->C._set(vC);
+
+					g_trans_register(V);
+				}
+			}
+		}, gCompilerMode.ThreadsPerWork);
 	}
-	
-	Threads.wait();
-	clMsg("%f seconds", start_time.GetElapsed_sec());
+	else
+ 	{
+#ifdef LCCUDA_BUILD
+		int INDEX = 0;
+		GPUTaskinSystem.RestartALL();
+		GPUTaskinSystem.ColorsMapType = eCommon;
+  		GPUTaskinSystem.current_flags = flags;
 
+		xr_vector<float> v_transparency;
+		v_transparency.resize(lc_global_data()->g_vertices().size());
+		for (auto V : lc_global_data()->g_vertices())
+		{
+			float		v_trans = 0.f;
+ 			if (GetTranslucency(V, v_trans))
+			{
+				GPUTaskinSystem.LightPointPacked_add_task(GPUTaskinSystem.MakeKey(INDEX, 0), nullptr, V->P, V->N, 0);
+			}
+ 			v_transparency[INDEX] = v_trans;
+			INDEX++;
+		}
 
+		GPUTaskinSystem.LightPointPacked_run_tasks();
+		for (auto& C : GPUTaskinSystem.task_colors)
+		{
+			int INDEX = GPUTaskinSystem.GetU(C.first);
+			auto& V = lc_global_data()->g_vertices()[INDEX];
+			auto& vC = C.second;
+			float Transparency = v_transparency[INDEX];
+
+			base_color_c old;
+			V->C._get(old);
+
+			vC._tmp_ = Transparency;
+			vC.mul(.5f);
+			vC.hemi = old.hemi;
+			V->C._set(vC);
+
+			g_trans_register(V);
+		}
+
+		GPUTaskinSystem.RestartALL();
+#endif
+	}
+ 
 	// Process all groups
 	Status("Transluenting...");
 	for (mapVertIt it = g_trans->begin(); it != g_trans->end(); it++)
@@ -192,12 +185,8 @@ void LightVertex()
 			base_color_c vC;
 			VL[v]->C._get(vC);
 
-			// trans-level
-			float level = vC._tmp_;
-
-			// 
 			base_color_c R;
-			R.lerp(vC, C, level);
+			R.lerp(vC, C, vC._tmp_); // trans-level
 			R.max(vC);
 			VL[v]->C._set(R);
 		}

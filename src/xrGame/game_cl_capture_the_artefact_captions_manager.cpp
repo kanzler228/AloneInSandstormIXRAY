@@ -18,9 +18,7 @@ CTAGameClCaptionsManager::CTAGameClCaptionsManager()
 	xr_strcpy(timelimit_message, "00:00:00");
 }
 
-CTAGameClCaptionsManager::~CTAGameClCaptionsManager()
-{
-}
+CTAGameClCaptionsManager::~CTAGameClCaptionsManager() = default;
 
 void CTAGameClCaptionsManager::Init(game_cl_CaptureTheArtefact* parent,
 									CUIGameCTA* game_ui)
@@ -58,9 +56,9 @@ void CTAGameClCaptionsManager::ShowInProgressCaptions()
 	
 	if (ps->team == static_cast<u8>(etSpectatorsTeam))
 	{
-		VERIFY(smart_cast<CSpectator*>(control_entity));
+		VERIFY(control_entity->cast_spectator());
 		parent_game_ui->SetPressJumpMsgCaption("mp_press_jump2select_team");
-		CSpectator* pSpectator = smart_cast<CSpectator*>(control_entity);
+		CSpectator* pSpectator = control_entity->cast_spectator();
 		if (pSpectator)
 		{
 			string1024 SpectatorStr;
@@ -71,7 +69,7 @@ void CTAGameClCaptionsManager::ShowInProgressCaptions()
 	}
 	if (Level().IsDemoPlayStarted())
 	{
-		CSpectator* pSpectator = smart_cast<CSpectator*>(control_entity);
+		CSpectator* pSpectator = control_entity->cast_spectator();
 		if (pSpectator)
 		{
 			string1024 SpectatorStr;
@@ -87,7 +85,7 @@ void CTAGameClCaptionsManager::ShowInProgressCaptions()
 	}
 	if (ps->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD))
 	{
-		if (smart_cast<CActor*>(Level().CurrentControlEntity()))
+		if (Level().CurrentControlEntity() != nullptr && Level().CurrentControlEntity()->cast_actor() != nullptr)
 		{
 			parent_game_ui->SetPressJumpMsgCaption("mp_press_fire2spectator");
 		} else
@@ -106,7 +104,7 @@ void CTAGameClCaptionsManager::ShowScoreCaptions()
 {
 	VERIFY			(m_winner_team != etSpectatorsTeam);
 
-	LPCSTR			team_name = CTeamInfo::GetTeam_name(m_winner_team + 1);
+	const char*			team_name = CTeamInfo::GetTeam_name(m_winner_team + 1);
 	u32				win_str_size = g_pStringTable->translate("mp_team_wins").size() +
 									xr_strlen(team_name) + 1;
 	char*			win_str = static_cast<char*>(_alloca(win_str_size));

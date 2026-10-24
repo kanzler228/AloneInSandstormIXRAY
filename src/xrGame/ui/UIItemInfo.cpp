@@ -1,16 +1,18 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 
 #include "UIItemInfo.h"
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrUI/UIXmlInit.h"
 
-#include "../../xrUI/Widgets/UIProgressBar.h"
+#include "../../xrUI/Widgets/UIItemStateDisplay.h"
 #include "../../xrUI/Widgets/UIScrollView.h"
 #include "../../xrUI/Widgets/UIFrameWindow.h"
 
 #include "ai_space.h"
 #include "alife_simulator.h"
+#include "Inventory.h"
+#include "InventoryVolumeSystem.h"
 #include "../../xrEngine/string_table.h"
 #include "../inventory_item.h"
 #include "UIInventoryUtilities.h"
@@ -26,8 +28,9 @@
 #include "../ActorHelmet.h"
 #include "../eatable_item.h"
 #include "UICellItem.h"
+#include "UIGrenadeParams.h"
 
-extern const LPCSTR g_inventory_upgrade_xml;
+extern const char* g_inventory_upgrade_xml;
 
 #define INV_GRID_WIDTH2(SCALE_ICON) (40.0f * SCALE_ICON)
 #define INV_GRID_HEIGHT2(SCALE_ICON) (40.0f * SCALE_ICON)
@@ -44,6 +47,7 @@ CUIItemInfo::CUIItemInfo()
 	UIConditionWnd				= nullptr;
 	UIWpnParams					= nullptr;
 	UIKnifeParams				= nullptr;
+	UIGrenadeParams				= nullptr;
 	UIProperties				= nullptr;
 	UIOutfitInfo				= nullptr;
 	UIBoosterInfo				= nullptr;
@@ -52,6 +56,8 @@ CUIItemInfo::CUIItemInfo()
 	UIBackpackParams			= nullptr;
 	UIName						= nullptr;
 	UIBackground				= nullptr;
+	UICondition					= nullptr;
+	UICondProgresBar			= nullptr;
 	m_pInvItem					= nullptr;
 	m_b_FitToHeight				= false;
 	m_complex_desc				= false;
@@ -62,6 +68,7 @@ CUIItemInfo::~CUIItemInfo()
 	xr_delete	(UIConditionWnd);
 	xr_delete	(UIWpnParams);
 	xr_delete	(UIKnifeParams);
+	xr_delete	(UIGrenadeParams);
 	xr_delete	(UIArtefactParams);
 	xr_delete	(UIOutfitParams);
 	xr_delete	(UIBackpackParams);
@@ -70,7 +77,7 @@ CUIItemInfo::~CUIItemInfo()
 	xr_delete	(UIBoosterInfo);
 }
 
-bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
+bool CUIItemInfo::InitItemInfo(const char* xml_name)
 {
 	CUIXml						uiXml;
 	uiXml.Load					(CONFIG_PATH, UI_PATH, xml_name);
@@ -104,34 +111,50 @@ bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 	m_complex_desc = false;
 	if(uiXml.NavigateToNode("static_name",0))
 	{
-		UIName						= new CUITextWnd();	 
+		UIName						= new CUIStatic();
 		AttachChild					(UIName);		
 		UIName->SetAutoDelete		(true);
-		xml_init.InitTextWnd		(uiXml, "static_name", 0,	UIName);
+		xml_init.InitStatic		(uiXml, "static_name", 0,	UIName);
 		m_complex_desc				= ( uiXml.ReadAttribInt("static_name", 0, "complex_desc", 0) == 1 );
 	}
 	if(uiXml.NavigateToNode("static_weight",0))
 	{
-		UIWeight				= new CUITextWnd();	 
+		UIWeight				= new CUIStatic();
 		AttachChild				(UIWeight);		
 		UIWeight->SetAutoDelete(true);
-		xml_init.InitTextWnd		(uiXml, "static_weight", 0,			UIWeight);
+		xml_init.InitStatic		(uiXml, "static_weight", 0,			UIWeight);
 	}
 
 	if(uiXml.NavigateToNode("static_cost",0))
 	{
-		UICost					= new CUITextWnd();	 
+		UICost					= new CUIStatic();
 		AttachChild				(UICost);
 		UICost->SetAutoDelete	(true);
-		xml_init.InitTextWnd		(uiXml, "static_cost", 0,			UICost);
+		xml_init.InitStatic		(uiXml, "static_cost", 0,			UICost);
+	}
+	
+	if(uiXml.NavigateToNode("static_condition",0)) // for SoC
+	{
+		UICondition					= new CUIStatic();	 
+		AttachChild					(UICondition);
+		UICondition->SetAutoDelete	(true);
+		xml_init.InitStatic			(uiXml, "static_condition", 0,		UICondition);
+	}
+	
+	if(uiXml.NavigateToNode("condition_progress",0))
+	{
+		UICondProgresBar = new CUIProgressBar();
+		AttachChild(UICondProgresBar);
+		UICondProgresBar->SetAutoDelete(true);
+		xml_init.InitProgressBar(uiXml, "condition_progress", 0, UICondProgresBar);
 	}
 
 	if(uiXml.NavigateToNode("static_no_trade",0))
 	{
-		UITradeTip					= new CUITextWnd();	 
+		UITradeTip					= new CUIStatic();
 		AttachChild					(UITradeTip);
 		UITradeTip->SetAutoDelete	(true);
-		xml_init.InitTextWnd		(uiXml, "static_no_trade", 0,		UITradeTip);
+		xml_init.InitStatic		(uiXml, "static_no_trade", 0,		UITradeTip);
 	}
 
 	if(uiXml.NavigateToNode("descr_list",0))
@@ -142,6 +165,8 @@ bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 		UIWpnParams->InitFromXml		(uiXml);
 		UIKnifeParams					= new CUIKnifeParams();
 		UIKnifeParams->InitFromXml		(uiXml);
+		UIGrenadeParams					= new CUIGrenadeParams();
+		UIGrenadeParams->InitFromXml	(uiXml);
 
 		UIArtefactParams				= new CUIArtefactParams(CUIArtefactParams::CParamType::eParamTypeArtefact);
 		UIArtefactParams->InitFromXml	(uiXml);
@@ -152,8 +177,11 @@ bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 		UIBackpackParams = new CUIArtefactParams(CUIArtefactParams::CParamType::eParamTypeBackpack);
 		UIBackpackParams->InitFromXml(uiXml);
 
-		UIBoosterInfo					= new CUIBoosterInfo();
-		UIBoosterInfo->InitFromXml		(uiXml);
+		if (uiXml.NavigateToNode("booster_params"))
+		{
+			UIBoosterInfo = new CUIBoosterInfo();
+			UIBoosterInfo->InitFromXml(uiXml);
+		}
 
 		//UIDesc_line						= new CUIStatic();
 		//AttachChild						(UIDesc_line);	
@@ -177,7 +205,7 @@ bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 
 	if (uiXml.NavigateToNode("image_static", 0))
 	{	
-		UIItemImage					= new CUIStatic();	 
+		UIItemImage					= new CUI3dStatic();	 
 		AttachChild					(UIItemImage);	
 		UIItemImage->SetAutoDelete	(true);
 		xml_init.InitStatic			(uiXml, "image_static", 0, UIItemImage);
@@ -196,7 +224,7 @@ bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 	return true;
 }
 
-void CUIItemInfo::InitItemInfo(Fvector2 pos, Fvector2 size, LPCSTR xml_name)
+void CUIItemInfo::InitItemInfo(Fvector2 pos, Fvector2 size, const char* xml_name)
 {
 	inherited::SetWndPos	(pos);
 	inherited::SetWndSize	(size);
@@ -205,7 +233,7 @@ void CUIItemInfo::InitItemInfo(Fvector2 pos, Fvector2 size, LPCSTR xml_name)
 
 bool	IsGameTypeSingle();
 
-void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem, u32 item_price, LPCSTR trade_tip)
+void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem, u32 item_price, const char* trade_tip, bool overrideCorrectionByWeight)
 {
 	if(!pCellItem)
 	{
@@ -223,31 +251,38 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 	string256				str;
 	if ( UIName )
 	{
-		UIName->SetText		(pInvItem->NameItem());
+		UIName->SetText((pInvItem->IsUsedAdditionalName() || pInvItem->IsUsedPrependName()) ? pInvItem->GetExtendedUnionName().c_str() : pInvItem->NameItem());
 		UIName->AdjustHeightToText();
 		pos.y = UIName->GetWndPos().y + UIName->GetHeight() + 4.0f;
 	}
 	if ( UIWeight )
 	{
-		LPCSTR  kg_str = g_pStringTable->translate( "st_kg" ).c_str();
-		float	weight = pInvItem->Weight();
+		const char*  kg_str = g_pStringTable->translate( "st_kg" ).c_str();
+		float	weight = pInvItem->m_pInventory ? pInvItem->m_pInventory->CalcItemWeight(pInvItem) : pInvItem->Weight();
 		
 		if ( !weight )
 		{
 			if ( CWeaponAmmo* ammo = dynamic_cast<CWeaponAmmo*>(pInvItem) )
 			{
 				// its helper item, m_boxCur is zero, so recalculate via CInventoryItem::Weight()
-				weight = pInvItem->CInventoryItem::Weight();
+				weight = pInvItem->m_pInventory ? pInvItem->m_pInventory->CalcItemWeight(pInvItem) : pInvItem->CInventoryItem::Weight();
 				for( u32 j = 0; j < pCellItem->ChildsCount(); ++j )
 				{
 					PIItem jitem	= (PIItem)pCellItem->Child(j)->m_pData;
-					weight			+= jitem->CInventoryItem::Weight();
+					weight += jitem->m_pInventory ? jitem->m_pInventory->CalcItemWeight(jitem) : jitem->CInventoryItem::Weight();
 				}
 
 			}
 		}
 
-		xr_sprintf				(str, "%3.2f %s", weight, kg_str );
+		if (CInventoryVolumeSystem::Get().IsEnabled())
+		{
+			xr_sprintf(str, "%3.2f %s | V %3.2f", weight, kg_str, CInventoryVolumeSystem::Get().GetItemVolume(*pInvItem));
+		}
+		else
+		{
+			xr_sprintf(str, "%3.2f %s", weight, kg_str);
+		}
 		UIWeight->SetText	(str);
 		
 		pos.x = UIWeight->GetWndPos().x;
@@ -257,11 +292,11 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 		}
 	}
 
-	if (UICost != nullptr)
+	if (UICost)
 	{
-		if (IsGameTypeSingleCompatible() && item_price != u32(-1))
+		if (IsGameTypeSingleCompatible() && item_price != u32(-1) && pInvItem->IsDrawCost())
 		{
-			xr_sprintf(str, "%d RU", item_price);// will be owerwritten in multiplayer
+			xr_sprintf(str, "%u RU", item_price);// will be owerwritten in multiplayer
 			UICost->SetText(str);
 			pos.x = UICost->GetWndPos().x;
 			if (m_complex_desc)
@@ -275,7 +310,14 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 			UICost->Show(false);
 		}
 	}
-	
+
+	if (UICondProgresBar)
+	{
+		float cond = pInvItem->GetConditionToShow();
+		UICondProgresBar->Show(true);
+		UICondProgresBar->SetProgressPos(cond * 100.0f + 1.0f - EPS);
+	}
+
 	if ( UITradeTip && IsGameTypeSingleCompatible())
 	{
 		pos.y = UITradeTip->GetWndPos().y;
@@ -298,7 +340,7 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 	if ( UIDesc )
 	{
 		pos = UIDesc->GetWndPos();
-		if ( UIWeight )
+		if ( UIWeight && !overrideCorrectionByWeight)
 			pos.y = UIWeight->GetWndPos().y + UIWeight->GetHeight() + 4.0f;
 
 		if(UITradeTip && trade_tip!=nullptr)
@@ -309,18 +351,19 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 		VERIFY					(0==UIDesc->GetSize());
 		if(m_desc_info.bShowDescrText)
 		{
-			CUITextWnd* pItem					= new CUITextWnd();
+			CUIStatic* pItem					= new CUIStatic();
 			pItem->SetTextColor					(m_desc_info.uDescClr);
 			pItem->SetFont						(m_desc_info.pDescFont);
 			pItem->SetWidth						(UIDesc->GetDesiredChildWidth());
 			pItem->SetTextComplexMode			(true);
-			pItem->SetText(pInvItem->IsUsedAdditionalDescription() ? *pInvItem->GetExtendedUnionDescription() : *pInvItem->ItemDescription());
+			pItem->SetText((pInvItem->IsUsedPrependDescription() || pInvItem->IsUsedAdditionalDescription()) ? *pInvItem->GetExtendedUnionDescription() : *pInvItem->ItemDescription());
 			pItem->AdjustHeightToText			();
 			UIDesc->AddWindow					(pItem, true);
 		}
 		TryAddConditionInfo					(*pInvItem, pCompareItem);
 		TryAddWpnInfo						(*pInvItem, pCompareItem);
 		TryAddKnifeInfo						(*pInvItem, pCompareItem);
+		TryAddGrenadeInfo					(*pInvItem, pCompareItem);
 		TryAddArtefactInfo					(*pInvItem);
 		TryAddOutfitInfo					(*pInvItem, pCompareItem);
 		TryAddUpgradeInfo					(*pInvItem);
@@ -332,8 +375,8 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 			Fvector2 new_size;
 			new_size.x						= GetWndSize().x;
 			new_size.y						= UIDesc->GetWndPos().y+UIDesc->GetWndSize().y+20.0f;
-			new_size.x						= _max(105.0f, new_size.x);
-			new_size.y						= _max(105.0f, new_size.y);
+			new_size.x						= std::max(105.0f, new_size.x);
+			new_size.y						= std::max(105.0f, new_size.y);
 			
 			SetWndSize						(new_size);
 			if(UIBackground)
@@ -343,8 +386,19 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 		UIDesc->ScrollToBegin				();
 	}
 	if(UIItemImage)
-	{
-		// Загружаем картинку
+    {
+		static const bool enable3DIcons = EngineExternal()[EEngineExternalGame::Enable3DIcons];
+		if (enable3DIcons)
+        {
+            UIItemImage->SetVisual(pInvItem->m_3d_static_visual_name);
+            UIItemImage->SetScaleFactor(pInvItem->m_3d_static_scale);
+            UIItemImage->SetXYZ(pInvItem->m_3d_static_rotate);
+			UIItemImage->SetBonesVisible(pInvItem->object().Visual()->dcast_PKinematics());
+        }
+        else
+            UIItemImage->SetVisual(nullptr);
+
+        // Р—Р°РіСЂСѓР¶Р°РµРј РєР°СЂС‚РёРЅРєСѓ
 		UIItemImage->SetShader(InventoryUtilities::GetEquipmentIconsShader(m_pInvItem->IconsTexture.c_str()));
 
 		Irect item_grid_rect = pInvItem->GetInvGridRect();
@@ -364,10 +418,11 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 
 		v_r.x								*= UI().get_current_kx();
 
+
 		UIItemImage->GetUIStaticItem().SetSize	(v_r);
 		UIItemImage->SetWidth					(v_r.x);
 		UIItemImage->SetHeight					(v_r.y);
-	}
+    }
 }
 
 void CUIItemInfo::TryAddConditionInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
@@ -401,7 +456,16 @@ void CUIItemInfo::TryAddKnifeInfo(CInventoryItem& pInvItem, CInventoryItem* pCom
 	}
 }
 
-void CUIItemInfo::TryAddArtefactInfo(CInventoryItem& pInvItem)
+void CUIItemInfo::TryAddGrenadeInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
+{
+	if (UIGrenadeParams->Check(pInvItem))
+	{
+		UIGrenadeParams->SetInfo(pCompareItem, pInvItem);
+		UIDesc->AddWindow(UIGrenadeParams, false);
+	}
+}
+
+void CUIItemInfo::TryAddArtefactInfo	(CInventoryItem& pInvItem)
 {
 	if (UIArtefactParams->Check(pInvItem.object().cNameSect()))
 	{
@@ -466,4 +530,26 @@ void CUIItemInfo::Draw()
 {
 	if(m_pInvItem)
 		inherited::Draw();
+}
+
+void CUIItemInfo::ScrollDown()
+{
+	if (UIDesc && !m_b_FitToHeight)
+	{
+		if (CUIScrollBar* s = UIDesc->ScrollBar())
+		{
+			s->TryScrollInc();
+		}
+	}
+}
+
+void CUIItemInfo::ScrollUp()
+{
+	if (UIDesc && !m_b_FitToHeight)
+	{
+		if (CUIScrollBar* s = UIDesc->ScrollBar())
+		{
+			s->TryScrollDec();
+		}
+	}
 }

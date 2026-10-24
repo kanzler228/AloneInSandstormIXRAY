@@ -74,19 +74,9 @@ namespace CDB
 		faces.push_back(T);
 	}
 
-#pragma pack(push,1)
-	struct edge
-	{
-		u32 face_id;
-		u32 edge_id;
-		u32 vertex_id0;
-		u32 vertex_id1;
-	};
-#pragma pack(pop)
-
 	struct sort_predicate
 	{
-		IC	bool	operator()	(const edge &edge0, const edge &edge1) const
+		IC	bool	operator()	(const Collector::edge &edge0, const Collector::edge &edge1) const
 		{
 			if (edge0.vertex_id0 < edge1.vertex_id0)
 				return				(true);
@@ -106,8 +96,9 @@ namespace CDB
 
 	void Collector::calc_adjacency(xr_vector<u32>& dest)
 	{
+		edges.clear();
 		const size_t edge_count = faces.size() * 3;
-		edge* edges = new edge[edge_count];
+		edges.resize(edge_count);
 
 		size_t edge_idx = 0;
 		for (size_t face_id = 0; face_id < faces.size(); ++face_id)
@@ -125,7 +116,7 @@ namespace CDB
 			}
 		}
 
-		std::sort(edges, edges + edge_count, sort_predicate());
+		std::sort(edges.begin(), edges.end(), sort_predicate());
 		dest.assign(edge_count, u32(-1));
 
 		// Сопоставление рёбер между треугольниками
@@ -141,18 +132,17 @@ namespace CDB
 				++i;
 			}
 		}
-		xr_delete(edges);
 	}
 
-    IC BOOL similar(TRI& T1, TRI& T2)
+    IC bool similar(TRI& T1, TRI& T2)
     {
-        if ((T1.verts[0]==T2.verts[0]) && (T1.verts[1]==T2.verts[1]) && (T1.verts[2]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        if ((T1.verts[0]==T2.verts[0]) && (T1.verts[2]==T2.verts[1]) && (T1.verts[1]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        if ((T1.verts[2]==T2.verts[0]) && (T1.verts[0]==T2.verts[1]) && (T1.verts[1]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        if ((T1.verts[2]==T2.verts[0]) && (T1.verts[1]==T2.verts[1]) && (T1.verts[0]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        if ((T1.verts[1]==T2.verts[0]) && (T1.verts[0]==T2.verts[1]) && (T1.verts[2]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        if ((T1.verts[1]==T2.verts[0]) && (T1.verts[2]==T2.verts[1]) && (T1.verts[0]==T2.verts[2]) && (T1.dummy==T2.dummy)) return TRUE;
-        return FALSE;
+        if ((T1.verts[0]==T2.verts[0]) && (T1.verts[1]==T2.verts[1]) && (T1.verts[2]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        if ((T1.verts[0]==T2.verts[0]) && (T1.verts[2]==T2.verts[1]) && (T1.verts[1]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        if ((T1.verts[2]==T2.verts[0]) && (T1.verts[0]==T2.verts[1]) && (T1.verts[1]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        if ((T1.verts[2]==T2.verts[0]) && (T1.verts[1]==T2.verts[1]) && (T1.verts[0]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        if ((T1.verts[1]==T2.verts[0]) && (T1.verts[0]==T2.verts[1]) && (T1.verts[2]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        if ((T1.verts[1]==T2.verts[0]) && (T1.verts[2]==T2.verts[1]) && (T1.verts[0]==T2.verts[2]) && (T1.dummy==T2.dummy)) return true;
+        return false;
     }
     void Collector::remove_duplicate_T( )
     {
@@ -172,27 +162,6 @@ namespace CDB
             }
         }
     }
-
-	CollectorPacked::CollectorPacked(const Fbox &bb, int apx_vertices, int apx_faces)
-	{
-		HDIM_X = 1024;
-		HDIM_Y = 1024;
-		HDIM_Z = 1024;
-
-		// Params
- 		VMscale.set(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z);
-		VMmin.set(bb.min);
-
-		scale.set(float(HDIM_X), float(HDIM_Y), float(HDIM_Z));
-		scale.div(VMscale);
-
-		Msg("*** Set Hash Scale for Compacting: {%f, %f, %f}", VPUSH(scale));
-
-		// Preallocate memory
-		verts.reserve	(apx_vertices);
-		faces.reserve	(apx_faces);
-		flags.reserve	(apx_faces);
-	}
 
 	u32		CollectorPacked::VPack(const Fvector& V)
 	{

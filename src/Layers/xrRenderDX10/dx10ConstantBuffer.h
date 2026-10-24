@@ -1,32 +1,33 @@
-#ifndef	dx10ConstantBuffer_included
-#define	dx10ConstantBuffer_included
 #pragma once
 
-struct	R_constant;
-struct	R_constant_load;
-
-class dx10ConstantBuffer : public xr_resource_named
+class dx10ConstantBuffer :
+	public xr_resource_named
 {
 public:
 	dx10ConstantBuffer(ID3DShaderReflectionConstantBuffer* pTable);
 	~dx10ConstantBuffer();
 
 	bool			Similar(dx10ConstantBuffer &_in);
-	ID3DBuffer*		GetBuffer() { return m_pBuffer; }
+	IRHIBuffer*		GetBuffer() { return m_pBuffer; }
 
 	void			Flush();
 
+	// Queue membership for R_constants' dirty list. Distinct from m_bChanged, which starts
+	// true at construction and would otherwise mask a buffer out of the list forever.
+	bool			IsQueued() const	{ return m_bQueued; }
+	void			SetQueued(bool q)	{ m_bQueued = q; }
+
 	//	Set copy data into constant buffer
 	//	Plain buffer member
-	void			set(R_constant* C, R_constant_load& L, const Fmatrix& A);
-	void			set(R_constant* C, R_constant_load& L, const Fvector4& A);
-	void			set(R_constant* C, R_constant_load& L, float A);
-	void			set(R_constant* C, R_constant_load& L, int A);
+	void			set(RHIShaderConstant* C, RHIShaderConstant::Loader& L, const Fmatrix& A);
+	void			set(RHIShaderConstant* C, RHIShaderConstant::Loader& L, const Fvector4& A);
+	void			set(RHIShaderConstant* C, RHIShaderConstant::Loader& L, float A);
+	void			set(RHIShaderConstant* C, RHIShaderConstant::Loader& L, int A);
 	//	Array buffer member
-	void			seta(R_constant* C, R_constant_load& L, u32 e, const Fmatrix& A);
-	void			seta(R_constant* C, R_constant_load& L, u32 e, const Fvector4& A);
+	void			seta(RHIShaderConstant* C, RHIShaderConstant::Loader& L, u32 e, const Fmatrix& A);
+	void			seta(RHIShaderConstant* C, RHIShaderConstant::Loader& L, u32 e, const Fvector4& A);
 
-	void*			AccessDirect(R_constant_load& L, u32 DataSize);
+	void*			AccessDirect(RHIShaderConstant::Loader& L, u32 DataSize);
 
 private:
 	Fvector4*		Access(u16	offset);
@@ -40,10 +41,11 @@ private:
 	xr_vector<D3D_SHADER_TYPE_DESC>	m_MembersList;
 	xr_vector<shared_str>				m_MembersNames;
 
-	ID3DBuffer*							m_pBuffer;
+	IRHIBuffer*							m_pBuffer;
 	u32									m_uiBufferSize;	//	Cache buffer size for debug validation
-	void*								m_pBufferData;
+	void*								m_pBufferData = nullptr;
 	bool								m_bChanged;
+	bool								m_bQueued = false;
 
 	static const u32					lineSize = sizeof(Fvector4);
 
@@ -53,5 +55,3 @@ private:
 };
 
 typedef	resptr_core<dx10ConstantBuffer,resptr_base<dx10ConstantBuffer> > ref_cbuffer;
-
-#endif	//	dx10ConstantBuffer_included

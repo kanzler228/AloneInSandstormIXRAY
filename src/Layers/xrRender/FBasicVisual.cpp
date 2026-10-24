@@ -6,7 +6,7 @@
 
 
 #ifndef _EDITOR
-#	include "../../xrEngine/render.h"
+#	include "../../xrEngine/Render.h"
 #endif // #ifndef _EDITOR
 
 #include "FBasicVisual.h"
@@ -25,7 +25,7 @@ IRender_Mesh::~IRender_Mesh()
 dxRender_Visual::dxRender_Visual		()
 {
 	Type				= 0;
-	shader				= 0;
+	shader				= nullptr;
 	vis.clear			();
 }
 

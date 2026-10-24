@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_stalker_state_net.h"
 #include "stalker_movement_manager_smart_cover.h"
 #include "Inventory.h"
@@ -212,7 +212,7 @@ void aistalker_state_net::FillState(CAI_Stalker* stalker)
 	if (stalker->inventory().ActiveItem() != nullptr)
 	{
 		// inventory
-		CWeapon* weapon = smart_cast<CWeapon*>(stalker->inventory().ActiveItem());
+		CWeapon* weapon = stalker->inventory().ActiveItem()->cast_weapon();
 
 		if (weapon)
 		{
@@ -240,14 +240,13 @@ void aistalker_state_net::GetState(CAI_Stalker* stalker)
 	// NEW STATE
 	{
 		PIItem item = stalker->inventory().ItemFromSlot(u_active_slot);
-		CWeapon* wpn = smart_cast<CWeapon*>(item);
+		CWeapon* wpn = item != nullptr ? item->cast_weapon() : nullptr;
 
 		if (u_active_slot != 0)
 		if (item && item->object_id() != u_active_id || !item)
 		{
 			CObject* obj = Level().Objects.net_Find(u_active_id);
-			CInventoryItem* itemINV = smart_cast<CInventoryItem*>(obj);
-			CGameObject* game_object = smart_cast<CGameObject*>(obj);
+			CInventoryItem* itemINV = obj != nullptr ? obj->cast_inventory_item() : nullptr;
 
 			if (itemINV && itemINV->parent_id() == stalker->ID())
 			{
@@ -257,15 +256,12 @@ void aistalker_state_net::GetState(CAI_Stalker* stalker)
 
 		stalker->inventory().SetActiveSlot(u_active_slot);
 		if (wpn && wpn->strapped_mode() != !!u_active_stripped)
+		{
 			wpn->strapped_mode(u_active_stripped);
+		}
 	}
 
 	stalker->m_wounded = m_wounded;
-	//if (canOpenDialog)
-	//	stalker->cast_inventory_owner()->EnableTalk();
-	//else
-	//	stalker->cast_inventory_owner()->DisableTalk();
-
  	stalker->SetfHealth(health);
 	
 	if (!stalker->g_Alive())
@@ -349,7 +345,8 @@ void aistalker_state_net::GetStateCSE(CSE_ALifeHumanStalker* stalker)
 	stalker->o_Position = Position;
 
 	// Затычка чтобы много не жрало сети
-	CAI_Stalker* sta = smart_cast<CAI_Stalker*>(Level().Objects.net_Find(stalker->ID));
+	CObject* finded_object = Level().Objects.net_Find(stalker->ID);
+	CAI_Stalker* sta = finded_object != nullptr ? finded_object->cast_stalker() : nullptr;
 	if (sta)
 	{
 		stalker->m_start_dialog = sta->GetStartDialog();

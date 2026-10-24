@@ -14,8 +14,8 @@
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "game_sv_mp_vote_flags.h"
 
-EGameIDs ParseStringToGameType	(LPCSTR str);
-LPCSTR GameTypeToString			(EGameIDs gt, bool bShort);
+EGameIDs ParseStringToGameType	(const char* str);
+const char* GameTypeToString			(EGameIDs gt, bool bShort);
 
 game_cl_GameState::game_cl_GameState()
 {
@@ -280,9 +280,8 @@ void game_cl_GameState::TranslateGameMessage	(u32 msg, NET_Packet& P)
 
 }
 
-void	game_cl_GameState::OnGameMessage	(NET_Packet& P)
+void game_cl_GameState::OnGameMessage(NET_Packet& P)
 {
-	VERIFY	(this && &P);
 	u32 msg	;
 	P.r_u32	(msg);
 
@@ -360,7 +359,7 @@ void game_cl_GameState::sv_GameEventGen(NET_Packet& P)
 
 void	game_cl_GameState::sv_EventSend(NET_Packet& P)
 {
-	Level().Send(P,net_flags(TRUE,TRUE));
+	Level().Send(P,net_flags(true,true));
 }
 
 bool game_cl_GameState::OnKeyboardPress		(int dik)
@@ -389,7 +388,7 @@ void game_cl_GameState::u_EventGen(NET_Packet& P, u16 type, u16 dest)
 
 void game_cl_GameState::u_EventSend(NET_Packet& P)
 {
-	Level().Send(P,net_flags(TRUE,TRUE));
+	Level().Send(P,net_flags(true,true));
 }
 
 void				game_cl_GameState::OnSwitchPhase			(u32 old_phase, u32 new_phase)
@@ -427,7 +426,7 @@ void game_cl_GameState::SendPickUpEvent(u16 ID_who, u16 ID_what)
 	u_EventSend		(P);
 };
 
-void game_cl_GameState::set_type_name(LPCSTR s)	
+void game_cl_GameState::set_type_name(const char* s)	
 { 
 	EGameIDs gid =			ParseStringToGameType	(s);
 	m_game_type_name		= GameTypeToString		(gid, false); 

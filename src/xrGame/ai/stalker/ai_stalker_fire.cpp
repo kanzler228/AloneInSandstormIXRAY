@@ -6,15 +6,16 @@
 //	Description : Fire and enemy parameters for monster "Stalker"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "ai_stalker.h"
 #include "ai_stalker_impl.h"
 #include "../../script_entity_action.h"
 #include "../../Inventory.h"
+#include "../../InventoryWeaponSlotLayout.h"
 #include "../../ef_storage.h"
 #include "../../script_game_object.h"
-#include "../../CustomZone.h"
+#include "../../AnomalyZone.h"
 #include "../../../Include/xrRender/KinematicsAnimated.h"
 #include "../../agent_manager.h"
 #include "../../stalker_animation_manager.h"
@@ -44,8 +45,7 @@
 #include "../../stalker_animation_names.h"
 #include "../../agent_corpse_manager.h"
 #include "../../CharacterPhysicsSupport.h"
-#include "../../script_game_object.h"
-#include "../../Inventory.h"
+#include "../xrEngine/GameMtlLib.h"
 
 #include "Legacy/StalkerPlanner/stalker_planner.h"
 #include "../../trajectories.h"
@@ -81,18 +81,25 @@ float CAI_Stalker::GetWeaponAccuracy() const
 	//влияние ранга на меткость
 	base				*= m_fRankDisperison;
 
-	if (!movement().path_completed()) {
+	if (!movement().path_completed())
+	{
 		if (movement().movement_type() == eMovementTypeWalk)
+		{
 			if (movement().body_state() == eBodyStateStand)
-				return		(base*m_disp_walk_stand);
+				return		(base * m_disp_walk_stand);
 			else
-				return		(base*m_disp_walk_crouch);
+				return		(base * m_disp_walk_crouch);
+		}
 		else
+		{
 			if (movement().movement_type() == eMovementTypeRun)
+			{
 				if (movement().body_state() == eBodyStateStand)
-					return	(base*m_disp_run_stand);
+					return	(base * m_disp_run_stand);
 				else
-					return	(base*m_disp_run_crouch);
+					return	(base * m_disp_run_crouch);
+			}
+		}
 	}
 	
 	if (movement().body_state() == eBodyStateStand)
@@ -109,22 +116,24 @@ float CAI_Stalker::GetWeaponAccuracy() const
 
 void CAI_Stalker::g_fireParams(const CHudItem* pHudItem, Fvector& P, Fvector& D)
 {
-//.	VERIFY				(inventory().ActiveItem());
-	if (!inventory().ActiveItem()) {
+	if (!inventory().ActiveItem())
+	{
 #ifdef DEBUG
-		Msg				("! CAI_Stalker::g_fireParams() : VERIFY(inventory().ActiveItem())");
+		Msg("! CAI_Stalker::g_fireParams() : VERIFY(inventory().ActiveItem())");
 #endif // DEBUG
-		P				= Position();
-		D				= Fvector().set(0.f,0.f,1.f);
+		P = Position();
+		D = Fvector().set(0.0f, 0.0f, 1.0f);
 		return;
 	}
 
-	if(inventory().ActiveItem())
+	if (inventory().ActiveItem())
 	{
 		CWeapon* weapon = inventory().ActiveItem()->cast_weapon();
-		if (!weapon) {
+		if (!weapon)
+		{
 			CMissile* missile = inventory().ActiveItem()->cast_missile();
-			if (missile) {
+			if (missile)
+			{
 				update_throw_params();
 				P = m_throw_position;
 				D = Fvector().set(m_throw_velocity).normalize();
@@ -136,96 +145,125 @@ void CAI_Stalker::g_fireParams(const CHudItem* pHudItem, Fvector& P, Fvector& D)
 			D = eye_matrix.k;
 
 			if (weapon_shot_effector().IsActive())
+			{
 				D = weapon_shot_effector_direction(D);
+			}
 
 			VERIFY(!fis_zero(D.square_magnitude()));
 			return;
 		}
 
 
-		if (!g_Alive()) {
-			P				= weapon->get_LastFP();
-			D				= weapon->get_LastFD();
-			VERIFY			(!fis_zero(D.square_magnitude()));
+		if (!g_Alive())
+		{
+			P = weapon->get_LastFP();
+			D = weapon->get_LastFD();
+			VERIFY(!fis_zero(D.square_magnitude()));
 			return;
 		}
 
-		if (!animation().script_animations().empty() || animation().global_selector()) {
-			P				= weapon->get_LastFP();
-			
+		if (!animation().script_animations().empty() || animation().global_selector())
+		{
+			P = weapon->get_LastFP();
+
 			if (sniper_fire_mode())
-				D.setHP		(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
+			{
+				D.setHP(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
+			}
 			else
-				D			= weapon->get_LastFD();
-			VERIFY			(!fis_zero(D.square_magnitude()));
+			{
+				D = weapon->get_LastFD();
+			}
+
+			VERIFY(!fis_zero(D.square_magnitude()));
 
 			return;
 		}
 	}
 
-	switch (movement().body_state()) {
-		case eBodyStateStand : {
-			if (movement().movement_type() == eMovementTypeStand) {
-				P		= eye_matrix.c;
-				D		= eye_matrix.k;
-				if (weapon_shot_effector().IsActive())
-					D	= weapon_shot_effector_direction(D);
-				VERIFY	(!fis_zero(D.square_magnitude()));
-			}
-			else {
-				D.setHP	(-movement().m_head.current.yaw,-movement().m_head.current.pitch);
-				if (weapon_shot_effector().IsActive())
-					D			= weapon_shot_effector_direction(D);
-				Center	(P);
-				P.mad	(D,.5f);
-				P.y		+= .50f;
-				VERIFY	(!fis_zero(D.square_magnitude()));
-			}
-
-			if (sniper_fire_mode())
-				D.setHP	(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
-
-			return;
-		}
-		case eBodyStateCrouch : {
-			P			= eye_matrix.c;
-			D			= eye_matrix.k;
+	switch (movement().body_state())
+	{
+	case eBodyStateStand:
+	{
+		if (movement().movement_type() == eMovementTypeStand)
+		{
+			P = eye_matrix.c;
+			D = eye_matrix.k;
 			if (weapon_shot_effector().IsActive())
-				D		= weapon_shot_effector_direction(D);
-
-			VERIFY		(!fis_zero(D.square_magnitude()));
-
-			if (sniper_fire_mode())
-				D.setHP	(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
-
-			return;
+			{
+				D = weapon_shot_effector_direction(D);
+			}
+			VERIFY(!fis_zero(D.square_magnitude()));
 		}
-		default			: NODEFAULT;
+		else {
+			D.setHP(-movement().m_head.current.yaw, -movement().m_head.current.pitch);
+			if (weapon_shot_effector().IsActive())
+			{
+				D = weapon_shot_effector_direction(D);
+			}
+			Center(P);
+			P.mad(D, .5f);
+			P.y += .50f;
+			VERIFY(!fis_zero(D.square_magnitude()));
+		}
+
+		if (sniper_fire_mode())
+		{
+			D.setHP(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
+		}
+
+		return;
+	}
+	case eBodyStateCrouch:
+	{
+		P = eye_matrix.c;
+		D = eye_matrix.k;
+		if (weapon_shot_effector().IsActive())
+		{
+			D = weapon_shot_effector_direction(D);
+		}
+
+		VERIFY(!fis_zero(D.square_magnitude()));
+
+		if (sniper_fire_mode())
+		{
+			D.setHP(-movement().m_head.target.yaw, -movement().m_head.target.pitch);
+		}
+
+		return;
+	}
+	default: NODEFAULT;
 	}
 
 #ifdef DEBUG
-	if (inventory().ActiveItem())
+	if (inventory().ActiveItem() != nullptr)
 	{
-		if(CWeapon* weapon = inventory().ActiveItem()->cast_weapon())
+		if (CWeapon* weapon = inventory().ActiveItem()->cast_weapon())
 		{
 			P = weapon->get_LastFP();
 			D = weapon->get_LastFD();
 		}
 	}
-	VERIFY				(!fis_zero(D.square_magnitude()));
+	VERIFY(!fis_zero(D.square_magnitude()));
 #endif
 }
 
-void CAI_Stalker::g_WeaponBones	(int &L, int &R1, int &R2)
+void CAI_Stalker::g_WeaponBones(u16& L, u16& R1, u16& R2)
 {
-	int				r_hand, r_finger2, l_finger1;
+	u16 r_hand = BI_NONE, r_finger2 = BI_NONE, l_finger1 = BI_NONE;
 	CObjectHandler::weapon_bones(r_hand, r_finger2, l_finger1);
-	R1				= r_hand;
-	R2				= r_finger2;
+
+	R1 = r_hand;
+	R2 = r_finger2;
+
 	if (!animation().script_animations().empty() && animation().script_animations().front().hand_usage())
-		L			= R2;
+	{
+		L = R2;
+	}
 	else
-		L			= l_finger1;
+	{
+		L = l_finger1;
+	}
 }
 
 void CAI_Stalker::Hit(SHit* pHDS)
@@ -236,55 +274,67 @@ void CAI_Stalker::Hit(SHit* pHDS)
 	
 	float hit_power = HDS.power * m_fRankImmunity;
 
-	if(m_boneHitProtection && HDS.hit_type == ALife::eHitTypeFireWound)
-	{
-		float BoneArmor = m_boneHitProtection->getBoneArmor(HDS.bone());
-		float ap = HDS.armor_piercing;
+    if (m_boneHitProtection && HDS.hit_type == ALife::eHitTypeFireWound)
+    {
+        const float BoneArmor = m_boneHitProtection->getBoneArmor(HDS.bone());
 
-		if (EngineExternal().ClearSkyMode())
-		{
-			if (ap > EPS && ap > BoneArmor)
-			{
-				const float d_ap = ap - BoneArmor;
-				hit_power *= (d_ap / ap);
+        if (wounded()) // уже лежит => добивание
+        {
+            hit_power = 1000.f;
+        }
+        else if (m_boneHitProtection->m_hitFracType == SBoneProtections::HitFractionNPC) // COP
+        {
+            if (!fis_zero(BoneArmor, EPS))
+            {
+                const float ap = HDS.armor_piercing;
 
-				if (hit_power < m_boneHitProtection->m_fHitFracNpc)
-				{
-					hit_power = m_boneHitProtection->m_fHitFracNpc;
-				}
-				if (hit_power < 0.0f) {
-					hit_power = 0.0f;
-				}
-			}
-			else
-			{
-				hit_power *= m_boneHitProtection->m_fHitFracNpc;
-				HDS.add_wound = false;
-			}
-		}
-		else if(!fis_zero(BoneArmor, EPS))
-		{
-			if(ap > BoneArmor)
-			{
-				float d_hit_power = (ap - BoneArmor) / ap;
-				if(d_hit_power < m_boneHitProtection->m_fHitFracNpc)
-					d_hit_power = m_boneHitProtection->m_fHitFracNpc;
+                if (ap > BoneArmor)
+                {
+                    float d_hit_power = (ap - BoneArmor) / ap;
+                    if (d_hit_power < m_boneHitProtection->m_fHitFrac)
+                        d_hit_power = m_boneHitProtection->m_fHitFrac;
 
-				hit_power *= d_hit_power;
-				VERIFY(hit_power>=0.0f);
-			}
-			else
-			{
-				hit_power *= m_boneHitProtection->m_fHitFracNpc;
-				HDS.add_wound = false;
-			}
-		}
+                    hit_power *= d_hit_power;
+                    VERIFY(hit_power >= 0.0f);
+                }
+                else
+                {
+                    hit_power *= m_boneHitProtection->m_fHitFrac;
+                    HDS.add_wound = false;
+                }
+            }
+        }
+        else if (GMLib.GetLibraryVersion() >= GAMEMTL_VERSION_CS)
+        {
+            const float ap = HDS.armor_piercing;
 
-		if ( wounded() ) //уже лежит => добивание
-		{
-			hit_power = 1000.f;
-		}
-	}
+            if (ap > EPS && ap > BoneArmor)
+            {
+                const float d_ap = ap - BoneArmor;
+                hit_power *= (d_ap / ap);
+
+                if (hit_power < m_boneHitProtection->m_fHitFrac)
+                    hit_power = m_boneHitProtection->m_fHitFrac;
+
+                if (hit_power < 0.0f)
+                    hit_power = 0.0f;
+            }
+            else
+            {
+                hit_power *= m_boneHitProtection->m_fHitFrac;
+                HDS.add_wound = false;
+            }
+        }
+        else if (GMLib.GetLibraryVersion() == GAMEMTL_VERSION_SOC)
+        {
+            const float NewHitPower = HDS.damage() - BoneArmor;
+
+            if (NewHitPower < HDS.power * m_boneHitProtection->m_fHitFrac)
+                hit_power = HDS.power * m_boneHitProtection->m_fHitFrac;
+            else
+                hit_power = NewHitPower;
+        }
+    }
 	HDS.power = hit_power;
 
 	if (g_Alive())
@@ -351,7 +401,6 @@ void CAI_Stalker::Hit(SHit* pHDS)
 				float					power_factor = m_power_fx_factor * HDS.damage() / 100.f;
 				clamp					(power_factor,0.f,1.f);
 
-				//IKinematicsAnimated		*tpKinematics = smart_cast<IKinematicsAnimated*>(Visual());
 				IKinematics *tpKinematics = PKinematics(Visual());
 	#ifdef DEBUG
 				tpKinematics->LL_GetBoneInstance	(HDS.bone());
@@ -393,7 +442,7 @@ void CAI_Stalker::HitSignal				(float amount, Fvector& vLocalDir, CObject* who, 
 
 bool CAI_Stalker::CanPutInSlot(PIItem item, u32 slot)
 {
-	if (slot == INV_SLOT_2 || slot == INV_SLOT_3)
+	if (IsSidearmOrPrimaryPhysicalSlot(slot))
 	{
 		return !!g_Alive();
 	}
@@ -529,8 +578,10 @@ void CAI_Stalker::update_best_item_info_impl()
 	{
 		xr_vector<const CGameObject*>::const_iterator	I = memory().item().objects().begin();
 		xr_vector<const CGameObject*>::const_iterator	E = memory().item().objects().end();
-		for ( ; I != E; ++I) {
-			const CInventoryItem	*inventory_item = smart_cast<const CInventoryItem*>(*I);
+		for ( ; I != E; ++I)
+		{
+			CGameObject* cast_game_object = const_cast<CGameObject*>(*I);
+			const CInventoryItem* inventory_item = cast_game_object != nullptr ? cast_game_object->cast_inventory_item() : nullptr;
 			if (!inventory_item || !memory().item().useful(&inventory_item->object()))
 				continue;
 			CInventoryItem			*item			= inventory_item->can_kill(&inventory());
@@ -569,8 +620,10 @@ void CAI_Stalker::update_best_item_info_impl()
 	// and item which can make this item killing
 	xr_vector<const CGameObject*>::const_iterator	I = memory().item().objects().begin();
 	xr_vector<const CGameObject*>::const_iterator	E = memory().item().objects().end();
-	for ( ; I != E; ++I) {
-		const CInventoryItem	*inventory_item = smart_cast<const CInventoryItem*>(*I);
+	for ( ; I != E; ++I)
+	{
+		CGameObject* cast_game_object = const_cast<CGameObject*>(*I);
+		const CInventoryItem* inventory_item = cast_game_object != nullptr ? cast_game_object->cast_inventory_item() : nullptr;
 		if (!inventory_item || !memory().item().useful(&inventory_item->object()))
 			continue;
 		const CInventoryItem	*item = inventory_item->can_kill(memory().item().objects());
@@ -654,7 +707,7 @@ public:
 	}
 };
 
-IC BOOL ray_query_callback	(collide::rq_result& result, LPVOID params)
+IC bool ray_query_callback	(collide::rq_result& result, LPVOID params)
 {
 	ray_query_param_stalker*param = (ray_query_param_stalker*)params;
 	float power = param->m_holder->feel_vision_mtl_transp(result.O,result.element);
@@ -698,7 +751,7 @@ void CAI_Stalker::can_kill_entity		(const Fvector &position, const Fvector &dire
 	Level().ObjectSpace.RayQuery	(rq_storage_,ray_defs,ray_query_callback,&params,nullptr,this);
 	m_can_kill_enemy				= m_can_kill_enemy  || params.m_can_kill_enemy;
 	m_can_kill_member				= m_can_kill_member || params.m_can_kill_member;
-	m_pick_distance					= _max(m_pick_distance,params.m_pick_distance);
+	m_pick_distance					= std::max(m_pick_distance,params.m_pick_distance);
 }
 
 void CAI_Stalker::can_kill_entity_from	(const Fvector &position, Fvector direction, float distance)
@@ -743,7 +796,7 @@ IC	float CAI_Stalker::start_pick_distance	() const
 		return				(result);
 
 	return					(
-		_max(
+		std::max(
 			result,
 			memory().enemy().selected()->Position().distance_to(Position()) + 1.f
 		)
@@ -755,7 +808,6 @@ float CAI_Stalker::pick_distance		()
 	if (!inventory().ActiveItem())
 		return				(start_pick_distance());
 		
-	update_can_kill_info	();
 	return					(m_pick_distance);
 }
 
@@ -764,12 +816,16 @@ void CAI_Stalker::update_can_kill_info	()
 	if (m_pick_frame_id == Device.dwFrame)
 		return;
 
+	if (!inventory().ActiveItem())
+		return;
+
+	PROF_EVENT(__FUNCTION__);
+
 	m_pick_frame_id			= Device.dwFrame;
 	m_can_kill_member		= false;
 	m_can_kill_enemy		= false;
 
 	Fvector					position, direction;
-	VERIFY					(inventory().ActiveItem());
 	g_fireParams			(0,position,direction);
 	can_kill_entity_from	(position,direction,start_pick_distance());
 }
@@ -779,20 +835,23 @@ bool CAI_Stalker::undetected_anomaly	()
 	return					(inside_anomaly() || brain().CStalkerPlanner::m_storage.property(StalkerDecisionSpace::eWorldPropertyAnomaly));
 }
 
-bool CAI_Stalker::inside_anomaly		()
+bool CAI_Stalker::inside_anomaly()
 {
-	xr_vector<CObject*>::const_iterator	I = feel_touch.begin();
-	xr_vector<CObject*>::const_iterator	E = feel_touch.end();
-	for ( ; I != E; ++I) {
-		CCustomZone			*zone = (*I)&&(*I)->cast_game_object() ? (*I)->cast_game_object()->cast_custom_zone() : NULL;
-		if ( zone && (zone->restrictor_type() != RestrictionSpace::eRestrictorTypeNone) ) {
-			if (smart_cast<CRadioactiveZone*>(zone))
+	for (const auto& feel_object : feel_touch)
+	{
+		CAnomalyZone* zone = feel_object != nullptr && feel_object->cast_game_object() != nullptr ? feel_object->cast_game_object()->cast_anomaly_zone() : nullptr;
+		if (zone != nullptr && (zone->restrictor_type() != RestrictionSpace::eRestrictorTypeNone))
+		{
+			if (zone->cast_radioactive_zone())
+			{
 				continue;
+			}
 
-			return			(true);
+			return true;
 		}
 	}
-	return					(false);
+
+	return false;
 }
 
 bool CAI_Stalker::zoom_state			() const
@@ -875,7 +934,7 @@ bool CAI_Stalker::fire_make_sense		()
 	if ((pick_distance() + PRECISE_DISTANCE) < Position().distance_to(enemy->Position()))
 		return				(false);
 
-	if (_abs(Position().y - enemy->Position().y) > FLOOR_DISTANCE)
+	if (std::abs(Position().y - enemy->Position().y) > FLOOR_DISTANCE)
 		return				(false);
 
 	if (pick_distance() < NEAR_DISTANCE)
@@ -934,7 +993,7 @@ void CAI_Stalker::on_weapon_hide			(CWeapon *weapon)
 
 void CAI_Stalker::notify_on_wounded_or_killed	(CObject *object)
 {
-	CAI_Stalker							*stalker = smart_cast<CAI_Stalker*>(object);
+	CAI_Stalker							*stalker = object != nullptr ? object->cast_stalker() : nullptr;
 	if (!stalker)
 		return;
 
@@ -977,6 +1036,11 @@ void CAI_Stalker::wounded					(bool value)
 		notify_on_wounded_or_killed	();
 
 	m_wounded				= value;
+
+	if(m_wounded)
+		SpatialComponent->type |= ESPATIAL_TYPE::STALKER_WOUNDED;
+	else
+		SpatialComponent->type &= ~ESPATIAL_TYPE::STALKER_WOUNDED;
 
 	if(!m_wounded && g_Alive())
 		character_physics_support()->CreateCharacterSafe();
@@ -1125,7 +1189,7 @@ void CAI_Stalker::update_throw_params		()
 
 	CMissile* const pMissile = dynamic_cast<CMissile*>(inventory().ActiveItem());
 	if ( pMissile ) {
-		static const LPCSTR third_person_offset_id	= "third_person_throw_point_offset";
+		static const char* third_person_offset_id	= "third_person_throw_point_offset";
 
 		if ( !pSettings->line_exist(pMissile->cNameSect(), third_person_offset_id ) ) {
 			m_throw_position.y	+= 2.f;
@@ -1322,14 +1386,12 @@ bool CAI_Stalker::can_kill_member							()
 	if (!animation().script_animations().empty())
 		return				(false);
 
-	update_can_kill_info	();
 	return					(m_can_kill_member);
 }
 
 bool CAI_Stalker::can_kill_enemy							()
 {
 	VERIFY					(inventory().ActiveItem());
-	update_can_kill_info	();
 	return					(m_can_kill_enemy);
 }
 

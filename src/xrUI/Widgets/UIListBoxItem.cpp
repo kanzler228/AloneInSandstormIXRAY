@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "UIListBoxItem.h"
 #include "UIScrollView.h"
 #include "../../xrServerEntities/object_broker.h"
@@ -54,9 +54,8 @@ bool CUIListBoxItem::OnMouseDown(int mouse_btn)
 {
 	if (mouse_btn == MOUSE_1)
 	{
-		GetParent()->GetParent()->ui_cast_scroll_view()->SetSelected(this);
-		GetMessageTarget()->SendMessage(this, LIST_ITEM_SELECT, &tag);
-		GetMessageTarget()->SendMessage(this, LIST_ITEM_CLICKED, &tag);
+		SendSelectionCallback();
+		SendClickCallback();
 		return true;
 	}
 	else if (mouse_btn == MOUSE_2)
@@ -110,9 +109,9 @@ CUIStatic* CUIListBoxItem::AddIconField(float width)
 	return					st;
 }
 
-CUITextWnd* CUIListBoxItem::AddTextField(LPCSTR txt, float width)
+CUIStatic* CUIListBoxItem::AddTextField(const char* txt, float width)
 {
-	CUITextWnd* st			= new CUITextWnd();
+	CUIStatic* st			= new CUIStatic();
 	st->SetAutoDelete		(true);
 	st->SetWndPos			(Fvector2().set(FieldsLength(),0.0f));
 	st->SetWndSize			(Fvector2().set(width, GetHeight()));
@@ -136,12 +135,23 @@ void* CUIListBoxItem::GetData()
 	return pData;
 }
 
-void CUIListBoxItem::SetText(LPCSTR txt)
+void CUIListBoxItem::SetText(const char* txt)
 {
 	m_text->SetText(txt);
 }
 
-LPCSTR CUIListBoxItem::GetText()							
+const char* CUIListBoxItem::GetText()							
 {
 	return m_text->GetText();
+}
+
+void CUIListBoxItem::SendSelectionCallback()
+{
+	GetParent()->GetParent()->ui_cast_scroll_view()->SetSelected(this);
+	GetMessageTarget()->SendMessage(this, LIST_ITEM_SELECT, &tag);
+}
+
+void CUIListBoxItem::SendClickCallback()
+{
+	GetMessageTarget()->SendMessage(this, LIST_ITEM_CLICKED, &tag);
 }

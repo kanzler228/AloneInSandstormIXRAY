@@ -10,7 +10,7 @@ class SndShockEffector;
 class CControllerPsyHit;
 class CControllerAura;
 
-class CController : public CBaseMonster,
+class CController final : public CBaseMonster,
 					public CControlledActor 
 {
 	typedef		CBaseMonster	inherited;
@@ -20,22 +20,31 @@ class CController : public CBaseMonster,
 	ref_sound			control_hit_sound;			// звук, который играется в голове у актера
 
 	ref_sound			m_sound_hit_fx;
-	SndShockEffector*	m_sndShockEffector;					
 
 	SAttackEffector		m_control_effector;
 
 	u32					time_control_hit_started;
 	bool				active_control_fx;
 	
-	LPCSTR				particles_fire;
+	const char*				particles_fire;
 
 	CControllerAnimation	*m_custom_anim_base;
 	CControllerDirection	*m_custom_dir_base;
 
 	u32					m_psy_fire_start_time;
 	u32					m_psy_fire_delay;
-
-	bool				m_tube_at_once;
+	
+	
+	//////////////////////////////////////////////////////////////////////////
+	// PsyAura
+	CControllerAura*	m_aura = nullptr;
+	
+	struct SAuraSound {
+		ref_sound	left;
+		ref_sound	right;
+	} aura_sound;
+	SAuraSound		*current_aura_sound;
+	
 
 public:	
 	float			aura_radius;
@@ -73,15 +82,15 @@ public:
 					CController			();
 	virtual			~CController		();	
 
-	virtual void	Load				(LPCSTR section);
-	virtual void	reload				(LPCSTR section);
+	virtual void	Load				(const char* section);
+	virtual void	reload				(const char* section);
 	virtual void	reinit				();
 	virtual void	UpdateCL			();
 	virtual void	shedule_Update		(u32 dt);
 	virtual void	Die					(CObject* who);
 
 	virtual void	net_Destroy			();
-	virtual BOOL	net_Spawn			(CSE_Abstract *DC);
+	virtual bool	net_Spawn			(CSE_Abstract *DC);
 	virtual void	net_Relcase			(CObject *O);
 
 	virtual void	OnEvent(NET_Packet& P, u16 type);
@@ -101,7 +110,7 @@ public:
 
 	virtual	bool	is_relation_enemy	(const CEntityAlive *tpEntityAlive) const;
 	xr_vector<shared_str>				m_friend_community_overrides;
-	void								load_friend_community_overrides	(LPCSTR section);
+	void								load_friend_community_overrides	(const char* section);
 	bool								is_community_friend_overrides	(const CEntityAlive *tpEntityAlive) const;
 	//-------------------------------------------------------------------
 	// Controller ability

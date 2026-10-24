@@ -8,14 +8,17 @@ static LPCSTR		RTTempName = "$user$rendertarget_temp";
 static LPCSTR		RTname_color_map= "$user$rendertarget_color_map";
 static LPCSTR		RTname_distort	= "$user$distort";
 
+bool UseGasmak = false;
+bool UseRainDrops = false;
+
 CRenderTarget::CRenderTarget()
 {
-	bAvailable			= FALSE;
-	RT					= 0;
-	RT_color_map		= 0;
-	pTempZB				= 0;
-	ZB					= 0;
-	pFB					= 0;
+	bAvailable			= false;
+	RT					= nullptr;
+	RT_color_map		= nullptr;
+	pTempZB				= nullptr;
+	ZB					= nullptr;
+	pFB					= nullptr;
 
 	param_blur			= 0.f;
 	param_gray			= 0.f;
@@ -40,7 +43,7 @@ CRenderTarget::CRenderTarget()
 	Msg					("* SSample: %s",bAvailable?"enabled":"disabled");
 }
 
-BOOL CRenderTarget::Create()
+bool CRenderTarget::Create()
 {
 	b_fxaa = new CBlender_FXAA();
 	curWidth			=  RCache.get_width();
@@ -58,35 +61,66 @@ BOOL CRenderTarget::Create()
 	Msg("* SSample: %dx%d", rtWidth, rtHeight);
 
 	// Bufferts
-	RT.create			(RTname,			rtWidth,rtHeight,D3DFMT_X8R8G8B8);
-	RTTemp.create(RTTempName, rtWidth, rtHeight, D3DFMT_X8R8G8B8);
+	RT.create			(RTname,			rtWidth,rtHeight, ERHI_FORMAT::B8G8R8X8_UNORM);
+	RTTemp.create(RTTempName, rtWidth, rtHeight, ERHI_FORMAT::B8G8R8X8_UNORM);
 
-	RT_distort.create	(RTname_distort,	rtWidth,rtHeight,D3DFMT_X8R8G8B8);
+	RT_distort.create	(RTname_distort,	rtWidth,rtHeight, ERHI_FORMAT::B8G8R8X8_UNORM);
 	if (RImplementation.o.color_mapping)
 	{
-		//RT_color_map.create	(RTname_color_map,	rtWidth,rtHeight,D3DFMT_X8R8G8B8);
-		RT_color_map.create	(RTname_color_map,	curWidth, curHeight, D3DFMT_X8R8G8B8);
+		RT_color_map.create	(RTname_color_map,	curWidth, curHeight, ERHI_FORMAT::B8G8R8X8_UNORM);
 	}
-	//RImplementation.o.color_mapping = RT_color_map->valid();
+	
+	RT_ui_pda.create("$user$ui_pda", curWidth, curHeight, ERHI_FORMAT::B8G8R8X8_UNORM);
 
 	//FXAA
 	s_fxaa.create(b_fxaa, "r1\\fxaa");
 	g_fxaa.create(FVF::F_V, RCache.Vertex.Buffer(), RCache.QuadIB);
 
-	if ((rtHeight!=RCache.get_height()) || (rtWidth!= RCache.get_width()))	{
-		R_CHK		(RDevice->CreateDepthStencilSurface	(rtWidth,rtHeight,D3DFMT_D24S8,D3DMULTISAMPLE_NONE,0,TRUE,&ZB,nullptr));
-	} else {
-		ZB			= RDepth;
+	if ((rtHeight!=RCache.get_height()) || (rtWidth!= RCache.get_width()))
+	{
+		RHITextureDesc descDS = {};
+		descDS.Width = rtWidth;
+		descDS.Height = rtHeight;
+		descDS.MipLevels = 1;
+		descDS.ArraySize = 1;
+		descDS.Format = ERHI_FORMAT::D24_UNORM_S8_UINT;
+		descDS.Usage = ERHI_USAGE::USAGE_DEFAULT;
+		descDS.BindFlags = ERHI_BIND_FLAG::DEPTH_STENCIL;
+
+		RHISubResource Res = {};
+		IRHISurface* TempSurf = GRHI->CreateTexture2D(descDS, Res);
+
+		RHIDepthStencilViewDesc DepthDesc = {};
+		DepthDesc.Format = ERHI_FORMAT::D24_UNORM_S8_UINT;
+
+		ZB = GRHI->CreateDepthStencilView(TempSurf, DepthDesc);
+
+		//R_CHK(RDevice->CreateDepthStencilSurface	(rtWidth,rtHeight,D3DFMT_D24S8,D3DMULTISAMPLE_NONE,0,true,&ZB,nullptr));
+	}
+	else
+	{
+		ZB = RDepth;
 		ZB->AddRef	();
 	}
 
-	// Temp ZB, used by some of the shadowing code
-	R_CHK	(RDevice->CreateDepthStencilSurface	(512,512,D3DFMT_D24S8,D3DMULTISAMPLE_NONE,0,TRUE,&pTempZB,nullptr));
+	RHITextureDesc descDS = {};
+	descDS.Width = 512;
+	descDS.Height = 512;
+	descDS.MipLevels = 1;
+	descDS.ArraySize = 1;
+	descDS.Format = ERHI_FORMAT::D24_UNORM_S8_UINT;
+	descDS.Usage = ERHI_USAGE::USAGE_DEFAULT;
+	descDS.BindFlags = ERHI_BIND_FLAG::DEPTH_STENCIL;
 
-	//	Igor: TMP
-	//	Create an RT for online screenshot makining
-	//u32		w = Device.TargetWidth, h = Device.TargetHeight;
-	//RDevice->CreateOffscreenPlainSurface(Device.TargetWidth,Device.TargetHeight,D3DFMT_A8R8G8B8,D3DPOOL_SYSTEMMEM,&pFB,nullptr);
+	RHISubResource Res = {};
+	IRHISurface* TempSurf = GRHI->CreateTexture2D(descDS, Res);
+
+	RHIDepthStencilViewDesc DepthDesc = {};
+	DepthDesc.Format = ERHI_FORMAT::D24_UNORM_S8_UINT;
+
+	// Temp ZB, used by some of the shadowing code
+	pTempZB = GRHI->CreateDepthStencilView(TempSurf, DepthDesc);
+
 	RDevice->CreateOffscreenPlainSurface(rtWidth,rtHeight,D3DFMT_X8R8G8B8,D3DPOOL_SYSTEMMEM,&pFB,nullptr);
 
 	// Shaders and stream
@@ -101,6 +135,44 @@ BOOL CRenderTarget::Create()
 	return	RT->valid() && RT_distort->valid();
 }
 
+void	CRenderTarget::u_setrt			(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, IRHIDepthStencilView* zb)
+{
+	VERIFY									(_1);
+	curWidth								= _1->dwWidth;
+	curHeight								= _1->dwHeight;
+	if (_1) RCache.set_RT(_1->pRT,	0); else RCache.set_RT(nullptr,0);
+	if (_2) RCache.set_RT(_2->pRT,	1); else RCache.set_RT(nullptr,1);
+	if (_3) RCache.set_RT(_3->pRT,	2); else RCache.set_RT(nullptr,2);
+	GRHI->SetDepthStencilView				(zb);
+//	RImplementation.rmNormal				();
+}
+
+void	CRenderTarget::u_setrt			(u32 W, u32 H, IRHIRenderTargetView* _1, IRHIRenderTargetView* _2, IRHIRenderTargetView* _3, IRHIDepthStencilView* zb)
+{
+	VERIFY									(_1);
+	curWidth								= W;
+	curHeight								= H;
+	VERIFY									(_1);
+	RCache.set_RT							(_1,	0);
+	RCache.set_RT							(_2,	1);
+	RCache.set_RT							(_3,	2);
+	GRHI->SetDepthStencilView				(zb);
+//	RImplementation.rmNormal				();
+}
+
+void CRenderTarget::set_default_target()
+{
+	RCache.set_RT(RT->pRT);
+	GRHI->SetDepthStencilView(ZB);
+}
+
+void CRenderTarget::set_ui_target()
+{
+	RCache.set_RT(RT_ui_pda->pRT);
+	GRHI->SetDepthStencilView(ZB);
+}
+
+
 void CRenderTarget::phase_fxaa(u32 pass) {
 	u32 Offset = 0;
 	float _w = float(curWidth);
@@ -108,8 +180,8 @@ void CRenderTarget::phase_fxaa(u32 pass) {
 	float ddw = 1.0f / _w;
 	float ddh = 1.0f / _h;
 
-	RCache.set_CullMode(CULL_NONE);
-	RCache.set_Stencil(FALSE);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+	RCache.set_Stencil(false);
 
 	FVF::V* pv = (FVF::V*)RCache.Vertex.Lock(4, g_fxaa->vb_stride, Offset);
 	pv->set(ddw - 0.5f, ddh + _h - 0.5f, 0.0f, 0.0f, 1.0f);
@@ -125,7 +197,7 @@ void CRenderTarget::phase_fxaa(u32 pass) {
 	RCache.set_Element(s_fxaa->E[pass]);
 	RCache.set_Geometry(g_fxaa);
 	RCache.set_c("screen_res", _w, _h, ddw, ddh);
-	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+	RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 }
 
 
@@ -207,7 +279,7 @@ bool CRenderTarget::NeedColorMapping()
 	return RImplementation.o.color_mapping&&(param_color_map_influence>0.001f);
 }
 
-BOOL CRenderTarget::NeedPostProcess()
+bool CRenderTarget::NeedPostProcess()
 {
 	bool	_blur	= (param_blur>0.001f);
 	bool	_gray	= (param_gray>0.001f);
@@ -220,9 +292,9 @@ BOOL CRenderTarget::NeedPostProcess()
 
 	bool	_cbase	= false;
 	{
-		int		_r	= color_get_R(param_color_base)	; _r=_abs(_r-int(0x7f));
-		int		_g	= color_get_G(param_color_base)	; _g=_abs(_g-int(0x7f));
-		int		_b	= color_get_B(param_color_base)	; _b=_abs(_b-int(0x7f));
+		int		_r	= color_get_R(param_color_base)	; _r=std::abs(_r-int(0x7f));
+		int		_g	= color_get_G(param_color_base)	; _g=std::abs(_g-int(0x7f));
+		int		_b	= color_get_B(param_color_base)	; _b=std::abs(_b-int(0x7f));
 		if (_r>2 || _g>2 || _b>2)	_cbase	= true	;
 	}
 	bool	_cadd	= false;
@@ -231,15 +303,15 @@ BOOL CRenderTarget::NeedPostProcess()
 		//int		_g	= color_get_G(param_color_add)	;
 		//int		_b	= color_get_B(param_color_add)	;
 		//if (_r>2 || _g>2 || _b>2)	_cadd	= true	;
-		int		_r	= _abs((int)(param_color_add.x*255));
-		int		_g	= _abs((int)(param_color_add.y*255));
-		int		_b	= _abs((int)(param_color_add.z*255));
+		int		_r	= std::abs((int)(param_color_add.x*255));
+		int		_g	= std::abs((int)(param_color_add.y*255));
+		int		_b	= std::abs((int)(param_color_add.z*255));
 		if (_r>2 || _g>2 || _b>2)	_cadd	= true	;
 	}
 	return _blur || _gray || _noise || _dual || _cbase || _cadd || _cmap || _menu_pp; 
 }
 
-BOOL CRenderTarget::Perform		()
+bool CRenderTarget::Perform		()
 {
 	return Available() &&
 		(ps_r2_aa_type > 0 || (RImplementation.m_bMakeAsyncSS) || NeedPostProcess() || (frame_distort==(Device.dwFrame-1)));
@@ -253,13 +325,13 @@ void CRenderTarget::Begin		()
 	{
 		// Base RT
 		RCache.set_RT			(RTarget);
-		RCache.set_ZB			(RDepth);
+		GRHI->SetDepthStencilView(RDepth);
 		curWidth				=  RCache.get_width();
 		curHeight				= RCache.get_height();
 	} else {
 		// Our 
 		RCache.set_RT			(RT->pRT);
-		RCache.set_ZB			(ZB);
+		GRHI->SetDepthStencilView(ZB);
 		curWidth				= rtWidth;
 		curHeight				= rtHeight;
 	}
@@ -289,14 +361,10 @@ void CRenderTarget::DoAsyncScreenshot	()
 	{
 		HRESULT hr;
 
-		IDirect3DSurface9*	pFBSrc = RTarget;
-		//	Don't addref, no need to release.
-		//ID3DTexture2D *pTex = RT->pSurface;
-
-		//hr = pTex->GetSurfaceLevel(0, &pFBSrc);
+		IDirect3DSurface9* pFBSrc = (IDirect3DSurface9*)RTarget->GetRawRTV();
 
 		//	SHould be async function
-		hr = RDevice->GetRenderTargetData( pFBSrc, pFB );
+		hr = RDevice->GetRenderTargetData(pFBSrc, pFB);
 
 		//pFBSrc->Release();
 
@@ -313,22 +381,22 @@ void CRenderTarget::End		()
 		phase_fxaa(0);
 		RCache.set_RT(RT->pRT);
 		phase_fxaa(1);
-		//RCache.set_Stencil(FALSE);
+		//RCache.set_Stencil(false);
 	}
 
 	// find if distortion is needed at all
-	BOOL	bPerform	= Perform				()	;
-	BOOL	bDistort	= RImplementation.o.distortion;
-	BOOL	bCMap		= NeedColorMapping();
+	auto bPerform	= Perform				()	;
+	auto bDistort	= RImplementation.o.distortion;
+	auto bCMap		= NeedColorMapping();
 	bool	_menu_pp	= g_pGamePersistent?g_pGamePersistent->OnRenderPPUI_query():false;
 	u32 count = RImplementation.mapDistort.size() + RImplementation.mapHUDDistort.size();
 
-	if ((0== count) && !_menu_pp) 	bDistort	= FALSE;
+	if ((0== count) && !_menu_pp) 	bDistort	= false;
 	if (bDistort)		phase_distortion		();
 
 	// combination/postprocess
 	RCache.set_RT		(RTarget);
-	RCache.set_ZB		(RDepth);
+	GRHI->SetDepthStencilView(RDepth);
 	curWidth			=  RCache.get_width();
 	curHeight			= RCache.get_height();
 	
@@ -371,7 +439,7 @@ void CRenderTarget::End		()
 		RCache.set_Element	(bDistort ? s_postprocess_D[1]->E[4] : s_postprocess[1]->E[4]);
 		RCache.set_Geometry	(g_postprocess);
 		RCache.set_c		(s_colormap, param_color_map_influence,param_color_map_interpolate,0,0);
-		RCache.Render		(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 
 		RCache.set_RT		(RTarget);
 		//return;
@@ -379,28 +447,22 @@ void CRenderTarget::End		()
 
 	//	Element 0 for for normal post-process
 	//	Element 4 for color map post-process
-	//int iShaderElement	= bCMap ? 4 : 0;
-	//RCache.set_Element	(bDistort ? s_postprocess_D->E[iShaderElement] : s_postprocess->E[iShaderElement]);
-
 	RCache.set_Shader	(bDistort ? s_postprocess_D[bCMap] : s_postprocess[bCMap]);
-
-	//RCache.set_Shader	(bDistort ? s_postprocess_D : s_postprocess);
-
 
 	// Actual rendering
 	static	shared_str	s_brightness	= "c_brightness";
 	RCache.set_c		(s_brightness,p_brightness.x,p_brightness.y,p_brightness.z,0);
 	RCache.set_c		(s_colormap, param_color_map_influence,param_color_map_interpolate,0,0);
 	RCache.set_Geometry	(g_postprocess);
-	RCache.Render		(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+	RCache.Render		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 }
 
 void	CRenderTarget::phase_distortion	()
 {
 	frame_distort								= Device.dwFrame;
 	RCache.set_RT								(RT_distort->pRT);
-	RCache.set_ZB								(ZB);
-	RCache.set_CullMode							(CULL_CCW);
+	GRHI->SetDepthStencilView					(ZB);
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
 	RCache.set_ColorWriteEnable					( );
 	CHK_DX(RDevice->Clear					( 0L, nullptr, D3DCLEAR_TARGET, color_rgba(127,127,127,127), 1.0f, 0L));
 	

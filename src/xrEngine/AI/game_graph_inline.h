@@ -14,7 +14,7 @@ IC const IGameGraph::CHeader &IGameGraph::header					() const
 	return						(m_header);
 }
 
-IC	bool IGameGraph::mask											(const svector<_LOCATION_ID,GameGraph::LOCATION_TYPE_COUNT> &M, const _LOCATION_ID E[GameGraph::LOCATION_TYPE_COUNT]) const
+IC	bool IGameGraph::mask											(const FixedVector<_LOCATION_ID,GameGraph::LOCATION_TYPE_COUNT> &M, const _LOCATION_ID E[GameGraph::LOCATION_TYPE_COUNT]) const
 {
 	for (int i=0; i<GameGraph::LOCATION_TYPE_COUNT; ++i)
 		if ((M[i] != E[i]) && (255 != M[i]))
@@ -124,24 +124,21 @@ IC	const GameGraph::SLevel &GameGraph::CHeader::level				(const _LEVEL_ID &id) c
 	return						((*I).second);
 }
 
-IC	const GameGraph::SLevel &GameGraph::CHeader::level				(LPCSTR level_name) const
+IC const GameGraph::SLevel& GameGraph::CHeader::level(const char* level_name) const
 {
-	LEVEL_MAP::const_iterator	I = levels().begin();
-	LEVEL_MAP::const_iterator	E = levels().end();
-	for ( ; I != E; ++I)
-		if (!xr_strcmp((*I).second.name(),level_name))
-			return				((*I).second);
-	
-#ifdef DEBUG
-	Msg							("! There is no specified level %s in the game graph!",level_name);
-	return						(levels().begin()->second);
-#else
-	R_ASSERT3					(false,"There is no specified level in the game graph!",level_name);
-	NODEFAULT;
-#endif
+	for (const auto& Level : levels())
+	{
+		if (!xr_strcmp(Level.second.name(), level_name))
+		{
+			return Level.second;
+		}
+	}
+
+	R_ASSERT3(false, "There is no specified level in the game graph!", level_name);
+	return (levels().begin()->second);
 }
 
-IC	const GameGraph::SLevel *GameGraph::CHeader::level				(LPCSTR level_name, bool) const
+IC	const GameGraph::SLevel *GameGraph::CHeader::level				(const char* level_name, bool) const
 {
 	LEVEL_MAP::const_iterator	I = levels().begin();
 	LEVEL_MAP::const_iterator	E = levels().end();
@@ -302,7 +299,7 @@ IC bool GameGraph::CHeader::level_exist(const _LEVEL_ID& id) const
 	return levels().find(id) != levels().end();
 }
 
-IC bool GameGraph::CHeader::level_exist(pcstr level_name) const
+IC bool GameGraph::CHeader::level_exist(const char* level_name) const
 {
 	for (const auto& level : levels())
 		if (xr_strcmp(level.second.name(), level_name) == 0)

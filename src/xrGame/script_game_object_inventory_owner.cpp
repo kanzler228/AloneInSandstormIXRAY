@@ -6,6 +6,7 @@
 #include "pch_script.h"
 #include "script_game_object.h"
 #include "InventoryOwner.h"
+#include "InventoryVolumeSystem.h"
 #include "PDA.h"
 #include "xrMessages.h"
 #include "character_info.h"
@@ -21,16 +22,16 @@
 #include "../xrEngine/string_table.h"
 #include "alife_registry_wrappers.h"
 #include "relation_registry.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "ActorCondition.h"
 #include "level_graph.h"
 #include "HudItem.h"
 #include "ui/UITalkWnd.h"
 #include "Inventory.h"
 #include "InfoPortion.h"
+#include "ai/stalker/ai_stalker.h"
 #include "ai/monsters/basemonster/base_monster.h"
 #include "WeaponMagazined.h"
-#include "ai/stalker/ai_stalker.h"
 #include "agent_manager.h"
 #include "agent_member_manager.h"
 #include "stalker_animation_manager.h"
@@ -53,7 +54,7 @@
 #include "ActorBackpack.h"
 #include "Car.h"
 
-bool CScriptGameObject::GiveInfoPortion(LPCSTR info_id)
+bool CScriptGameObject::GiveInfoPortion(const char* info_id)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -64,7 +65,7 @@ bool CScriptGameObject::GiveInfoPortion(LPCSTR info_id)
 	return false;
 }
 
-bool CScriptGameObject::DisableInfoPortion(LPCSTR info_id)
+bool CScriptGameObject::DisableInfoPortion(const char* info_id)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -75,62 +76,118 @@ bool CScriptGameObject::DisableInfoPortion(LPCSTR info_id)
 	return false;
 }
 
-void _AddIconedTalkMessage(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name);
-
-void CScriptGameObject::AddIconedTalkMessage(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name)
+void _AddIconedTalkMessage(const char* text, const char* texture_name, const Frect& tex_rect, const char* templ_name)
 {
-	_AddIconedTalkMessage(caption, text, texture_name, templ_name);
+	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+	if (!pGameSP)
+		return;
+
+	if (pGameSP->TalkMenu->IsActiveTalkUi())
+	{
+		pGameSP->TalkMenu->AddIconedMessage(text, texture_name, tex_rect, templ_name ? templ_name : "iconed_answer_item");
+	}
 }
 
-void _AddIconedTalkMessage(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name)
+void  CScriptGameObject::AddIconedTalkMessage(const char* text, const char* texture_name, Frect tex_rect, const char* templ_name)
+{
+	return _AddIconedTalkMessage(text,
+		texture_name,
+		tex_rect,
+		templ_name);
+}
+
+void _AddIconedTalkMessage(const char* caption, const char* text, const char* texture_name, const char* templ_name)
 {
 	if (CUIGameCustom* current_ui = CurrentGameUI())
 	{
-		if (current_ui->TalkMenu->IsShown())
+		if (current_ui->TalkMenu->IsActiveTalkUi())
 		{
 			current_ui->TalkMenu->AddIconedMessage(caption, text, texture_name, templ_name ? templ_name : "iconed_answer_item");
 		}
 	}
 }
 
-void _give_news(LPCSTR caption, LPCSTR news, LPCSTR texture_name, int delay, int show_time, int type);
-
-void CScriptGameObject::GiveGameNews(LPCSTR caption, LPCSTR news, LPCSTR texture_name, int delay, int show_time)
+void CScriptGameObject::AddIconedTalkMessage(const char* caption, const char* text, const char* texture_name, const char* templ_name)
 {
-	GiveGameNews(caption, news,	texture_name, delay, show_time, 0);
+	_AddIconedTalkMessage(caption, text, texture_name, templ_name);
 }
 
-void CScriptGameObject::GiveGameNews(LPCSTR caption, LPCSTR news, LPCSTR texture_name, int delay, int show_time, int type)
+xrTime CScriptGameObject::GetInfoTime(const char* info_id)
 {
-	_give_news(caption, news, texture_name, delay, show_time, type);	
+	CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object());
+	if (!pInventoryOwner)
+		return xrTime(0);
+
+	INFO_DATA info_data;
+	if (pInventoryOwner->GetInfo(info_id, info_data))
+		return xrTime(info_data.receive_time);
+	else
+		return xrTime(0);
 }
 
-void _give_news(LPCSTR caption, LPCSTR text, LPCSTR texture_name, int delay, int show_time, int type)
+void _give_news(const char* caption, const char* news, const char* texture_name, int delay, int show_time, int type);
+bool _give_news(const char* news, const char* texture_name, const Frect& tex_rect, int delay, int show_time);
+
+void  CScriptGameObject::GiveGameNews(const char* caption, const char* news, const char* texture_name, int delay, int show_time)
 {
-	GAME_NEWS_DATA news_data;
-	news_data.m_type = (GAME_NEWS_DATA::eNewsType)type;
+	GiveGameNews(caption, news, texture_name, delay, show_time, 0);
+}
+
+void  CScriptGameObject::GiveGameNews(const char* caption, const char* news, const char* texture_name, int delay, int show_time, int type)
+{
+	_give_news(caption, news, texture_name, delay, show_time, type);
+}
+
+bool  CScriptGameObject::GiveGameNews(const char* news, const char* texture_name, Frect tex_rect, int delay, int show_time)
+{
+	return _give_news(news,
+		texture_name,
+		tex_rect,
+		delay,
+		show_time);
+}
+
+void _give_news(const char* caption, const char* text, const char* texture_name, int delay, int show_time, int type)
+{
+	GAME_NEWS_DATA				news_data;
+	news_data.m_type = (GAME_NEWS_DATA::ENewsKind)type;
 	news_data.news_caption = caption;
 	news_data.news_text = text;
 	if (show_time != 0)
-	{
 		news_data.show_time = show_time;// override default
-	}
 
 	VERIFY(xr_strlen(texture_name) > 0);
 
 	news_data.texture_name = texture_name;
 
 	if (delay == 0)
-	{
 		Actor()->AddGameNews(news_data);
-	}
 	else
-	{
 		Actor()->AddGameNews_deffered(news_data, delay);
-	}
 }
 
-bool CScriptGameObject::HasInfo(LPCSTR info_id)
+bool _give_news(const char* text, const char* texture_name, const Frect& tex_rect, int delay, int show_time)
+{
+	GAME_NEWS_DATA				news_data;
+	news_data.news_text = text;
+	if (show_time != 0)
+		news_data.show_time = show_time;// override default
+
+	VERIFY(xr_strlen(texture_name) > 0);
+
+	news_data.texture_name = texture_name;
+	news_data.tex_rect = tex_rect;
+
+
+	if (delay == 0)
+		Actor()->AddGameNews(news_data);
+	else
+		Actor()->AddGameNews_deffered(news_data, delay);
+
+	return true;
+}
+
+bool CScriptGameObject::HasInfo(const char* info_id)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -140,7 +197,7 @@ bool CScriptGameObject::HasInfo(LPCSTR info_id)
 	return false;
 
 }
-bool CScriptGameObject::DontHasInfo(LPCSTR info_id)
+bool CScriptGameObject::DontHasInfo(const char* info_id)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -322,7 +379,7 @@ void CScriptGameObject::MarkItemDropped(CScriptGameObject *item)
 		return;
 	}
 
-	inventory_item->SetDropManual(TRUE);
+	inventory_item->SetDropManual(true);
 }
 
 bool CScriptGameObject::MarkedDropped(CScriptGameObject *item)
@@ -502,6 +559,60 @@ u32 CScriptGameObject::Money()
 	return pOurOwner->get_money();
 }
 
+u32 CScriptGameObject::GetActorMoneyEarned()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatMoneyEarned();
+	}
+	return 0;
+}
+
+u32 CScriptGameObject::GetActorMoneySpent()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatMoneySpent();
+	}
+	return 0;
+}
+
+float CScriptGameObject::GetActorDistanceKm()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatDistanceMeters() / 1000.0f;
+	}
+	return 0.0f;
+}
+
+u32 CScriptGameObject::GetActorHeadshots()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatHeadshots();
+	}
+	return 0;
+}
+
+u32 CScriptGameObject::GetActorDeaths()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatDeaths();
+	}
+	return 0;
+}
+
+u32 CScriptGameObject::GetActorHelpWounded()
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		return actor->GetStatHelpWounded();
+	}
+	return 0;
+}
+
 void CScriptGameObject::TransferMoney(int money, CScriptGameObject* pForWho)
 {
 	if (pForWho == nullptr)
@@ -516,10 +627,9 @@ void CScriptGameObject::TransferMoney(int money, CScriptGameObject* pForWho)
 	CInventoryOwner* pOtherOwner = pForWho->object().cast_inventory_owner();
 	VERIFY(pOtherOwner);
 
-	if (pOurOwner->get_money() - money < 0)
+	if ((int)pOurOwner->get_money() - money < 0)
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,"Character does not have enought money");
-		return;
+		money = pOurOwner->get_money();
 	}
 
 	pOurOwner->set_money(pOurOwner->get_money() - money, true);
@@ -631,7 +741,7 @@ void CScriptGameObject::SetSympathy(float sympathy)
 	}
 }
 
-int CScriptGameObject::GetCommunityGoodwill_obj(LPCSTR community)
+int CScriptGameObject::GetCommunityGoodwill_obj(const char* community)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -645,7 +755,7 @@ int CScriptGameObject::GetCommunityGoodwill_obj(LPCSTR community)
 	return 0;
 }
 
-void CScriptGameObject::SetCommunityGoodwill_obj(LPCSTR community, int goodwill)
+void CScriptGameObject::SetCommunityGoodwill_obj(const char* community, int goodwill)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -664,7 +774,7 @@ int	CScriptGameObject::GetAttitude(CScriptGameObject* pToWho)
 {
 	CInventoryOwner* pInventoryOwner = object().cast_inventory_owner();
 	VERIFY(pInventoryOwner);
-	if (pInventoryOwner->Community() == NO_COMMUNITY_INDEX)
+	if (pInventoryOwner->Community() == s32(-1))
 	{
 		g_pScriptEngine->print_stack();
 		R_ASSERT2(false, "Unable to get attitude from owner with invalid community index");
@@ -676,7 +786,7 @@ int	CScriptGameObject::GetAttitude(CScriptGameObject* pToWho)
 	return RELATION_REGISTRY().GetAttitude(pInventoryOwner, pOthersInventoryOwner);
 }
 
-LPCSTR CScriptGameObject::ProfileName()
+const char* CScriptGameObject::ProfileName()
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -691,7 +801,7 @@ LPCSTR CScriptGameObject::ProfileName()
 	return 0;
 }
 
-LPCSTR CScriptGameObject::CharacterName()
+const char* CScriptGameObject::CharacterName()
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -702,7 +812,7 @@ LPCSTR CScriptGameObject::CharacterName()
 	return 0;
 }
 
-LPCSTR CScriptGameObject::CharacterIcon()
+const char* CScriptGameObject::CharacterIcon()
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -788,7 +898,7 @@ void CScriptGameObject::SetCharacterReputation(int char_rep)
 	}
 }
 
-LPCSTR CScriptGameObject::CharacterCommunity()
+const char* CScriptGameObject::CharacterCommunity()
 {
 	if (object().cast_base_monster())
 	{
@@ -804,7 +914,7 @@ LPCSTR CScriptGameObject::CharacterCommunity()
 	return 0;
 }
 
-void CScriptGameObject::SetCharacterCommunity(LPCSTR comm, int squad, int group)
+void CScriptGameObject::SetCharacterCommunity(const char* comm, int squad, int group)
 {
 	CInventoryOwner* pInventoryOwner = object().cast_inventory_owner();
 	CEntity* entity	= object().cast_entity();
@@ -829,7 +939,7 @@ void CScriptGameObject::SetCharacterCommunity(LPCSTR comm, int squad, int group)
 	}
 }
 
-LPCSTR CScriptGameObject::sound_voice_prefix() const
+const char* CScriptGameObject::sound_voice_prefix() const
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -840,22 +950,26 @@ LPCSTR CScriptGameObject::sound_voice_prefix() const
 	return 0;
 }
 
-ETaskState CScriptGameObject::GetGameTaskState(LPCSTR task_id)
+#include "GametaskManager.h"
+ETaskState CScriptGameObject::GetGameTaskState	(const char* task_id, u16 objective_id)
 {
 	shared_str shared_name = task_id;
-	
-	if (CGameTask* t = Level().GameTaskManager()->HasGameTask(shared_name, true))
-	{
-		return t->GetTaskState();
-	}
+	CGameTask* t = Level().GameTaskManager()->HasGameTask(shared_name, true);
 
-	return eTaskStateDummy;
+	if(nullptr==t) 
+		return eTaskStateDummy;
+	if (objective_id >= t->GetObjectivesCount())
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "wrong objective num", task_id);
+		return eTaskStateDummy;
+	}
+	return t->ObjectiveState(objective_id);
 }
 
-void CScriptGameObject::SetGameTaskState(ETaskState state, LPCSTR task_id)
+void CScriptGameObject::SetGameTaskState	(ETaskState state, const char* task_id, u16 objective_id)
 {
-	shared_str shared_name = task_id;
-	Level().GameTaskManager()->SetTaskState(shared_name, state);
+	shared_str shared_name	= task_id;
+	Level().GameTaskManager()->SetTaskState(shared_name, state, objective_id);
 }
 
 void CScriptGameObject::SwitchToTrade()
@@ -868,7 +982,7 @@ void CScriptGameObject::SwitchToTrade()
 
 	if (CUIGameCustom* current_ui = CurrentGameUI())
 	{
-		if (current_ui->TalkMenu->IsShown())
+		if (current_ui->TalkMenu->IsActiveTalkUi())
 		{
 			current_ui->TalkMenu->SwitchToTrade();
 		}
@@ -885,7 +999,7 @@ void CScriptGameObject::SwitchToUpgrade()
 
 	if (CUIGameCustom* current_ui = CurrentGameUI())
 	{
-		if (current_ui->TalkMenu && current_ui->TalkMenu->IsShown())
+		if (current_ui->TalkMenu && current_ui->TalkMenu->IsActiveTalkUi())
 			current_ui->TalkMenu->HideDialog();
 
 		current_ui->StartUpgrade(Actor(), nullptr);
@@ -953,9 +1067,9 @@ void construct_restriction_vector(shared_str restrictions, xr_vector<ALife::_OBJ
 	}
 }
 
-void CScriptGameObject::add_restrictions(LPCSTR out, LPCSTR in)
+void CScriptGameObject::add_restrictions(const char* out, const char* in)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().restrictions().add_restrictions(out, in);
 	}
@@ -965,9 +1079,9 @@ void CScriptGameObject::add_restrictions(LPCSTR out, LPCSTR in)
 	}
 }
 
-void CScriptGameObject::remove_restrictions(LPCSTR out, LPCSTR in)
+void CScriptGameObject::remove_restrictions(const char* out, const char* in)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().restrictions().remove_restrictions(out, in);
 	}
@@ -979,7 +1093,7 @@ void CScriptGameObject::remove_restrictions(LPCSTR out, LPCSTR in)
 
 void CScriptGameObject::remove_all_restrictions()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().restrictions().remove_all_restrictions();
 	}
@@ -989,9 +1103,9 @@ void CScriptGameObject::remove_all_restrictions()
 	}
 }
 
-LPCSTR CScriptGameObject::in_restrictions()
+const char* CScriptGameObject::in_restrictions()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return (*monster->movement().restrictions().in_restrictions());
 	}
@@ -1000,9 +1114,9 @@ LPCSTR CScriptGameObject::in_restrictions()
 	return "";
 }
 
-LPCSTR CScriptGameObject::out_restrictions()
+const char* CScriptGameObject::out_restrictions()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return (*monster->movement().restrictions().out_restrictions());
 	}
@@ -1011,9 +1125,9 @@ LPCSTR CScriptGameObject::out_restrictions()
 	return "";
 }
 
-LPCSTR CScriptGameObject::base_in_restrictions()
+const char* CScriptGameObject::base_in_restrictions()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return (*monster->movement().restrictions().base_in_restrictions());
 	}
@@ -1022,9 +1136,9 @@ LPCSTR CScriptGameObject::base_in_restrictions()
 	return "";
 }
 
-LPCSTR CScriptGameObject::base_out_restrictions()
+const char* CScriptGameObject::base_out_restrictions()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return (*monster->movement().restrictions().base_out_restrictions());
 	}
@@ -1035,7 +1149,7 @@ LPCSTR CScriptGameObject::base_out_restrictions()
 
 bool CScriptGameObject::accessible_position(const Fvector &position)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->movement().restrictions().accessible(position);
 	}
@@ -1051,7 +1165,7 @@ bool CScriptGameObject::accessible_vertex_id(u32 level_vertex_id)
 		return false;
 	}
 
-	CCustomMonster* monster = object().cast_custom_monster();
+	CCreature* monster = object().cast_creature();
 
 	if (monster == nullptr)
 	{
@@ -1065,7 +1179,7 @@ bool CScriptGameObject::accessible_vertex_id(u32 level_vertex_id)
 
 u32 CScriptGameObject::accessible_nearest(const Fvector &position, Fvector &result)
 {
-	CCustomMonster* monster = object().cast_custom_monster();
+	CCreature* monster = object().cast_creature();
 	if (!monster)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,"CRestrictedObject : cannot access class member accessible!");
@@ -1179,6 +1293,18 @@ bool CScriptGameObject::IsInventoryDisabled()
 	return false;
 }
 
+void CScriptGameObject::SetUseDisabled(bool value)
+{
+	if (CActor* actor = object().cast_actor())
+	{
+		actor->set_use_disabled(value);
+	}
+	else
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member set_use_disabled!");
+	}
+}
+
 bool CScriptGameObject::night_vision_enabled() const
 {
 	if (CActor* actor = object().cast_actor())
@@ -1213,7 +1339,7 @@ bool CScriptGameObject::torch_enabled() const
 	return false;
 }
 
-void CScriptGameObject::attachable_item_load_attach(LPCSTR section)
+void CScriptGameObject::attachable_item_load_attach(const char* section)
 {
 	CAttachableItem* attachable_item = object().cast_attachable_item();
 	if (CAttachableItem* attachable_item = object().cast_attachable_item())
@@ -1400,7 +1526,7 @@ void CScriptGameObject::GiveTaskToActor(CGameTask* t, u32 dt, bool bCheckExistin
 	Level().GameTaskManager()->GiveGameTaskToActor(t, dt, bCheckExisting, t_timer);
 }
 
-CGameTask* CScriptGameObject::GetTask(LPCSTR id, bool only_inprocess)
+CGameTask* CScriptGameObject::GetTask(const char* id, bool only_inprocess)
 {
 	return Level().GameTaskManager()->HasGameTask(id, only_inprocess);
 }
@@ -1482,7 +1608,7 @@ float CScriptGameObject::GetBoosterInfluenceTime(EBoostParams param)
 	return 0.0f;
 }
 
-void CScriptGameObject::ApplyBooster(LPCSTR sect)
+void CScriptGameObject::ApplyBooster(const char* sect)
 {
 	CActor* pActor = object().cast_actor();
 	if (CActor* pActor = object().cast_actor())
@@ -1545,26 +1671,38 @@ void CScriptGameObject::SetActorMovementState(ACTOR_DEFS::EMovementStates state,
 	}
 }
 
+void CScriptGameObject::ActorFire() const
+{
+	if (CActor* pActor = object().cast_actor())
+	{
+		pActor->SetActorKeyRepeatFlag(ACTOR_DEFS::kfFIRE, true);
+	}
+	else
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member ActorFire!");
+	}
+}
+
 void CScriptGameObject::enable_movement(bool enable)
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().enable_movement(enable);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member movement_enabled!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member movement_enabled!");
 	}
 }
 
 bool CScriptGameObject::movement_enabled()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->movement().enabled();
 	}
 
-	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member movement_enabled!");
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member movement_enabled!");
 	return false;
 }
 
@@ -1751,7 +1889,7 @@ bool CScriptGameObject::sniper_fire_mode() const
 	return false;
 }
 
-void CScriptGameObject::aim_bone_id(LPCSTR bone_id)
+void CScriptGameObject::aim_bone_id(const char* bone_id)
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -1763,7 +1901,7 @@ void CScriptGameObject::aim_bone_id(LPCSTR bone_id)
 	}
 }
 
-LPCSTR CScriptGameObject::aim_bone_id() const
+const char* CScriptGameObject::aim_bone_id() const
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -1982,7 +2120,7 @@ void CScriptGameObject::Weapon_AddonAttach(CScriptGameObject* item)
 	}
 }
 
-void CScriptGameObject::Weapon_AddonDetach(LPCSTR item_section, bool b_spawn_item = true)
+void CScriptGameObject::Weapon_AddonDetach(const char* item_section, bool b_spawn_item = true)
 {
 	if (CWeaponMagazined* weapon = object().cast_weapon_magazined())
 	{
@@ -2022,7 +2160,29 @@ u8 CScriptGameObject::Weapon_GetCurrentScope()
 	return 255;
 }
 
-LPCSTR CScriptGameObject::Weapon_GetAmmoSection(u8 ammo_type)
+void CScriptGameObject::AddonsAttacher(u8 addons, u8 scope_idx)
+{
+	if (CWeaponMagazined* weapon = object().cast_weapon_magazined())
+	{
+		weapon->SetAddonsState(addons);
+
+		if (addons & CSE_ALifeItemWeapon::EWeaponAddonState::eWeaponAddonScope)
+		{
+			weapon->m_cur_scope = scope_idx;
+		}
+
+		weapon->InitAddons();
+		weapon->UpdateAddonsVisibility();
+		weapon->UpdateHUDAddonsVisibility();
+		weapon->ProcessScope();
+	}
+	else
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CWeaponMagazined : cannot access class member AddonsAttacher!");
+	}
+}
+
+const char* CScriptGameObject::Weapon_GetAmmoSection(u8 ammo_type)
 {
 	CWeaponMagazined* weapon = object().cast_weapon_magazined();
 	if (weapon == nullptr)
@@ -2071,6 +2231,24 @@ CScriptGameObject *CScriptGameObject::ItemOnBelt(u32 item_id) const
 
 	CInventoryItem* result = belt.at(item_id);
 	return result ? result->object().lua_game_object() : 0;
+}
+
+bool CScriptGameObject::IsDefaultToRuck()
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		return inventory_item->m_flags.test(inventory_item->EIIFlags::FRuckDefault) == true;
+	}
+
+	return false;
+}
+
+void CScriptGameObject::SetDefaultToRuck(bool state)
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		inventory_item->m_flags.set(inventory_item->EIIFlags::FRuckDefault, state ? true : false);
+	}
 }
 
 bool CScriptGameObject::IsOnBelt(CScriptGameObject *obj) const
@@ -2195,6 +2373,50 @@ float CScriptGameObject::Weight() const
 	return 0.0f;
 }
 
+float CScriptGameObject::GetInventoryVolume() const
+{
+	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
+	{
+		return CInventoryVolumeSystem::Get().CalcRuckVolume(*inventory_owner);
+	}
+
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CInventoryOwner : cannot access class member GetInventoryVolume!");
+	return 0.0f;
+}
+
+float CScriptGameObject::GetInventoryVolumeCapacity() const
+{
+	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
+	{
+		return CInventoryVolumeSystem::Get().GetCapacity(*inventory_owner);
+	}
+
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CInventoryOwner : cannot access class member GetInventoryVolumeCapacity!");
+	return 0.0f;
+}
+
+float CScriptGameObject::GetInventoryVolumeOverload() const
+{
+	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
+	{
+		return CInventoryVolumeSystem::Get().GetOverloadFactor(*inventory_owner);
+	}
+
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CInventoryOwner : cannot access class member GetInventoryVolumeOverload!");
+	return 1.0f;
+}
+
+float CScriptGameObject::GetItemVolume() const
+{
+	if (CInventoryItem* inventory_item = object().cast_inventory_item())
+	{
+		return CInventoryVolumeSystem::Get().GetItemVolume(*inventory_item);
+	}
+
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CInventoryItem : cannot access class member GetItemVolume!");
+	return 0.0f;
+}
+
 void CScriptGameObject::SetWeight(float w)
 {
 	if (CInventoryItem* inventory_item = object().cast_inventory_item())
@@ -2299,7 +2521,7 @@ void CScriptGameObject::SetActorRunBackCoef(float run_back_coef)
 	}
 }
 
-void CScriptGameObject::SetCharacterIcon(LPCSTR iconName)
+void CScriptGameObject::SetCharacterIcon(const char* iconName)
 {
 	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
@@ -2311,7 +2533,7 @@ void CScriptGameObject::SetCharacterIcon(LPCSTR iconName)
 	}
 }
 
-void CScriptGameObject::SetActorDefaultVisual(LPCSTR visualName)
+void CScriptGameObject::SetActorDefaultVisual(const char* visualName)
 {
 	if (CActor* pActor = object().cast_actor())
 	{
@@ -2323,11 +2545,11 @@ void CScriptGameObject::SetActorDefaultVisual(LPCSTR visualName)
 	}
 }
 
-void CScriptGameObject::StartActorAnimator(LPCSTR section)
+void CScriptGameObject::StartActorAnimator(const char* section)
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		if (pActor->HudAnimator())
+		if (pActor->HudAnimator() != nullptr)
 		{
 			pActor->StartAnimator(section);
 		}
@@ -2342,9 +2564,9 @@ void CScriptGameObject::StopActorAnimator()
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		if (pActor->HudAnimator())
+		if (pActor->HudAnimator() != nullptr)
 		{
-			pActor->HudAnimator()->StopAnimator();
+			pActor->HudAnimator()->ItemAnimator()->StopAnimator();
 		}
 	}
 	else
@@ -2353,11 +2575,11 @@ void CScriptGameObject::StopActorAnimator()
 	}
 }
 
-LPCSTR CScriptGameObject::GetActorAnimatorSection()
+const char* CScriptGameObject::GetActorAnimatorSection()
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		return pActor->HudAnimator() ? *pActor->HudAnimator()->GetSection() : "null";
+		return pActor->HudAnimator() != nullptr ? *pActor->HudAnimator()->ItemAnimator()->GetSection() : "null";
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member GetActorAnimatorSection!");
@@ -2368,7 +2590,7 @@ bool CScriptGameObject::IsAnimatorActive()
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		return pActor->HudAnimator() && pActor->HudAnimator()->IsActive();
+		return pActor->HudAnimator()->ItemAnimator() != nullptr && pActor->HudAnimator()->ItemAnimator()->IsActive();
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member IsAnimatorActive!");
@@ -2379,7 +2601,7 @@ u8 CScriptGameObject::GetActorAnimatorRestoredSlot()
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		return pActor->HudAnimator() ? pActor->HudAnimator()->GetSlotToRestore() : 0;
+		return pActor->HudAnimator() != nullptr ? pActor->HudAnimator()->SlotToRestore() : 0;
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member GetActorAnimatorRestoredSlot!");
@@ -2390,7 +2612,7 @@ bool CScriptGameObject::GetAnimatorForceHideItems()
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		return pActor->HudAnimator() && pActor->HudAnimator()->IsForceHideItems();
+		return pActor->HudAnimator() != nullptr && pActor->HudAnimator()->ForceHideItems();
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member GetAnimatorForceHideItems!");
@@ -2401,14 +2623,44 @@ void CScriptGameObject::SetAnimatorForceHideItems(bool status)
 {
 	if (CActor* pActor = object().cast_actor())
 	{
-		if (pActor->HudAnimator())
+		if (pActor->HudAnimator() != nullptr)
 		{
-			pActor->HudAnimator()->SetForceHideItems(status);
+			pActor->HudAnimator()->ForceHideItems() = status;
 		}
 	}
 	else
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member SetAnimatorForceHideItems!");
+	}
+}
+
+void CScriptGameObject::ShowStateAnimator(const char* section)
+{
+	if (CActor* pActor = object().cast_actor())
+	{
+		if (pActor->HudAnimator() != nullptr)
+		{
+			pActor->HudAnimator()->HudStateAnimator()->ShowStateAnimator(section);
+		}
+	}
+	else
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member ShowStateAnimator!");
+	}
+}
+
+void CScriptGameObject::HideStateAnimator()
+{
+	if (CActor* pActor = object().cast_actor())
+	{
+		if (pActor->HudAnimator() != nullptr)
+		{
+			pActor->HudAnimator()->HudStateAnimator()->HideStateAnimator();
+		}
+	}
+	else
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member HideStateAnimator!");
 	}
 }
 
@@ -2432,9 +2684,9 @@ float CScriptGameObject::GetActorPowerBoostTime()
 	return 0.0f;
 }
 
-LPCSTR CScriptGameObject::GetCutsceneVisual()
+const char* CScriptGameObject::GetCutsceneVisual()
 {
-	if (CActor* pActor = smart_cast<CActor*>(&object()))
+	if (CActor* pActor = object().cast_actor())
 	{
 		CCustomOutfit* pOutfit = pActor->GetOutfit();
 		return pOutfit ? pOutfit->m_ActorVisual.c_str() : pActor->m_DefaultVisualOutfit.c_str();
@@ -2443,14 +2695,14 @@ LPCSTR CScriptGameObject::GetCutsceneVisual()
 	{
 		Msg("! GetCutsceneVisual(): method applicable only for actor!");
 	}
-	return nullptr;
+	return "";
 }
 
 void CScriptGameObject::SetInvulnerable(bool value)
 {
-	if (CActor* pActor = smart_cast<CActor*>(&object()))
+	if (CActor* pActor = object().cast_actor())
 	{
-		psActorFlags.set(AF_GODMODE, value);
+		psActorFlags.set(AF_GOD_MODE, value);
 	}
 	else
 	{
@@ -2460,7 +2712,7 @@ void CScriptGameObject::SetInvulnerable(bool value)
 
 void CScriptGameObject::SetFire(bool value)
 {
-	if (CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object()))
+	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
 	{
 		pInventoryOwner->inventory().Action((u16)kWPN_FIRE, value ? CMD_START : CMD_STOP);
 		return;
@@ -2472,8 +2724,10 @@ void CScriptGameObject::SetFire(bool value)
 
 bool CScriptGameObject::IsInCar()
 {
-	if (CActor* pActor = smart_cast<CActor*>(&object()))
+	if (CActor* pActor = object().cast_actor())
+	{
 		return smart_cast<CCar*>(pActor->Holder());
+	}
 
 	Msg("! IsInCar(): method applicable only for actor!");
 	return false;
@@ -2506,4 +2760,83 @@ float CScriptGameObject::GetGasmaskCondition()
 	//}
 	//return 0.f;
 	return 1.f;
+}
+
+bool CScriptGameObject::IsActorSafemode() const
+{
+	CActor* pActor = object().cast_actor();
+
+	if (pActor == nullptr)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member IsActorSafemode!");
+		return false;
+	}
+
+	return pActor->IsSafemode();
+}
+
+bool CScriptGameObject::IsPsiBlocked() const
+{
+	CActor* pActor = object().cast_actor();
+
+	if (pActor == nullptr)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member IsPsiBlocked!");
+		return false;
+	}
+
+	return pActor->IsPsiBlocked();
+}
+
+void CScriptGameObject::SetActorSafemode(bool status)
+{
+	CActor* pActor = object().cast_actor();
+
+	if (pActor == nullptr)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CActor : cannot access class member SetActorSafemode!");
+		return;
+	}
+
+	pActor->SetSafemodeStatus(status);
+}
+
+void CScriptGameObject::IterateRuck(::luabind::functor<bool> functor, ::luabind::object object)
+{
+	CInventoryOwner* inventory_owner = smart_cast<CInventoryOwner*>(&this->object());
+	if (!inventory_owner)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CScriptGameObject::IterateRuck non-CInventoryOwner object !!!");
+		return;
+	}
+
+	TIItemContainer::iterator I = inventory_owner->inventory().m_ruck.begin();
+	TIItemContainer::iterator E = inventory_owner->inventory().m_ruck.end();
+	for (; I != E; ++I)
+	{
+		if (functor(object, (*I)->object().lua_game_object()) == true)
+		{
+			return;
+		}
+	}
+}
+
+void CScriptGameObject::IterateBelt(::luabind::functor<bool> functor, ::luabind::object object)
+{
+	CInventoryOwner* inventory_owner = smart_cast<CInventoryOwner*>(&this->object());
+	if (!inventory_owner)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CScriptGameObject::IterateBelt non-CInventoryOwner object !!!");
+		return;
+	}
+
+	TIItemContainer::iterator I = inventory_owner->inventory().m_belt.begin();
+	TIItemContainer::iterator E = inventory_owner->inventory().m_belt.end();
+	for (; I != E; ++I)
+	{
+		if (functor(object, (*I)->object().lua_game_object()) == true)
+		{
+			return;
+		}
+	}
 }

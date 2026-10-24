@@ -2,15 +2,15 @@
 #pragma once
 #include "../../xrUI/Widgets/UIEditBox.h"
 
-class CUICDkey : public CUIEditBox
+class CUICDkey final : public CUIEditBox
 {
 private:
 	typedef			CUIEditBox		inherited;
 
 public:
 					CUICDkey		();
-	virtual	void	SetText			(LPCSTR str) {}
-	virtual	LPCSTR	GetText			();
+	virtual	void	SetText			(const char* str) {}
+	virtual	const char*	GetText			();
 
 	// CUIOptionsItem
 	virtual void	SetCurrentOptValue	();	// opt->current
@@ -36,7 +36,7 @@ private:
 	bool			m_view_access;
 }; // class CUICDkey
 
-class CUIMPPlayerName : public CUIEditBox
+class CUIMPPlayerName final : public CUIEditBox
 {
 private:
 	typedef			CUIEditBox		inherited;
@@ -45,7 +45,7 @@ public:
 					CUIMPPlayerName	() {};
 	virtual			~CUIMPPlayerName() {};
 
-//	virtual	void	SetText			(LPCSTR str) {}
+//	virtual	void	SetText			(const char* str) {}
 
 //	virtual void	SetCurrentValue();
 //	virtual void	SaveValue();

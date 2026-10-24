@@ -2,7 +2,9 @@
 
 #include "../xrEngine/CustomHUD.h"
 #include "HitMarker.h"
+#include "LevelInspector.h"
 
+class CUIStatic;
 class CHUDTarget;
 class CUIGameCustom;
 
@@ -15,8 +17,14 @@ private:
 	CUIGameCustom*			pUIGame;
 	CHitMarker				HitMarker;
 	CHUDTarget*				m_pHUDTarget;
+	CUIStatic*				m_pPauseStatic = nullptr;
 	bool					b_online;
 public:
+	LevelInspector			world_prims = LevelInspector(false);
+	IC void					draw_prims()
+	{
+		world_prims.OnRender();
+	};
 							CHUDManager			();
 	virtual					~CHUDManager		();
 	virtual		void		OnEvent				(EVENT E, u64 P1, u64 P2);
@@ -36,6 +44,7 @@ public:
 				bool		AddGrenade_ForMark	( CGrenade* grn );
 				void		Update_GrenadeView	( Fvector& pos_actor );
 				void		net_Relcase			( CObject* obj );
+				void		InitializePauseStatic();
 
 	//текущий предмет на который смотрит HUD
 	collide::rq_result&		GetCurrentRayQuery	();
@@ -48,8 +57,8 @@ public:
 #endif
 	void					ShowCrosshair		(bool show);
 
-	void					SetHitmarkType		( LPCSTR tex_name );
-	void					SetGrenadeMarkType	( LPCSTR tex_name );
+	void					SetHitmarkType		( const char* tex_name );
+	void					SetGrenadeMarkType	( const char* tex_name );
 
 	virtual void			OnScreenResolutionChanged();
 	virtual	void			Load				();

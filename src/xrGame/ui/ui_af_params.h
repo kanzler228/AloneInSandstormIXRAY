@@ -1,15 +1,13 @@
 #pragma once
 #include "../../xrUI/Widgets/UIWindow.h"
 #include "../../xrEngine/AI/alife_space.h"
-
+#include "../../xrUI/Widgets/UIStatic.h"
 
 class CUIXml;
-class CUIStatic;
-class CUITextWnd;
 class UIArtefactParamItem;
 class CInventoryItem;
 
-class CUIArtefactParams : public CUIWindow
+class CUIArtefactParams final : public CUIWindow
 {
 public:
 	enum class CParamType
@@ -28,11 +26,23 @@ public:
 	virtual CUIWindow* ui_cast_window() { return this; }
 
 protected:
+    UIArtefactParamItem* CreateItem(CUIXml& uiXml, const char* section,
+        shared_str translationId, shared_str translationId2 = nullptr);
+	
+    UIArtefactParamItem* CreateItem(CUIXml& uiXml, const char* section,
+        float magnitude, bool isSignInverse, const shared_str& unit,
+        shared_str translationId, shared_str translationId2 = nullptr);
+
 	UIArtefactParamItem*	m_immunity_item[ALife::eHitTypeWound_2];
 	UIArtefactParamItem*	m_restore_item[ALife::eRestoreTypeMax];
 	UIArtefactParamItem*	m_disp_condition;
 	UIArtefactParamItem*	m_additional_weight;
 	UIArtefactParamItem*	m_af_slots;
+	UIArtefactParamItem*	m_jump_height_modifier;
+	UIArtefactParamItem*	m_movement_speed_modifier;
+	UIArtefactParamItem*	m_sleepiness_restore_speed;
+	UIArtefactParamItem*	m_equipment_durability_modifier;
+	UIArtefactParamItem*	m_inventory_weight_modifier;
 
 	CUIStatic*				m_Prop_line;
 
@@ -45,21 +55,35 @@ protected:
 
 // -----------------------------------
 
-class UIArtefactParamItem : public CUIWindow
+class UIArtefactParamItem final : public CUIStatic
 {
 public:
 				UIArtefactParamItem	();
 	virtual		~UIArtefactParamItem();
-		
-		bool	Init				( CUIXml& xml, LPCSTR section );
-		void	SetCaption			( LPCSTR name );
+	
+    enum class InitResult
+    {
+        Failed,
+        Normal,
+        Plain
+    };
+	
+	InitResult	Init				( CUIXml& xml, const char* section );
+	
+		void	SetDefaultValuesPlain(float magnitude, bool isSignInverse, const shared_str& unit);
+		void	SetCaption			( const char* name );
 		void	SetValue			( float value );
 	
 	virtual CUIWindow* ui_cast_window() { return this; }
+		bool	GetLegacyMode		() { return !(m_caption && m_caption->IsShown() && m_value && m_value->IsShown()); }
+
+protected:
+	InitResult	InitPlain			(CUIXml& xml, const char* section);
 
 private:
 	CUIStatic*	m_caption;
-	CUITextWnd*	m_value;
+	CUIStatic*	m_value;
+	CUIStatic*	m_text_legacy; // 100%
 	float		m_magnitude;
 	bool		m_sign_inverse;
 	shared_str	m_unit_str;

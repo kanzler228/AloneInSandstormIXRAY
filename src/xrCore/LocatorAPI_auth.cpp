@@ -11,17 +11,13 @@ void	auth_entry		(void* p)
 	FS.auth_runtime		(p);
 }
 
-void	CLocatorAPI::auth_generate		(xr_vector<shared_str>&	ignore, xr_vector<shared_str>&	important)
+void CLocatorAPI::auth_generate(xr_vector<shared_str>& ignore, xr_vector<shared_str>& important)
 {
-	auth_options*	_o	= new auth_options	();
-	_o->ignore			= ignore	;
-	_o->important		= important	;
+	auth_options* _o = new auth_options();
+	_o->ignore = ignore;
+	_o->important = important;
 
-#if 1
-	FS.auth_runtime		(_o);
-#else
-	thread_spawn		(auth_entry,"checksum",0,_o);
-#endif
+	FS.auth_runtime(_o);
 }
 
 u64		CLocatorAPI::auth_get			()
@@ -38,14 +34,15 @@ void CLocatorAPI::auth_runtime(void* params)
 	m_auth_code = 0;
 	bool				do_break = false;
 
+	xrSRWLockGuard g(m_files_lock, true);
 	for (files_it it = m_files.begin(); it != m_files.end(); ++it) {
 		const file& f = *it;
 
 		// test for skip
-		BOOL	bSkip = FALSE;
+		bool	bSkip = false;
 		for (u32 s = 0; s < _o->ignore.size(); s++) {
 			if (strstr(f.name, _o->ignore[s].c_str()))
-				bSkip = TRUE;
+				bSkip = true;
 		}
 
 		if (bSkip)

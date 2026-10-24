@@ -6,7 +6,7 @@
 //	Description : 
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "ai_stalker.h"
 #include "../../cover_point.h"
@@ -101,8 +101,8 @@ void CAI_Stalker::compute_enemy_distances			(float &minimum_enemy_distance, floa
 		}
 	}
 
-	minimum_enemy_distance				= _min(minimum_enemy_distance, maximum_enemy_distance);
-	maximum_enemy_distance				= _max(minimum_enemy_distance, maximum_enemy_distance);
+	minimum_enemy_distance				= std::min(minimum_enemy_distance, maximum_enemy_distance);
+	maximum_enemy_distance				= std::max(minimum_enemy_distance, maximum_enemy_distance);
 }
 
 const CCoverPoint *CAI_Stalker::find_best_cover		(const Fvector &position_to_cover_from)
@@ -117,9 +117,12 @@ const CCoverPoint *CAI_Stalker::find_best_cover		(const Fvector &position_to_cov
 	compute_enemy_distances				(minimum_enemy_distance, maximum_enemy_distance);
 
 	if (!best_weapon())
-		m_ce_best->can_use_smart_covers	(false);
-	else {
-		CWeapon* weapon					= smart_cast<CWeapon*>(best_weapon());
+	{
+		m_ce_best->can_use_smart_covers(false);
+	}
+	else
+	{
+		CWeapon* weapon	= best_weapon()->cast_weapon();
 		if (!weapon)
 			m_ce_best->can_use_smart_covers	(false);
 		else {

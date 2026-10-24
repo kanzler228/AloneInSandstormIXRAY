@@ -8,7 +8,7 @@
 #include "Editor/Utils/ContentView.h"
 #include "Editor/Scene/LEPhysics.h"
 
-#include "../xrECore/Splash.h"
+#include "../../xrPlay/Splash.h"
 
 #include "../../xrEngine/std_classes.h"
 #include "../../xrEngine/IGame_Persistent.h"
@@ -22,7 +22,7 @@
 ECORE_API extern bool bIsLevelEditor;
 void DragDrop(const xr_string&, int);
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* pCmdLine, int nCmdShow)
 {
 	bIsLevelEditor = true;
 
@@ -32,39 +32,49 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return 0;
 	}
 
-	splash::show(IDB_LE);
+	splash::SetBackground(IDB_LE);
+	std::jthread s(splash::Show);
 
-	splash::update(5, "Initializing Debugger");
+	splash::SetProgressStatus(5, "Initializing Debugger");
 
 	Debug._initialize(false);
 	
-	splash::update(10, "Initializing Core System");
+	splash::SetProgressStatus(10, "Initializing Core System");
 
 	const char* FSName = "fs.ltx";
-	Core._initialize("LevelEditor", ELogCallback, 1, FSName);
+	const char* fsgame_ltx_name = "-fsltx ";
+	string_path fsgame = "";
 
-	splash::update(20, "Initializing Level Tools");
+	if (strstr(pCmdLine, fsgame_ltx_name)) {
+		int						sz = xr_strlen(fsgame_ltx_name);
+		sscanf(strstr(pCmdLine, fsgame_ltx_name) + sz, "%[^ ] ", fsgame);
+	}
+
+	Core._initialize("LevelEditor", ELogCallback, 1, fsgame[0] ? fsgame : FSName);
+
+	splash::SetProgressStatus(20, "Initializing Level Tools");
 
 	Tools = new CLevelTool();
 	LTools = static_cast<CLevelTool*>(Tools);
 
-	splash::update(25, "Registering UI Commands");
+	splash::SetProgressStatus(25, "Registering UI Commands");
 
 	UI = new CLevelMain();
 	UI->RegisterCommands();
+	UI->GeneralTabs.push_back({ "Scene View", nullptr });
 
 	LUI = static_cast<CLevelMain*>(UI);
 
-	splash::update(30, "Creating Editor Scene");
+	splash::SetProgressStatus(30, "Creating Editor Scene");
 
 	Scene = new EScene();
 	EditorScene = Scene;
 
-	splash::update(25, "Initializing Content View");
+	splash::SetProgressStatus(25, "Initializing Content View");
 
 	GContentView = new CContentView;
 
-	splash::update(30, "Creating Main UI Form");
+	splash::SetProgressStatus(30, "Creating Main UI Form");
 
 	UIMainForm* MainForm = new UIMainForm();
 
@@ -72,17 +82,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	g_XrGameManager = new XrGameManager();
 	g_SEFactoryManager = new XrSEFactoryManager();
 
-	splash::update(40, "Loading Game Materials");
+	splash::SetProgressStatus(40, "Loading Game Materials");
 
 	// Initialize APP
 	GameMaterialLibraryEditors->Load();
 
-	splash::update(55, "Initializing Game Persistent Objects");
+	splash::SetProgressStatus(55, "Initializing Game Persistent Objects");
 
 	g_pGamePersistent = static_cast<IGame_Persistent*>(g_XrGameManager->Create(CLSID_GAME_PERSISTANT));
-	EDevice->seqAppStart.Process(rp_AppStart);
+	EDevice->seqAppStart.Process<&pureAppStart::OnAppStart>();
 
-	splash::update(65, "Setting Up Console");
+	splash::SetProgressStatus(65, "Setting Up Console");
 
 	Console->Execute("default_controls");
 
@@ -98,7 +108,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	Console->Hide();
 
-	splash::update(75, "Performing Final UI Setup");
+	splash::SetProgressStatus(75, "Performing Final UI Setup");
 
 	::MainForm = MainForm;
 	UI->Push(MainForm, false);
@@ -106,14 +116,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	pFPSCounter = new XRay::Hardware::FPSCounter();
 
 	bool NeedExit = false;
-	splash::update(85, "Performing Final Checks");
+	splash::SetProgressStatus(85, "Performing Final Checks");
 	MainForm->GetRenderForm()->DragFunctor = DragDrop;
 	
-	splash::update(90, "Finalizing UI Setup");
+	splash::SetProgressStatus(90, "Finalizing UI Setup");
 	GContentView->Init();
 	UI->PushBegin(GContentView);
-	splash::update(100, "Finalizing");
-	splash::hide();
+	splash::SetProgressStatus(100, "Finalizing");
+	splash::Close();
 	while (!NeedExit)
 	{
 		SDL_Event Event;
@@ -121,9 +131,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		{
 			switch (Event.type)
 			{
-			case SDL_EVENT_WINDOW_MAXIMIZED:
-				EDevice->MaximizedWindow();
-				break;
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
 			{
 				SDL_WindowID MainWndID = SDL_GetWindowID(g_AppInfo.Window);
@@ -173,7 +180,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 						{
 							pInput->acquire();
 							UI->IsEnableInput = false;
-							ShowCursor(FALSE);
+							ShowCursor(false);
 						}
 					}
 				}break;
@@ -232,7 +239,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		if (g_pGamePersistent)
 			g_pGamePersistent->UpdateParticles();
 	}
-
+	s.join();
 	xr_delete(g_FontManager);
 
 	g_scene_physics.DestroyAll();

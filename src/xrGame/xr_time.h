@@ -1,6 +1,7 @@
 #pragma once
 
 #include "alife_space.h"
+#include "..\xrScripts\script_engine.h"
 
 class xrTime
 {
@@ -44,7 +45,12 @@ public:
 
 	void	add_script		(xrTime* other){add(*other);};
 	void	sub_script		(xrTime* other){sub(*other);};
-	float	diffSec_script	(xrTime* other){return diffSec(*other);};
+	float diffSec_script(xrTime* other)
+	{
+		if (!other )g_pScriptEngine->print_stack();
+
+		return diffSec(*other);
+	};
 
 	void	setHMS			(int h, int m, int s);
 	void	setHMSms		(int h, int m, int s, int ms);
@@ -54,8 +60,8 @@ public:
 	void	Save			(NET_Packet& Packet);
 	void	Load			(NET_Packet& Packet);
 
-	LPCSTR	dateToString	(int mode);
-	LPCSTR	timeToString	(int mode);
+	const char*	dateToString	(int mode);
+	const char*	timeToString	(int mode);
 };
 
 

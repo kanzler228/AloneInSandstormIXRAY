@@ -1,127 +1,186 @@
 #include "stdafx.h"
-#include "XR_IOConsole.h"
 #include "xr_input.h"
 #include "xr_ioc_cmd.h"
 #include "xr_level_controller.h"
 #include "string_table.h"
+#include "UIGamepadButtons.h"
 
 ENGINE_API _binding	g_key_bindings[bindings_count]; 
 ENGINE_API _key_group g_current_keygroup = _sp;
 
 ENGINE_API _action  actions[]		= {
-	{ "left",				kLEFT					,_both},	
-	{ "right",				kRIGHT					,_both},	
-	{ "up",					kUP						,_both},	
-	{ "down",				kDOWN					,_both},	
-	{ "jump",				kJUMP					,_both},	
-	{ "crouch",				kCROUCH					,_both},	
-	{ "accel",				kACCEL					,_both},	
-	{ "sprint_toggle",  	kSPRINT_TOGGLE  		,_both},	
+	{ "left",				kLEFT					,_both,			agDefault},
+	{ "right",				kRIGHT					,_both,			agDefault},
+	{ "up",					kUP						,_both,			agDefault},
+	{ "down",				kDOWN					,_both,			agDefault},
+	{ "jump",				kJUMP					,_both,			agDefault},
+	{ "crouch",				kCROUCH					,_both,			agDefault},
+	{ "accel",				kACCEL					,_both,			agDefault},
+	{ "sprint_toggle",  	kSPRINT_TOGGLE  		,_both,			agDefault},
 																
-	{ "forward",			kFWD					,_both},	
-	{ "back",				kBACK					,_both},	
-	{ "lstrafe",			kL_STRAFE				,_both},	
-	{ "rstrafe",			kR_STRAFE				,_both},	
+	{ "forward",			kFWD					,_both,			agDefault},
+	{ "back",				kBACK					,_both,			agDefault},
+	{ "lstrafe",			kL_STRAFE				,_both,			agDefault},
+	{ "rstrafe",			kR_STRAFE				,_both,			agDefault},
 																
-	{ "llookout",			kL_LOOKOUT				,_both},	
-	{ "rlookout",			kR_LOOKOUT				,_both},	
+	{ "llookout",			kL_LOOKOUT				,_both,			agAiming},
+	{ "rlookout",			kR_LOOKOUT				,_both,			agAiming},
 																
-	{ "cam_1",				kCAM_1					,_both},	
-	{ "cam_2",				kCAM_2					,_both},	
-	{ "cam_3",				kCAM_3					,_both},	
-	{ "cam_zoom_in",		kCAM_ZOOM_IN			,_both},	
-	{ "cam_zoom_out",		kCAM_ZOOM_OUT			,_both},	
+	{ "cam_1",				kCAM_1					,_both,			agDefault},
+	{ "cam_2",				kCAM_2					,_both,			agDefault},
+	{ "cam_3",				kCAM_3					,_both,			agDefault},
+	{ "cam_zoom_in",		kCAM_ZOOM_IN			,_both,			agDefault},
+	{ "cam_zoom_out",		kCAM_ZOOM_OUT			,_both,			agDefault},
 															
-	{ "torch",				kTORCH					,_both},	
-	{ "night_vision",		kNIGHT_VISION			,_both},	
-	{ "show_detector",		kDETECTOR				,_both},
+	{ "torch",				kTORCH					,_both,			agDefault},
+	{ "night_vision",		kNIGHT_VISION			,_both,			agUIRadialWeapon},
+	{ "show_detector",		kDETECTOR				,_both,			agDefault},
 
-	{ "wpn_1",				kWPN_1					,_both},	
-	{ "wpn_2",				kWPN_2					,_both},	
-	{ "wpn_3",				kWPN_3					,_both},	
-	{ "wpn_4",				kWPN_4					,_both},	
-	{ "wpn_5",				kWPN_5					,_both},	
-	{ "wpn_6",				kWPN_6					,_both},	
-	{ "artefact",			kARTEFACT				,_both/*_mp*/},		
-	{ "wpn_next",			kWPN_NEXT				,_both},	// means next ammo type
-	{ "wpn_fire",			kWPN_FIRE				,_both},	
-	{ "wpn_zoom",			kWPN_ZOOM				,_both},	
-	{ "wpn_zoom_inc",		kWPN_ZOOM_INC			,_both},	
-	{ "wpn_zoom_dec",		kWPN_ZOOM_DEC			,_both},	
-	{ "wpn_reload",			kWPN_RELOAD				,_both},	
-	{ "wpn_func",			kWPN_FUNC				,_both},	
-	{ "wpn_firemode_prev",	kWPN_FIREMODE_PREV		,_both},	
-	{ "wpn_firemode_next",	kWPN_FIREMODE_NEXT		,_both},	
+	{ "wpn_1",				kWPN_1					,_both,			agDefault},
+	{ "wpn_2",				kWPN_2					,_both,			agDefault},
+	{ "wpn_3",				kWPN_3					,_both,			agDefault},
+	{ "wpn_4",				kWPN_4					,_both,			agDefault},
+	{ "wpn_5",				kWPN_5					,_both,			agDefault},
+	{ "wpn_6",				kWPN_6					,_both,			agDefault},
+	{ "wpn_7",				kWPN_7					,_both,			agDefault},
+	{ "artefact",			kARTEFACT				,_both,			agDefault},
+	{ "wpn_next",			kWPN_NEXT				,_both,			agUIRadialWeapon},	// means next ammo type
+	{ "wpn_fire",			kWPN_FIRE				,_both,			agDefault},
+	{ "wpn_zoom",			kWPN_ZOOM				,_both,			agDefault},
+	{ "wpn_zoom_inc",		kWPN_ZOOM_INC			,_both,			agAiming},
+	{ "wpn_zoom_dec",		kWPN_ZOOM_DEC			,_both,			agAiming},
+	{ "wpn_reload",			kWPN_RELOAD				,_both,			agDefault},
+	{ "wpn_func",			kWPN_FUNC				,_both,			agUIRadialWeapon},
+	{ "wpn_firemode_prev",	kWPN_FIREMODE_PREV		,_both,			agDefault},
+	{ "wpn_firemode_next",	kWPN_FIREMODE_NEXT		,_both,			agUIRadialWeapon},
 															
-	{ "pause",				kPAUSE					,_both},	
-	{ "drop",				kDROP					,_both},	
-	{ "use",				kUSE					,_both},	
-	{ "scores",				kSCORES					,_both},	
-	{ "chat",				kCHAT					,_mp},		
-	{ "chat_team",			kCHAT_TEAM				,_mp},		
-	{ "voice_chat",         kVOICE_CHAT             ,_mp},
-	{ "voice_distance",     kVOICE_DISTANCE         ,_mp},
-	{ "screenshot",			kSCREENSHOT				,_both},	
-	{ "quit",				kQUIT					,_both},	
-	{ "console",			kCONSOLE				,_both},	
-	{ "inventory",			kINVENTORY				,_both},	
-	{ "buy_menu",			kBUY					,_mp},		
-	{ "skin_menu",			kSKIN					,_mp},		
-	{ "team_menu",			kTEAM					,_mp},		
-	{ "active_jobs",		kACTIVE_JOBS			,_both},
+	{ "pause",				kPAUSE					,_both,			agDefault},
+	{ "drop",				kDROP					,_both,			agUIRadialWeapon},
+	{ "use",				kUSE					,_both,			agDefault},
+	{ "scores",				kSCORES					,_both,			agDefault},
+	{ "chat",				kCHAT					,_mp,			agDefault},
+	{ "chat_team",			kCHAT_TEAM				,_mp,			agDefault},
+	{ "voice_chat",         kVOICE_CHAT             ,_mp,			agDefault},
+	{ "voice_distance",     kVOICE_DISTANCE         ,_mp,			agDefault},
+	{ "screenshot",			kSCREENSHOT				,_both,			agDefault},
+	{ "quit",				kQUIT					,_both,			agDefault},
+	{ "console",			kCONSOLE				,_both,			agDefault},
+	{ "inventory",			kINVENTORY				,_both,			agDefault},
+	{ "buy_menu",			kBUY					,_mp,			agDefault},
+	{ "skin_menu",			kSKIN					,_mp,			agDefault},
+	{ "team_menu",			kTEAM					,_mp,			agDefault},
+	{ "active_jobs",		kACTIVE_JOBS			,_both,			agDefault},
+	{ "map",				kMAP					,_both,			agDefault},
+	{ "contacts",			kCONTACTS				,_sp,			agDefault},
+
+	{ "vote_begin",			kVOTE_BEGIN				,_mp,			agDefault},
+	{ "show_admin_menu",	kSHOW_ADMIN_MENU		,_mp,			agDefault},
+	{ "vote",				kVOTE					,_mp,			agDefault},
+	{ "vote_yes",			kVOTEYES				,_mp,			agDefault},
+	{ "vote_no",			kVOTENO					,_mp,			agDefault},
 																
-	{ "vote_begin",			kVOTE_BEGIN				,_mp},		
-	{ "show_admin_menu",	kSHOW_ADMIN_MENU		,_mp},		
-	{ "vote",				kVOTE					,_mp},		
-	{ "vote_yes",			kVOTEYES				,_mp},		
-	{ "vote_no",			kVOTENO					,_mp},		
-																
-	{ "next_slot",			kNEXT_SLOT				,_both},	
-	{ "prev_slot",			kPREV_SLOT				,_both},	
+	{ "next_slot",			kNEXT_SLOT				,_both,			agDefault},
+	{ "prev_slot",			kPREV_SLOT				,_both,			agDefault},
 															
-	{ "speech_menu_0",		kSPEECH_MENU_0			,_mp},		
-	{ "speech_menu_1",		kSPEECH_MENU_1			,_mp},		
+	{ "speech_menu_0",		kSPEECH_MENU_0			,_mp,			agDefault},
+	{ "speech_menu_1",		kSPEECH_MENU_1			,_mp,			agDefault},
 																
-	{ "quick_use_1",		kQUICK_USE_1			,_both},		
-	{ "quick_use_2",		kQUICK_USE_2			,_both},
-	{ "quick_use_3",		kQUICK_USE_3			,_both},
-	{ "quick_use_4",		kQUICK_USE_4			,_both},
+	{ "quick_use_1",		kQUICK_USE_1			,_both,			agDefault},
+	{ "quick_use_2",		kQUICK_USE_2			,_both,			agDefault},
+	{ "quick_use_3",		kQUICK_USE_3			,_both,			agDefault},
+	{ "quick_use_4",		kQUICK_USE_4			,_both,			agDefault},
 
-	{ "quick_save",			kQUICK_SAVE				,_sp},		
-	{ "quick_load",			kQUICK_LOAD				,_sp},		
-	{ "alife_command",		kALIFE_CMD				,_sp},		
-	{ "use_bandage",		kUSE_BANDAGE			,_sp},
-	{ "use_medkit",			kUSE_MEDKIT				,_sp},
+	{ "quick_save",			kQUICK_SAVE				,_sp,			agDefault},
+	{ "quick_load",			kQUICK_LOAD				,_sp,			agDefault},
+	{ "alife_command",		kALIFE_CMD				,_sp,			agDefault},
+	{ "use_bandage",		kUSE_BANDAGE			,_sp,			agDefault},
+	{ "use_medkit",			kUSE_MEDKIT				,_sp,			agDefault},
+	{ "turn_engine",		kENGINE					,_sp,			agTransport},
+	{ "brake",				kBRAKE					,_sp,			agTransport},
+	{ "transmission_up",	kTRANSMISSION_UP		,_sp,			agTransport},
+	{ "transmission_down",	kTRANSMISSION_DOWN		,_sp,			agTransport},
+	
+	{ "ui_tab_left",		kUI_TAB_LEFT,			_both,			agUIGeneral},
+	{ "ui_tab_right",		kUI_TAB_RIGHT,			_both,			agUIGeneral},
+	{ "ui_tab_sec_left",	kUI_TAB_SECONDARY_LEFT,	_both,			agUIGeneral},
+	{ "ui_tab_sec_right",	kUI_TAB_SECONDARY_RIGHT,_both,			agUIGeneral},
+	{ "ui_left",			kUI_LEFT,				_both,			agUIGeneral},
+	{ "ui_right",			kUI_RIGHT,				_both,			agUIGeneral},
+	{ "ui_up",				kUI_UP,					_both,			agUIGeneral},
+	{ "ui_down",			kUI_DOWN,				_both,			agUIGeneral},
+	{ "ui_sec_left",		kUI_SECONDARY_LEFT,		_both,			agUIGeneral},
+	{ "ui_sec_right",		kUI_SECONDARY_RIGHT,	_both,			agUIGeneral},
+	{ "ui_sec_up",			kUI_SECONDARY_UP,		_both,			agUIGeneral},
+	{ "ui_sec_down",		kUI_SECONDARY_DOWN,		_both,			agUIGeneral},
+	{ "ui_accept",			kUI_ACCEPT,				_both,			agUIGeneral},
+	{ "ui_back",			kUI_BACK,				_both,			agUIGeneral},
+	{ "ui_hint",			kUI_HINT,				_both,			agUIGeneral},
+	{ "ui_action_1",		kUI_ACTION_1,			_both,			agUIGeneral},
+	{ "ui_action_2",		kUI_ACTION_2,			_both,			agUIGeneral},
+	{ "inv_sort_prev",		kINV_SORT_PREV,			_both,			agUIGeneral},
+	{ "inv_sort_next",		kINV_SORT_NEXT,			_both,			agUIGeneral},
+	{ "inv_sort_cycle",		kINV_SORT_CYCLE,		_both,			agUIGeneral},
 
-	{ "custom1",			kCUSTOM1				,_sp},
-	{ "custom2",			kCUSTOM2				,_sp},
-	{ "custom3",			kCUSTOM3				,_sp},
-	{ "custom4",			kCUSTOM4				,_sp},
-	{ "custom5",			kCUSTOM5				,_sp},
-	{ "custom6",			kCUSTOM6				,_sp},
-	{ "custom7",			kCUSTOM7				,_sp},
-	{ "custom8",			kCUSTOM8				,_sp},
-	{ "custom9",			kCUSTOM9				,_sp},
-	{ "custom10",			kCUSTOM10				,_sp},
-	{ "custom11",			kCUSTOM11				,_sp},
-	{ "custom12",			kCUSTOM12				,_sp},
-	{ "custom13",			kCUSTOM13				,_sp},
-	{ "custom14",			kCUSTOM14				,_sp},
-	{ "custom15",			kCUSTOM15				,_sp},
-	{ "cam_autoaim",		kCAM_AUTOAIM			,_sp},
+	{ "pda_log_to_start",	kPDA_LOG_TO_START,		_both,			agUILogMenu},
+	{ "pda_log_to_end",	 	kPDA_LOG_TO_END,		_both,			agUILogMenu},
+	{ "pda_log_scroll_down",kPDA_LOG_SCROLL_DOWN,	_both,			agUILogMenu},
+	{ "pda_log_scroll_up",	kPDA_LOG_SCROLL_UP,		_both,			agUILogMenu},
+	{ "pda_log_date_prev",	kPDA_LOG_DATE_PREV,		_both,			agUILogMenu},
+	{ "pda_log_date_next",	kPDA_LOG_DATE_NEXT,		_both,			agUILogMenu},
+	{ "pda_log_show_news", 	kPDA_LOG_SHOW_NEWS,		_both,			agUILogMenu},
+	{ "pda_log_show_dialogs", 	kPDA_LOG_SHOW_DIALOGS, _both,		agUILogMenu},
 
-	{ "clear_gasmask",		kCLEARGASMASK			,_both },
-	{ "wpn_torch",			kTACTICALTORCH			,_both },
-	{ "wpn_laser",			kLASER					,_both },
-	{ "wpn_zoom_alter",		kWPN_ZOOM_ALTER			,_both },
-	{ "scope_brightness_plus",kBRIGHTNESS_PLUS		,_both },
-	{ "scope_brightness_minus",kBRIGHTNESS_MINUS	,_both },
-	{ "quick_grenade",		kQUICK_GRENADE			,_both },
-	{ "quick_kick",			kQUICK_KICK				,_both },
-	{ "wpn_magcheck",		kMAG_CHECK				,_both },
-	{ "wpn_firecheck",		kFIREMODE_CHECK			,_both },
-																
-	{ nullptr, 				kLASTACTION				,_both}		
+	{ "pda_tasks_toggle_list",		kPDA_TASKS_TOGGLE_LIST,			_both, agUITaskMenu},
+	{ "pda_tasks_toggle_legend",	kPDA_TASKS_TOGGLE_LEGEND,		_both, agUITaskMenu},
+	{ "pda_tasks_next",				kPDA_TASKS_NEXT,				_both, agUITaskMenu},
+	{ "pda_tasks_prev",				kPDA_TASKS_PREV,				_both, agUITaskMenu},
+	{ "pda_tasks_toggle_map",		kPDA_TASKS_TOGGLE_MAP,			_both, agUITaskMenu},
+	{ "pda_tasks_map_show_me",		kPDA_TASKS_MAP_SHOW_ME,			_both, agUITaskMenu},
+	{ "pda_tasks_map_zoom_in",		kPDA_TASKS_MAP_ZOOM_IN,			_both, agUITaskMenu},
+	{ "pda_tasks_map_zoom_out",		kPDA_TASKS_MAP_ZOOM_OUT,		_both, agUITaskMenu},
+	{ "pda_tasks_filter_next",		kPDA_TASKS_FILTER_NEXT,			_both, agUITaskMenu},
+	{ "pda_tasks_filter_prev",		kPDA_TASKS_FILTER_PREV,			_both, agUITaskMenu},
+	{ "pda_tasks_filter_toggle",	kPDA_TASKS_FILTER_TOGGLE,		_both, agUITaskMenu},
+
+	{ "custom1",			kCUSTOM1				,_sp,			agDefault},
+	{ "custom2",			kCUSTOM2				,_sp,			agDefault},
+	{ "custom3",			kCUSTOM3				,_sp,			agDefault},
+	{ "custom4",			kCUSTOM4				,_sp,			agDefault},
+	{ "custom5",			kCUSTOM5				,_sp,			agDefault},
+	{ "custom6",			kCUSTOM6				,_sp,			agDefault},
+	{ "custom7",			kCUSTOM7				,_sp,			agDefault},
+	{ "custom8",			kCUSTOM8				,_sp,			agDefault},
+	{ "custom9",			kCUSTOM9				,_sp,			agDefault},
+	{ "custom10",			kCUSTOM10				,_sp,			agDefault},
+	{ "custom11",			kCUSTOM11				,_sp,			agDefault},
+	{ "custom12",			kCUSTOM12				,_sp,			agDefault},
+	{ "custom13",			kCUSTOM13				,_sp,			agDefault},
+	{ "custom14",			kCUSTOM14				,_sp,			agDefault},
+	{ "custom15",			kCUSTOM15				,_sp,			agDefault},
+	{ "cam_autoaim",		kCAM_AUTOAIM			,_sp,			agDefault},
+
+	{ "clear_gasmask",		kCLEARGASMASK			,_both,			agDefault},
+	{ "wpn_torch",			kTACTICALTORCH			,_both,			agUIRadialWeapon},
+	{ "wpn_laser",			kLASER					,_both,			agUIRadialWeapon},
+	{ "wpn_zoom_alter",		kWPN_ZOOM_ALTER			,_both,			agDefault},
+	{ "scope_brightness_plus",kBRIGHTNESS_PLUS		,_both,			agAiming},
+	{ "scope_brightness_minus",kBRIGHTNESS_MINUS	,_both,			agAiming},
+	{ "quick_grenade",		kQUICK_GRENADE			,_both,			agDefault},
+	{ "quick_kick",			kQUICK_KICK				,_both,			agDefault},
+	{ "wpn_magcheck",		kMAG_CHECK				,_both,			agDefault},
+	{ "wpn_firecheck",		kFIREMODE_CHECK			,_both,			agDefault},
+	{ "show_quick_slots",   kSHOW_QUICK_SLOTS		,_both,			agDefault},
+	{ "wpn_chamber_load",   kWPN_CHAMBER_LOAD		,_both,			agDefault},
+	{ "wpn_chamber_unload", kWPN_CHAMBER_UNLOAD     ,_both,			agDefault},
+	{ "wpn_chamber_check",  kWPN_CHAMBER_CHECK      ,_both,			agDefault},
+
+	{ "wpn_radial_menu",	kWPN_RADIAL_MENU		,_both,			agDefault},
+	{ "actormenu_action",	kACTORMENU_ACTION		,_both,			agUIGeneral},
+	{ "safemode",			kSAFEMODE				,_both,			agDefault },
+	{ "inv_unload_ruck",	kINV_UNLOAD_RUCK		,_both,			agUIGeneral},
+	{ "quick_bolt",			kQUICK_BOLT				,_both,			agDefault},
+
+	{ nullptr, 				kLASTACTION				,_both,			agDefault}
 };															
 
 _keyboard keyboards[] = {
@@ -403,6 +462,40 @@ _keyboard keyboards[] = {
 	{ nullptr,                  0}
 };
 
+
+_keyboard gamepads[] = 
+{
+	{ "cA",                     SDL_GAMEPAD_BUTTON_SOUTH,         "A" },
+	{ "cB",                     SDL_GAMEPAD_BUTTON_EAST,          "B" },
+	{ "cX",                     SDL_GAMEPAD_BUTTON_WEST,          "X" },
+	{ "cY",                     SDL_GAMEPAD_BUTTON_NORTH,         "Y" },
+	{ "cBACK",                  SDL_GAMEPAD_BUTTON_BACK,          "Back" },
+	{ "cSTART",                 SDL_GAMEPAD_BUTTON_START,         "Start" },
+	{ "cLS",                    SDL_GAMEPAD_BUTTON_LEFT_STICK,    "LS" },
+	{ "cRS",                    SDL_GAMEPAD_BUTTON_RIGHT_STICK,   "RS" },
+	{ "cLB",                    SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, "LB" },
+	{ "cRB",                    SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,"RB" },
+	{ "cDPAD_UP",               SDL_GAMEPAD_BUTTON_DPAD_UP,       "D-Pad Up" },
+	{ "cDPAD_DOWN",             SDL_GAMEPAD_BUTTON_DPAD_DOWN,     "D-Pad Down" },
+	{ "cDPAD_LEFT",             SDL_GAMEPAD_BUTTON_DPAD_LEFT,     "D-Pad Left" },
+	{ "cDPAD_RIGHT",            SDL_GAMEPAD_BUTTON_DPAD_RIGHT,    "D-Pad Right" },
+	{ "cTOUCHPAD",				SDL_GAMEPAD_BUTTON_TOUCHPAD,	  "Touchpad" },
+
+	{ "cLTRIGGER",				DIK_LTRIGGER,					  "LT" },
+	{ "cRTRIGGER",				DIK_RTRIGGER,					  "RT" },
+
+	{ "cLSTICK_UP",				DIK_LSTICK_UP,					  "LS Up" },
+	{ "cLSTICK_DOWN",			DIK_LSTICK_DOWN,				  "LS Down" },
+	{ "cLSTICK_LEFT",			DIK_LSTICK_LEFT,				  "LS Left" },
+	{ "cLSTICK_RIGHT",			DIK_LSTICK_RIGHT,				  "LS Right" },
+
+	{ "cRSTICK_UP",				DIK_RSTICK_UP,					  "RS Up" },
+	{ "cRSTICK_DOWN",			DIK_RSTICK_DOWN,				  "RS Down" },
+	{ "cRSTICK_LEFT",			DIK_RSTICK_LEFT,				  "RS Left" },
+	{ "cRSTICK_RIGHT",			DIK_RSTICK_RIGHT,				  "RS Right" },
+
+	{ nullptr,                  0}
+};
 void initialize_bindings()
 {
 #ifdef DEBUG
@@ -449,9 +542,22 @@ void remap_keys()
 
 		++idx;
 	}
+	idx = 0;
+	while (gamepads[idx].key_name)
+	{
+		buff[0] = 0;
+		_keyboard& kb = gamepads[idx];
+
+		if (kb.key_local_name.starts_with('c'))
+		{
+			kb.key_local_name = kb.key_local_name.substr(1);
+		}
+
+		++idx;
+	}
 }
 
-ENGINE_API LPCSTR id_to_action_name(EGameActions _id)
+ENGINE_API const char* id_to_action_name(EGameActions _id)
 {
 	int idx				= 0;
 	while( actions[idx].action_name )
@@ -464,7 +570,7 @@ ENGINE_API LPCSTR id_to_action_name(EGameActions _id)
 	return			nullptr;
 }
 
-ENGINE_API EGameActions action_name_to_id(LPCSTR _name)
+ENGINE_API EGameActions action_name_to_id(const char* _name)
 {
 	_action* action = action_name_to_ptr(_name);
 	if(action)
@@ -473,7 +579,7 @@ ENGINE_API EGameActions action_name_to_id(LPCSTR _name)
 		return	kNOTBINDED;
 }
 
-ENGINE_API _action* action_name_to_ptr(LPCSTR _name)
+ENGINE_API _action* action_name_to_ptr(const char* _name)
 {
 	int idx				= 0;
 	while( actions[idx].action_name )
@@ -486,7 +592,7 @@ ENGINE_API _action* action_name_to_ptr(LPCSTR _name)
 	return			nullptr;
 }
 
-ENGINE_API LPCSTR	dik_to_keyname			(int _dik)
+ENGINE_API const char*	dik_to_keyname			(int _dik)
 {
 	_keyboard* kb = dik_to_ptr(_dik, true);
 	if(kb)
@@ -505,12 +611,20 @@ ENGINE_API _keyboard* dik_to_ptr(int _dik, bool bSafe)
 			return &keyboards[idx];
 		++idx;
 	}	
+	idx = 0;
+	while(gamepads[idx].key_name)
+	{
+		_keyboard&	kb		= gamepads[idx];
+		if(kb.dik==_dik)
+			return &gamepads[idx];
+		++idx;
+	}	
 	if (!bSafe)
 		Msg			("! cant find corresponding [_keyboard] for dik");
 	return			nullptr;
 }
 
-ENGINE_API int	keyname_to_dik (LPCSTR _name)
+ENGINE_API int	keyname_to_dik (const char* _name)
 {
 	_keyboard* _kb = keyname_to_ptr(_name);
     if (_kb)
@@ -518,7 +632,7 @@ ENGINE_API int	keyname_to_dik (LPCSTR _name)
     return 0;
 }
 
-ENGINE_API _keyboard* keyname_to_ptr(LPCSTR _name)
+ENGINE_API _keyboard* keyname_to_ptr(const char* _name)
 {
 	xr_string TestName = _name;
 
@@ -533,6 +647,17 @@ ENGINE_API _keyboard* keyname_to_ptr(LPCSTR _name)
 		if (TestName.EqualWithCaseInsensitive(KeyData.key_name))
 			return &KeyData;
 	}
+	for (_keyboard& gpKeyData : gamepads)
+	{
+		if (gpKeyData.key_name == nullptr)
+			continue;
+
+		if (TestName.EqualWithCaseInsensitive(gpKeyData.key_local_name))
+			return &gpKeyData;
+
+		if (TestName.EqualWithCaseInsensitive(gpKeyData.key_name))
+			return &gpKeyData;
+	}
 
 	Msg("! cant find corresponding [_keyboard*] for keyname %s", _name);
 	return nullptr;
@@ -543,6 +668,11 @@ ENGINE_API bool is_group_not_conflicted(_key_group g1, _key_group g2)
 	return ((g1==_sp && g2==_mp) || (g1==_mp && g2==_sp));
 }
 
+ENGINE_API bool is_action_group_matching(_action_group g1, _action_group g2)
+{
+	return g1 == g2;
+}
+
 bool is_group_matching(_key_group g1, _key_group g2)
 {
 	return ( (g1==g2) || (g1==_both) || (g2==_both) );
@@ -551,12 +681,23 @@ bool is_group_matching(_key_group g1, _key_group g2)
 ENGINE_API bool is_binded(EGameActions _action_id, int _dik)
 {
 	_binding* pbinding = &g_key_bindings[_action_id];
-	if(pbinding->m_keyboard[0] && pbinding->m_keyboard[0]->dik==_dik)
-		return true;
+	if (pInput->GetControllerMode())
+	{
+		if (pbinding->m_gamepad[0] && pbinding->m_gamepad[0]->dik == _dik)
+			return true;
 
-	if(pbinding->m_keyboard[1] && pbinding->m_keyboard[1]->dik==_dik)
-		return true;
-	
+		if (pbinding->m_gamepad[1] && pbinding->m_gamepad[1]->dik == _dik)
+			return true;
+	}
+	else
+	{
+		if (pbinding->m_keyboard[0] && pbinding->m_keyboard[0]->dik == _dik)
+			return true;
+
+		if (pbinding->m_keyboard[1] && pbinding->m_keyboard[1]->dik == _dik)
+			return true;
+	}
+
 	return false;
 }
 
@@ -566,39 +707,313 @@ ENGINE_API int get_action_dik(EGameActions _action_id, int idx)
 	
 	if(idx==-1)
 	{
-	if(pbinding->m_keyboard[0])
-		return pbinding->m_keyboard[0]->dik;
+		if (pInput->GetControllerMode())
+		{
+			if (pbinding->m_gamepad[0])
+				return pbinding->m_gamepad[0]->dik;
 
-	if(pbinding->m_keyboard[1])
-		return pbinding->m_keyboard[1]->dik;
-	}else
+			if (pbinding->m_gamepad[1])
+				return pbinding->m_gamepad[1]->dik;
+		}
+		else
+		{
+			if (pbinding->m_keyboard[0])
+				return pbinding->m_keyboard[0]->dik;
+
+			if (pbinding->m_keyboard[1])
+				return pbinding->m_keyboard[1]->dik;
+		}
+	}
+	else
 	{
-	if(pbinding->m_keyboard[idx])
-		return pbinding->m_keyboard[idx]->dik;
+		if (pInput->GetControllerMode())
+		{
+			if (pbinding->m_gamepad[idx])
+				return pbinding->m_gamepad[idx]->dik;
+		}
+		else
+		{
+			if (pbinding->m_keyboard[idx])
+				return pbinding->m_keyboard[idx]->dik;
+		}
 	}
 	return 0;
 }
 
-ENGINE_API EGameActions get_binded_action(int _dik)
+ENGINE_API EGameActions get_binded_action(int _dik, _action_group _action_id)
 {
 	for(int idx=0; idx<bindings_count; ++idx)
 	{
 		_binding*	binding = &g_key_bindings[idx];
 
 		bool b_is_group_matching	= is_group_matching(binding->m_action->key_group,g_current_keygroup);
-		
+		bool actionGroupMatching = _action_id == agAny ? true : is_action_group_matching(binding->m_action->action_group, _action_id);
+	
 		if(!b_is_group_matching)	continue;
 
-		if(binding->m_keyboard[0] && binding->m_keyboard[0]->dik==_dik && b_is_group_matching)
-			return binding->m_action->id;
-		
-		if(binding->m_keyboard[1] && binding->m_keyboard[1]->dik==_dik && b_is_group_matching)
-			return binding->m_action->id;
+		if (pInput->GetControllerMode())
+		{
+			if (binding->m_gamepad[0] && binding->m_gamepad[0]->dik == _dik && b_is_group_matching && actionGroupMatching)
+			{
+				return binding->m_action->id;
+			}
+			if (binding->m_gamepad[1] && binding->m_gamepad[1]->dik == _dik && b_is_group_matching && actionGroupMatching)
+			{
+				return binding->m_action->id;
+			}
+		}
+		else
+		{
+			if (binding->m_keyboard[0] && binding->m_keyboard[0]->dik == _dik && b_is_group_matching && actionGroupMatching)
+			{
+				return binding->m_action->id;
+			}
+			if (binding->m_keyboard[1] && binding->m_keyboard[1]->dik == _dik && b_is_group_matching && actionGroupMatching)
+			{
+				return binding->m_action->id;
+			}
+		}
 	}
 	return kNOTBINDED;
 }
 
-ENGINE_API void GetActionAllBinding(LPCSTR _action, char* dst_buff, int dst_buff_sz)
+const char* GetGamepadSymbol(int dik)
+{
+	if (!xr_strcmp(pInput->GamepadPrefix(), "ps4"))
+	{
+		switch (dik)
+		{
+			case SDL_GAMEPAD_BUTTON_SOUTH:
+				return PS4_CROSS;
+			case SDL_GAMEPAD_BUTTON_EAST:
+				return PS4_CIRCLE;
+			case SDL_GAMEPAD_BUTTON_WEST:
+				return PS4_SQUARE;
+			case SDL_GAMEPAD_BUTTON_NORTH:
+				return PS4_TRIANGLE;
+			case SDL_GAMEPAD_BUTTON_BACK:
+				return PS4_SHARE;
+			case SDL_GAMEPAD_BUTTON_GUIDE:
+				return PS4_HOME;
+			case SDL_GAMEPAD_BUTTON_START:
+				return PS4_OPTIONS;
+			case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+				return PS4_L3;
+			case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+				return PS4_R3;
+			case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+				return PS4_L1;
+			case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+				return PS4_R1;
+			case SDL_GAMEPAD_BUTTON_DPAD_UP:
+				return PS4_DPAD_UP;
+			case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+				return PS4_DPAD_DOWN;
+			case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+				return PS4_DPAD_LEFT;
+			case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+				return PS4_DPAD_RIGHT;
+			case SDL_GAMEPAD_BUTTON_TOUCHPAD:
+				return PS4_TOUCHPAD;
+			case DIK_LTRIGGER:
+				return PS4_L2;
+			case DIK_RTRIGGER:
+				return PS4_R2;
+			case DIK_LSTICK_UP:
+				return PS4_LSTICK_UP;
+			case DIK_LSTICK_DOWN:
+				return PS4_LSTICK_DOWN;
+			case DIK_LSTICK_LEFT:
+				return PS4_LSTICK_LEFT;
+			case DIK_LSTICK_RIGHT:
+				return PS4_LSTICK_RIGHT;
+			case DIK_RSTICK_UP:
+				return PS4_RSTICK_UP;
+			case DIK_RSTICK_DOWN:
+				return PS4_RSTICK_DOWN;
+			case DIK_RSTICK_LEFT:
+				return PS4_RSTICK_LEFT;
+			case DIK_RSTICK_RIGHT:
+				return PS4_RSTICK_RIGHT;
+		}
+	}
+	else if (!xr_strcmp(pInput->GamepadPrefix(), "ps5"))
+	{
+		switch (dik)
+		{
+			case SDL_GAMEPAD_BUTTON_SOUTH:
+				return PS5_CROSS;
+			case SDL_GAMEPAD_BUTTON_EAST:
+				return PS5_CIRCLE;
+			case SDL_GAMEPAD_BUTTON_WEST:
+				return PS5_SQUARE;
+			case SDL_GAMEPAD_BUTTON_NORTH:
+				return PS5_TRIANGLE;
+			case SDL_GAMEPAD_BUTTON_BACK:
+				return PS5_SHARE;
+			case SDL_GAMEPAD_BUTTON_GUIDE:
+				return PS5_HOME;
+			case SDL_GAMEPAD_BUTTON_START:
+				return PS5_OPTIONS;
+			case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+				return PS5_L3;
+			case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+				return PS5_R3;
+			case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+				return PS5_L1;
+			case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+				return PS5_R1;
+			case SDL_GAMEPAD_BUTTON_DPAD_UP:
+				return PS5_DPAD_UP;
+			case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+				return PS5_DPAD_DOWN;
+			case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+				return PS5_DPAD_LEFT;
+			case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+				return PS5_DPAD_RIGHT;
+			case SDL_GAMEPAD_BUTTON_TOUCHPAD:
+				return PS5_TOUCHPAD;
+			case DIK_LTRIGGER:
+				return PS5_L2;
+			case DIK_RTRIGGER:
+				return PS5_R2;
+			case DIK_LSTICK_UP:
+				return PS5_LSTICK_UP;
+			case DIK_LSTICK_DOWN:
+				return PS5_LSTICK_DOWN;
+			case DIK_LSTICK_LEFT:
+				return PS5_LSTICK_LEFT;
+			case DIK_LSTICK_RIGHT:
+				return PS5_LSTICK_RIGHT;
+			case DIK_RSTICK_UP:
+				return PS5_RSTICK_UP;
+			case DIK_RSTICK_DOWN:
+				return PS5_RSTICK_DOWN;
+			case DIK_RSTICK_LEFT:
+				return PS5_RSTICK_LEFT;
+			case DIK_RSTICK_RIGHT:
+				return PS5_RSTICK_RIGHT;
+		}
+	}
+	else if (!xr_strcmp(pInput->GamepadPrefix(), "switch"))
+	{
+		switch (dik)
+		{
+		case SDL_GAMEPAD_BUTTON_SOUTH:
+			return SWITCH_A;
+		case SDL_GAMEPAD_BUTTON_EAST:
+			return SWITCH_B;
+		case SDL_GAMEPAD_BUTTON_WEST:
+			return SWITCH_X;
+		case SDL_GAMEPAD_BUTTON_NORTH:
+			return SWITCH_Y;
+		case SDL_GAMEPAD_BUTTON_BACK:
+			return SWITCH_Back;
+		case SDL_GAMEPAD_BUTTON_GUIDE:
+			return SWITCH_Guide;
+		case SDL_GAMEPAD_BUTTON_START:
+			return SWITCH_Start;
+		case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+			return SWITCH_LS;
+		case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+			return SWITCH_RS;
+		case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+			return SWITCH_LB;
+		case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+			return SWITCH_RB;
+		case SDL_GAMEPAD_BUTTON_DPAD_UP:
+			return SWITCH_DPAD_UP;
+		case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+			return SWITCH_DPAD_DOWN;
+		case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+			return SWITCH_DPAD_LEFT;
+		case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+			return SWITCH_DPAD_RIGHT;
+		case SDL_GAMEPAD_BUTTON_TOUCHPAD:
+			return SWITCH_TOUCHPAD;
+		case DIK_LTRIGGER:
+			return SWITCH_LTRIGGER;
+		case DIK_RTRIGGER:
+			return SWITCH_RTRIGGER;
+		case DIK_LSTICK_UP:
+			return SWITCH_LSTICK_UP;
+		case DIK_LSTICK_DOWN:
+			return SWITCH_LSTICK_DOWN;
+		case DIK_LSTICK_LEFT:
+			return SWITCH_LSTICK_LEFT;
+		case DIK_LSTICK_RIGHT:
+			return SWITCH_LSTICK_RIGHT;
+		case DIK_RSTICK_UP:
+			return SWITCH_RSTICK_UP;
+		case DIK_RSTICK_DOWN:
+			return SWITCH_RSTICK_DOWN;
+		case DIK_RSTICK_LEFT:
+			return SWITCH_RSTICK_LEFT;
+		case DIK_RSTICK_RIGHT:
+			return SWITCH_RSTICK_RIGHT;
+		}
+	}
+	else
+	{
+		switch (dik)
+		{
+		case SDL_GAMEPAD_BUTTON_SOUTH:
+			return XBOX_A;
+		case SDL_GAMEPAD_BUTTON_EAST:
+			return XBOX_B;
+		case SDL_GAMEPAD_BUTTON_WEST:
+			return XBOX_X;
+		case SDL_GAMEPAD_BUTTON_NORTH:
+			return XBOX_Y;
+		case SDL_GAMEPAD_BUTTON_BACK:
+			return XBOX_Back;
+		case SDL_GAMEPAD_BUTTON_GUIDE:
+			return XBOX_Guide;
+		case SDL_GAMEPAD_BUTTON_START:
+			return XBOX_Start;
+		case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+			return XBOX_LS;
+		case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+			return XBOX_RS;
+		case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+			return XBOX_LB;
+		case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+			return XBOX_RB;
+		case SDL_GAMEPAD_BUTTON_DPAD_UP:
+			return XBOX_DPAD_UP;
+		case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+			return XBOX_DPAD_DOWN;
+		case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+			return XBOX_DPAD_LEFT;
+		case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+			return XBOX_DPAD_RIGHT;
+		case DIK_LTRIGGER:
+			return XBOX_LTRIGGER;
+		case DIK_RTRIGGER:
+			return XBOX_RTRIGGER;
+		case DIK_LSTICK_UP:
+			return XBOX_LSTICK_UP;
+		case DIK_LSTICK_DOWN:
+			return XBOX_LSTICK_DOWN;
+		case DIK_LSTICK_LEFT:
+			return XBOX_LSTICK_LEFT;
+		case DIK_LSTICK_RIGHT:
+			return XBOX_LSTICK_RIGHT;
+		case DIK_RSTICK_UP:
+			return XBOX_RSTICK_UP;
+		case DIK_RSTICK_DOWN:
+			return XBOX_RSTICK_DOWN;
+		case DIK_RSTICK_LEFT:
+			return XBOX_RSTICK_LEFT;
+		case DIK_RSTICK_RIGHT:
+			return XBOX_RSTICK_RIGHT;
+		}
+	}
+	
+	return dik_to_keyname(dik);
+}
+
+ENGINE_API void GetActionAllBinding(const char* _action, char* dst_buff, int dst_buff_sz)
 {
 	int action_id = action_name_to_id(_action);
 	_binding* pbinding = &g_key_bindings[action_id];
@@ -606,13 +1021,13 @@ ENGINE_API void GetActionAllBinding(LPCSTR _action, char* dst_buff, int dst_buff
 	if (action_id == kNOTBINDED)
 	{
 		Msg("! [ERROR]: Action not found %s", _action);
+		dst_buff[0] = 0;
 		return;
 	}
 
-	string128 prim;
-	string128 sec;
-	prim[0] = 0;
-	sec[0] = 0;
+	string128 prim = {};
+	string128 sec = {};
+	string128 gp_prim = {};
 
 	if (pbinding->m_keyboard[0])
 		xr_strcpy(prim, pbinding->m_keyboard[0]->key_local_name.c_str());
@@ -620,28 +1035,88 @@ ENGINE_API void GetActionAllBinding(LPCSTR _action, char* dst_buff, int dst_buff
 	if (pbinding->m_keyboard[1])
 		xr_strcpy(sec, pbinding->m_keyboard[1]->key_local_name.c_str());
 
-	if (nullptr == pbinding->m_keyboard[0] && nullptr == pbinding->m_keyboard[1])
-		xr_sprintf(dst_buff, dst_buff_sz, "%s", g_pStringTable->translate("st_key_notbinded").c_str());
+	if (pbinding->m_gamepad[0])
+	{
+		const char* gpSymbol = GetGamepadSymbol(pbinding->m_gamepad[0]->dik);
+		xr_strcpy(gp_prim, gpSymbol);
+	}
+
+	if (!pbinding->m_keyboard[0] && !pbinding->m_keyboard[1] &&
+		!pbinding->m_gamepad[0] && !pbinding->m_gamepad[1])
+	{
+		xr_strcpy(dst_buff, dst_buff_sz, g_pStringTable->translate("st_key_notbinded").c_str());
+		return;
+	}
+
+	if (pInput->GetControllerMode())
+	{
+		if (gp_prim[0])
+			xr_strcpy(dst_buff, dst_buff_sz, gp_prim);
+		else
+			dst_buff[0] = 0;
+
+		return;
+	}
+
+	if (prim[0] && sec[0])
+	{
+		xr_strcpy(dst_buff, dst_buff_sz, prim);
+		xr_strcat(dst_buff, dst_buff_sz, " , ");
+		xr_strcat(dst_buff, dst_buff_sz, sec);
+	}
+	else if (prim[0])
+	{
+		xr_strcpy(dst_buff, dst_buff_sz, prim);
+	}
+	else if (sec[0])
+	{
+		xr_strcpy(dst_buff, dst_buff_sz, sec);
+	}
 	else
-		xr_sprintf(dst_buff, dst_buff_sz, "%s%s%s", prim[0] ? prim : "", (sec[0] && prim[0]) ? " , " : "", sec[0] ? sec : "");
+	{
+		dst_buff[0] = 0;
+	}
+}
+
+ENGINE_API bool any_binded_key_for_action_pressed_c(int actionId)
+{
+	int bindingsCnt = kLASTACTION;
+	for (int i = 0; i < bindingsCnt; ++i)
+	{
+		if (g_key_bindings[i].m_action->id == actionId)
+		{
+			for (int k = 0; k < 2; ++k)
+			{
+				if (g_key_bindings[i].m_gamepad[k])
+				{
+					int dik = g_key_bindings[i].m_gamepad[k]->dik;
+					if (pInput->iGetAsyncGamepadKeyState(dik))
+						return true;
+				}
+			}
+			return false;
+		}
+	}
+
+	return false;
 }
 
 ENGINE_API ConsoleBindCmds bindConsoleCmds;
-BOOL bRemapped = FALSE;
+bool bRemapped = false;
 
 class CCC_Bind : public IConsole_Command
 {
 	int m_work_idx;
 public:
-	CCC_Bind(LPCSTR N, int idx) : IConsole_Command(N),m_work_idx(idx) {};
-	virtual void Execute(LPCSTR args) 
+	CCC_Bind(const char* N, int idx) : IConsole_Command(N),m_work_idx(idx) {};
+	virtual void Execute(const char* args) 
 	{
 		string256							action;
 		string256							key;
 		*action								= 0;
 		*key								= 0;
 
-		sscanf								(args,"%s %s", action, key);
+		sscanf								(args,"%255s %255s", action, key);
 		if (!*action)
 			return;
 
@@ -650,7 +1125,7 @@ public:
 
 		if(!bRemapped) {
 			remap_keys	();
-			bRemapped	= TRUE;
+			bRemapped	= true;
 		}
 
 		if (!action_name_to_ptr(action))
@@ -675,11 +1150,12 @@ public:
 				if(binding==curr_pbinding)	continue;
 
 				bool b_conflict = !is_group_not_conflicted(binding->m_action->key_group, curr_pbinding->m_action->key_group);
+				bool b_action_match = is_action_group_matching(binding->m_action->action_group, curr_pbinding->m_action->action_group);
 
-				if(binding->m_keyboard[0]==pkeyboard && b_conflict)
+				if(binding->m_keyboard[0]==pkeyboard && b_conflict && b_action_match)
 					binding->m_keyboard[0]=nullptr;
 				
-				if(binding->m_keyboard[1]==pkeyboard && b_conflict)
+				if(binding->m_keyboard[1]==pkeyboard && b_conflict && b_action_match)
 					binding->m_keyboard[1]=nullptr;
 			}
 		}
@@ -689,9 +1165,8 @@ public:
 	}
 	virtual void Save(IWriter* F) 
 	{
-		if(m_work_idx==0)
-			F->w_printf		("default_controls\r\n");
-
+		// Don't write "default_controls" section header - it causes conflicts when loading user.ltx
+		// The default_controls command would reload default_controls.ltx and overwrite user bindings
 		for(int idx=0; idx<bindings_count;++idx)
 		{
 			_binding* pbinding = &g_key_bindings[idx];
@@ -723,13 +1198,104 @@ public:
     }
 };
 
+class CCC_BindGamepad : public IConsole_Command
+{
+	int m_work_idx;
+public:
+	CCC_BindGamepad(const char* N, int idx) : IConsole_Command(N), m_work_idx(idx) {};
+	virtual void Execute(const char* args) 
+	{
+		string256							action;
+		string256							key;
+		*action								= 0;
+		*key								= 0;
+
+		sscanf								(args,"%255s %255s", action, key);
+		if (!*action)
+			return;
+
+		if (!*key)
+			return;
+
+		if(!bRemapped) {
+			remap_keys	();
+			bRemapped	= true;
+		}
+
+		if (!action_name_to_ptr(action))
+			return;
+
+		int action_id						= action_name_to_id			(action);
+		if (action_id==kNOTBINDED)
+			return;
+
+		_keyboard*	pkeyboard				= keyname_to_ptr(key);
+		if (!pkeyboard)
+			return;
+
+		_binding*	curr_pbinding			= &g_key_bindings[action_id];
+
+		curr_pbinding->m_gamepad[m_work_idx] = pkeyboard;
+			
+		{
+			for(int idx=0; idx<bindings_count; ++idx)
+			{
+				_binding*	binding			= &g_key_bindings[idx];
+				if(binding==curr_pbinding)	continue;
+
+				bool b_conflict = !is_group_not_conflicted(binding->m_action->key_group, curr_pbinding->m_action->key_group);
+
+				if(binding->m_gamepad[0] == pkeyboard && b_conflict && is_action_group_matching(binding->m_action->action_group, curr_pbinding->m_action->action_group))
+					binding->m_gamepad[0] = nullptr;
+
+				if (binding->m_gamepad[1] == pkeyboard && b_conflict && is_action_group_matching(binding->m_action->action_group, curr_pbinding->m_action->action_group))
+					binding->m_gamepad[1] = nullptr;
+			}
+		}
+
+
+		CStringTable::ReparseKeyBindings();
+	}
+	virtual void Save(IWriter* F) 
+	{
+		for(int idx=0; idx<bindings_count;++idx)
+		{
+			_binding* pbinding = &g_key_bindings[idx];
+			if( pbinding->m_gamepad[m_work_idx])
+			{
+				F->w_printf("%s %s %s\r\n", 
+							cName, 
+							pbinding->m_action->action_name,
+							pbinding->m_gamepad[m_work_idx]->key_name);
+			}
+		}
+	}
+
+    virtual void fill_tips(vecTips& tips, u32 mode)
+    {
+        for (int idx = 0; idx < bindings_count; ++idx) {
+            if (idx > bindings_count)
+                continue;
+            _binding* pbinding = &g_key_bindings[idx];
+            if (!pbinding)
+                continue;
+            if (!pbinding->m_action)
+                continue;
+            if (!pbinding->m_action->action_name)
+                continue;
+            tips.push_back(pbinding->m_action->action_name);
+        }
+        IConsole_Command::fill_tips(tips, mode);
+    }
+};
+
 class CCC_UnBind : public IConsole_Command
 {
 	int m_work_idx;
 public:
-	CCC_UnBind(LPCSTR N, int idx) : IConsole_Command(N),m_work_idx(idx) 
-	{ bEmptyArgsHandled=TRUE; };
-	virtual void Execute(LPCSTR args)
+	CCC_UnBind(const char* N, int idx) : IConsole_Command(N),m_work_idx(idx) 
+	{ bEmptyArgsHandled=true; };
+	virtual void Execute(const char* args)
 	{
 		int action_id						= action_name_to_id			(args);
 		_binding*	pbinding				= &g_key_bindings[action_id];
@@ -756,13 +1322,46 @@ public:
     }
 };
 
+class CCC_UnBindGamepad : public IConsole_Command
+{
+	int m_work_idx;
+public:
+	CCC_UnBindGamepad(const char* N, int idx) : IConsole_Command(N), m_work_idx(idx)
+	{ bEmptyArgsHandled=true; };
+	virtual void Execute(const char* args)
+	{
+		int action_id						= action_name_to_id			(args);
+		_binding*	pbinding				= &g_key_bindings[action_id];
+		pbinding->m_gamepad[m_work_idx] = nullptr;
+
+		CStringTable::ReparseKeyBindings();
+	}
+
+    virtual void fill_tips(vecTips& tips, u32 mode)
+    {
+        for (int idx = 0; idx < bindings_count; ++idx) {
+            if (idx > bindings_count)
+                continue;
+            _binding* pbinding = &g_key_bindings[idx];
+            if (!pbinding)
+                continue;
+            if (!pbinding->m_action)
+                continue;
+            if (!pbinding->m_action->action_name)
+                continue;
+            tips.push_back(pbinding->m_action->action_name);
+        }
+        IConsole_Command::fill_tips(tips, mode);
+    }
+};
+
 class CCC_ListActions : public IConsole_Command
 {
 public:
-	CCC_ListActions(LPCSTR N) : IConsole_Command(N)
-	{ bEmptyArgsHandled=TRUE; };
+	CCC_ListActions(const char* N) : IConsole_Command(N)
+	{ bEmptyArgsHandled=true; };
 
-	virtual void Execute(LPCSTR args) {
+	virtual void Execute(const char* args) {
 		Log("- --- Action list start ---");
 		for(int idx=0; idx<bindings_count;++idx)
 		{
@@ -776,16 +1375,18 @@ public:
 class CCC_UnBindAll : public IConsole_Command
 {
 public:
-	CCC_UnBindAll(LPCSTR N) : IConsole_Command(N)
-	{ bEmptyArgsHandled=TRUE; };
+	CCC_UnBindAll(const char* N) : IConsole_Command(N)
+	{ bEmptyArgsHandled=true; };
 
-	virtual void Execute(LPCSTR args) 
+	virtual void Execute(const char* args) 
 	{
 		for(int idx=0; idx<bindings_count;++idx)
 		{
 			_binding* pbinding		= &g_key_bindings[idx];
 			pbinding->m_keyboard[0]	= nullptr;
 			pbinding->m_keyboard[1]	= nullptr;
+			pbinding->m_gamepad[0] = nullptr;
+			pbinding->m_gamepad[1] = nullptr;
 		}
 		bindConsoleCmds.clear();
 	}
@@ -794,43 +1395,52 @@ public:
 class CCC_DefControls : public CCC_UnBindAll
 {
 public:
-	CCC_DefControls(LPCSTR N) : CCC_UnBindAll(N){}
+	CCC_DefControls(const char* N) : CCC_UnBindAll(N){}
 
-	virtual void Execute(LPCSTR args) 
+	virtual void Execute(const char* args) 
 	{
 		CCC_UnBindAll::Execute(args);
 		string_path				_cfg;
 		string_path				cmd;
-		if (FS.exist("$game_config$", "ixray_settings\\default_controls.ltx"))
+		const char* file_dir = "ixray_settings\\default_controls.ltx";
+		if (!FS.exist(_game_config_, file_dir))
 		{
-			FS.update_path(_cfg, "$game_config$", "ixray_settings\\default_controls.ltx");
+			file_dir = "default_controls.ltx";
 		}
-		else
-		{
-			FS.update_path(_cfg, "$game_config$", "default_controls.ltx");
-		}
+		FS.update_path(_cfg, _game_config_, file_dir);
 		xr_strconcat(cmd,"cfg_load", " ", _cfg);
 		Console->Execute		(cmd);
+
+		string_path platformFileDir;
+		xr_strconcat(platformFileDir, "ixray_settings\\default_controls_", EngineExternal().GetCurrentPlatformName(), ".ltx");
+		if (FS.exist(_game_config_, platformFileDir))
+		{
+			FS.update_path(_cfg, _game_config_, platformFileDir);
+			xr_strconcat(cmd, "cfg_load ", _cfg);
+			Console->Execute(cmd);
+		}
 	}
 };
 
 class CCC_BindList : public IConsole_Command
 {
 public:
-	CCC_BindList(LPCSTR N) : IConsole_Command(N)
-	{ bEmptyArgsHandled=TRUE; };
+	CCC_BindList(const char* N) : IConsole_Command(N)
+	{ bEmptyArgsHandled=true; };
 
-	virtual void Execute(LPCSTR args) {
+	virtual void Execute(const char* args) {
 		Log				("- --- Bind list start ---");
 		string512		buff;			
 		
 		for(int idx=0; idx<bindings_count;++idx)
 		{
 			_binding* pbinding		= &g_key_bindings[idx];
-			xr_sprintf		(buff,"[%s] primary is[%s] secondary is[%s]",
+			xr_sprintf		(buff,"[%s] primary is[%s] secondary is[%s] gamepad primary is [%s] gamepad secondary is [%s]",
 						pbinding->m_action->action_name,
 						(pbinding->m_keyboard[0])?pbinding->m_keyboard[0]->key_local_name.c_str():"nullptr",
-						(pbinding->m_keyboard[1])?pbinding->m_keyboard[1]->key_local_name.c_str():"nullptr");
+						(pbinding->m_keyboard[1])?pbinding->m_keyboard[1]->key_local_name.c_str():"nullptr",
+						(pbinding->m_gamepad[0])?pbinding->m_gamepad[0]->key_local_name.c_str():"nullptr",
+						(pbinding->m_gamepad[1])?pbinding->m_gamepad[1]->key_local_name.c_str():"nullptr");
 			Log		(buff);
 		}
 		Log				("- --- Bind list end   ---");
@@ -840,8 +1450,8 @@ public:
 class CCC_BindConsoleCmd : public IConsole_Command
 {
 public:
-	CCC_BindConsoleCmd(LPCSTR N) : IConsole_Command(N) {};
-	virtual void Execute(LPCSTR args) 
+	CCC_BindConsoleCmd(const char* N) : IConsole_Command(N) {};
+	virtual void Execute(const char* args) 
 	{
 		string512				console_command;
 		string256				key;
@@ -874,10 +1484,10 @@ public:
 class CCC_UnBindConsoleCmd : public IConsole_Command
 {
 public:
-	CCC_UnBindConsoleCmd(LPCSTR N) : IConsole_Command(N)
-	{ bEmptyArgsHandled=FALSE; };
+	CCC_UnBindConsoleCmd(const char* N) : IConsole_Command(N)
+	{ bEmptyArgsHandled=false; };
 
-	virtual void Execute(LPCSTR args) 
+	virtual void Execute(const char* args) 
 	{
         if (bindConsoleCmds.m_bindConsoleCmds.empty())
             return;
@@ -892,13 +1502,13 @@ public:
 		{
             if (bindConsoleCmds.m_bindConsoleCmds.empty())
                 continue;
-            LPCSTR keyname = dik_to_keyname(it->first);
+            const char* keyname = dik_to_keyname(it->first);
             tips.push_back(keyname);
         }
     }
 };
 
-void ConsoleBindCmds::bind(int dik, LPCSTR N)
+void ConsoleBindCmds::bind(int dik, const char* N)
 {
 	_conCmd& c	= m_bindConsoleCmds[dik];
 	c.cmd		= N;
@@ -920,8 +1530,53 @@ void ConsoleBindCmds::clear()
 bool ConsoleBindCmds::execute(int dik)
 {
 	xr_map<int,_conCmd>::iterator it = m_bindConsoleCmds.find(dik);
-	if(it==m_bindConsoleCmds.end())
+	
+	if (it == m_bindConsoleCmds.end())
 		return false;
+
+	string512 buffer;
+	_GetItem(it->second.cmd.c_str(), 0, buffer, ' ');
+
+	if (buffer[0] != '\0')
+	{
+		if (IConsole_Command* cmd = Console->GetCommand(buffer))
+		{
+			if (CCC_Boolean* ccc_bool = cmd->dcast_bool())
+			{
+				ccc_bool->Toggle();
+				Console->Execute(ccc_bool->Name());
+				return true;
+			}
+
+			if (CCC_Integer* ccc_int = cmd->dcast_int())
+			{
+				ccc_int->Toggle();
+				Console->Execute(ccc_int->Name());
+				return true;
+			}
+
+			if (CCC_Mask16* ccc_mask16 = cmd->dcast_mask16())
+			{
+				ccc_mask16->Toggle();
+				Console->Execute(ccc_mask16->Name());
+				return true;
+			}
+			
+			if (CCC_Mask32* ccc_mask32 = cmd->dcast_mask32())
+			{
+				ccc_mask32->Toggle();
+				Console->Execute(ccc_mask32->Name());
+				return true;
+			}
+
+			if (CCC_Mask64* ccc_mask64 = cmd->dcast_mask64())
+			{
+				ccc_mask64->Toggle();
+				Console->Execute(ccc_mask64->Name());
+				return true;
+			}
+		}
+	}
 
 	Console->Execute(it->second.cmd.c_str());
 	return true;
@@ -933,7 +1588,7 @@ void ConsoleBindCmds::save(IWriter* F)
 	
 	for(;it!=m_bindConsoleCmds.end();++it)
 	{
-		LPCSTR keyname		= dik_to_keyname(it->first);
+		const char* keyname		= dik_to_keyname(it->first);
 		F->w_printf("bind_console %s%s\r\n", *it->second.cmd, keyname);
 	}
 }
@@ -943,8 +1598,12 @@ ENGINE_API void CCC_RegisterInput()
 	initialize_bindings									();
 	CMD2(CCC_Bind,				"bind",					0);
 	CMD2(CCC_Bind,				"bind_sec",				1);
+	CMD2(CCC_BindGamepad,		"bind_gamepad",			0);
+	CMD2(CCC_BindGamepad,		"bind_gamepad_sec",		1);
 	CMD2(CCC_UnBind,			"unbind",				0);
 	CMD2(CCC_UnBind,			"unbind_sec",			1);
+	CMD2(CCC_UnBindGamepad,		"unbind_gamepad",		0);
+	CMD2(CCC_UnBindGamepad,		"unbind_gamepad_sec",	1);
 	CMD1(CCC_UnBindAll,			"unbindall"				);
 	CMD1(CCC_DefControls,		"default_controls"		);
 	CMD1(CCC_ListActions,		"list_actions"			);

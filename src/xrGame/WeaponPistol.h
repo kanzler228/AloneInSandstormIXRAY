@@ -1,20 +1,19 @@
 #pragma once
-#include "WeaponCustomPistol.h"
+#include "WeaponMagazined.h"
 
-class CWeaponPistol :
-	public CWeaponCustomPistol
+class CWeaponPistol : public CWeaponMagazined
 {
-	typedef CWeaponCustomPistol inherited;
+	using inherited = CWeaponMagazined;
 public:
-					CWeaponPistol	();
-	virtual			~CWeaponPistol	();
+	CWeaponPistol() = default;
+	virtual	~CWeaponPistol() = default;
 
-	virtual void	Load			(LPCSTR section);
+	virtual void	Load			(const char* section);
 	virtual void	PlayAnimHide	();
 
 	virtual void	UpdateSounds	();
 protected:	
-	virtual bool	AllowFireWhileWorking() {return true;}
+	//virtual bool	AllowFireWhileWorking() {return true;}
 
-	ESoundTypes			m_eSoundClose;
+	ESoundTypes	m_eSoundClose = SOUND_TYPE_WEAPON_RECHARGING;
 };

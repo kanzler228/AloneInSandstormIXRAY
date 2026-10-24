@@ -5,7 +5,7 @@
 #include "Actor.h"
 #include "ExplosiveItem.h"
 #include "Level.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "game_base_kill_type.h"
 #include "game_base_menu_events.h"
 #include "UIGameCustom.h"
@@ -31,8 +31,8 @@
 #include "RegistryFuncs.h"
 #include "../xrGameSpy/xrGameSpy_MainDefs.h"
 #include "screenshot_server.h"
-#include "../xrCore/ppmd_compressor.h"
-#include "../xrCore/rt_compressor.h"
+#include "../xrCore/compression/ppmd/ppmd_compressor.h"
+#include "../xrCore/compression/rtc/rt_compressor.h"
 #include "game_cl_mp_snd_messages.h"
 #include "../3rd-party/crypto/crypto.h"
 
@@ -49,7 +49,7 @@
 #define KILLEVENT_GRID_HEIGHT	64
 
 
-BOOL g_draw_downloads = FALSE;
+bool g_draw_downloads = false;
 
 game_cl_mp::game_cl_mp()
 {
@@ -65,7 +65,7 @@ game_cl_mp::game_cl_mp()
 	m_pSndMessagesInPlay.clear();
 	m_aMessageMenus.clear();
 
-	m_bSpectatorSelected = FALSE;
+	m_bSpectatorSelected = false;
 	//-------------------------------------
 	m_u8SpectatorModes		= 0xff;
 	m_bSpectator_FreeFly	= true;
@@ -91,7 +91,9 @@ game_cl_mp::game_cl_mp()
 	pBuySpawnMsgBox->SetText(BuySpawnText);
 */	//-----------------------------------------------------------
 	m_ready_to_open_buy_menu	= true;
+#ifdef XR_MP_BUILD
 	crypto::xr_crypto_init();
+#endif
 };
 
 game_cl_mp::~game_cl_mp()
@@ -258,7 +260,7 @@ void	game_cl_mp::Vote()
 	m_pVoteRespondWindow->ShowDialog(true);
 }
 
-void	game_cl_mp::OnCantVoteMsg(LPCSTR Text)
+void	game_cl_mp::OnCantVoteMsg(const char* Text)
 {
 	if(CurrentGameUI()) 
 		CurrentGameUI()->CommonMessageOut(Text);
@@ -272,10 +274,10 @@ void game_cl_mp::GetActiveVoting()
 	u_EventSend		(P);
 }
 
-u32		Color_Teams_u32[3]	= {color_rgba(255,240,190,255), color_rgba(64,255,64,255), color_rgba(64,64,255,255)};
-LPCSTR	Color_Teams[3]	= {"%c[255,255,240,190]", "%c[255,64,255,64]", "%c[255,64,64,255]"};
+constexpr u32		Color_Teams_u32[3]	= {color_rgba(255,240,190,255), color_rgba(64,255,64,255), color_rgba(64,64,255,255)};
+const char*	Color_Teams[3]	= {"%c[255,255,240,190]", "%c[255,64,255,64]", "%c[255,64,64,255]"};
 char	Color_Main[]	= "%c[255,192,192,192]";
-u32		Color_Neutral_u32	= color_rgba(255,0,255,255);
+constexpr u32		Color_Neutral_u32	= color_rgba(255,0,255,255);
 char	Color_Red[]	= "%c[255,255,1,1]";
 char	Color_Green[]	= "%c[255,1,255,1]";
 
@@ -360,38 +362,42 @@ void game_cl_mp::TranslateGameMessage	(u32 msg, NET_Packet& P)
 		}break;
 	case GAME_EVENT_MAKE_DATA:
 		{
+#ifdef XR_MP_BUILD
 			clientdata_event_t etype = static_cast<clientdata_event_t>(P.r_u8());
 			if (etype == e_screenshot_request)
 			{
-			#ifdef XR_MP_BUILD
 				screenshot_manager::complete_callback_t compl_cb =
 					fastdelegate::MakeDelegate(this, &game_cl_mp::SendCollectedData);
 				ss_manager.make_screenshot(compl_cb);
-			#endif //  XR_MP_BUILD
-			} else if (etype == e_configs_request)
+			} 
+			else if (etype == e_configs_request)
 			{
 				mp_anticheat::configs_dumper::complete_callback_t compl_cb = 
 					fastdelegate::MakeDelegate(this, &game_cl_mp::SendCollectedData);
 				cd_manager.dump_config(compl_cb);
-			} else if (etype == e_screenshot_response)
+			} 
+			else if (etype == e_screenshot_response)
 			{
 				ClientID tmp_client(P.r_u32());
 				shared_str client_name;
 				P.r_stringZ(client_name);
 				PrepareToReceiveFile(tmp_client, client_name, e_screenshot_response);
-			} else if (etype == e_configs_response)
+			}
+			else if (etype == e_configs_response)
 			{
 				ClientID tmp_client(P.r_u32());
 				shared_str client_name;
 				P.r_stringZ(client_name);
 				PrepareToReceiveFile(tmp_client, client_name, e_configs_response);
-			} else
+			} 
+			else
 			{
 				ClientID tmp_client(P.r_u32());
 				shared_str error_msg;
 				P.r_stringZ(error_msg);
 				Msg("! File transfer error: from client [%u]: %s", tmp_client.value(), error_msg.c_str());
 			}
+#endif //  XR_MP_BUILD
 		}break;
 	case GAME_EVENT_RECEIVE_SERVER_LOGO:
 		{
@@ -414,7 +420,7 @@ void game_cl_mp::TranslateGameMessage	(u32 msg, NET_Packet& P)
 
 //////////////////////////////////////////////////////////////////////////
 
-void game_cl_mp::ChatSay(LPCSTR	phrase, bool bAll)
+void game_cl_mp::ChatSay(const char*	phrase, bool bAll)
 {
 	s16 team = ModifyTeam(local_player->team)+1;
 
@@ -546,7 +552,7 @@ void game_cl_mp::shedule_Update(u32 dt)
 	}
 }
 
-void game_cl_mp::SendStartVoteMessage	(LPCSTR args)
+void game_cl_mp::SendStartVoteMessage	(const char* args)
 {
 	if (!args) return;
 	if (!IsVotingEnabled()) return;
@@ -618,8 +624,8 @@ void game_cl_mp::LoadTeamData			(const shared_str& TeamName)
 		Team.IndicatorPos.y =  pSettings->r_float(TeamName, "indicator_y");
 		Team.IndicatorPos.z =  pSettings->r_float(TeamName, "indicator_z");
 		
-		LPCSTR ShaderType	= pSettings->r_string(TeamName, "indicator_shader");
-		LPCSTR ShaderTexture = pSettings->r_string(TeamName, "indicator_texture");
+		const char* ShaderType	= pSettings->r_string(TeamName, "indicator_shader");
+		const char* ShaderTexture = pSettings->r_string(TeamName, "indicator_texture");
 		Team.IndicatorShader->create(ShaderType, ShaderTexture);
 
 		ShaderType	= pSettings->r_string(TeamName, "invincible_shader");
@@ -640,7 +646,7 @@ void game_cl_mp::OnSwitchPhase			(u32 old_phase, u32 new_phase)
 	{
 	case GAME_PHASE_INPROGRESS:
 		{
-			m_bSpectatorSelected = FALSE;
+			m_bSpectatorSelected = false;
 
 			if(CurrentGameUI())
 			{
@@ -737,8 +743,15 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 	u16	WeaponID = P.r_u16();
 	SPECIAL_KILL_TYPE SpecialKill = SPECIAL_KILL_TYPE(P.r_u8());
 	//-----------------------------------------------------------
-	CObject* pOKiller = Level().Objects.net_Find(KillerID);
-	CObject* pWeapon = Level().Objects.net_Find(WeaponID);
+	
+	CGameObject* p_go_killer = nullptr;
+	CGameObject* p_go_weapon = nullptr;
+
+	CObject* p_obj_killer = Level().Objects.net_Find(KillerID);
+	CObject* p_obj_weapon = Level().Objects.net_Find(WeaponID);
+	
+	p_go_killer = p_obj_killer ? p_obj_killer->cast_game_object() : nullptr;
+	p_go_weapon = p_obj_weapon ? p_obj_weapon->cast_game_object() : nullptr;
 
 	game_PlayerState* pPlayer = GetPlayerByGameID(KilledID);
 	if (!pPlayer)
@@ -757,18 +770,17 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 	KMS.m_victim.m_color = Color_Teams_u32[ModifyTeam(pPlayer->team) + 1];
 
 	KMS.m_killer.m_name = nullptr;
-	KMS.m_killer.m_color = color_rgba(255,255,255,255);
+	constexpr u32 color = color_rgba(255, 255, 255, 255);
+	KMS.m_killer.m_color = color;
 
 	switch (KillType)
 	{
-		//-----------------------------------------------------------
-	case KT_HIT:			//from hit
+	case KT_HIT:
 		{
-			string1024	sWeapon = "", sSpecial = "";
-			if (pWeapon)
+			string1024 sWeapon = "", sSpecial = "";
+			if (p_obj_weapon)
 			{
-				CInventoryItem* pIItem = smart_cast<CInventoryItem*>(pWeapon);
-				if (pIItem)
+				if (CInventoryItem* pIItem = p_obj_weapon->cast_inventory_item())
 				{
 					KMS.m_initiator.m_shader = GetEquipmentIconsShader();
 					if (smart_cast<CExplosiveItem*>(pIItem))
@@ -779,16 +791,17 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 						KMS.m_initiator.m_rect.x2 = KMS.m_initiator.m_rect.x1 + 31;
 						KMS.m_initiator.m_rect.y2 = KMS.m_initiator.m_rect.y1 + 30;
 						xr_sprintf(sWeapon, *g_pStringTable->translate("mp_by_explosion"));
-					} else
+					}
+					else
 					{
-						KMS.m_initiator.m_rect	 = pIItem->GetKillMsgRect();
+						KMS.m_initiator.m_rect = pIItem->GetKillMsgRect();
 						KMS.m_initiator.m_rect.rb.add(KMS.m_initiator.m_rect.lt);
 						xr_sprintf(sWeapon, "%s %s", g_pStringTable->translate("mp_from").c_str(), pIItem->NameShort());
 					}
-				} else
+				}
+				else
 				{
-					CCustomZone* pAnomaly = smart_cast<CCustomZone*>(pWeapon);
-					if (pAnomaly)
+					if (p_go_weapon->cast_anomaly_zone())
 					{
 						KMS.m_initiator.m_shader = GetKillEventIconsShader();
 						KMS.m_initiator.m_rect.x1 = 1;
@@ -800,12 +813,11 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 				}
 			}
 
-			if (pKiller || pOKiller)
+			if (pKiller || p_obj_killer)
 			{
 				if (!pKiller)
 				{
-					CCustomZone* pAnomaly = smart_cast<CCustomZone*>(pOKiller);
-					if (pAnomaly)
+					if (p_go_killer->cast_anomaly_zone())
 					{
 						KMS.m_initiator.m_shader = GetKillEventIconsShader();
 						KMS.m_initiator.m_rect.x1 = 1;
@@ -815,32 +827,31 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 						Msg("%s killed by anomaly", *KMS.m_victim.m_name);
 						break;
 					}
-				};
+				}
 
 				if (pKiller)
 				{
-					KMS.m_killer.m_name = pKiller ? pKiller->getName() : *(pOKiller->cNameSect());
+					KMS.m_killer.m_name = pKiller ? pKiller->getName() : *(p_go_killer->cNameSect());
 					KMS.m_killer.m_color = pKiller ? Color_Teams_u32[ModifyTeam(pKiller->team) + 1] : Color_Neutral_u32;
-				};
-			};
-			//-------------------------------------------
+				}
+			}
+
 			switch (SpecialKill)
 			{
-			case SKT_NONE:		// not special
+			case SKT_NONE: // not special
 				{
-					if (pOKiller && pOKiller==Level().CurrentViewEntity())
+					if (p_go_killer && p_go_killer == Level().CurrentViewEntity())
 					{
-						//if (pWeapon && pWeapon->CLS_ID == CLSID_OBJECT_W_KNIFE)
-						if ( smart_cast<CWeaponKnife*>( pWeapon ) )
-						{
+						if (p_go_weapon && p_go_weapon->cast_weapon_knife())
 							PlaySndMessage(ID_BUTCHER);
-						}
-					};
-				}break;
-			case SKT_HEADSHOT:		// Head Shot
+					}
+				}
+				break;
+
+			case SKT_HEADSHOT:
 				{
 					BONUSES_it it = std::find(m_pBonusList.begin(), m_pBonusList.end(), "headshot");
-					if (it != m_pBonusList.end() && (*it == "headshot")) 
+					if (it != m_pBonusList.end() && (*it == "headshot"))
 					{
 						Bonus_Struct* pBS = &(*it);
 						KMS.m_ext_info.m_shader = pBS->IconShader;
@@ -848,17 +859,19 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 						KMS.m_ext_info.m_rect.y1 = pBS->IconRects[0].y1;
 						KMS.m_ext_info.m_rect.x2 = pBS->IconRects[0].x1 + pBS->IconRects[0].x2;
 						KMS.m_ext_info.m_rect.y2 = pBS->IconRects[0].y1 + pBS->IconRects[0].y2;
-					};
+					}
 
 					xr_sprintf(sSpecial, *g_pStringTable->translate("mp_with_headshot"));
 
-					if (pOKiller && pOKiller==Level().CurrentViewEntity())
+					if (p_go_killer && p_go_killer == Level().CurrentViewEntity())
 						PlaySndMessage(ID_HEADSHOT);
-				}break;
+				}
+				break;
+
 			case SKT_EYESHOT:
 				{
 					BONUSES_it it = std::find(m_pBonusList.begin(), m_pBonusList.end(), "eyeshot");
-					if (it != m_pBonusList.end() && (*it == "eyeshot")) 
+					if (it != m_pBonusList.end() && (*it == "eyeshot"))
 					{
 						Bonus_Struct* pBS = &(*it);
 						KMS.m_ext_info.m_shader = pBS->IconShader;
@@ -866,18 +879,19 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 						KMS.m_ext_info.m_rect.y1 = pBS->IconRects[0].y1;
 						KMS.m_ext_info.m_rect.x2 = pBS->IconRects[0].x1 + pBS->IconRects[0].x2;
 						KMS.m_ext_info.m_rect.y2 = pBS->IconRects[0].y1 + pBS->IconRects[0].y2;
-					};
-					
+					}
+
 					xr_sprintf(sSpecial, *g_pStringTable->translate("mp_with_eyeshot"));
 
-					if (pOKiller && pOKiller==Level().CurrentViewEntity())
+					if (p_go_killer && p_go_killer == Level().CurrentViewEntity())
 						PlaySndMessage(ID_ASSASSIN);
+				}
+				break;
 
-				}break;
-			case SKT_BACKSTAB:		// BackStab
+			case SKT_BACKSTAB:
 				{
 					BONUSES_it it = std::find(m_pBonusList.begin(), m_pBonusList.end(), "backstab");
-					if (it != m_pBonusList.end() && (*it == "backstab")) 
+					if (it != m_pBonusList.end() && (*it == "backstab"))
 					{
 						Bonus_Struct* pBS = &(*it);
 						KMS.m_ext_info.m_shader = pBS->IconShader;
@@ -885,13 +899,16 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 						KMS.m_ext_info.m_rect.y1 = pBS->IconRects[0].y1;
 						KMS.m_ext_info.m_rect.x2 = pBS->IconRects[0].x1 + pBS->IconRects[0].x2;
 						KMS.m_ext_info.m_rect.y2 = pBS->IconRects[0].y1 + pBS->IconRects[0].y2;
-					};
+					}
 
 					xr_sprintf(sSpecial, *g_pStringTable->translate("mp_with_backstab"));
-					if (pOKiller && pOKiller==Level().CurrentViewEntity())
-						PlaySndMessage(ID_ASSASSIN);					
-				}break;
+
+					if (p_go_killer && p_go_killer == Level().CurrentViewEntity())
+						PlaySndMessage(ID_ASSASSIN);
+				}
+				break;
 			}
+
 			//suicide
 			if (KilledID == KillerID)
 			{
@@ -902,17 +919,17 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 				KMS.m_ext_info.m_rect.y1 = 202;
 				KMS.m_ext_info.m_rect.x2 = KMS.m_ext_info.m_rect.x1 + 30;
 				KMS.m_ext_info.m_rect.y2 = KMS.m_ext_info.m_rect.y1 + 30;
-				//-------------------------------------
-				Msg(sWeapon[0] ? "%s killed himself by %s" : "%s killed himself" , *KMS.m_killer.m_name, sWeapon[0] ? sWeapon+5 : "");
+
+				Msg(sWeapon[0] ? "%s killed himself by %s" : "%s killed himself", *KMS.m_killer.m_name,
+				    sWeapon[0] ? sWeapon + 5 : "");
 			}
 			else
-			{
-				//-------------------------------------
-				Msg("%s killed %s %s%s", *KMS.m_killer.m_name, *KMS.m_victim.m_name, sWeapon, sSpecial[0] ? sSpecial : "");
-			}
-		}break;
-		//-----------------------------------------------------------
-	case KT_BLEEDING:			//from bleeding
+				Msg("%s killed %s %s%s", *KMS.m_killer.m_name, *KMS.m_victim.m_name, sWeapon,
+				    sSpecial[0] ? sSpecial : "");
+		}
+		break;
+
+	case KT_BLEEDING:
 		{
 			KMS.m_initiator.m_shader = GetBloodLossIconsShader();
 			KMS.m_initiator.m_rect.x1 = 238;
@@ -922,36 +939,32 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 
 			if (!pKiller)
 			{
-				CCustomZone* pAnomaly = smart_cast<CCustomZone*>(pOKiller);
-				if (pAnomaly)
+				if (p_go_killer->cast_anomaly_zone())
 				{
 					KMS.m_ext_info.m_shader = GetKillEventIconsShader();
-						KMS.m_ext_info.m_rect.x1 = 1;
-						KMS.m_ext_info.m_rect.y1 = 202;
-						KMS.m_ext_info.m_rect.x2 = KMS.m_ext_info.m_rect.x1 + 31;
-						KMS.m_ext_info.m_rect.y2 = KMS.m_ext_info.m_rect.y1 + 30;
+					KMS.m_ext_info.m_rect.x1 = 1;
+					KMS.m_ext_info.m_rect.y1 = 202;
+					KMS.m_ext_info.m_rect.x2 = KMS.m_ext_info.m_rect.x1 + 31;
+					KMS.m_ext_info.m_rect.y2 = KMS.m_ext_info.m_rect.y1 + 30;
 
 					Msg("%s died from bleeding, thanks to anomaly", *KMS.m_victim.m_name);
 					break;
 				}
-			};
+			}
 
 			if (pKiller)
 			{
-				KMS.m_killer.m_name = pKiller ? pKiller->getName() : *(pOKiller->cNameSect());
+				KMS.m_killer.m_name = pKiller ? pKiller->getName() : *(p_go_killer->cNameSect());
 				KMS.m_killer.m_color = pKiller ? Color_Teams_u32[ModifyTeam(pKiller->team) + 1] : Color_Neutral_u32;
-				//-----------------------------------------------------------------------				
 				Msg("%s died from bleeding, thanks to %s ", *KMS.m_victim.m_name, *KMS.m_killer.m_name);
 			}
 			else
-			{
-				//-----------------------------------------------------------------
 				Msg("%s died from bleeding", *KMS.m_victim.m_name);
-			};			
-		}break;
-		//-----------------------------------------------------------
-	case KT_RADIATION:			//from radiation
-		{			
+		}
+		break;
+
+	case KT_RADIATION: //from radiation
+		{
 			KMS.m_initiator.m_shader = GetRadiationIconsShader();
 			KMS.m_initiator.m_rect.x1 = 215;
 			KMS.m_initiator.m_rect.y1 = 195;
@@ -959,10 +972,13 @@ void game_cl_mp::OnPlayerKilled			(NET_Packet& P)
 			KMS.m_initiator.m_rect.y2 = KMS.m_initiator.m_rect.y1 + 24;
 			//---------------------------------------------------------
 			Msg("%s killed by radiation", *KMS.m_victim.m_name);
-		}break;
+		}
+		break;
+
 	default:
 		break;
 	}
+	
 	if (CurrentGameUI() && CurrentGameUI()->m_pMessagesWnd)
 		CurrentGameUI()->m_pMessagesWnd->AddLogMessage(KMS);
 };
@@ -1082,7 +1098,6 @@ void	game_cl_mp::OnEventMoneyChanged			(NET_Packet& P)
 {
 	if (!local_player) return;
 	
-	//CUIGameDM* pUIDM = smart_cast<CUIGameDM*>(m_game_ui_custom);
 	VERIFY2(m_game_ui_custom, "game ui not initialized");
 	local_player->money_for_round = P.r_s32();
 	OnMoneyChanged();
@@ -1099,14 +1114,13 @@ void	game_cl_mp::OnEventMoneyChanged			(NET_Packet& P)
 			m_game_ui_custom->DisplayMoneyChange	(MoneyStr);
 	};
 	u8 NumBonuses = P.r_u8();
-	s32 TotalBonusMoney = 0;
+
 	shared_str BonusStr = (NumBonuses > 1) ? "Your bonuses : " : ((NumBonuses == 1) ? "Your bonus : " : "");
 	for (u8 i=0; i<NumBonuses; i++)
 	{
 		s32 BonusMoney = P.r_s32();
 		SPECIAL_KILL_TYPE BonusReason = SPECIAL_KILL_TYPE(P.r_u8());
 		u8 BonusKills = (BonusReason == SKT_KIR)? P.r_u8() : 0;
-		TotalBonusMoney += BonusMoney;
 		//---------------------------------------------------------
 		KillMessageStruct BMS;
 		string256	MoneyStr;
@@ -1177,7 +1191,7 @@ void	game_cl_mp::OnSpectatorSelect		()
 {
 	CObject *l_pObj = Level().CurrentEntity();
 
-	CGameObject *l_pPlayer = smart_cast<CGameObject*>(l_pObj);
+	CGameObject *l_pPlayer = l_pObj != nullptr ? l_pObj->cast_game_object() : nullptr;
 	if(!l_pPlayer) return;
 
 	NET_Packet		P;
@@ -1187,7 +1201,7 @@ void	game_cl_mp::OnSpectatorSelect		()
 	P.w_u8(PLAYER_SELECT_SPECTATOR);
 	l_pPlayer->u_EventSend		(P);
 
-	m_bSpectatorSelected = TRUE;	
+	m_bSpectatorSelected = true;	
 };
 
 void	game_cl_mp::OnGameMenuRespond		(NET_Packet& P)
@@ -1231,7 +1245,7 @@ void	game_cl_mp::OnGameRoundStarted				()
 
 void game_cl_mp::SendPlayerStarted()
 {
-	LPCSTR map_name	= Level().name().c_str();
+	const char* map_name	= Level().name().c_str();
 	R_ASSERT2(map_name && (xr_strlen(map_name) > 0), "map name not present");
 
 	NET_Packet P;
@@ -1253,7 +1267,7 @@ void game_cl_mp::LoadBonuses				()
 	u32 BonusCount = pSettings->line_count("mp_bonus_money");
 	for (u32 i=0; i<BonusCount; i++)
 	{
-		LPCSTR line, name;
+		const char* line, *name;
 		pSettings->r_line("mp_bonus_money", i, &name, &line);
 		//-------------------------------------
 		string1024 tmp0, tmp1, IconStr;
@@ -1433,7 +1447,7 @@ void game_cl_mp::SendCollectedData(u8 const* buffer, u32 buffer_size, u32 uncomp
 
 void game_cl_mp::generate_file_name(
 		string_path& file_name,
-		LPCSTR file_suffix,
+		const char* file_suffix,
 		SYSTEMTIME const& date_time)
 {
 	xr_sprintf(
@@ -1450,7 +1464,7 @@ void game_cl_mp::generate_file_name(
 }
 
 
-LPCSTR game_cl_mp::make_file_name(LPCSTR session_id, string_path & dest)
+const char* game_cl_mp::make_file_name(const char* session_id, string_path & dest)
 {
 	xr_strcpy(dest, sizeof(dest), session_id);
 	static const char* denied_symbols = "/\\?%%*:|\"<>.";
@@ -1496,10 +1510,11 @@ void game_cl_mp::PrepareToReceiveFile(ClientID const & from_client, shared_str c
 	xr_strconcat(dest_file_name,
 		make_file_name(client_session_id.c_str(), screen_shot_fn)		
 	);
+#ifdef XR_MP_BUILD
 	SYSTEMTIME			date_time;
 	GetLocalTime		(&date_time);
 	generate_file_name	(screen_shot_fn, dest_file_name, date_time);
-	
+#endif
 	fr_callback_binder* tmp_binder = get_receiver_cb_binder();
 	if (!tmp_binder)
 	{
@@ -1650,7 +1665,7 @@ void  game_cl_mp::fr_callback_binder::receiving_serverinfo_callback(
 };
 
 
-void game_cl_mp::decompress_and_save_screenshot(LPCSTR file_name, u8* data, u32 data_size, u32 file_size)
+void game_cl_mp::decompress_and_save_screenshot(const char* file_name, u8* data, u32 data_size, u32 file_size)
 {
 	if (!file_size)
 	{
@@ -1685,8 +1700,9 @@ void game_cl_mp::decompress_and_save_screenshot(LPCSTR file_name, u8* data, u32 
 	FS.w_close(ftosave);
 }
 
-void game_cl_mp::decompress_and_process_config(LPCSTR file_name, u8* data, u32 data_size, u32 file_size)
+void game_cl_mp::decompress_and_process_config(const char* file_name, u8* data, u32 data_size, u32 file_size)
 {
+#ifdef XR_MP_BUILD
 	if (!file_size)
 	{
 		Msg("! ERROR: file size to save is 0...");
@@ -1726,6 +1742,7 @@ void game_cl_mp::decompress_and_process_config(LPCSTR file_name, u8* data, u32 d
 		add_detected_cheater(file_name, tmp_diff);
 		Msg("! CHEATER detected: %s, %s", file_name, tmp_diff);
 	}
+#endif
 }
 
 game_cl_mp::fr_callback_binder*	game_cl_mp::get_receiver_cb_binder()

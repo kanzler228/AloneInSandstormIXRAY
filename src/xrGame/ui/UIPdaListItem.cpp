@@ -1,17 +1,17 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "UIPdaListItem.h"
-#include "../actor.h"
+#include "../Actor.h"
 #include "UIInventoryUtilities.h"
 #include "../../xrEngine/string_table.h"
-
+#include "../../xrUI/UIHelper.h"
 #include "../../xrUI/xrUIXmlParser.h"
 #include "../../xrUI/UIXmlInit.h"
 
 #include "character_info.h"
 
 #include "../../xrUI/Widgets/UIFrameWindow.h"
-#include "..\InventoryOwner.h"
+#include "../InventoryOwner.h"
 #include "UICharacterInfo.h"
 #include "../../xrUI/Widgets/UIStatic.h"
 
@@ -34,6 +34,19 @@ void CUIPdaListItem::Init(float x, float y, float width, float height)
 
 	CUIXml uiXml;
 	uiXml.Load(CONFIG_PATH, UI_PATH, PDA_CONTACT_CHAR);
+
+	m_frame_selected = new CUIFrameWindow();
+	if (m_frame_selected->InitTexture("ui_inv_item_selector", false))
+	{
+		m_frame_selected->SetWidth(GetWidth());
+		m_frame_selected->SetHeight(GetHeight());
+		m_frame_selected->Show(false);
+		AttachChild(m_frame_selected);
+	}
+	else
+	{
+		xr_delete(m_frame_selected);
+	}
 
 	CUIXmlInit xml_init;
 	UIInfo = new CUICharacterInfo			();

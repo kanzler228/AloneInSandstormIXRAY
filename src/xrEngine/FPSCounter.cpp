@@ -1,64 +1,117 @@
 #include "stdafx.h"
-#include "device.h"
-#include "Stats.h"
-#include "GameFont.h"
-#include "XR_IOConsole.h"
 #include "FPSCounter.h"
-#include "../xrCore/appinfo.h"
 
+float fps_smoothing_alpha = .1f;
 ENGINE_API XRay::Hardware::FPSCounter* pFPSCounter = nullptr;
 
-using xr_clock = std::chrono::high_resolution_clock;
+u32 fps_text_current_pos = 1;
+u32 fps_text_current_font = 1;
+int fps_text_color_r = 0;
+int fps_text_color_g = 255;
+int fps_text_color_b = 0;
+int fps_text_color_a = 255;
+bool fps_text_outline = true;
 
-enum DebugTextColor : u64
+xr_token fps_text_pos_tokens[5] = 
 {
-	DTC_FPS_INFO = 0xFFFF8080,
+	{"top-left", 0},
+	{"top-right", 1},
+	{"bottom-left", 2},
+	{"bottom-right", 3},
+	{0, 0}
 };
+
+xr_token fps_font_tokens[] = 
+{
+	{"stat_font", 0},
+	{"ui_font_console", 1},
+	{"hud_font_medium", 2},
+	{"ui_font_letterica16_russian", 3},
+	{"ui_font_letterica18_russian", 4},
+	{0, 0}
+};
+
+constexpr float fps_update_interval = 0.23f;
+
+float accum_time = 0.f;
+u32 accum_frames = 0;
 
 XRay::Hardware::FPSCounter::FPSCounter()
 {
-	pCGameFont = g_FontManager->CloneFont("ui_font_console");
+	for (int i = 0; fps_font_tokens[i].name != nullptr; ++i)
+	{
+		fonts_.push_back(nullptr);
+	}
+
+	UpdateFont();
+}
+
+void XRay::Hardware::FPSCounter::UpdateFont()
+{
+	const u32 index = std::min<u32>(fps_text_current_font, u32(fonts_.size() - 1));
+
+	if (fonts_[index] == nullptr)
+	{
+		fonts_[index] = g_FontManager->CloneFont(fps_font_tokens[index].name);
+		VERIFY(fonts_[index]);
+	}
+
+	font_ = fonts_[index];
 }
 
 void XRay::Hardware::FPSCounter::OnRender()
 {
-	auto GetMonitorHZLambda = []() -> u32
+	float dt = Device.fTimeDeltaContinual;
+
+	if (dt < EPS_S)
 	{
-		int DisplayID = SDL_GetDisplayForWindow(g_AppInfo.Window);
-		if (DisplayID < 0)
-		{
-			return 0u;
-		}
+		return;
+	}
 
-		const SDL_DisplayMode* DisplayModePtr = SDL_GetDesktopDisplayMode(DisplayID);
-		if (DisplayModePtr == nullptr)
-		{
-			return 0u;
-		}
+	accum_time += dt;
+	accum_frames += 1;
 
-		return static_cast<u32>(DisplayModePtr->refresh_rate);
-	};
+	if (accum_time >= fps_update_interval)
+	{
+		fps = accum_frames / accum_time;
+		ft = (accum_time / accum_frames) * 1000.f;
 
-	pCGameFont->SetHeight(0.013f);
+		accum_time = 0.f;
+		accum_frames = 0;
+	}
 
-	static auto lastFrameTime = xr_clock::now();
-	auto currentTime = xr_clock::now();
-	currentTime = xr_clock::now();
-	std::chrono::duration<double> frameDuration = currentTime - lastFrameTime;
-	lastFrameTime = currentTime;
+	UpdateFont();
 
-	float fps = 0.f;
-	static float prevFps = 0.f;
+	shared_str text;
+	text.printf("FPS: %.0f (%.2fms)", fps, ft);
 
-	if ((Device.dwFrame % GetMonitorHZLambda()) == 0)
-		fps = 1.f / (float)frameDuration.count();
+	float x = text_screen_padding;
+	float y = text_screen_padding;
 
-	fps = (fps == 0.0f) ? prevFps : fps;
+#ifndef MASTER_GOLD
+	if (CImGuiManager::Instance().IsGUIRendering())
+	{
+		y += 20.f;
+	}
+#endif
 
-	pCGameFont->SetAligment(CGameFont::alLeft);
-	pCGameFont->SetColor(DebugTextColor::DTC_FPS_INFO);
-	pCGameFont->Out(psCurrentVidMode[0] - pCGameFont->GetHeight() * 4.5f, 35, "FPS: %i", static_cast<int>(fps));
-	pCGameFont->OnRender();
+	if (fps_text_current_pos == 1u || fps_text_current_pos == 3u)
+	{
+		x = static_cast<float>(Device.TargetWidth) - font_->SizeOf_(*text) - text_screen_padding;
+	}
 
-	prevFps = fps;
+	if (fps_text_current_pos >= 2u)
+	{
+		y = static_cast<float>(Device.TargetHeight) - font_->GetHeight() - text_screen_padding;
+	}
+
+	font_->SetOutline(fps_text_outline);
+	font_->SetOutlineColor(color_rgba(0u, 0u, 0u, fps_text_color_a / 3));
+	font_->SetOutlineOffset(1.f);
+
+	font_->SetColor(color_rgba(fps_text_color_r, fps_text_color_g, fps_text_color_b, fps_text_color_a));
+	font_->OutSet(x, y);
+	font_->OutNext(*text);
+
+	font_->OnRender();
 }

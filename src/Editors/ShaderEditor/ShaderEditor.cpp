@@ -2,44 +2,52 @@
 //
 #include "stdafx.h"
 #include "../../xrEngine/xr_input.h"
-#include "xrECore/Splash.h"
+#include "../xrPlay/Splash.h"
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* pCmdLine, int nCmdShow)
 {
 	if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_EVENTS))
 	{
 		Msg("! SDL_Init Error: %s", SDL_GetError());
 		return 0;
 	}
+	splash::SetBackground(IDB_SE);
+	std::jthread s(splash::Show);
 
-	splash::show(IDB_SE);
-
-	splash::update(5, "Initializing Debugger");
+	splash::SetProgressStatus(5, "Initializing Debugger");
 
 	Debug._initialize(false);
 
-	splash::update(15, "Initializing Core System");
+	splash::SetProgressStatus(15, "Initializing Core System");
 
-	const char* FSName = "fs.ltx";
-	Core._initialize("Shader", ELogCallback, 1, FSName);
+    const char* FSName = "fs.ltx";
+    const char* fsgame_ltx_name = "-fsltx ";
+    string_path fsgame = "";
 
-	splash::update(35, "Initializing Shader Tools");
+    if (strstr(pCmdLine, fsgame_ltx_name)) {
+        int						sz = xr_strlen(fsgame_ltx_name);
+        sscanf(strstr(pCmdLine, fsgame_ltx_name) + sz, "%[^ ] ", fsgame);
+    }
+
+    Core._initialize("Shader", ELogCallback, 1, fsgame[0] ? fsgame : FSName);
+
+	splash::SetProgressStatus(35, "Initializing Shader Tools");
 
 	Tools = new CShaderTool();
 	STools = (CShaderTool*)Tools;
 
-	splash::update(60, "Registering UI Commands");
+	splash::SetProgressStatus(60, "Registering UI Commands");
 
 	UI = new CShaderMain();
 	UI->RegisterCommands();
 
-	splash::update(85, "Creating Main UI Form");
+	splash::SetProgressStatus(85, "Creating Main UI Form");
 	UIMainForm* MainForm = new UIMainForm();
 	::MainForm = MainForm;
 	UI->Push(MainForm, false);
 
-	splash::update(100, "Finalizing");
-	splash::hide();
+	splash::SetProgressStatus(100, "Finalizing");
+	splash::Close();
 
 	bool NeedExit = false;
 	while (!NeedExit)
@@ -49,9 +57,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		{
 			switch (Event.type)
 			{
-			case SDL_EVENT_WINDOW_MAXIMIZED:
-				EDevice->MaximizedWindow();
-				break;
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
 			{
 				SDL_WindowID MainWndID = SDL_GetWindowID(g_AppInfo.Window);
@@ -120,7 +125,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		}
 		MainForm->Frame();
 	}
-
+	s.join();
 	xr_delete(MainForm);
 	Core._destroy();
 	return 0;

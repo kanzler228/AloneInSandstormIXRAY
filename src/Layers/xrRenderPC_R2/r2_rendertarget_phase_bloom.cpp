@@ -72,7 +72,7 @@ void CRenderTarget::phase_bloom	()
 	// Clear	- don't clear - it's stupid here :)
 	// Stencil	- disable
 	// Misc		- draw everything (no culling)
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		FALSE				));
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		false				));
 
 	// Transfer into Bloom1
 	{
@@ -115,7 +115,7 @@ void CRenderTarget::phase_bloom	()
 		RCache.set_Element			(s_bloom->E[0]);
 		RCache.set_c				("b_params", s,s,s,	f_bloom_factor);
 		RCache.set_Geometry			(g_bloom_build		);
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 
 	// Capture luminance values
@@ -142,12 +142,12 @@ void CRenderTarget::phase_bloom	()
 		// P0
 		u_setrt						(rt_Bloom_2,nullptr,nullptr,nullptr);			// No need for ZBuffer at all
 		RCache.set_Element			(s_bloom->E[3]);
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 
 		// P1
 		u_setrt						(rt_Bloom_1,nullptr,nullptr,nullptr);			// No need for ZBuffer at all
 		RCache.set_Element			(s_bloom->E[4]);
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	} else {
 		// SLOW FILTER
 		// Transfer into Bloom2, horizontal filter
@@ -227,7 +227,7 @@ void CRenderTarget::phase_bloom	()
 			RCache.set_ca				("weight", 0,			w0);
 			RCache.set_ca				("weight", 1,			w1);
 			RCache.set_Geometry			(g_bloom_filter);
-			RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+			RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 		}
 
 		// Transfer into Bloom1, vertical filter
@@ -307,18 +307,18 @@ void CRenderTarget::phase_bloom	()
 			RCache.set_ca				("weight", 0,			w0);
 			RCache.set_ca				("weight", 1,			w1);
 			RCache.set_Geometry			(g_bloom_filter);
-			RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+			RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 		}
 	}
 
 	// we are left here with bloom-target setup as primary one
 	// for FP16-BLEND capable HW we can blend flares into smaller target, because they are smooth
-	//if (RImplementation.o.fp16_blend)		g_pGamePersistent->Environment().RenderFlares	();	// lens-flares
-	bool	_menu_pp		= g_pGamePersistent?g_pGamePersistent->OnRenderPPUI_query():false;
-	if (_menu_pp)			{
-		CHK_DX				(RDevice->Clear( 0L, nullptr, D3DCLEAR_TARGET,	0,	1.0f, 0L));
-	};
+	bool _menu_pp = g_pGamePersistent?g_pGamePersistent->OnRenderPPUI_query():false;
+	if (_menu_pp)
+	{
+		GRHI->ClearTarget(RCache.get_RT());
+	}
 
 	// re-enable z-buffer
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	TRUE				));
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	true				));
 }

@@ -19,11 +19,6 @@ file(GLOB CORE_SOURCE_MATH_FILES
 	"_*.h"
 )
 
-file(GLOB CORE_SOURCE_LZ_FILES
-	"LzHuf*.cpp"
-	"lzhuf.h"
-)
-
 file(GLOB CORE_SOURCE_XML_FILES "FormatParsers/XML/*.*")
 file(GLOB CORE_SOURCE_JSON_FILES "FormatParsers/json/*.*")
 file(GLOB CORE_SOURCE_YAML_FILES "FormatParsers/YAML/*.*")
@@ -75,8 +70,11 @@ file(GLOB_RECURSE CORE_SOURCE_ALL_FILES CONFIGURE_DEPENDS
 	"*.h"
 )
 
-file(GLOB CORE_SOURCE_RT_FILES "rt_c*.*")
-file(GLOB CORE_SOURCE_PPMD_FILES "ppmd_*.*")
+file(GLOB CORE_SOURCE_RT_FILES "compression/rtc/*.*")
+file(GLOB CORE_SOURCE_PPMD_FILES "compression/ppmd/*.*")
+file(GLOB CORE_SOURCE_LZO_FILES "compression/lzo/*.*")
+file(GLOB CORE_SOURCE_LZSS_FILES "compression/lzss/*.*")
+file(GLOB CORE_SOURCE_PV3_FILES "compression/pv3/*.*")
 file(GLOB_RECURSE CORE_SOURCE_DISCORD_FILES "discord/*.*")
 file(GLOB CORE_SOURCE_XR_API_FILES "API/*.*")
 file(GLOB CORE_SOURCE_XR_API_PLATF_FILES "Platform/*.*")
@@ -100,9 +98,11 @@ source_group("memory/p3malloc" FILES ${CORE_SOURCE_MEMORY_P3_FILES})
 source_group("debug" FILES ${CORE_SOURCE_DEBUG_FILES})
 source_group("collision/engine" FILES ${CORE_SOURCE_COLLSION_FILES})
 source_group("collision/opcode" FILES ${CORE_SOURCE_COLLSION_OPCODE_FILES})
-source_group("compressors/rt" FILES ${CORE_SOURCE_RT_FILES})
-source_group("compressors/lz" FILES ${CORE_SOURCE_LZ_FILES})
+source_group("compressors/rtc" FILES ${CORE_SOURCE_RT_FILES})
+source_group("compressors/lzss" FILES ${CORE_SOURCE_LZSS_FILES})
+source_group("compressors/lzo" FILES ${CORE_SOURCE_LZO_FILES})
 source_group("compressors/ppmd" FILES ${CORE_SOURCE_PPMD_FILES})
+source_group("compressors/pv3" FILES ${CORE_SOURCE_PV3_FILES})
 source_group("core/fs" FILES ${CORE_SOURCE_FS_FILES})
 source_group("core/stl" FILES ${CORE_SOURCE_STL_FILES})
 source_group("core/formats/YAML" FILES ${CORE_SOURCE_YAML_FILES})
@@ -134,14 +134,16 @@ list(FILTER CORE_SRC_FILES EXCLUDE REGEX "ptmalloc3/tst-independent-alloc.c")
 if (MSVC)
 	list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/Linux/")
 	list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/BSD/")
+	list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/MacOS/")
 else()
 	list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/Windows/")
 	list(FILTER CORE_SRC_FILES EXCLUDE REGEX "discord/api/")
 
 	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 		list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/BSD/")
+		list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/MacOS/")
 	else()
-		list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/BSD/")
+		list(FILTER CORE_SRC_FILES EXCLUDE REGEX "Platform/Linux/")
 	endif()
 endif()
 
@@ -159,12 +161,11 @@ endif()
 
 # Includes 
 target_include_directories(xrCore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(xrCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../3rd-party/lzo/include")
-target_include_directories(xrCore PUBLIC ${IXRAY_SDK_INC})
+target_include_directories(xrCore PUBLIC ${EXTERNAL_INCLUDE_DIR})
 target_include_directories(xrCore PUBLIC ${CMAKE_BINARY_DIR}/dep)
 
 if (NOT WIN32)
-	target_include_directories(xrCore PUBLIC ${IXRAY_SDK_INC}/linux)
+	target_include_directories(xrCore PUBLIC ${EXTERNAL_INCLUDE_DIR}/linux)
 endif()
 
 # Move precompiled header
@@ -175,7 +176,7 @@ target_compile_definitions(xrCore PRIVATE XRCORE_EXPORTS)
 target_compile_definitions(xrCore PRIVATE _USRDLL)
 
 # Profiler
-if (IXRAY_PROFILER)
+if (IXRAY_PROFILER AND NOT IXRAY_PROFILER_TRACY)
 	target_include_directories(xrCore PUBLIC "${CORE_OPT}build/native/include/")
 	target_link_directories(xrCore PUBLIC "${CORE_OPT}runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/")
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -183,50 +184,31 @@ if (IXRAY_PROFILER)
 	)
 	target_compile_definitions(xrCore PUBLIC "IXRAY_PROFILER")
 	target_link_libraries(xrCore PUBLIC "OptickCore")
+elseif (IXRAY_PROFILER_TRACY)
+	target_compile_definitions(xrCore PUBLIC "IXRAY_PROFILER_TRACY")
+	target_link_libraries(xrCore PUBLIC TracyClient)
 endif()
 
 # Linker list
 target_link_libraries(xrCore PUBLIC SDL3-shared)
+target_link_libraries(xrCore PUBLIC TBB::tbb)
+target_link_libraries(xrCore PUBLIC LZO::lzo2)
+target_link_libraries(xrCore PRIVATE yaml-cpp)
 target_link_libraries(xrCore PRIVATE opcode-prosectors)
 
 if(WIN32)
-	if (NOT IXR_ARM_ENABLE)
+	if(NOT IXR_ARM_ENABLE AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 		target_link_libraries(xrCore PRIVATE dxerr)
 	endif()
 
-	target_link_libraries(xrCore PRIVATE "dbghelp.lib")
-	target_link_libraries(xrCore PRIVATE "winmm.lib")
-	target_link_libraries(xrCore PRIVATE "faultrep.lib")
-
-	target_link_libraries(xrCore PRIVATE ${CMAKE_BINARY_DIR}/dep/discord_gamesdk/lib/${NUGET_PACKAGE_PLATFORM_EX}/discord_game_sdk.dll.lib)
+	target_link_libraries(xrCore PRIVATE DiscordSDK::discord)
+	target_link_libraries(xrCore PRIVATE WindowsSDK::WinMM)
+	target_link_libraries(xrCore PRIVATE WindowsSDK::DBGHELP)
+	target_link_libraries(xrCore PRIVATE WindowsSDK::FAULTREP)
 endif()
 
 # Git Info
 include(gitver.cmake)
-
-## Platform specific (NEED REWORK!!!)
-if(WIN32)
-	target_include_directories(xrCore PUBLIC ${YAML_INCL})
-	target_link_libraries(xrCore PUBLIC ${YAML_LIB})
-
-	target_link_libraries(xrCore PUBLIC ${LZO_LIB})
-	target_include_directories(xrCore PUBLIC ${LZO}/build/native/include/)
-
-	target_link_libraries(xrCore PUBLIC ${IXR_TBB_LIB})
-	target_include_directories(xrCore PUBLIC ${IXR_TBB_INC})
-
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${IXR_TBB_SDK}/runtimes/win7-${NUGET_PACKAGE_PLATFORM}/native/Release/tbb12.dll ${IXRAY_OUTPUT}
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/dep/discord_gamesdk/lib/${NUGET_PACKAGE_PLATFORM_EX}/discord_game_sdk.dll ${IXRAY_OUTPUT}
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LZO}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/lzo2.dll ${IXRAY_OUTPUT}
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${YAML_BIN} ${IXRAY_OUTPUT}/${YAML_LIB_NAME}
-	)
-else()
-	target_include_directories(xrCore PUBLIC ${LZO_INCLUDE_DIR})
-	target_link_libraries(xrCore PUBLIC TBB::tbb)
-	target_link_libraries(xrCore PUBLIC ${LZO_LIBRARY})
-	target_link_libraries(xrCore PUBLIC yaml-cpp)
-endif()
 
 # Set relative runpath
 if(NOT WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")

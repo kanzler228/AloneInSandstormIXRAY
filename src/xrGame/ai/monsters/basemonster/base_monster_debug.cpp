@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "base_monster.h"
 #include "../../../Level.h"
@@ -295,7 +295,7 @@ void CBaseMonster::debug_fsm()
 	xr_sprintf(st, "Team[%u]Squad[%u]Group[%u]", g_Team(), g_Squad(), g_Group());
 	DBG().object_info(this, this).add_item(st, color_xrgb(255, 0, 0), 2);
 
-	CEntityAlive *entity = smart_cast<CEntityAlive *>(Level().CurrentEntity());
+	CEntityAlive *entity = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_entity_alive() : nullptr;
 	if (entity && entity->character_physics_support()->movement()) {
 		xr_sprintf(st,"VELOCITY [%f,%f,%f] Value[%f]",VPUSH(entity->character_physics_support()->movement()->GetVelocity()),entity->character_physics_support()->movement()->GetVelocityActual());
 		DBG().text(this).clear();
@@ -385,7 +385,7 @@ void   add_debug_info_restrictions (debug::text_tree& root_s, const xr_string& r
 {
 }
 
-void   add_enemy_debug_info (debug::text_tree& root_s, const CCustomMonster* pThis, const CEntityAlive* pEnemy)
+void   add_enemy_debug_info (debug::text_tree& root_s, const CCreature* pThis, const CEntityAlive* pEnemy)
 {
 }
 

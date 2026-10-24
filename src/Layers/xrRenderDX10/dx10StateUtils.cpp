@@ -5,23 +5,6 @@
 
 namespace dx10StateUtils
 {
-
-D3D_CULL_MODE ConvertCullMode(D3DCULL Mode)
-{
-	switch (Mode)
-	{
-	case D3DCULL_NONE:
-		return D3D_CULL_NONE;
-	case D3DCULL_CW:
-		return D3D_CULL_FRONT;
-	case D3DCULL_CCW:
-		return D3D_CULL_BACK;
-	default:
-		VERIFY(!"Unexpected cull mode!");
-		return D3D_CULL_NONE;
-	}
-}
-
 D3D_COMPARISON_FUNC ConvertCmpFunction(D3DCMPFUNC Func)
 {
 	switch (Func)
@@ -138,23 +121,23 @@ D3D_BLEND_OP ConvertBlendOp(D3DBLENDOP Op)
 	}
 }
 
-D3D_TEXTURE_ADDRESS_MODE	ConvertTextureAddressMode(D3DTEXTUREADDRESS Mode)
+ERHI_TEXTURE_ADDRESS_MODE ConvertTextureAddressMode(D3DTEXTUREADDRESS Mode)
 {
 	switch(Mode)
 	{
 	case D3DTADDRESS_WRAP:
-		return D3D_TEXTURE_ADDRESS_WRAP;
+		return ERHI_TEXTURE_ADDRESS_MODE::WRAP;
 	case D3DTADDRESS_MIRROR:
-		return D3D_TEXTURE_ADDRESS_MIRROR;
+		return ERHI_TEXTURE_ADDRESS_MODE::MIRROR;
 	case D3DTADDRESS_CLAMP:
-		return D3D_TEXTURE_ADDRESS_CLAMP;
+		return ERHI_TEXTURE_ADDRESS_MODE::CLAMP;
 	case D3DTADDRESS_BORDER:
-		return D3D_TEXTURE_ADDRESS_BORDER;
+		return ERHI_TEXTURE_ADDRESS_MODE::BORDER;
 	case D3DTADDRESS_MIRRORONCE:
-		return D3D_TEXTURE_ADDRESS_MIRROR_ONCE;
+		return ERHI_TEXTURE_ADDRESS_MODE::MIRROR_ONCE;
 	default:
 		VERIFY(!"ConvertTextureAddressMode can't convert argument!");
-		return D3D_TEXTURE_ADDRESS_CLAMP;
+		return ERHI_TEXTURE_ADDRESS_MODE::CLAMP;
 	}
 }
 
@@ -162,24 +145,24 @@ void ResetDescription( D3D_RASTERIZER_DESC &desc )
 {
 	ZeroMemory(&desc, sizeof(desc));
 	desc.FillMode = D3D_FILL_SOLID;
-	desc.CullMode = D3D_CULL_BACK;
-	desc.FrontCounterClockwise = FALSE;
+	desc.CullMode = D3D11_CULL_MODE::D3D11_CULL_BACK;
+	desc.FrontCounterClockwise = false;
 	desc.DepthBias = 0;
 	desc.DepthBiasClamp = 0.0f;
 	desc.SlopeScaledDepthBias = 0.0f;
-	desc.DepthClipEnable = TRUE;
-	desc.ScissorEnable = FALSE;
-	desc.MultisampleEnable = FALSE;
-	desc.AntialiasedLineEnable = FALSE;
+	desc.DepthClipEnable = true;
+	desc.ScissorEnable = false;
+	desc.MultisampleEnable = false;
+	desc.AntialiasedLineEnable = false;
 }
 
 void ResetDescription( D3D_DEPTH_STENCIL_DESC &desc )
 {
 	ZeroMemory(&desc, sizeof(desc));
-	desc.DepthEnable = TRUE;
+	desc.DepthEnable = true;
 	desc.DepthWriteMask = D3D_DEPTH_WRITE_MASK_ALL;
 	desc.DepthFunc = D3D_COMPARISON_LESS;
-	desc.StencilEnable = TRUE;
+	desc.StencilEnable = true;
 	desc.StencilReadMask = 0xFF;
 	desc.StencilWriteMask = 0xFF;
 
@@ -198,8 +181,8 @@ void ResetDescription( D3D_BLEND_DESC &desc )
 {
 	ZeroMemory(&desc, sizeof(desc));
 
-	desc.AlphaToCoverageEnable = FALSE;
-	desc.IndependentBlendEnable = FALSE;
+	desc.AlphaToCoverageEnable = false;
+	desc.IndependentBlendEnable = false;
 
 	for ( int i=0; i<8; ++i)
 	{
@@ -209,22 +192,22 @@ void ResetDescription( D3D_BLEND_DESC &desc )
 		desc.RenderTarget[i].SrcBlendAlpha = D3D_BLEND_ONE;
 		desc.RenderTarget[i].DestBlendAlpha = D3D_BLEND_ZERO;
 		desc.RenderTarget[i].BlendOpAlpha = D3D_BLEND_OP_ADD;
-		desc.RenderTarget[i].BlendEnable = FALSE;
+		desc.RenderTarget[i].BlendEnable = false;
 		desc.RenderTarget[i].RenderTargetWriteMask = D3D_COLOR_WRITE_ENABLE_ALL;
 	}
 }
 
-void ResetDescription( D3D_SAMPLER_DESC &desc )
+void ResetDescription(RHISampleDesc& desc)
 {
 	ZeroMemory(&desc, sizeof(desc));
 
-	desc.Filter = D3D_FILTER_MIN_MAG_MIP_LINEAR;
-	desc.AddressU = D3D_TEXTURE_ADDRESS_CLAMP;
-	desc.AddressV = D3D_TEXTURE_ADDRESS_CLAMP;
-	desc.AddressW = D3D_TEXTURE_ADDRESS_CLAMP;
+	desc.Filter = ERHI_FILTER::MIN_MAG_MIP_LINEAR;
+	desc.AddressU = ERHI_TEXTURE_ADDRESS_MODE::CLAMP;
+	desc.AddressV = ERHI_TEXTURE_ADDRESS_MODE::CLAMP;
+	desc.AddressW = ERHI_TEXTURE_ADDRESS_MODE::CLAMP;
 	desc.MipLODBias = 0;
 	desc.MaxAnisotropy = 1;
-	desc.ComparisonFunc = D3D_COMPARISON_NEVER;
+	desc.ComparisonFunc = ERHI_COMPARISON_FUNC::NEVER;
 	desc.BorderColor[0] = 1.0f;
 	desc.BorderColor[1] = 1.0f;
 	desc.BorderColor[2] = 1.0f;
@@ -298,26 +281,6 @@ bool operator==(const D3D_BLEND_DESC &desc1, const D3D_BLEND_DESC &desc2)
 	return true;
 }
 
-bool operator==(const D3D_SAMPLER_DESC &desc1, const D3D_SAMPLER_DESC &desc2)
-{
-	if( desc1.Filter != desc2.Filter) return false;
-	if( desc1.AddressU != desc2.AddressU) return false;
-	if( desc1.AddressV != desc2.AddressV) return false;
-	if( desc1.AddressW != desc2.AddressW) return false;
-	//	Ignore anisotropy and bias since it's set up automatically by the manager
-	//if( desc1.MipLODBias != desc2.MipLODBias) return false;
-//	if( desc1.MaxAnisotropy != desc2.MaxAnisotropy) return false;
-	if( desc1.ComparisonFunc != desc2.ComparisonFunc) return false;
-	if( desc1.BorderColor[0] != desc2.BorderColor[0]) return false;
-	if( desc1.BorderColor[1] != desc2.BorderColor[1]) return false;
-	if( desc1.BorderColor[2] != desc2.BorderColor[2]) return false;
-	if( desc1.BorderColor[3] != desc2.BorderColor[3]) return false;
-	if( desc1.MinLOD != desc2.MinLOD) return false;
-	if( desc1.MaxLOD != desc2.MaxLOD) return false;
-
-	return true;
-}
-
 u32 GetHash( const D3D_RASTERIZER_DESC &desc )
 {
 	dxHashHelper	Hash;
@@ -382,24 +345,24 @@ u32 GetHash( const D3D_BLEND_DESC &desc )
 	return Hash.GetHash();
 }
 
-u32 GetHash( const D3D_SAMPLER_DESC &desc )
+u32 GetHash(const RHISampleDesc& desc)
 {
-	dxHashHelper	Hash;
+	dxHashHelper Hash;
 
-	Hash.AddData( &desc.Filter, sizeof(desc.Filter) );
-	Hash.AddData( &desc.AddressU, sizeof(desc.AddressU) );
-	Hash.AddData( &desc.AddressV, sizeof(desc.AddressV) );
-	Hash.AddData( &desc.AddressW, sizeof(desc.AddressW) );
+	Hash.AddData(&desc.Filter, sizeof(desc.Filter));
+	Hash.AddData(&desc.AddressU, sizeof(desc.AddressU));
+	Hash.AddData(&desc.AddressV, sizeof(desc.AddressV));
+	Hash.AddData(&desc.AddressW, sizeof(desc.AddressW));
 	//	Ignore anisotropy and bias since it's set up automatically by the manager
 	//Hash.AddData( &desc.MipLODBias, sizeof(desc.MipLODBias) );
 //	Hash.AddData( &desc.MaxAnisotropy, sizeof(desc.MaxAnisotropy) );
-	Hash.AddData( &desc.ComparisonFunc, sizeof(desc.ComparisonFunc) );
-	Hash.AddData( &desc.BorderColor[0], sizeof(desc.BorderColor[0]) );
-	Hash.AddData( &desc.BorderColor[1], sizeof(desc.BorderColor[1]) );
-	Hash.AddData( &desc.BorderColor[2], sizeof(desc.BorderColor[2]) );
-	Hash.AddData( &desc.BorderColor[3], sizeof(desc.BorderColor[3]) );
-	Hash.AddData( &desc.MinLOD, sizeof(desc.MinLOD) );
-	Hash.AddData( &desc.MaxLOD, sizeof(desc.MaxLOD) );
+	Hash.AddData(&desc.ComparisonFunc, sizeof(desc.ComparisonFunc));
+	Hash.AddData(&desc.BorderColor[0], sizeof(desc.BorderColor[0]));
+	Hash.AddData(&desc.BorderColor[1], sizeof(desc.BorderColor[1]));
+	Hash.AddData(&desc.BorderColor[2], sizeof(desc.BorderColor[2]));
+	Hash.AddData(&desc.BorderColor[3], sizeof(desc.BorderColor[3]));
+	Hash.AddData(&desc.MinLOD, sizeof(desc.MinLOD));
+	Hash.AddData(&desc.MaxLOD, sizeof(desc.MaxLOD));
 
 	return Hash.GetHash();
 }
@@ -438,7 +401,7 @@ void ValidateState(D3D_DEPTH_STENCIL_DESC &desc)
 
 void ValidateState(D3D_BLEND_DESC &desc)
 {
-	BOOL	bBlendEnable = FALSE;
+	int bBlendEnable = false;
 
 	for ( int i=0; i<8; ++i)
 	{
@@ -506,20 +469,19 @@ void ValidateState(D3D_BLEND_DESC &desc)
 	}
 }
 
-void ValidateState(D3D_SAMPLER_DESC &desc)
+void ValidateState(RHISampleDesc& desc)
 {
-	if (	(desc.AddressU != D3D_TEXTURE_ADDRESS_BORDER)
-		 &&	(desc.AddressV != D3D_TEXTURE_ADDRESS_BORDER)
-		 &&	(desc.AddressW != D3D_TEXTURE_ADDRESS_BORDER))
+	if ((desc.AddressU != ERHI_TEXTURE_ADDRESS_MODE::BORDER)
+		&& (desc.AddressV != ERHI_TEXTURE_ADDRESS_MODE::BORDER)
+		&& (desc.AddressW != ERHI_TEXTURE_ADDRESS_MODE::BORDER))
 	{
-		for (int i=0; i<4; ++i)
+		for (int i = 0; i < 4; ++i)
 		{
 			desc.BorderColor[i] = 0.0f;
 		}
 	}
 
-	if (	(desc.Filter != D3D_FILTER_ANISOTROPIC)
-		 && (desc.Filter != D3D_FILTER_COMPARISON_ANISOTROPIC))
+	if (desc.Filter != ERHI_FILTER::ANISOTROPIC && desc.Filter != ERHI_FILTER::COMPARISON_ANISOTROPIC)
 	{
 		desc.MaxAnisotropy = 1;
 	}

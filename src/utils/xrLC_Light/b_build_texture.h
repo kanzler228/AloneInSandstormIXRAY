@@ -1,29 +1,30 @@
 #pragma once
-#include "../../Layers/xrRender/ETextureParams.h" 
+#include "../../xrEngine/ETextureParams.h" 
 
 struct b_BuildTexture :
 	public b_texture
 {
 	STextureParams THM;
 
-	IC void	SetHasSurface(BOOL val)
+	IC void	SetHasSurface(bool val)
 	{
 		THM.flags.set(STextureParams::flHasSurface, val);
 	}
 
-	IC BOOL HasSurface()const
+	IC bool HasSurface()const
 	{
 		return THM.flags.is(STextureParams::flHasSurface);
 	}
 
 	u32& Texel(u32 x, u32 y)
 	{
-		return pSurface[y * dwWidth + x];
+		u32* raw_data = static_cast<u32*>(*pSurface);
+		return raw_data[y * dwWidth + x];
 	}
 
 	void Vflip()
 	{
-		R_ASSERT(pSurface);
+		R_ASSERT(!pSurface.Empty());
 		for (u32 y = 0; y < dwHeight / 2; y++)
 		{
 			u32 y2 = dwHeight - y - 1;

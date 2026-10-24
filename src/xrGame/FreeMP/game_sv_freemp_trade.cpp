@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "game_sv_freemp.h"
 #include "Level.h"
 #include "trade.h"
@@ -13,11 +13,15 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 	u16 playerID = P.r_u16();
 	s32 totalPrice = P.r_s32();
 
-	auto pActor = smart_cast<CActor*>(Level().Objects.net_Find(playerID));
+	CObject* finded_object = Level().Objects.net_Find(playerID);
+
+	CActor* pActor = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
 	if (!pActor)
 		return;
 
-	auto pTrader = smart_cast<CInventoryOwner*>(Level().Objects.net_Find(traderID));
+	finded_object = Level().Objects.net_Find(traderID);
+
+	CInventoryOwner* pTrader = finded_object != nullptr ? finded_object->cast_inventory_owner() : nullptr;
 	if (!pTrader)
 		return;
 
@@ -28,7 +32,7 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 	if (isSelling)
 	{
 		u32	itemsCount = P.r_u32();
-		xr_vector<CInventoryItem*> items;
+		xr_vector<CInventoryItem*> items = {};
 		items.reserve(itemsCount);
 		s32 svTotalPrice = 0;
 		float itemCondition;
@@ -38,7 +42,8 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 		{
 			P.r_u16(itemId);
 			P.r_float(itemCondition);
-			auto pItem = smart_cast<CInventoryItem*>(Level().Objects.net_Find(itemId));
+			finded_object = Level().Objects.net_Find(itemId);
+			CInventoryItem* pItem = finded_object != nullptr ? finded_object->cast_inventory_item() : nullptr;
 			if (pItem)
 			{
 				items.push_back(pItem);
@@ -65,7 +70,7 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 			P.w_u32(Device.dwTimeGlobal - 2 * NET_Latency);
 			P.w_u16(GE_DESTROY);
 			P.w_u16(pItem->object_id());
-			Level().Send(P, net_flags(TRUE, TRUE));
+			Level().Send(P, net_flags(true, true));
 
 			CSE_Abstract* E = spawn_begin(pItem->m_section_id.c_str());
 			E->ID_Parent = pTrader->object_id();
@@ -94,7 +99,8 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 		{
 			P.r_u16(itemId);
 			P.r_u16(itemCount);
-			auto pItem = smart_cast<CInventoryItem*>(Level().Objects.net_Find(itemId));
+			CObject* finded_object = Level().Objects.net_Find(itemId);
+			CInventoryItem* pItem = finded_object != nullptr ? finded_object->cast_inventory_item() : nullptr;
 			if (pItem)
 			{
 				sellMap[pItem->m_section_id] = itemCount;
@@ -115,7 +121,7 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 				P.w_u32(Device.dwTimeGlobal - 2 * NET_Latency);
 				P.w_u16(GE_DESTROY);
 				P.w_u16(pItem->object_id());
-				Level().Send(P, net_flags(TRUE, TRUE));
+				Level().Send(P, net_flags(true, true));
 			}
 		}
 
@@ -127,7 +133,7 @@ void game_sv_freemp::OnPlayerTrade(NET_Packet& P, ClientID const& clientID)
 		auto it = sellMap.cbegin(), it_e = sellMap.cend();
 		for (; it != it_e; it++)
 		{
-			LPCSTR itemName = *it->first;
+			const char* itemName = *it->first;
 			u16 itemsCount = it->second;
 			for (u16 i = 0; i < itemsCount; ++i)
 			{

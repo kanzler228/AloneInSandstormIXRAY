@@ -1,11 +1,11 @@
 #include "StdAfx.h"
 #include "Build.h"
 #include "OGF_Face.h"
-//#include "std_classes.h"
-#include "../../xrCore/FS.h"
+
 #include "../../xrEngine/Fmesh.h"
 #include "xrOcclusion.h"
 
+#include "../../Editors/Public/VIMP_Processor.h"
 
 using namespace std;
 
@@ -18,13 +18,13 @@ void set_status(char* N, int id, int f, int v)
 	clMsg	(status_str);
 }
 
-BOOL OGF_Vertex::similar(OGF* ogf, OGF_Vertex& V)
+bool OGF_Vertex::similar(OGF* ogf, OGF_Vertex& V)
 {
-	const float ntb		= _cos	(deg2rad(5.f));
-	if (!P.similar(V.P)) 		return FALSE;
-	if (!N.similar(V.N)) 		return FALSE;
-	if (!T.similar(V.T)) 		return FALSE;
-	if (!B.similar(V.B)) 		return FALSE;
+	const float ntb		= std::cos	(deg2rad(5.f));
+	if (!P.similar(V.P)) 		return false;
+	if (!N.similar(V.N)) 		return false;
+	if (!T.similar(V.T)) 		return false;
+	if (!B.similar(V.B)) 		return false;
 	
 	R_ASSERT(UV.size()==V.UV.size());
 	for (u32 i=0; i<V.UV.size(); i++) {
@@ -32,15 +32,15 @@ BOOL OGF_Vertex::similar(OGF* ogf, OGF_Vertex& V)
 		b_texture	*B = T->pBuildSurface;
 		float		eu = 1.f/float(B->dwWidth );
 		float		ev = 1.f/float(B->dwHeight);
-		if (!UV[i].similar(V.UV[i],eu,ev)) return FALSE;
+		if (!UV[i].similar(V.UV[i],eu,ev)) return false;
 	}
-	return TRUE;
+	return true;
 }
 void OGF_Vertex::dump	(u32 id)
 {
 //	Msg	("%d: ");
 }
-BOOL x_vertex::similar	(OGF* ogf, x_vertex& V)
+bool x_vertex::similar	(OGF* ogf, x_vertex& V)
 {
 	return P.similar(V.P);
 }
@@ -94,12 +94,12 @@ void OGF::_BuildFace	(OGF_Vertex& V1, OGF_Vertex& V2, OGF_Vertex& V3, bool _tc_)
 				data.vertices.erase(data.vertices.begin()+VertCount,data.vertices.end());
 	}
 }
-BOOL OGF::dbg_SphereContainsVertex(Fvector& c, float R)
+bool OGF::dbg_SphereContainsVertex(Fvector& c, float R)
 {
 	Fsphere	S;	S.set(c,R);
 	for (u32 it=0; it<data.vertices.size(); it++)
-		if (S.contains(data.vertices[it].P))	return	TRUE;
-	return FALSE	;
+		if (S.contains(data.vertices[it].P))	return	true;
+	return false	;
 }
 
 void OGF::adjacent_select	(xr_vector<u32>& dest, xr_vector<bool>& vmark, xr_vector<bool>& fmark)
@@ -117,13 +117,13 @@ void OGF::adjacent_select	(xr_vector<u32>& dest, xr_vector<bool>& vmark, xr_vect
 			dest.push_back	(F.v[2]);	vmark[F.v[2]]=true;
 		} else {
 			// check connectivity
-			BOOL	bConnected	=	FALSE;
+			bool	bConnected	=	false;
 			for (u32 vid=0; vid<3; vid++)	{
 				u32		id = F.v	[vid];	// search in already registered verts
 				for (u32 sid=0; sid<dest.size(); sid++)
 				{
 					if (id==dest[sid])	{
-						bConnected	= TRUE;	// this face shares at least one vertex with already selected faces
+						bConnected	= true;	// this face shares at least one vertex with already selected faces
 						break;
 					}
 				}
@@ -148,54 +148,6 @@ void OGF::Optimize()
 		return;
 	}
 
-	// Real optimization
-	//////////////////////////////////////////////////////////////////////////
-	// x-vertices
-	try {
-		if (fast_path_data.vertices.size() && fast_path_data.faces.size())
-		{
-			try
-			{
-				VERIFY	(fast_path_data.vertices.size()	<= data.vertices.size()	);
-				VERIFY	(fast_path_data.faces.size()		== data.faces.size()		);
-			} catch(...) {
-				Msg	("* ERROR: optimize: x-geom : verify: failed");
-			}
-
-			// Optimize texture coordinates
-			/*
-			Fvector2 Tdelta;
-			try {
-				// 1. Calc bounds
-				Fvector2 Tmin,Tmax;
-				Tmin.set(flt_max,flt_max);
-				Tmax.set(flt_min,flt_min);
-				for (u32 j=0; j<x_vertices.size(); j++)			{
-					x_vertex& V = x_vertices[j];
-					//Tmin.min	(V.UV);
-					//Tmax.max	(V.UV);
-				}
-				Tdelta.x = floorf((Tmax.x-Tmin.x)/2+Tmin.x);
-				Tdelta.y = floorf((Tmax.y-Tmin.y)/2+Tmin.y);
-			} catch(...) {
-				Msg	("* ERROR: optimize: x-geom : bounds: failed");
-			}
-
-			// 2. Recalc UV mapping
-			try {
-				for (u32 i=0; i<x_vertices.size(); i++)
-					x_vertices[i].UV.sub	(Tdelta);
-			} catch(...) {
-				Msg	("* ERROR: optimize: x-geom : recalc : failed");
-			}
-			*/
-		}
-	} 
-	catch(...)
-	{
-		Msg	("* ERROR: optimize: x-geom : failed");
-	}
-
 	//////////////////////////////////////////////////////////////////////////
 	// Detect relevant number of UV pairs
 	try {
@@ -203,27 +155,17 @@ void OGF::Optimize()
 		dwRelevantUV		= data.vertices.front().UV.size();
 		const Shader_xrLC*	SH	= pBuild->shaders().Get(pBuild->materials()[material].reserved);
 		if (!SH->flags.bOptimizeUV)		return;
-	} catch(...) {
+	} 
+	catch(...) {
 		Msg	("* ERROR: optimize: std-geom : find relevant UV");
 	}
-
-	// Build p-rep
-	/*
-	typedef xr_vector<u32>	flist	;
-	xr_vector<flist>		prep	;	prep.resize(vertices.size());
-	for (u32 fit=0; fit<faces.size(); fit++)	{
-		OGF_Face&	F		= faces	[fit];
-		prep[F.v[0]].push_back		(fit);
-		prep[F.v[1]].push_back		(fit);
-		prep[F.v[2]].push_back		(fit);
-	}
-	*/
 
 	// Optimize texture coordinates
 	xr_vector<bool>	vmarker;	vmarker.assign	(data.vertices.size(),false);
 	xr_vector<bool>	fmarker;	fmarker.assign	(data.faces.size(),false);
 
-	for (;;)	{
+	for (;;)
+	{
 		// 0. Search for the group
 		xr_vector<u32>	selection		;
 		for (;;)	{
@@ -253,7 +195,8 @@ void OGF::Optimize()
 		}
 
 		// 2. Recalc UV mapping
-		try {
+		try 
+		{
 			for (u32 i=0; i<selection.size(); i++)
 				data.vertices[selection[i]].UV[0].sub(Tdelta);
 		} catch(...) {
@@ -265,6 +208,7 @@ void OGF::Optimize()
 
 thread_local VIMP_Processor make_progressive_vimp;
 
+#include "../xrForms/CompilersUI.h"
 // Make Progressive
 void OGF::MakeProgressive	(float metric_limit)
 {
@@ -272,12 +216,12 @@ void OGF::MakeProgressive	(float metric_limit)
 	// there is no-sense to simplify small models
 	// for batch size 50,100,200 - we are CPU-limited anyway even on nv30
 	// for nv40 and up the better guess will probably be around 500
-	if (data.faces.size() < c_PM_FaceLimit * 4)		return;			// nv40 Òåïåðü òîëüêî
+	if (data.faces.size() < c_PM_FaceLimit * 4)		return;			// nv40 Ð¢ÐµÐ¿ÐµÑ€ÑŒ Ñ‚Ð¾Ð»ÑŒÐºÐ¾
 
- 	if (g_params().m_quality==ebqDraft)			return;
-	if (g_build_options.b_noise)				return;
+ 	if (g_params().m_quality==ebqDraft)				return;
+	if (!gCompilerMode.LC_OGF_PROGRESSIVE)			return;
 
-	// Åñòü øàíñ ñëîâèòü âûëåò
+	// Ð•ÑÑ‚ÑŒ ÑˆÐ°Ð½Ñ ÑÐ»Ð¾Ð²Ð¸Ñ‚ÑŒ Ð²Ñ‹Ð»ÐµÑ‚
 	if (data.faces.size() > 32 * 1024)
 	{
 		clMsg("xmesh : Processing to big faces : %u", data.faces.size());
@@ -466,7 +410,7 @@ void OGF_Node::Save	(IWriter &fs)
 	fs.close_chunk		();
 }
 
-extern u16	RegisterShader	(LPCSTR T);
+extern u16	RegisterShader	(const char* T);
 
 void OGF_LOD::Save		(IWriter &fs)
 {

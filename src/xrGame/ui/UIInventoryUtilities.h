@@ -1,11 +1,10 @@
 #pragma once
 
 #include "../inventory_item.h"
-#include "character_info_defs.h"
 
 #include "../../xrUI/ui_defs.h"
 
-class CUITextWnd;
+class CUIStatic;
 
 //размеры сетки в текстуре инвентаря
 #define INV_GRID_WIDTH(SCALE_ICON) (50.0f * SCALE_ICON)
@@ -74,27 +73,56 @@ enum EDatePrecision
 	edpDateToYear
 };
 
+struct InventoryIconParams
+{
+	const char* _3d_static_visual;
+	Fvector _3d_static_rotate;
+	float _3d_static_scale;
+	float scaleIcon;
+
+	const char* icons_texture;
+	float inv_grid_x;
+	float inv_grid_y;
+	float inv_grid_width;
+	float inv_grid_height;
+};
+
+struct ConditionDisplayParams
+{
+	float state;
+	bool usePortion;
+	int portionCurrent;
+	int portionMax;
+	bool hideBackground;
+	bool disableGradient;
+};
+
 const shared_str GetGameDateAsString(EDatePrecision datePrec, char dateSeparator = ',');
 const shared_str GetGameTimeAsString(ETimePrecision timePrec, char timeSeparator = ':');
 const shared_str GetDateAsString(ALife::_TIME_ID time, EDatePrecision datePrec, char dateSeparator = ',');
+const shared_str GetDateAsStringLegacy(ALife::_TIME_ID time, EDatePrecision datePrec, char dateSeparator = '/');
 const shared_str GetTimeAsString(ALife::_TIME_ID time, ETimePrecision timePrec, char timeSeparator = ':', bool full_mode = true);
-const shared_str GetTimeAndDateAsString(ALife::_TIME_ID time);
+const shared_str GetTimeAndDateAsString(ALife::_TIME_ID time, bool legacyMode = false);
 const shared_str Get_GameTimeAndDate_AsString();
 
-LPCSTR GetTimePeriodAsString	(LPSTR _buff, u32 buff_sz, ALife::_TIME_ID _from, ALife::_TIME_ID _to);
+const char* GetTimePeriodAsString	(LPSTR _buff, u32 buff_sz, ALife::_TIME_ID _from, ALife::_TIME_ID _to);
 // Отобразить вес, который несет (*pInvOwner)
-void UpdateWeightStr(CUITextWnd &wnd, CUITextWnd &wnd_max, CInventoryOwner *pInvOwner);
+void UpdateWeight(CUIStatic& wnd, bool withPrefix = false);
+void UpdateWeightStr(CUIStatic* weightLabel, CUIStatic& wnd_max, CInventoryOwner* pInvOwner);
+void UpdateVolumeStr(CUIStatic* volumeLabel, CUIStatic* volumeMax, CInventoryOwner* pInvOwner);
 
 // Функции получения строки-идентификатора ранга и отношения по их числовому идентификатору
-LPCSTR	GetRankAsText				(CHARACTER_RANK_VALUE		rankID);
-LPCSTR	GetReputationAsText			(CHARACTER_REPUTATION_VALUE rankID);
-LPCSTR	GetGoodwillAsText			(CHARACTER_GOODWILL			goodwill);
+const char*	GetRankAsText				(s32		rankID);
+const char*	GetReputationAsText			(s32 rankID);
+const char*	GetGoodwillAsText			(s32			goodwill);
 
 void	ClearCharacterInfoStrings	();
 
-void	SendInfoToActor				(LPCSTR info_id);
+void	SendInfoToActor				(const char* info_id);
 void	SendInfoToLuaScripts		(shared_str info);
-u32		GetGoodwillColor			(CHARACTER_GOODWILL gw);
+u32		GetGoodwillColor			(s32 gw);
 u32		GetRelationColor			(ALife::ERelationType r);
-u32		GetReputationColor			(CHARACTER_REPUTATION_VALUE rv);
+u32		GetReputationColor			(s32 rv);
+InventoryIconParams	GetInventoryIconParams(const char* section);
+ConditionDisplayParams GetConditionDisplayParams(CInventoryItem* item);
 };

@@ -1,19 +1,16 @@
 #include "stdafx.h"
-
-
 #include "FS_internal.h"
-#include "lzhuf.h"
 
 //////////////////////////////////////////////////////////////////////
 // Tools
 //////////////////////////////////////////////////////////////////////
 //---------------------------------------------------
-void VerifyPath(LPCSTR path)
+void VerifyPath(const char* path)
 {
 	string1024 tmp;
 	for (int i = 0; path[i]; i++) 
 	{
-		if (path[i] != '\\' || i == 0)
+		if (path[i] != Platform::kPreferredSeparator[0] || i == 0)
 			continue;
 		CopyMemory(tmp, path, i);
 		tmp[i] = 0;
@@ -21,7 +18,7 @@ void VerifyPath(LPCSTR path)
 	}
 }
 
-static errno_t open_internal(LPCSTR fn, int& handle)
+static errno_t open_internal(const char* fn, int& handle)
 {
 	const char* FileName = Platform::ValidPath(fn);
 	return _wsopen_s
@@ -32,7 +29,7 @@ static errno_t open_internal(LPCSTR fn, int& handle)
 			);
 }
 
-bool file_handle_internal(LPCSTR file_name, intptr_t& size, int& file_handle)
+bool file_handle_internal(const char* file_name, intptr_t& size, int& file_handle)
 {
 	if (open_internal(file_name, file_handle))
 	{
@@ -41,15 +38,12 @@ bool file_handle_internal(LPCSTR file_name, intptr_t& size, int& file_handle)
 			return (false);
 	}
 
-#ifdef IXR_WINDOWS
 	size = _filelengthi64(file_handle);
-#else
-	size = _filelength(file_handle);
-#endif
+	
 	return (true);
 }
 
-void *FileDownload(LPCSTR file_name, const int &file_handle, intptr_t&file_size)
+void *FileDownload(const char* file_name, const int &file_handle, intptr_t&file_size)
 {
 	void *buffer = Memory.mem_alloc(file_size);
 
@@ -60,7 +54,7 @@ void *FileDownload(LPCSTR file_name, const int &file_handle, intptr_t&file_size)
 	return (buffer);
 }
 
-void* FileDownload(LPCSTR file_name, intptr_t& buffer_size)
+void* FileDownload(const char* file_name, intptr_t& buffer_size)
 {
 	int file_handle;
 	bool HandleComplete = file_handle_internal(file_name, buffer_size, file_handle);
@@ -105,7 +99,7 @@ void* FileDecompress(const char* fn, const char* sign, intptr_t& size)
 	}
 	R_ASSERT(strncmp(M, F, 8) == 0);
 
-	void* ptr = 0;
+	void* ptr = nullptr;
 	intptr_t SZ;
 	SZ = _readLZ(H, ptr, _filelength(H) - 8);
 	_close(H);
@@ -133,7 +127,7 @@ void CMemoryWriter::w(const void* ptr, u32 count)
 			mem_size *= 2;
 		}
 
-		if (0 == data)
+		if (nullptr == data)
 		{
 			data = (u8*)Memory.mem_alloc(mem_size);
 		}
@@ -153,7 +147,7 @@ void CMemoryWriter::w(const void* ptr, u32 count)
 }
 
 //static const u32 mb_sz = 0x1000000;
-bool CMemoryWriter::save_to(LPCSTR fn)
+bool CMemoryWriter::save_to(const char* fn)
 {
 	IWriter* F = FS.w_open(fn);
 	if (F)
@@ -163,6 +157,13 @@ bool CMemoryWriter::save_to(LPCSTR fn)
 		return 		true;
 	}
 	return false;
+}
+
+void CBufferMemoryWriter::w(const void* ptr, u32 count)
+{
+	R_ASSERT(position+count <= GetBuffer().size());
+	CopyMemory(GetBuffer().data()+position, ptr, count);
+	position += count;
 }
 
 void IWriter::open_chunk	(u32 type)
@@ -194,7 +195,7 @@ u32	IWriter::chunk_size	()					// returns size of currently opened chunk, 0 othe
 
 void IWriter::w_compressed(void* ptr, u32 count)
 {
-	u8*		dest	= 0;
+	u8*		dest	= nullptr;
 	unsigned	dest_sz	= 0;
 	_compressLZ	(&dest,&dest_sz,ptr,count);
 	
@@ -247,7 +248,7 @@ void IWriter::w_printf(const char* format, ...)
 // base stream
 IReader* IReader::open_chunk(u32 ID)
 {
-	BOOL bCompressed;
+	bool bCompressed;
 
 	size_t	dwSize = find_chunk(ID, &bCompressed);
 	if (dwSize != 0)
@@ -265,7 +266,7 @@ IReader* IReader::open_chunk(u32 ID)
 		}
 	}
 	
-	return 0;
+	return nullptr;
 }
 
 void IReader::close()
@@ -276,14 +277,14 @@ void IReader::close()
 
 #include "FS_impl.h"
 
-intptr_t IReader::find_chunk(u32 ID, BOOL* bCompressed)
+intptr_t IReader::find_chunk(u32 ID, bool* bCompressed)
 {
 	return inherited::find_chunk(ID, bCompressed);
 }
 
 IReader* IReader::open_chunk_iterator(u32& ID, IReader* _prev)
 {
-	if (0 == _prev)
+	if (nullptr == _prev)
 	{
 		// first
 		rewind();
@@ -323,16 +324,16 @@ void IReader::r	(void *p, intptr_t cnt)
 	CopyMemory		(p,pointer(),cnt);
 	advance			(cnt);
 #ifdef DEBUG
-	BOOL	bShow		= FALSE		;
-	if (cast_file_reader())			bShow = TRUE;
-	if (cast_virtual_file_reader())	bShow = TRUE;
+	bool	bShow		= false		;
+	if (cast_file_reader())			bShow = true;
+	if (cast_virtual_file_reader())	bShow = true;
 	if (bShow)			{
   		FS.dwOpenCounter	++		;
 	}
 #endif
 };
 
-IC BOOL is_term(char a)
+IC bool is_term(char a)
 { 
 	return (a==13)||(a==10);
 }
@@ -464,6 +465,77 @@ CVirtualFileRW::~CVirtualFileRW()
 	CloseHandle(hSrcMap);
 #endif
 	Platform::CloseFile(hSrcFile);
+}
+
+void CMultiReader::AppendReader(IReader& reader)
+{
+	readers.emplace_back(FullSize, &reader);
+	FullSize += reader.length();
+}
+
+void CMultiReader::advance(intptr_t cnt)
+{
+	R_ASSERT(Pos + cnt >= 0); // we can move backward, right?
+	R_ASSERT(Pos + cnt <= FullSize);
+	Pos += cnt;
+	VERIFY(reader_index < readers.size());
+	if (Pos < readers[reader_index].first)
+	{
+		do
+		{
+			VERIFY(reader_index > 0);
+			reader_index--;
+		} while (Pos < readers[reader_index].first);
+	} else
+	{
+		while (reader_index + 1 < readers.size() && Pos > readers[reader_index + 1].first)
+		{
+			reader_index++;
+		}
+	}
+	readers[reader_index].second->seek(Pos - readers[reader_index].first);
+}
+
+void CMultiReader::r(void* p, intptr_t cnt)
+{
+	R_ASSERT(cnt > 0); // we can move backward, right?
+	R_ASSERT(Pos + cnt <= FullSize);
+	auto ElapsedToRead = cnt;
+	auto CurPtr = (u8*)p;
+	while (ElapsedToRead > 0)
+	{
+		VERIFY(reader_index < readers.size());
+		auto& reader = readers[reader_index];
+		auto ToRead = std::min(ElapsedToRead, reader.second->elapsed());
+		reader.second->r(CurPtr, ToRead);
+		CurPtr += ToRead;
+		ElapsedToRead -= ToRead;
+		if (reader.second->eof())
+		{
+			reader_index++;
+		}
+		if (!IVERIFY(ElapsedToRead >= 0))
+		{
+			break;
+		}
+	}
+	Pos += cnt;
+}
+
+void CMultiReader::seek(intptr_t ptr)
+{
+	R_ASSERT(Pos >= 0); // we can move backward, right?
+	R_ASSERT(Pos <= FullSize);
+	Pos = ptr;
+	for (reader_index = 0; reader_index < readers.size(); reader_index++)
+	{
+		if (readers[reader_index].first > Pos)
+		{
+			reader_index--;
+			break;
+		}
+	}
+	readers[reader_index].second->seek(Pos - readers[reader_index].first);
 }
 
 CVirtualFileReader::CVirtualFileReader(const char* cFileName)

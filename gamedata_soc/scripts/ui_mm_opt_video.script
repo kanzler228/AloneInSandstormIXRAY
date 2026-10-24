@@ -9,34 +9,32 @@ end
 
 function opt_video:InitControls(x, y, xml, handler)
 
-	self:Init(x,y, 738, 416)
+	self:SetWndPos(vector2():set(x,y))
+	self:SetWndSize(vector2():set(738,416))
 	self:SetAutoDelete(true)
+	if xml:NodeExist("frame", 0) then
+		self.bk = xml:InitFrame			("frame", self)
+	end
 	
-	self.bk = xml:InitFrame			("frame", self)
+	self.focusList = {}
+	self.scroll_v = xml:InitScrollView("main_dialog:scroll_v", self)
 
-	xml:InitStatic					("tab_video:cap_fullscreen",		self)
-	xml:InitCheck					("tab_video:check_fullscreen",		self)
+	handler.combo_renderer = handler:addComboBox(self, true, "ui_mm_renderer", "renderer", 3, false, system_depends.sdSystemRestart, "combo_renderer")
+	handler.combo_preset = handler:addComboBox(self, true, "ui_mm_quality_presets", "_preset", 6, false, system_depends.sdSystemRestart, "combo_preset")
+	handler:addComboBox(self, true, "ui_mm_resolution", "vid_mode", 7, false, system_depends.sdVidRestart)
 
-	xml:InitStatic					("tab_video:cap_brightness",		self)
-	xml:InitTrackBar				("tab_video:track_brightness",		self)
+	handler:addTrack(self, true, "ui_mm_brightness", "rs_c_brightness", 0.1, false, "float", false, system_depends.sdApplyOnChange)
+	handler:addTrack(self, true, "ui_mm_contrast", "rs_c_contrast", 0.1, false, "float", false, system_depends.sdApplyOnChange)
+	handler:addTrack(self, true, "ui_mm_gamma", "rs_c_gamma", 0.1, false, "float", false, system_depends.sdApplyOnChange)
+	handler:addTrack(self, true, "ui_mm_bloom_amount", "r2_bloom_amount", 0.01, false, "float", true, system_depends.sdNothing)
+	
+	handler:addCheck(self, true, "ui_mm_fullscreen", "rs_fullscreen", system_depends.sdVidRestart)
+	handler:addCheck(self, true, "ui_rs_device_active", "rs_device_active", system_depends.sdNothing)
+	handler:addCheck(self, true, "ui_mm_vsync", "rs_v_sync", system_depends.sdVidRestart)
 
-	xml:InitStatic					("tab_video:cap_contrast",			self)
-	xml:InitTrackBar				("tab_video:track_contrast",		self)
+	handler:addComboBox(self, true, "ui_mm_screenshot_format", "r__screenshot_format", 3, false, system_depends.sdApplyOnChange)
 
-	xml:InitStatic					("tab_video:cap_gamma",				self)
-	xml:InitTrackBar				("tab_video:track_gamma",			self)
-
-	xml:InitStatic					("tab_video:cap_resolution",		self)
-	xml:InitComboBox				("tab_video:list_resolution",		self)
-
-	xml:InitStatic					("tab_video:cap_preset",			self)
-	handler.combo_preset = xml:InitComboBox("tab_video:list_presets",	self)
-	handler:Register				(handler.combo_preset,				"combo_preset")
-
-	xml:InitStatic					("tab_video:cap_renderer",			self)
-	handler.combo_r2 = xml:InitComboBox("tab_video:list_renderer",		self)
-	handler:Register				(handler.combo_r2, "combo_r2")
-
-	btn		= xml:Init3tButton		("tab_video:btn_advanced",	self)	
-	handler:Register				(btn, "btn_advanced_graphic")	
+	self.btn_advanced = xml:Init3tButton("main_dialog:btn_template", self)
+	self.btn_advanced:SetTextST("ui_mm_advanced")
+	handler:Register(self.btn_advanced, "btn_advanced_graphic")
 end

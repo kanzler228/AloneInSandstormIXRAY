@@ -15,18 +15,15 @@
 
 #include <d3d11_1.h>
 #include <D3DCompiler.h>
-#include "../xrRenderDX10/DxgiFormat.h"
 
 #include "../xrRenderDX10/DXCommonTypes.h"
-
-#include "../xrRender/Debug/dxGPUEventWrapper.h"
 
 #define		R_R1	1
 #define		R_R2	2
 #define		R_R4	4
 #define		RENDER	R_R4
 
-#include "../../xrParticles/psystem.h"
+#include "../xrRender/particle_core/psystem.h"
 
 #include "../xrRender/HW.h"
 #include "../xrRender/Shader.h"
@@ -44,7 +41,8 @@
 #include "../xrRender/xrRender_console.h"
 #include "r4.h"
 
-IC	void jitter(CBlender_Compile& C) {
+IC	void jitter(CBlender_Compile& C)
+{
 	C.r_dx10Texture("jitter0", JITTER(0));
 	C.r_dx10Texture("jitter1", JITTER(1));
 	C.r_dx10Texture("jitter2", JITTER(2));

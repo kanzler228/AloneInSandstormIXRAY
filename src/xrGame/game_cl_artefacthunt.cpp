@@ -39,7 +39,7 @@ game_cl_ArtefactHunt::game_cl_ArtefactHunt()
 {
 	m_game_ui = nullptr;
 		
-	m_bBuyEnabled	= FALSE;
+	m_bBuyEnabled	= false;
 	//---------------------------------
 	m_Eff_Af_Spawn = "";
 	m_Eff_Af_Disappear = "";
@@ -102,7 +102,7 @@ void game_cl_ArtefactHunt::Init ()
 							transform.identity();
 							transform.setXYZ(R.A);
 							transform.translate_over(R.P);
-							CParticlesObject* pStaticParticles			= Particles::Details::Create(pSettings->r_string("artefacthunt_gamedata", ParticleStr),FALSE,false);
+							CParticlesObject* pStaticParticles			= Particles::Details::Create(pSettings->r_string("artefacthunt_gamedata", ParticleStr),false,false);
 							pStaticParticles->UpdateParent	(transform,zero_vel);
 							pStaticParticles->Play			();
 							Level().m_StaticParticles.push_back		(pStaticParticles);
@@ -137,7 +137,7 @@ game_cl_ArtefactHunt::~game_cl_ArtefactHunt()
 }
 
 
-BOOL	bBearerCantSprint = TRUE;
+bool	bBearerCantSprint = true;
 void game_cl_ArtefactHunt::net_import_state	(NET_Packet& P)
 {
 	inherited::net_import_state	(P);
@@ -309,7 +309,7 @@ void game_cl_ArtefactHunt::GetMapEntities(xr_vector<SZoneMapEntityData>& dst)
 	if(!pObject)
 		return;
 
-	CArtefact* pArtefact = smart_cast<CArtefact*>(pObject);
+	CArtefact* pArtefact = pObject->cast_artefact();
 	VERIFY(pArtefact);
 
 	CObject* pParent = pArtefact->H_Parent();
@@ -360,17 +360,17 @@ void game_cl_ArtefactHunt::shedule_Update			(u32 dt)
 				if (local_player->testFlag(GAME_PLAYER_FLAG_ONBASE) &&
 					!local_player->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD))
 				{
-					m_bBuyEnabled = TRUE;
+					m_bBuyEnabled = true;
 				}
 				else
 				{
-					m_bBuyEnabled = FALSE;
+					m_bBuyEnabled = false;
 				};
 			};			
 
 			if (local_player && Level().CurrentControlEntity())
 			{
-				if (smart_cast<CActor*>(Level().CurrentControlEntity()))
+				if (Level().CurrentControlEntity()->cast_actor() != nullptr)
 				{
 					if(m_game_ui) m_game_ui->SetBuyMsgCaption("");
 					if (m_bBuyEnabled)
@@ -416,19 +416,19 @@ void game_cl_ArtefactHunt::shedule_Update			(u32 dt)
 					else
 					{
 						if (!m_bTeamSelected)
+						{
 							if (m_game_ui) m_game_ui->SetPressJumpMsgCaption("mp_press_jump2select_team");
-							else
-								if (!m_bSkinSelected)
-									if (m_game_ui) m_game_ui->SetPressJumpMsgCaption("mp_press_jump2select_skin");
+							else if (!m_bSkinSelected)
+							{
+								if (m_game_ui) m_game_ui->SetPressJumpMsgCaption("mp_press_jump2select_skin");
+							}
+						}
 					}
 				};				
 			}
 
 			if (local_player)
 			{
-				game_TeamState team0 = teams[0];
-				game_TeamState team1 = teams[1];
-
 				if (dReinforcementTime > 0 && Level().CurrentViewEntity() && m_cl_dwWarmUp_Time == 0)
 				{
 					u32 CurTime = Level().timeServer();
@@ -453,11 +453,6 @@ void game_cl_ArtefactHunt::shedule_Update			(u32 dt)
 					else
 						m_game_ui->m_pReinforcementInidcator_old->SetPos(0, 1);
 				}
-				s16 lt = local_player->team;
-				if (lt>=0)
-				{
-//					if(m_game_ui) m_game_ui->SetScoreCaption	(teams[0].score, teams[1].score);
-				};				
 			};
 			SetScore();
 		}break;
@@ -502,41 +497,41 @@ void game_cl_ArtefactHunt::SetScore				()
 			m_game_ui->SetFraglimit(ps->frags(), artefactsNum);
 	}
 }
-BOOL game_cl_ArtefactHunt::CanCallBuyMenu			()
+bool game_cl_ArtefactHunt::CanCallBuyMenu			()
 {
-	if (!m_bBuyEnabled) return FALSE;
+	if (!m_bBuyEnabled) return false;
 	if (Phase()!=GAME_PHASE_INPROGRESS) return false;
 
 	if (!is_buy_menu_ready())
-		return FALSE;
+		return false;
 	
 	if (m_game_ui->m_pUITeamSelectWnd && m_game_ui->m_pUITeamSelectWnd->IsShown())
 	{
-		return FALSE;
+		return false;
 	};
 	if (pCurSkinMenu && pCurSkinMenu->IsShown())
 	{
-		return FALSE;
+		return false;
 	};
-	if ( m_game_ui && m_game_ui->ActorMenu().IsShown() )
+	if ( m_game_ui && m_game_ui->GetActiveInventoryWindow() )
 	{
-		return FALSE;
+		return false;
 	}
 	/*if (m_game_ui->m_pInventoryMenu && m_game_ui->m_pInventoryMenu->IsShown())
 	{
-		return FALSE;
+		return false;
 	};*/
 
-	CActor* pCurActor = smart_cast<CActor*> (Level().CurrentEntity());
-	if (!pCurActor || !pCurActor->g_Alive()) return FALSE;
+	CActor* pCurActor = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_actor() : nullptr;
+	if (!pCurActor || !pCurActor->g_Alive()) return false;
 
-	return TRUE;
+	return true;
 };
 
 bool game_cl_ArtefactHunt::CanBeReady				()
 {
 	if (!local_player) return false;
-	m_bMenuCalledFromReady = TRUE;
+	m_bMenuCalledFromReady = true;
 
 	SetCurrentSkinMenu();
 	SetCurrentBuyMenu();
@@ -558,7 +553,7 @@ bool game_cl_ArtefactHunt::CanBeReady				()
 	if (pCurBuyMenu && !pCurBuyMenu->IsShown())
 		ClearBuyMenu();
 
-	m_bMenuCalledFromReady = FALSE;
+	m_bMenuCalledFromReady = false;
 //	return inherited::CanBeReady();
 	return true;
 };
@@ -632,25 +627,6 @@ void	game_cl_ArtefactHunt::UpdateMapLocations		()
 						Level().MapManager().RemoveMapLocationByObjectID(artefactID);
 					};
 
-					/*bool OutfitWorkDown = false;
-
-					CActor* pActor = smart_cast<CActor*>(Level().Objects.net_Find(artefactBearerID));
-					if (pActor)
-					{
-						CCustomOutfit* pOutfit			= pActor->GetOutfit();
-						if (pOutfit && pOutfit->CLS_ID == CLSID_EQUIPMENT_SCIENTIFIC)
-						{
-							if (!pActor->AnyAction())
-							{
-								if (Level().MapManager().HasMapLocation(ARTEFACT_ENEMY, artefactID))
-								{
-									Level().MapManager().RemoveMapLocationByObjectID(artefactID);									
-								}
-								OutfitWorkDown = true;
-							}
-						}
-					}
-					if (!OutfitWorkDown && */
 					if (!Level().MapManager().HasMapLocation(ARTEFACT_ENEMY, artefactID))
 					{
 						(Level().MapManager().AddMapLocation(ARTEFACT_ENEMY, artefactID))->EnablePointer();
@@ -699,7 +675,7 @@ void game_cl_ArtefactHunt::OnSpawn(CObject* pObj)
 {
 	inherited::OnSpawn(pObj);
 	if (!pObj) return;
-	CArtefact* pArtefact = smart_cast<CArtefact*>(pObj);
+	CArtefact* pArtefact = pObj->cast_artefact();
 	if (pArtefact)
 	{
 		if (xr_strlen(m_Eff_Af_Spawn))
@@ -737,7 +713,7 @@ void	game_cl_ArtefactHunt::OnBuySpawnMenu_Ok		()
 {
 	CObject* curr = Level().CurrentEntity();
 	if (!curr) return;
-	CGameObject* GO = smart_cast<CGameObject*>(curr);
+	CGameObject* GO = curr->cast_game_object();
 	NET_Packet			P;
 	GO->u_EventGen		(P,GE_GAME_EVENT,GO->ID()	);
 	P.w_u16(GAME_EVENT_PLAYER_BUY_SPAWN);
@@ -747,7 +723,8 @@ void	game_cl_ArtefactHunt::OnBuySpawnMenu_Ok		()
 void	game_cl_ArtefactHunt::OnSellItemsFromRuck		()
 {
 	if (!local_player || local_player->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD) || !local_player->testFlag(GAME_PLAYER_FLAG_ONBASE)) return;
-	CActor* pCurActor = smart_cast<CActor*> (Level().Objects.net_Find	(local_player->GameID));
+	CObject* finded_object = Level().Objects.net_Find(local_player->GameID);
+	CActor* pCurActor = finded_object != nullptr ? finded_object->cast_actor() : nullptr;
 	if (!pCurActor) return;
 	
 	TIItemContainer::const_iterator	IRuck = pCurActor->inventory().m_ruck.begin();

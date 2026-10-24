@@ -5,10 +5,10 @@
  *  Contents: PPMII model description and encoding/decoding routines        *
  ****************************************************************************/
 #include "stdafx.h"
-#include <string.h>
-#include "PPMd.h"
 
-#include "Coder.hpp"
+#include "compression/ppmd/PPMd.h"
+#include "compression/ppmd/Coder.hpp"
+
 #include "SubAlloc.hpp"
 
 using namespace ppmd;
@@ -19,7 +19,7 @@ using namespace ppmd;
 enum { UP_FREQ=5, INT_BITS=7, PERIOD_BITS=7, TOT_BITS=INT_BITS+PERIOD_BITS,
     INTERVAL=1 << INT_BITS, BIN_SCALE=1 << TOT_BITS, MAX_FREQ=124, O_BOUND=9 };
 
-compression::ppmd::stream	*trained_model = 0;
+compression::ppmd::stream	*trained_model = nullptr;
 
 
 template <class TMP_TYPE>
@@ -73,7 +73,7 @@ PPM_CONTEXT
     inline void             update2(STATE* p);
     inline SEE2_CONTEXT*    makeEscFreq2() const;
     void                    rescale();
-    void                    refresh(int OldNU,BOOL Scale);
+    void                    refresh(int OldNU,bool Scale);
     PPM_CONTEXT*            cutOff(int Order);
     PPM_CONTEXT*            removeBinConts(int Order);
     void                    makeSuffix();
@@ -248,20 +248,21 @@ PPM_CONTEXT::write( int o, FILE* fp )
             if ( p->Successor )             p->Successor->write(o+1,fp);
 }
 */
-void PPM_CONTEXT::refresh(int OldNU,BOOL Scale)
+void PPM_CONTEXT::refresh(int OldNU, bool Scale)
 {
-    int i=NumStats, EscFreq;
-    STATE* p = Stats = (STATE*) ShrinkUnits(Stats,OldNU,(i+2) >> 1);
-    Flags=(Flags & (0x10+0x04*Scale))+0x08*(p->Symbol >= 0x40);
-    EscFreq=SummFreq-p->Freq;
-    SummFreq = (p->Freq=(p->Freq+Scale) >> Scale);
+    int i = NumStats, EscFreq;
+    STATE* p = Stats = (STATE*)ShrinkUnits(Stats, OldNU, (i + 2) >> 1);
+    Flags = (Flags & (0x10 + 0x04 * Scale)) + 0x08 * (p->Symbol >= 0x40);
+    EscFreq = SummFreq - p->Freq;
+    SummFreq = (p->Freq = (p->Freq + Scale) >> static_cast<int>(Scale));
     do {
         EscFreq -= (++p)->Freq;
-        SummFreq += (p->Freq=(p->Freq+Scale) >> Scale);
-        Flags |= 0x08*(p->Symbol >= 0x40);
-    } while ( --i );
-    SummFreq += (EscFreq=(EscFreq+Scale) >> Scale);
+        SummFreq += (p->Freq = (p->Freq + Scale) >> static_cast<int>(Scale));
+        Flags |= 0x08 * (p->Symbol >= 0x40);
+    } while (--i);
+    SummFreq += (EscFreq = (EscFreq + Scale) >> static_cast<int>(Scale));
 }
+
 #define P_CALL(F) ( PrefetchData(p->Successor), \
                     p->Successor=p->Successor->F(Order+1))
 PPM_CONTEXT* PPM_CONTEXT::cutOff(int Order)
@@ -329,12 +330,12 @@ static void RestoreModelRare(PPM_CONTEXT* pc1,PPM_CONTEXT* MinContext,
                 SpecialFreeUnit(p);
                 pc->oneState().Freq=(pc->oneState().Freq+11) >> 3;
             } else
-                    pc->refresh((pc->NumStats+3) >> 1,FALSE);
+                    pc->refresh((pc->NumStats+3) >> 1,false);
     for ( ;pc != MinContext;pc=pc->Suffix)
             if ( !pc->NumStats )
                     pc->oneState().Freq -= pc->oneState().Freq >> 1;
             else if ((pc->SummFreq += 4) > 128+4*pc->NumStats)
-                    pc->refresh((pc->NumStats+2) >> 1,TRUE);
+                    pc->refresh((pc->NumStats+2) >> 1,true);
     if (MRMethod > MRM_FREEZE) {
         MaxContext=FSuccessor;              GlueCount += !(BList[1].Stamp & 1);
     } else if (MRMethod == MRM_FREEZE) {
@@ -353,7 +354,7 @@ static void RestoreModelRare(PPM_CONTEXT* pc1,PPM_CONTEXT* MinContext,
     }
 }
 
-static PPM_CONTEXT* _FASTCALL CreateSuccessors(BOOL Skip,PPM_CONTEXT::STATE* p,
+static PPM_CONTEXT* _FASTCALL CreateSuccessors(bool Skip,PPM_CONTEXT::STATE* p,
         PPM_CONTEXT* pc);
 static PPM_CONTEXT* _FASTCALL ReduceOrder(PPM_CONTEXT::STATE* p,PPM_CONTEXT* pc)
 {
@@ -387,7 +388,7 @@ LOOP_ENTRY:
         pc = p->Successor;                  goto FROZEN;
     } else if (p->Successor <= UpBranch) {
         p1=FoundState;                      FoundState=p;
-        p->Successor=CreateSuccessors(FALSE,nullptr,pc);
+        p->Successor=CreateSuccessors(false,nullptr,pc);
         FoundState=p1;
     }
     if (OrderFall == 1 && pc1 == MaxContext) {
@@ -432,7 +433,7 @@ void PPM_CONTEXT::rescale()
     SummFreq += (EscFreq -= (EscFreq >> 1));
     Flags |= 0x04;                          FoundState=Stats;
 }
-static PPM_CONTEXT* _FASTCALL CreateSuccessors(BOOL Skip,PPM_CONTEXT::STATE* p,
+static PPM_CONTEXT* _FASTCALL CreateSuccessors(bool Skip,PPM_CONTEXT::STATE* p,
         PPM_CONTEXT* pc)
 {
 
@@ -523,7 +524,7 @@ static inline void UpdateModel( PPM_CONTEXT* MinContext)
     PPM_CONTEXT* Successor = nullptr;
     if( !OrderFall && FSuccessor) 
     {
-        FoundState->Successor=CreateSuccessors(TRUE,p,MinContext);
+        FoundState->Successor=CreateSuccessors(true,p,MinContext);
         if (!FoundState->Successor) {
             Successor = (PPM_CONTEXT*)pText;
             goto RESTART_MODEL;
@@ -543,7 +544,7 @@ static inline void UpdateModel( PPM_CONTEXT* MinContext)
     if( FSuccessor ) 
     {
         if ((BYTE*) FSuccessor < UnitsStart)
-            FSuccessor=CreateSuccessors(FALSE,p,MinContext);
+            FSuccessor=CreateSuccessors(false,p,MinContext);
     } 
     else
     {
@@ -914,7 +915,7 @@ STOP_DECODING:
 static void _STDCALL StartModelRare(int MaxOrder,MR_METHOD MRMethod)
 {
     static bool         first_time  = true;
-    static PPM_CONTEXT* context     = 0;
+    static PPM_CONTEXT* context     = nullptr;
 
     if( first_time )
     {
@@ -988,7 +989,7 @@ static void _STDCALL StartModelRare(int MaxOrder,MR_METHOD MRMethod)
         
         RunLength = InitRL = -((MaxOrder < 12) ? MaxOrder : 12) - 1;
         MaxContext  = context;
-        FoundState  = 0;
+        FoundState  = nullptr;
     }
 }
 

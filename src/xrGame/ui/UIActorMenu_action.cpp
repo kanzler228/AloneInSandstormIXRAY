@@ -5,7 +5,7 @@
 //	Description : UI ActorMenu actions implementation
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIActorMenu.h"
 #include "UIActorStateInfo.h"
 #include "../Actor.h"
@@ -16,7 +16,9 @@
 #include "object_broker.h"
 #include "UIInventoryUtilities.h"
 #include "game_cl_base.h"
-
+#include "../../xrEngine/xr_input.h"
+#include "UITalkWnd.h"
+#include "UITalkDialogWnd.h"
 #include "../../xrUI/UICursor.h"
 #include "UICellItem.h"
 #include "UICharacterInfo.h"
@@ -30,14 +32,14 @@
 #include "UIMainIngameWnd.h"
 #include "UITalkWnd.h"
 #include "UITalkDialogWnd.h"
+#include "UIInvUpgradeInfo.h"
+#include "antigas.h"
+#include "antigas_filter.h"
 
-bool  CUIActorMenu::AllowItemDrops(EDDListType from, EDDListType to)
-{
-	xr_vector<EDDListType>& v = m_allowed_drops[to];
-	xr_vector<EDDListType>::iterator it = std::find(v.begin(), v.end(), from);
+#include "PowerBank.h"
+#include "PowerCell.h"
+#include "IPowerManager.h"
 
-	return(it!=v.end());
-}
 class CUITrashIcon :public ICustomDrawDragItem
 {
 	CUIStatic			m_icon;
@@ -72,506 +74,51 @@ void CUIActorMenu::OnDragItemOnTrash(CUIDragItem* item, bool b_receive)
 		item->SetCustomDraw(nullptr);
 }
 
-bool CUIActorMenu::OnItemDrop(CUICellItem* itm)
+void CUIActorMenu::UpdateInfoWindowVisibility()
 {
-	InfoCurItem( nullptr );
-	CUIDragDropListEx*	old_owner		= itm->OwnerList();
-	CUIDragDropListEx*	new_owner		= CUIDragDropListEx::m_drag_item->BackList();
-	if ( !old_owner || !new_owner )
+	if (m_AuxMode == eAuxMode_Upgrade)
 	{
-		return false;
-	}
-	EDDListType t_new		= GetListType(new_owner);
-	EDDListType t_old		= GetListType(old_owner);
-
-	if ( !AllowItemDrops(t_old, t_new) )
-	{
-		Msg("incorrect action [%d]->[%d]",t_old, t_new);
-		return true;
+		m_pUpgradeWnd->SetInfoVisible(m_bShowInfoWnds);
+		return;
 	}
 	
-	if (old_owner == new_owner){
-		
-		if (m_isItemDropped)
+	// For grid item/slots
+	CUIDragDropListEx* pDragDropList = dynamic_cast<CUIDragDropListEx*>(m_ui_navigation_selection);
+	if (pDragDropList)
+	{
+		if (!m_bShowInfoWnds)
 		{
-			//Alundaio: Here we export the action of dragging one inventory item ontop of another!
-			luabind::functor<bool> funct1;
-			R_ASSERT2(ai().script_engine().functor(m_onItemDropped, funct1), "failed to get OnItemDropped functor");
-
-			//If list only has 1 item, get it, otherwise try to get item at current drag position
-			CUICellItem* _citem = (new_owner->ItemsCount() == 1) ? new_owner->GetItemIdx(0) : 0;
-			if (!_citem)
-			{
-				CUICellContainer* c = old_owner->GetContainer();
-				Ivector2 c_pos = c->PickCell(UI().GetUICursor().GetCursorPosition());
-				if (c->ValidCell(c_pos))
-				{
-					CUICell& ui_cell = c->GetCellAt(c_pos);
-					if (!ui_cell.Empty())
-						_citem = ui_cell.m_item;
-				}
-			}
-
-			PIItem _iitem = _citem ? (PIItem)_citem->m_pData : 0;
-
-			CGameObject* GO1 = CurrentIItem()->cast_game_object();
-			CGameObject* GO2 = _iitem ? _iitem->cast_game_object() : 0;
-			if (funct1(GO1 ? GO1->lua_game_object() : (0), GO2 ? GO2->lua_game_object() : (0), (int)t_old, (int)t_new) == false)
-				return false;
+			if (m_ItemInfo->IsEnabled())
+				InfoCurItem(nullptr);
 		}
 		else
 		{
-			return false;
-		}
-	}
-
-	switch(t_new)
-	{
-	case iTrashSlot:
-		{
-			if(CurrentIItem()->IsQuestItem())
-				return true;
-
-			if(t_old==iQuickSlot)	
+			if (!CUIDragDropListEx::m_drag_item && !m_UIPropertiesBox->IsShown())
 			{
-				old_owner->RemoveItem(itm, false);
-				return true;
-			}
-			SendEvent_Item_Drop		(CurrentIItem(), m_pActorInvOwner->object_id());
-			SetCurrentItem			(nullptr);
-		}break;
-	case iActorSlot:
-		{
-			//.			if(GetSlotList(CurrentIItem()->GetSlot())==new_owner)
-			u16 slot_to_place;
-			if( CanSetItemToList(CurrentIItem(), new_owner, slot_to_place) )
-				ToSlot	(itm, true, slot_to_place);
-		}break;
-	case iActorBag:
-		{
-			ToBag	(itm, true);
-		}break;
-	case iActorBelt:
-		{
-			ToBelt	(itm, true);
-		}break;
-	case iActorTrade:
-		{
-			ToActorTrade(itm, true);
-		}break;
-	case iPartnerTrade:
-		{
-			if(t_old!=iPartnerTradeBag)	
-				return false;
-			ToPartnerTrade(itm, true);
-		}break;
-	case iPartnerTradeBag:
-		{
-			if(t_old!=iPartnerTrade)	
-				return false;
-			ToPartnerTradeBag(itm, true);
-		}break;
-	case iDeadBodyBag:
-		{
-			ToDeadBodyBag(itm, true);
-		}break;
-	case iQuickSlot:
-		{
-			ToQuickSlot(itm);
-		}break;
-	};
-
-	OnItemDropped				(CurrentIItem(), new_owner, old_owner);
-
-	if (m_isItemDropped)
-	{
-		//Alundaio: Here we export the action of dragging one inventory item ontop of another! 
-		luabind::functor<bool> funct1;
-		R_ASSERT2(ai().script_engine().functor(m_onItemDropped, funct1), "failed to get OnItemDropped functor");
-
-		//If list only has 1 item, get it, otherwise try to get item at current drag position
-		CUICellItem* _citem = (new_owner->ItemsCount() == 1) ? new_owner->GetItemIdx(0) : nullptr;
-		if (!_citem)
-		{
-			CUICellContainer* c = old_owner->GetContainer();
-			Ivector2 c_pos = c->PickCell(old_owner->GetDragItemPosition());
-			if (c->ValidCell(c_pos))
-			{
-				CUICell& ui_cell = c->GetCellAt(c_pos);
-				if (!ui_cell.Empty())
-					_citem = ui_cell.m_item;
+				CUICellItem* pCellItem = pDragDropList->GetSelectedItem();
+				if (pCellItem && ((PIItem)pCellItem->m_pData) == m_ItemInfo->CurrentItem())
+					return;
+				
+				InfoCurItem(pCellItem);
 			}
 		}
-
-		PIItem _iitem = _citem ? (PIItem)_citem->m_pData : nullptr;
-
-		CGameObject* GO1 = CurrentIItem() != nullptr ? CurrentIItem()->cast_game_object() : nullptr;
-		CGameObject* GO2 = _iitem != nullptr ? _iitem->cast_game_object() : nullptr;
-		if (funct1(GO1 ? GO1->lua_game_object() : 0, GO2 ? GO2->lua_game_object() : 0, (int)t_old, (int)t_new) == false)
-			return false;
-
-		//-Alundaio
-	}
-
-	UpdateConditionProgressBars	();
-	UpdateItemsPlace			();
-
-	return true;
-}
-
-bool CUIActorMenu::OnItemStartDrag(CUICellItem* itm)
-{
-	InfoCurItem( nullptr );
-	return false; //default behaviour
-}
-
-bool CUIActorMenu::OnItemDbClick(CUICellItem* itm)
-{
-	SetCurrentItem(itm);
-	InfoCurItem( nullptr );
-	CUIDragDropListEx*	old_owner		= itm->OwnerList();
-	EDDListType t_old					= GetListType(old_owner);
-
-	switch ( t_old )
-	{
-	case iActorSlot:
-		{
-			if (m_currMenuMode == mmDeadBodySearch) {
-				// FFx0001
-				if (IsAllowPlaceToInvBox(itm)) {
-					ToDeadBodyBag(itm, false);
-				}
-			}
-			else 
-			{
-				// FFx0001
-				if (IsAllowTakeFromInvBox(itm)) {
-					ToBag(itm, false);
-				}
-			}
-			break;
-		}
-	case iActorBag:
-		{
-			if ( m_currMenuMode == mmTrade )
-			{
-				ToActorTrade( itm, false );
-				break;
-			}else
-				if ( m_currMenuMode == mmDeadBodySearch )
-				{
-					ToDeadBodyBag( itm, false );
-					break;
-				}
-				if(m_currMenuMode!=mmUpgrade && TryUseItem( itm ))
-				{
-					break;
-				}
-				if ( TryActiveSlot( itm ) )
-				{
-					break;
-				}
-				PIItem iitem_to_place = (PIItem)itm->m_pData;
-				if ( !ToSlot( itm, false, iitem_to_place->BaseSlot() ) )
-				{
-					if ( !ToBelt( itm, false ) )
-					{
-						ToSlot( itm, true, iitem_to_place->BaseSlot() );
-					}
-				}
-				break;
-		}
-	case iActorBelt:
-		{
-			ToBag( itm, false );
-			break;
-		}
-	case iActorTrade:
-		{
-			ToBag( itm, false );
-			break;
-		}
-	case iPartnerTradeBag:
-		{
-			ToPartnerTrade( itm, false );
-			break;
-		}
-	case iPartnerTrade:
-		{
-			ToPartnerTradeBag( itm, false );
-			break;
-		}
-	case iDeadBodyBag:
-		{
-			ToBag( itm, false );
-			break;
-		}
-	case iQuickSlot:
-		{
-			ToQuickSlot(itm);
-		}break;
-
-	}; //switch 
-
-	UpdateConditionProgressBars();
-	UpdateItemsPlace();
-
-	return true;
-}
-
-bool CUIActorMenu::OnItemSelected(CUICellItem* itm)
-{
-	SetCurrentItem		(itm);
-	InfoCurItem			(nullptr);
-	m_item_info_view	= false;
-	return				false;
-}
-
-bool CUIActorMenu::OnItemRButtonClick(CUICellItem* itm)
-{
-	SetCurrentItem( itm );
-	InfoCurItem( nullptr );
-	ActivatePropertiesBox();
-	m_item_info_view = false;
-	return false;
-}
-
-bool CUIActorMenu::OnItemFocusReceive(CUICellItem* itm)
-{
-	InfoCurItem( nullptr );
-	m_item_info_view = true;
-
-	itm->m_selected = true;
-	set_highlight_item( itm );
-
-	if (m_isItemFocusReceive)
-	{
-		luabind::functor<bool> funct1;
-		R_ASSERT2(ai().script_engine().functor(m_onItemFocusReceive, funct1), "failed to get OnItemFocusReceive functor");
-		PIItem _iitem = (PIItem)itm->m_pData;
-
-		CGameObject* GO = _iitem ? _iitem->cast_game_object() : NULL;
-		if (GO)
-			funct1(GO->lua_game_object());
-		
-	}
-
-	return true;
-}
-
-bool CUIActorMenu::OnItemFocusLost(CUICellItem* itm)
-{
-	if ( itm )
-	{
-		itm->m_selected = false;
-	}
-	InfoCurItem( nullptr );
-	clear_highlight_lists();
-
-	if (m_isItemFocusLost)
-	{
-		luabind::functor<bool> funct1;
-		if (ai().script_engine().functor(m_onItemFocusLost, funct1))
-		{
-			PIItem _iitem = (PIItem)itm->m_pData;
-
-			if (CGameObject* GO = _iitem ? _iitem->cast_game_object() : nullptr)
-			{
-				funct1(GO->lua_game_object());
-			}
-		}
-	}
-
-	return true;
-}
-
-bool CUIActorMenu::OnItemFocusedUpdate(CUICellItem* itm)
-{
-	if ( itm )
-	{
-		itm->m_selected = true;
-		if ( m_highlight_clear )
-		{
-			set_highlight_item( itm );
-		}
-	}
-	VERIFY( m_ItemInfo );
-	if (itm != nullptr && Device.dwTimeContinual < itm->FocusReceiveTime() + m_ItemInfo->delay )
-	{
-		return true; //false
-	}
-	if ( CUIDragDropListEx::m_drag_item || m_UIPropertiesBox->IsShown() || !m_item_info_view )
-	{
-		return true;
-	}	
-
-	InfoCurItem( itm );
-	return true;
-}
-
-bool CUIActorMenu::OnMouseAction( float x, float y, EUIMessages mouse_action )
-{
-	inherited::OnMouseAction( x, y, mouse_action );
-	return true; // no click`s
-}
-
-bool CUIActorMenu::OnKeyboardAction(int dik, EUIMessages keyboard_action)
-{
-	InfoCurItem( nullptr );
-	if ( is_binded(kDROP, dik) )
-	{
-		if ( WINDOW_KEY_PRESSED == keyboard_action && CurrentIItem() && !CurrentIItem()->IsQuestItem()
-			&& CurrentIItem()->parent_id()==m_pActorInvOwner->object_id() )
-		{
-
-			SendEvent_Item_Drop		(CurrentIItem(), m_pActorInvOwner->object_id());
-			SetCurrentItem			(nullptr);
-		}
-		return true;
-	}
-
-	if ( is_binded(kSPRINT_TOGGLE, dik) )
-	{
-		if ( WINDOW_KEY_PRESSED == keyboard_action )
-		{
-			OnPressUserKey();
-		}
-		return true;
-	}	
-
-	if ( is_binded(kUSE, dik) || is_binded(kINVENTORY, dik) )
-	{
-		if ( WINDOW_KEY_PRESSED == keyboard_action )
-		{
-			g_btnHint->Discard();
-			HideDialog();
-
-			if (m_pActorInvOwner->IsTalking())
-				CurrentGameUI()->TalkMenu->UITalkDialogWnd->Show();
-		}
-		return true;
-	}	
-
-	if ( is_binded(kQUIT, dik) )
-	{
-		if ( WINDOW_KEY_PRESSED == keyboard_action )
-		{
-			g_btnHint->Discard();
-			HideDialog();
-
-			if (m_pActorInvOwner->IsTalking())
-				CurrentGameUI()->TalkMenu->UITalkDialogWnd->Show();
-		}
-		return true;
-	}
-
-#ifdef DEBUG
-	if (WINDOW_KEY_PRESSED == keyboard_action)
-	{
-		{
-			if (SDL_SCANCODE_KP_7 == dik && CurrentIItem() && CurrentIItem()->IsUsingCondition())
-			{
-				CurrentIItem()->ChangeCondition(-0.05f);
-				UpdateConditionProgressBars();
-				m_pCurrentCellItem->UpdateConditionProgressBar();
-			}
-			else if (SDL_SCANCODE_KP_8 == dik && CurrentIItem() && CurrentIItem()->IsUsingCondition())
-			{
-				CurrentIItem()->ChangeCondition(0.05f);
-				UpdateConditionProgressBars();
-				m_pCurrentCellItem->UpdateConditionProgressBar();
-			}
-		}
-	}
-#endif
-	if( inherited::OnKeyboardAction(dik,keyboard_action) )return true;
-
-	return false;
-}
-
-void CUIActorMenu::OnPressUserKey()
-{
-	switch ( m_currMenuMode )
-	{
-	case mmUndefined:		break;
-	case mmInventory:		break;
-	case mmTrade:			
-//		OnBtnPerformTrade( this, 0 );
-		break;
-	case mmUpgrade:			
-		TrySetCurUpgrade();
-		break;
-	case mmDeadBodySearch:	
-		TakeAllFromPartner( this, 0 );
-		break;
-	default:
-		R_ASSERT(0);
-		break;
 	}
 }
 
 void CUIActorMenu::OnBtnExitClicked(CUIWindow* w, void* d)
 {
 	g_btnHint->Discard();
+	for (u8 i = 1; i <= LAST_SLOT; ++i)
+	{
+		if (m_pInvSlotHighlight[i])
+		{
+			m_pInvSlotHighlight[i]->Show(false);
+		}
+	}
 	HideDialog();
 
 	if (m_pActorInvOwner->IsTalking())
+	{
 		CurrentGameUI()->TalkMenu->UITalkDialogWnd->Show();
-}
-
-void CUIActorMenu::OnMesBoxYes( CUIWindow*, void* )
-{
-	switch( m_currMenuMode )
-	{
-	case mmUndefined:
-		break;
-	case mmInventory:
-		break;
-	case mmTrade:
-		break;
-	case mmUpgrade:
-		if (m_repair_mode == 1)
-		{
-			RepairEffect_CurItem();
-			m_repair_mode = 0;
-		}
-		else if (m_repair_mode == 2)
-		{
-			PerformDisassemble();
-			m_repair_mode = 0;
-		}
-		else
-		{
-			m_pUpgradeWnd->OnMesBoxYes();
-		}
-		break;
-	case mmDeadBodySearch:
-		break;
-	default:
-		R_ASSERT(0);
-		break;
 	}
-	UpdateItemsPlace();
-}
-
-void CUIActorMenu::OnMesBoxNo(CUIWindow*, void*)
-{
-	switch(m_currMenuMode)
-	{
-	case mmUndefined:
-		break;
-	case mmInventory:
-		break;
-	case mmTrade:
-		break;
-	case mmUpgrade:
-		m_repair_mode = 0;
-		break;
-	case mmDeadBodySearch:
-		break;
-	default:
-		R_ASSERT(0);
-		break;
-	}
-	UpdateItemsPlace();
 }

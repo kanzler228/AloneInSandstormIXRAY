@@ -96,7 +96,7 @@ void	R_xforms::apply_invw()
 		m_bInvWValid = true;
 	}
 
-	RCache.set_c( c_invw, m_invw);
+	RCache.set_c(c_invw, m_invw);
 }
 
 void R_xforms::apply_invv()
@@ -126,6 +126,7 @@ void	R_xforms::unmap			()
 	c_vp_old	= nullptr;
 	c_wvp_old	= nullptr;
 }
+
 R_xforms::R_xforms ()
 {
 	unmap			();

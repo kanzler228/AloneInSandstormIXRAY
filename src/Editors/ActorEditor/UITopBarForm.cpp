@@ -1,137 +1,129 @@
 #include "stdafx.h"
+#include "UITopBarForm.h"
+#include "IconsFontAwesome6.h"
 
 UITopBarForm::UITopBarForm()
 {
-    m_tUndo         = EDevice->Resources->_CreateTexture("ed\\bar\\Undo");
-    m_timeUndo      = 0;
-    m_tRedo         = EDevice->Resources->_CreateTexture("ed\\bar\\Redo");
-    m_timeRedo      = 0;
-    m_tNew          = EDevice->Resources->_CreateTexture("ed\\bar\\new");
-    m_tOpen         = EDevice->Resources->_CreateTexture("ed\\bar\\open");
-    m_tSave         = EDevice->Resources->_CreateTexture("ed\\bar\\save");
-    m_tOpenGameData = EDevice->Resources->_CreateTexture("ed\\bar\\open_gamedata");
+    m_timeUndo  = 0;
+    m_timeRedo  = 0;
+
+    InitIcons();
+
+    m_Simulate  = false;
 }
 
 UITopBarForm::~UITopBarForm() {}
 
+#define IMGUI_HINT_BUTTON(Name, Ptr, Hint, dImDrawFlags, Callback) \
+			Ptr->Load(); \
+			if (XRay::ImGui::ToolbarIconButton("##" Name, Ptr->get_SRView()->GetRawSRV(), nullptr, dImDrawFlags)) \
+				Callback(); \
+			if (ImGui::IsItemHovered()) \
+			{ \
+				ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); \
+				ImGui::SetTooltip(Hint); \
+			} \
+			ImGui::SameLine()
+
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 void UITopBarForm::Draw()
 {
-    ImVec2 iconSize = { ImGui::GetWindowDpiScale() * 20, ImGui::GetWindowDpiScale() * 20 };
+	ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float ButtonSize = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+    const float IconSize = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::IconSize);
+    const float ButtonRadius = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonRadius);
+    const float ToolbarPadding = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ToolbarPadding);
+    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + UI->GetMenuBarHeight()));
+	ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, ButtonSize + ToolbarPadding * 2));
+	ImGui::SetNextWindowViewport(viewport->ID);
 
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + ImGui::GetWindowDpiScale() * UI->GetMenuBarHeight()));
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, ImGui::GetWindowDpiScale() * UIToolBarSize));
-    ImGui::SetNextWindowViewport(viewport->ID);
-
-    ImGuiWindowFlags window_flags = 0
-        | ImGuiWindowFlags_NoDocking
-        | ImGuiWindowFlags_NoTitleBar
-        | ImGuiWindowFlags_NoResize
-        | ImGuiWindowFlags_NoMove
-        | ImGuiWindowFlags_NoScrollbar
-        | ImGuiWindowFlags_NoSavedSettings
-        ;
+	ImGuiWindowFlags window_flags = 0
+		| ImGuiWindowFlags_NoDocking
+		| ImGuiWindowFlags_NoTitleBar
+		| ImGuiWindowFlags_NoResize
+		| ImGuiWindowFlags_NoMove
+		| ImGuiWindowFlags_NoScrollbar
+		;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2( 2,2));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(2, 2));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ToolbarPadding, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(ToolbarPadding * 0.5f, ToolbarPadding));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.f, 0.f, 0.f, 0.f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::PanelBorderTint).Value);
+
     ImGui::Begin("TOOLBAR", NULL, window_flags);
     {
-        m_tUndo->Load();
-        if (ImGui::ImageButton("##ib001", m_tUndo->pSurface, iconSize, ImVec2(m_timeUndo > EDevice->TimerAsync() ? 0.5 : 0, 0), ImVec2(m_timeUndo > EDevice->TimerAsync() ? 1 : 0.5, 1)/*, 0*/))
+        if (ImGui::BeginTable("##ToolbarTable", 5, ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_Hideable))
         {
-            m_timeUndo = EDevice->TimerAsync() + 130;
-            ClickUndo();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Undo the last action.");
-        }
-        ImGui::SameLine();
-        m_tRedo->Load();
-        if (ImGui::ImageButton("##ib002",m_tRedo->pSurface, iconSize, ImVec2(m_timeRedo > EDevice->TimerAsync() ? 0.5 : 0, 0), ImVec2(m_timeRedo > EDevice->TimerAsync() ? 1 : 0.5, 1)/*, 0*/))
-        {
-            m_timeRedo = EDevice->TimerAsync() + 130;
-            ClickRedo();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Repeat the last action.");
-        }
-        ImGui::SameLine();
+            ImGui::TableSetupColumn("Actions");
+            ImGui::TableSetupColumn("File");
+            ImGui::TableSetupColumn("Directory Actions");
+            ImGui::TableSetupColumn("Physics");
+            ImGui::TableSetupColumn("Preferences");
 
-        m_tNew->Load();
-        if (ImGui::ImageButton("##ib003",m_tNew->pSurface, iconSize, ImVec2(0, 0), ImVec2(1, 1)))
-        {
-            ClickNew();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Clear/New Scene");
-        }
-        ImGui::SameLine();
-        m_tOpen->Load();
-        if (ImGui::ImageButton("##ib004", m_tOpen->pSurface, iconSize, ImVec2(0, 0), ImVec2(1, 1)))
-        {
-            ClickOpen();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Open file");
-        }
-        ImGui::SameLine();
-        m_tSave->Load();
-        if (ImGui::ImageButton("##ib005", m_tSave->pSurface, iconSize, ImVec2(0, 0), ImVec2(1, 1)))
-        {
-            ClickSave();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Save file");
-        }
-        ImGui::SameLine();
+            auto yMaxSize = ImGui::GetContentRegionAvail().y;
 
-        m_tOpenGameData->Load();
-        if (ImGui::ImageButton("##ib006", m_tOpenGameData->pSurface, iconSize, ImVec2(0, 0), ImVec2(1, 1)))
-        {
-            ClickOpenGameData();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Open 'gamedata' folder");
-        }
-        ImGui::SameLine();
+            if (ImGui::TableNextColumn())
+            {
+                IMGUI_HINT_BUTTON("Undo", Icons["undo"], "Undo the last action", ImDrawFlags_RoundCornersLeft, ClickUndo);
+                IMGUI_HINT_BUTTON("Redo", Icons["redo"], "Repeat the last action", ImDrawFlags_RoundCornersRight, ClickRedo);
+            }
 
-        bool Simulate = ATools->IsPhysics();
+            if (ImGui::TableNextColumn())
+            {
+                IMGUI_HINT_BUTTON("I_CNS", Icons["new_scene"], "Clear/New Scene", ImDrawFlags_RoundCornersLeft, ClickNew);
+                IMGUI_HINT_BUTTON("I_OL", Icons["open_level"], "Open level", ImDrawFlags_RoundCornersNone, ClickOpen);
+                IMGUI_HINT_BUTTON("I_SL", Icons["save_level"], "Save level", ImDrawFlags_RoundCornersRight, ClickSave);
+            }
 
-        if (ImGui::Checkbox("Simulate", &Simulate))
-        {
-            if(Simulate)
-                ATools->PhysicsSimulate();
-            else
-                ATools->PhysicsStopSimulate();
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::SetTooltip("Activates physics simulation.");
-        }
-        ImGui::SameLine();
+            if (ImGui::TableNextColumn())
+            {
+                IMGUI_HINT_BUTTON("I_OGF", Icons["open_gamedata_folder"], "Open 'gamedata' folder", ImDrawFlags_RoundCornersAll, ClickOpenGameData);
+            }
 
-        if (ATools->CurrentObject() && ImGui::Button("Make Thumbnail"))
-        {
-            ATools->MakeThumbnail();
+            if (ImGui::TableNextColumn())
+            {
+                if (XRay::ImGui::ToolbarButton("PhysSimulation228", "Phys Simulation", &m_Simulate, { 0.f, ButtonSize }, ImDrawFlags_RoundCornersAll))
+                {
+                    bool isPhysics = ATools->IsPhysics();
+
+                    if (isPhysics)
+                        ATools->PhysicsSimulate();
+                    else
+                        ATools->PhysicsStopSimulate();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    ImGui::SetTooltip("Activates physics simulation");
+                }
+            }
+
+            if (ImGui::TableNextColumn())
+            {
+                IMGUI_HINT_BUTTON("I_Preferences", Icons["preferences"], "Preferences", ImDrawFlags_RoundCornersAll, ClickPreferences);
+            }
         }
+        ImGui::EndTable();
     }
     ImGui::End();
-    ImGui::PopStyleVar(5);
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(6);
+}
+
+void UITopBarForm::InitIcons()
+{
+    Icons["undo"] = EDevice->Resources->_CreateTexture("ed\\icons\\Edit Undo");
+    Icons["redo"] = EDevice->Resources->_CreateTexture("ed\\icons\\Edit Redo");
+    Icons["new_scene"] = EDevice->Resources->_CreateTexture("ed\\icons\\File New");
+    Icons["open_level"] = EDevice->Resources->_CreateTexture("ed\\icons\\File Open");
+    Icons["save_level"] = EDevice->Resources->_CreateTexture("ed\\icons\\File Save");
+    Icons["open_gamedata_folder"] = EDevice->Resources->_CreateTexture("ed\\icons\\File Open Game Data Folder");
+    Icons["preferences"] = EDevice->Resources->_CreateTexture("ed\\icons\\Tab Preferences");
 }
 
 void UITopBarForm::ClickUndo()
@@ -164,4 +156,9 @@ void UITopBarForm::ClickOpenGameData()
     string_path GameDataPath;
     FS.update_path(GameDataPath, "$game_data$", "");
     ShellExecuteA(NULL, "open", GameDataPath, NULL, NULL, SW_SHOWDEFAULT);
+}
+
+void UITopBarForm::ClickPreferences()
+{
+    ExecCommand(COMMAND_EDITOR_PREF);
 }

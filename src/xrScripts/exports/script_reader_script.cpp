@@ -11,6 +11,8 @@
 #include "script_reader.h"
 #include <script_engine.h>
 
+#include "alife_space.h"
+
 using namespace luabind;
 
 static bool r_eof_semi(IReader *self_)
@@ -18,7 +20,7 @@ static bool r_eof_semi(IReader *self_)
 	return			(!!self_->eof());
 }
 
-static LPCSTR r_stringZ_semi(IReader *self_)
+static const char* r_stringZ_semi(IReader *self_)
 {
 	shared_str		temp;
 	self_->r_stringZ	(temp);
@@ -35,6 +37,18 @@ static void r_fvector3_semi(IReader *self_, Fvector *arg0)
 	self_->r_fvector3(*arg0);
 }
 
+static void r_fvector4_semi(IReader* self_, Fvector4* arg0)
+{
+	self_->r_fvector4(*arg0);
+}
+
+static ALife::_OBJECT_ID r_object_id(IReader* self_)
+{
+	ALife::_OBJECT_ID id;
+	self_->r(&id, sizeof(ALife::_OBJECT_ID));
+	return id;
+}
+
 static luabind::internal_string r_file_as_string(const char* path)
 {
 	IReader* reader = FS.r_open(path);
@@ -44,9 +58,10 @@ static luabind::internal_string r_file_as_string(const char* path)
 	std::memcpy(result.data(), reader->pointer(), sizeof(char) * reader->length());
 	FS.r_close(reader);
 
-	return std::move(result);
+	return result;
 }
 
+#if 0
 static void w_file_from_string(const char* path, const char* buffer)
 {
 	auto fileIter = FS.exist(path);
@@ -63,8 +78,10 @@ static void w_file_from_string(const char* path, const char* buffer)
 	writer->w(buffer, xr_strlen(buffer));
 	FS.w_close(writer);
 }
+#endif
 
 #pragma optimize("s",on)
+template<>
 void CScriptReader::script_register(lua_State *L)
 {
 	module(L)
@@ -90,10 +107,12 @@ void CScriptReader::script_register(lua_State *L)
 			.def("r_seek",			&IReader::seek			)
 			.def("r_tell",			&IReader::tell			)
 			.def("r_vec3",			&::r_fvector3_semi		)
+			.def("r_vec4",			&::r_fvector4_semi		)
 			.def("r_bool",			&r_bool_semi			)
 			.def("r_stringZ",		&r_stringZ_semi			)
 			.def("r_elapsed",		&IReader::elapsed		)
 			.def("r_advance",		&IReader::advance		)
+			.def("r_object_id",		&r_object_id		)
 			.def("r_eof",			&r_eof_semi				),
 
 		def("r_file_as_string",			&r_file_as_string)

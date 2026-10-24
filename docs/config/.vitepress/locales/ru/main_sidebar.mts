@@ -43,6 +43,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
           { text: 'Симуляция жизни', link: '/gameplay/general/life-simulation' },
           { text: 'Используемые предметы', link: '/gameplay/general/items-used' },
           { text: 'Зоны, костры, аномалии', link: '/gameplay/general/zones-bonfires-anomalies' },
+          { text: 'Геймпады', link: '/gameplay/general/gamepads' },
         ],
       },
       {
@@ -91,6 +92,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
       { text: 'Шрифты', link: '/interface/fonts' },
       { text: 'XML Expression', link: '/interface/xml-expression' },
       { text: 'SVG иконки', link: '/interface/svg-icons' },
+      { text: '3D иконки', link: '/interface/3d-icons' },
       {
         text: 'Новые возможности UI',
         collapsed: true,
@@ -104,6 +106,7 @@ export const mainSidebar: DefaultTheme.Sidebar = [
           { text: 'Состояние предмета и проценты', link: '/interface/item-condition-percent-display' },
           { text: 'Радиальные индикаторы', link: '/interface/radial-progress-shape' },
           { text: 'Прогресс бар веса', link: '/interface/weight-progress-bar' },
+          { text: 'Окно сна', link: '/interface/sleep-dialog' },
         ],
       },
     ],

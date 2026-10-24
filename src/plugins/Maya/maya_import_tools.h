@@ -51,8 +51,8 @@ private:
 	MObject		create_character(MStatus* return_status = 0);
 	MStatus		import_surface(const xray_re::xr_surface* surface, MObject& texture_obj);
 	MStatus		import_bone(const xray_re::xr_bone* bone, MObject& parent_obj);
-	MStatus		import_mesh(const xray_re::xr_mesh* mesh, const std::vector<xray_re::xr_bone*>& bones);
-
+	MStatus		import_mesh(const xray_re::xr_mesh* mesh, const std::vector<xray_re::xr_bone*>& bones,
+					MObject* out_transform = 0);
 	void		set_default_options(void);
 	MStatus		parse_options(const MString& options);
 
@@ -61,6 +61,8 @@ private:
 	maya_object_map	m_joints;
 
 	xray_re::sdk_version m_target_sdk;
+	std::string	m_smoothing_mode;
+	std::string	m_group_name;
 };
 
 #endif

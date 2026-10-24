@@ -18,7 +18,7 @@ void UIChooseForm::UpdateSelected(UIChooseFormItem*NewSelected)
 		if (E.flags.test(SChooseEvents::flClearTexture))
 		{
 			if (m_Texture)
-				((IDirect3DBaseTexture9*)(m_Texture))->Release();
+				m_Texture->Release();
 			m_Texture = 0;
 		}
 		if (!E.on_get_texture.empty())
@@ -82,7 +82,8 @@ UIChooseForm::UIChooseForm():m_Texture(nullptr),m_SelectedItem(nullptr), m_RootI
 UIChooseForm::~UIChooseForm()
 {
 	if (m_Texture)
-		((IDirect3DBaseTexture9*)(m_Texture))->Release();
+		m_Texture->Release();
+
 	if (!E.on_close.empty())
 	{
 		E.on_close();
@@ -127,7 +128,8 @@ void UIChooseForm::Draw()
 				{
 					if (m_Texture)
 					{
-						ImGui::Image(m_Texture, ImVec2(192, 192));
+						IRHIShaderResourceView* SRV = GRHI->CreateShaderResourceView(m_Texture, nullptr);
+						ImGui::Image(SRV->GetRawSRV(), ImVec2(192, 192));
 					}
 					else
 					{
@@ -143,12 +145,12 @@ void UIChooseForm::Draw()
 				if (m_SelectedItem == nullptr)
 				{
 					ImGui::Text("Name:");
-					ImGui::Text("Hit:");
+					ImGui::Text("Hint:");
 				}
 				else
 				{
 					ImGui::Text("Name:%s", m_SelectedItem->Object->name.c_str());
-					ImGui::Text("Hit:%s", m_SelectedItem->Object->hint.c_str());
+					ImGui::Text("Hint:%s", m_SelectedItem->Object->hint.c_str());
 				}
 				ImGui::Separator();
 			}
@@ -258,17 +260,19 @@ bool UIChooseForm::GetResult(bool& change, shared_str& result)
 			int i = 0;
 			for (auto& item : Form->m_SelectedItems)
 			{
+				if (reuslt_temp.size() + item->name.size() + 1 >= 4096)
+				{
+					Msg("! Error: out string len > 4096");
+					break;
+				}
+
 				if (i != 0)
 				{
 					reuslt_temp.append(",");
 				}
+
 				reuslt_temp.append(item->name.c_str());
 				i++;
-			}
-
-			if (reuslt_temp.size() >= 4096)
-			{
-				Msg("! Error: out string len > 4096");
 			}
 
 			result = reuslt_temp.c_str();
@@ -352,7 +356,7 @@ bool UIChooseForm::GetResult(bool& change, xr_vector<xr_string>& result)
 
 	return false;
 }
-void UIChooseForm::SelectItem(u32 choose_ID, int sel_cnt, LPCSTR init_name, TOnChooseFillItems item_fill, void* fill_param, TOnChooseSelectItem item_select, ChooseItemVec* items, u32 mask)
+void UIChooseForm::SelectItem(u32 choose_ID, int sel_cnt, const char* init_name, TOnChooseFillItems item_fill, void* fill_param, TOnChooseSelectItem item_select, ChooseItemVec* items, u32 mask)
 {
 	VERIFY(!Form);
 
@@ -438,7 +442,7 @@ void UIChooseForm::SelectItem(u32 choose_ID, int sel_cnt, LPCSTR init_name, TOnC
 	}
 }
 
-void UIChooseForm::AppendEvents(u32 choose_ID, LPCSTR caption, TOnChooseFillItems on_fill, TOnChooseSelectItem on_sel, TGetTexture on_thm, TOnChooseClose on_close, u32 flags)
+void UIChooseForm::AppendEvents(u32 choose_ID, const char* caption, TOnChooseFillItems on_fill, TOnChooseSelectItem on_sel, TGetTexture on_thm, TOnChooseClose on_close, u32 flags)
 {
 	EventsMapIt it = m_Events.find(choose_ID); VERIFY(it == m_Events.end());
 	m_Events.insert(std::make_pair(choose_ID, SChooseEvents(caption, on_fill, on_sel, on_thm, on_close, flags)));

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../CustomMonster.h"
+#include "../../../Creature.h"
 
 #include "../monster_enemy_memory.h"
 #include "../monster_corpse_memory.h"
@@ -74,9 +74,9 @@ namespace monster_interpolation {
 	};
 };
 
-class CBaseMonster : public CCustomMonster, public CStepManager, public CInventoryOwner
+class CBaseMonster : public CCreature, public CStepManager, public CInventoryOwner
 {
-	typedef	CCustomMonster								inherited;
+	typedef	CCreature								inherited;
 	
 public:
 							CBaseMonster						();
@@ -90,34 +90,34 @@ public:
 	virtual CEntityAlive*				cast_entity_alive			()	{return this;}
 	virtual CEntity*					cast_entity					()	{return this;}
 	virtual CPhysicsShellHolder*		cast_physics_shell_holder	()	{return this;}
-	virtual CParticlesPlayer*			cast_particles_player		()	{return this;}
-	virtual CCustomMonster*				cast_custom_monster			()	{return this;}
+	virtual CCreature*				cast_creature			()	{return this;}
 	virtual CScriptEntity*				cast_script_entity			()	{return this;}
 	virtual CBaseMonster*				cast_base_monster			()	{return this;}
 
-	virtual CInventoryOwner				*cast_inventory_owner		() {return this;}
-	virtual CGameObject*				cast_game_object			() {return this;}
+	virtual CInventoryOwner				*cast_inventory_owner		() override {return this;}
+	virtual CGameObject*				cast_game_object			() override {return this;}
+	virtual CAttachmentOwner*			cast_attachment_owner	() override {return this;}
 
 public:
 	
-	virtual	BOOL			renderable_ShadowReceive		()	{ return TRUE;	}  
+	virtual	bool			renderable_ShadowReceive		()	{ return true;	}  
 	virtual void			Die								(CObject* who);
 	virtual void			HitSignal						(float amount, Fvector& vLocalDir, CObject* who, s16 element);
 	virtual	void			Hit								(SHit* pHDS);
 	virtual	void			PHHit							( SHit &H );
 	virtual void			SelectAnimation					(const Fvector& _view, const Fvector& _move, float speed );
 
-	virtual void			Load							(LPCSTR section);
+	virtual void			Load							(const char* section);
 
 	// must be called at the end of most derived's Load
-	virtual void			PostLoad						(LPCSTR section);
+	virtual void			PostLoad						(const char* section);
 
 	virtual DLL_Pure		*_construct						();
 
-	virtual BOOL			net_Spawn						(CSE_Abstract* DC);
+	virtual bool			net_Spawn						(CSE_Abstract* DC);
 	virtual void			net_Destroy						();
 	virtual void			net_Save						(NET_Packet& P);
-	virtual	BOOL			net_SaveRelevant				();
+	virtual	bool			net_SaveRelevant				();
 	virtual void			net_Export						(NET_Packet& P);
 	virtual void			net_Import						(NET_Packet& P);
 	virtual void			net_Relcase						(CObject *O);
@@ -145,14 +145,14 @@ public:
 	virtual void			InitThink						() {}
 	virtual void			Think							();
 	virtual	void			reinit							();
-	virtual void			reload							(LPCSTR section);
+	virtual void			reload							(const char* section);
 
 	virtual void			init							() {}
 
 	virtual void			feel_sound_new					(CObject* who, int eType, CSound_UserDataPtr user_data, const Fvector &Position, float power);
-	virtual BOOL			feel_vision_isRelevant			(CObject* O);
-	virtual BOOL			feel_touch_on_contact			(CObject* O);
-	virtual BOOL			feel_touch_contact				(CObject *);
+	virtual bool			feel_vision_isRelevant			(CObject* O);
+	virtual bool			feel_touch_on_contact			(CObject* O);
+	virtual bool			feel_touch_contact				(CObject *);
 
 	virtual bool			useful							(const CItemManager *manager, const CGameObject *object) const;
 	virtual float			evaluate						(const CItemManager *manager, const CGameObject *object) const;
@@ -163,7 +163,7 @@ public:
 	virtual CPHSynchronize*	PHGetSyncItem					(u16 item)					{return inherited::PHGetSyncItem(item);}
 	virtual void			PHUnFreeze						()							{return inherited::PHUnFreeze();}
 	virtual void			PHFreeze						()							{return inherited::PHFreeze();}
-	virtual BOOL			UsedAI_Locations				()							{return inherited::UsedAI_Locations();}
+	virtual bool			UsedAI_Locations				()							{return inherited::UsedAI_Locations();}
 
 	virtual void			PH_B_CrPr();
 	virtual void			PH_I_CrPr();
@@ -316,8 +316,8 @@ public:
 	ref_smem<SMonsterSettings>	m_base_settings;
 	ref_smem<SMonsterSettings>	m_current_settings;
 	
-	void						settings_read			(CInifile const *ini, LPCSTR section, SMonsterSettings &data);
-	void						settings_load			(LPCSTR section);
+	void						settings_read			(CInifile const *ini, const char* section, SMonsterSettings &data);
+	void						settings_load			(const char* section);
 	void						settings_overrides		();
 
 	SMonsterSettings			&db						() {return *(*m_current_settings);}
@@ -394,7 +394,7 @@ public:
 //	// Spawn Inventory Item
 //	//-----------------------------------------------------------------
 //private:
-//	LPCSTR					m_item_section;
+//	const char*					m_item_section;
 //	float					m_spawn_probability;
 
 	//--------------------------------------------------------------------
@@ -424,8 +424,8 @@ public:
 	void				on_kill_enemy				(const CEntity *obj);
 	void				Hit_Psy						(CObject *object, float value);
 	void				Hit_Wound					(CObject *object, float value, const Fvector &dir, float impulse);
-	CParticlesObject	*PlayParticles				(const shared_str& name, const Fvector &position, const Fvector &dir, BOOL auto_remove = TRUE, BOOL xformed = TRUE);
-	void				load_effector				(LPCSTR section, LPCSTR line, SAttackEffector &effector);
+	CParticlesObject	*PlayParticles				(const shared_str& name, const Fvector &position, const Fvector &dir, bool auto_remove = true, bool xformed = true);
+	void				load_effector				(const char* section, const char* line, SAttackEffector &effector);
 
 	// --------------------------------------------------------------------------------------
 	// Kill From Here
@@ -465,7 +465,8 @@ IC	void					wake_up				(){m_bSleep = false;}
 
 private:
 	bool					ignore_collision_hit;	
-	
+	bool					has_protections_sect{};
+
 public:
 	IC	void				set_ignore_collision_hit (bool value) {ignore_collision_hit = value;}
 	// -----------------------------------------------------------------------------
@@ -512,11 +513,11 @@ protected:
 	virtual bool			critical_wound_external_conditions_suitable	();
 	virtual void			critical_wounded_state_start				();
 	
-			void			fill_bones_body_parts						(LPCSTR body_part, CriticalWoundType wound_type);
+			void			fill_bones_body_parts						(const char* body_part, CriticalWoundType wound_type);
 	
-	LPCSTR					m_critical_wound_anim_head;
-	LPCSTR					m_critical_wound_anim_torso;
-	LPCSTR					m_critical_wound_anim_legs;
+	const char*					m_critical_wound_anim_head;
+	const char*					m_critical_wound_anim_torso;
+	const char*					m_critical_wound_anim_legs;
 
 	u16 u_last_motion_idx = u16(-1);
 	u16 u_last_motion_slot = u16(-1);
@@ -531,7 +532,7 @@ public:
 #ifdef DEBUG
 
 	template <class Type>
-	bool					get_debug_var (pcstr var_name, OUT Type& result);
+	bool					get_debug_var (const char* var_name, Type& result);
 
 public:
 	struct SDebugInfo {
@@ -629,7 +630,7 @@ protected:
 
 public:
 	template <class Type>
-	Type							override_if_debug (pcstr var_name, Type value);
+	Type							override_if_debug (const char* var_name, Type value);
 
 //-------------------------------------------------------------------
 // CBaseMonster's  Auras
@@ -659,13 +660,13 @@ protected:
 	float							m_fHitFracMonster;
 
 private:
-	pcstr							m_head_bone_name;
-	pcstr							m_left_eye_bone_name;
-	pcstr							m_right_eye_bone_name;
+	const char*							m_head_bone_name;
+	const char*							m_left_eye_bone_name;
+	const char*							m_right_eye_bone_name;
 	shared_str						m_section;
 
 public:
-	pcstr							get_head_bone_name	()	const { return m_head_bone_name; }
+	const char*							get_head_bone_name	()	const { return m_head_bone_name; }
 	shared_str						get_section			()	const { return m_section; }
 
 	anti_aim_ability*				get_anti_aim		() { return m_anti_aim; }
@@ -702,7 +703,7 @@ public:
 
 #ifdef DEBUG
 template <class Type>
-bool   CBaseMonster::get_debug_var (pcstr var_name, OUT Type& result)
+bool   CBaseMonster::get_debug_var (const char* var_name, Type& result)
 {
 	string256 full_var_name;
 	xr_strconcat(full_var_name, get_monster_class_name(), "_", var_name);
@@ -711,7 +712,7 @@ bool   CBaseMonster::get_debug_var (pcstr var_name, OUT Type& result)
 #endif // DEBUG
 
 template <class Type>
-Type   CBaseMonster::override_if_debug (pcstr var_name, Type value)
+Type   CBaseMonster::override_if_debug (const char* var_name, Type value)
 {
 	#ifdef DEBUG
 		Type		debug_value;	

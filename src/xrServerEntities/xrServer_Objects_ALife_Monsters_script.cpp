@@ -6,7 +6,7 @@
 //	Description : Server monsters for ALife simulator, script export
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "xrServer_script_macroses.h"
@@ -17,22 +17,22 @@ using namespace luabind;
 #ifdef XRGAME_EXPORTS
 #include "InventoryOwner.h"
 
-LPCSTR profile_name_script(CSE_ALifeTraderAbstract* ta)
+const char* profile_name_script(CSE_ALifeTraderAbstract* ta)
 {
 	return *ta->character_profile();
 }
 
-void profile_name_set_script(CSE_ALifeTraderAbstract* ta, LPCSTR str)
+void profile_name_set_script(CSE_ALifeTraderAbstract* ta, const char* str)
 {
 	ta->set_character_profile(str);
 }
 
-LPCSTR character_name_script(CSE_ALifeTraderAbstract* ta)
+const char* character_name_script(CSE_ALifeTraderAbstract* ta)
 {
 	return ta->m_character_name.c_str();
 }
 
-LPCSTR icon_name_script(CSE_ALifeTraderAbstract* ta)
+const char* icon_name_script(CSE_ALifeTraderAbstract* ta)
 {
 	ta->specific_character();
 	if (!ta->m_icon_name.size())
@@ -44,19 +44,19 @@ LPCSTR icon_name_script(CSE_ALifeTraderAbstract* ta)
 	return *ta->m_icon_name;
 }
 
-void set_character_name_script(CSE_ALifeTraderAbstract* ta, LPCSTR str) {
+void set_character_name_script(CSE_ALifeTraderAbstract* ta, const char* str) {
 	ta->m_character_name_raw = str;
 	ta->m_character_name = TranslateName(ta->m_character_name_raw.c_str());
 
 	if (g_pGameLevel)
 	{
 		CObject* obj = g_pGameLevel->Objects.net_Find(ta->object_id());
-		CInventoryOwner* owner = smart_cast<CInventoryOwner*>(obj);
+		CInventoryOwner* owner = obj != nullptr ? obj->cast_inventory_owner() : nullptr;
 		if (owner)
 			owner->ChangeName(str);
 	}
 }
-LPCSTR character_name_str_script(CSE_ALifeTraderAbstract* ta) {
+const char* character_name_str_script(CSE_ALifeTraderAbstract* ta) {
 	return ta->m_character_name_raw.c_str();
 }
 #endif
@@ -67,17 +67,17 @@ void CSE_ALifeTraderAbstract::script_register(lua_State *L)
 	module(L)[
 		class_<CSE_ALifeTraderAbstract>
 			("cse_alife_trader_abstract")
-//			.def(		constructor<LPCSTR>())
+//			.def(		constructor<const char*>())
 #ifdef XRGAME_EXPORTS
-			.def("community",		&CommunityName)
+			.def("community",		&CSE_ALifeTraderAbstract::CommunityName)
 			.def("profile_name",	&profile_name_script)
 			.def("set_profile_name", &profile_name_set_script)
 			.def("character_name", &character_name_script)
 			.def("set_character_name", &set_character_name_script)
 			.def("character_name_str", &character_name_str_script)
-			.def("rank",			&Rank)
-			.def("set_rank",		&SetRank)
-			.def("reputation",		&Reputation)
+			.def("rank",			&CSE_ALifeTraderAbstract::Rank)
+			.def("set_rank",		&CSE_ALifeTraderAbstract::SetRank)
+			.def("reputation",		&CSE_ALifeTraderAbstract::Reputation)
 			.def("character_icon", &icon_name_script)
 #endif // XRGAME_EXPORTS
 	];
@@ -95,11 +95,11 @@ void CSE_ALifeTrader::script_register(lua_State *L)
 	];
 }
 
-void CSE_ALifeCustomZone::script_register(lua_State *L)
+void CSE_ALifeAnomalyZone::script_register(lua_State *L)
 {
 	module(L)[
 		luabind_class_dynamic_alife2(
-			CSE_ALifeCustomZone,
+			CSE_ALifeAnomalyZone,
 			"cse_custom_zone",
 			CSE_ALifeDynamicObject,
 			CSE_Shape
@@ -113,10 +113,10 @@ void CSE_ALifeAnomalousZone::script_register(lua_State *L)
 		luabind_class_dynamic_alife1(
 			CSE_ALifeAnomalousZone,
 			"cse_anomalous_zone",
-			CSE_ALifeCustomZone
+			CSE_ALifeAnomalyZone
 		)
 #ifdef XRGAME_EXPORTS
-//.		.def("spawn_artefacts",	&CSE_ALifeAnomalousZone::spawn_artefacts)
+		.def("spawn_artefacts",	&CSE_ALifeAnomalousZone::spawn_artefacts)
 #endif
 	];
 }

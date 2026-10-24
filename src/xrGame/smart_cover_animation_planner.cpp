@@ -31,7 +31,7 @@
 using smart_cover::animation_planner;
 using namespace StalkerDecisionSpace;
 
-animation_planner::animation_planner	(CAI_Stalker *object, LPCSTR action_name) :
+animation_planner::animation_planner	(CAI_Stalker *object, const char* action_name) :
 	inherited					(),
 	m_time_object_hit			(0),
 	m_last_transition_time		(0),
@@ -55,9 +55,9 @@ animation_planner::~animation_planner	()
 
 }
 
-void animation_planner::setup			(CAI_Stalker *object, CPropertyStorage *storage)
+void animation_planner::setup			(CAI_Stalker *Object, CPropertyStorage *storage)
 {
-	inherited::setup		(object);
+	inherited::setup		(Object);
 #ifdef DEBUG
 //	inherited::m_use_log	= true;
 #endif // DEBUG
@@ -65,7 +65,7 @@ void animation_planner::setup			(CAI_Stalker *object, CPropertyStorage *storage)
 	add_evaluators			();
 	add_actions				();
 
-	object->movement().target_selector().setup(this, storage);
+	Object->movement().target_selector().setup(this, storage);
 }
 
 void animation_planner::target			(StalkerDecisionSpace::EWorldProperties const &world_property)
@@ -384,7 +384,7 @@ bool animation_planner::hit_callback	(SHit const *hit)
 	m_time_object_hit		= Device.dwTimeGlobal;
 
 #ifndef MASTER_GOLD
-	if (hit->who && smart_cast<CActor*>(hit->who) && psAI_Flags.test(aiIgnoreActor))
+	if (hit->who != nullptr && hit->who->cast_actor() != nullptr && psAI_Flags.test(aiIgnoreActor))
 		return				(false);
 #endif // MASTER_GOLD
 
@@ -395,14 +395,14 @@ bool animation_planner::hit_callback	(SHit const *hit)
 		m_object->lua_game_object(), 
 		hit->damage(),
 		hit->direction(),
-		smart_cast<const CGameObject*>(hit->who)->lua_game_object(),
+		hit->who->cast_game_object()->lua_game_object(),
 		hit->boneID
 	);
 
 	return					(false);
 }
 
-LPCSTR animation_planner::object_name		() const
+const char* animation_planner::object_name		() const
 {
 	return					("animation_planner");
 }

@@ -13,8 +13,10 @@ struct STRING_TABLE_DATA
 	STRING_VALUE			m_sLanguage;
 	STRING_VALUE			m_sFallbackLanguage;
 	STRING_TABLE_MAP		m_StringTable;
+	STRING_TABLE_MAP		m_StringTableGamepad;
 	STRING_TABLE_MAP		m_FallbackStringTable;
 	STRING_TABLE_MAP		m_string_key_binding;
+	STRING_TABLE_MAP		m_string_key_binding_gamepad;
 };
 
 class ENGINE_API CStringTable 
@@ -30,15 +32,16 @@ public:
 	STRING_VALUE				translate				(const STRING_ID& str_id) const;
 			void				rescan					();
 
-	static	BOOL				m_bWriteErrorsToLog;
+	static	bool				m_bWriteErrorsToLog;
 	static	void				ReparseKeyBindings		();
 	static	xr_string			LangName				();
 			void				ReloadLanguage(const char* lang);
+			STRING_VALUE		ParseStringFromScript	(STRING_ID input);
 private:
 			void				Init					();
-			void				Load					(LPCSTR xml_file);
-			void				LoadFallback			(LPCSTR xml_file);
-	static STRING_VALUE			ParseLine				(LPCSTR str, LPCSTR key, bool bFirst);
+			void				Load					(const char* xml_file);
+			void				LoadFallback			(const char* xml_file);
+	static STRING_VALUE			ParseLine				(const char* str, const char* key, bool bFirst, bool isGamepad = false);
 	static STRING_TABLE_DATA*	pData;
 };
 

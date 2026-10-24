@@ -14,12 +14,12 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name)
 
 		bool bCyclic						= !!pSettings->r_bool(sect_name,"pp_eff_cyclic");
 
-		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", false);
+		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", true);
 
 		pp_anm->SetType						((EEffectorPPType)type);
 		pp_anm->SetCyclic					(bCyclic);
 
-		LPCSTR fn = pSettings->r_string		(sect_name,"pp_eff_name");
+		const char* fn = pSettings->r_string		(sect_name,"pp_eff_name");
 		pp_anm->Load						(fn);
 		A->Cameras().AddPPEffector	(pp_anm);
 	}
@@ -35,7 +35,7 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name)
 			cam_anm->SetHudAffect			(b_hud_affect);
 		}
 
-		LPCSTR fn = pSettings->r_string		(sect_name,"cam_eff_name");
+		const char* fn = pSettings->r_string		(sect_name,"cam_eff_name");
 		cam_anm->Start						(fn);
 		A->Cameras().AddCamEffector	(cam_anm);
 	}
@@ -48,8 +48,8 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name, CEffectorCo
 		CPostprocessAnimatorControlled* pp_anm	= new CPostprocessAnimatorControlled(ec);
 		pp_anm->SetType						((EEffectorPPType)type);
 		pp_anm->SetCyclic					(bCyclic);
-		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", false);
-		LPCSTR fn = pSettings->r_string		(sect_name,"pp_eff_name");
+		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", true);
+		const char* fn = pSettings->r_string		(sect_name,"pp_eff_name");
 		pp_anm->Load						(fn);
 		A->Cameras().AddPPEffector			(pp_anm);
 	}
@@ -65,7 +65,7 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name, CEffectorCo
 			cam_anm->SetHudAffect			(b_hud_affect);
 		}
 
-		LPCSTR fn = pSettings->r_string		(sect_name,"cam_eff_name");
+		const char* fn = pSettings->r_string		(sect_name,"cam_eff_name");
 		cam_anm->Start						(fn);
 		A->Cameras().AddCamEffector			(cam_anm);
 	}
@@ -78,8 +78,8 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name, GET_KOEFF_F
 		CPostprocessAnimatorLerp* pp_anm	= new CPostprocessAnimatorLerp();
 		pp_anm->SetType						((EEffectorPPType)type);
 		pp_anm->SetCyclic					(bCyclic);
-		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", false);
-		LPCSTR fn = pSettings->r_string		(sect_name,"pp_eff_name");
+		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", true);
+		const char* fn = pSettings->r_string		(sect_name,"pp_eff_name");
 		pp_anm->SetFactorFunc				(k_func);
 		pp_anm->Load						(fn);
 		A->Cameras().AddPPEffector			(pp_anm);
@@ -97,7 +97,7 @@ void AddEffector		(CActor* A, int type, const shared_str& sect_name, GET_KOEFF_F
 			cam_anm->SetHudAffect			(b_hud_affect);
 		}
 
-		LPCSTR fn = pSettings->r_string		(sect_name,"cam_eff_name");
+		const char* fn = pSettings->r_string		(sect_name,"cam_eff_name");
 		cam_anm->Start						(fn);
 		A->Cameras().AddCamEffector			(cam_anm);
 	}
@@ -112,8 +112,8 @@ void AddEffector(CActor* A, int type, const shared_str& sect_name, float factor)
 		pp_anm->SetType						((EEffectorPPType)type);
 		pp_anm->SetCyclic					(bCyclic);
 		pp_anm->SetPower					(factor);
-		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", false);
-		LPCSTR fn = pSettings->r_string		(sect_name,"pp_eff_name");
+		pp_anm->bOverlap					= READ_IF_EXISTS(pSettings, r_bool, sect_name,"pp_eff_overlap", true);
+		const char* fn = pSettings->r_string		(sect_name,"pp_eff_name");
 		pp_anm->Load						(fn);
 		A->Cameras().AddPPEffector			(pp_anm);
 	}
@@ -130,7 +130,7 @@ void AddEffector(CActor* A, int type, const shared_str& sect_name, float factor)
 			cam_anm->SetHudAffect			(b_hud_affect);
 		}
 
-		LPCSTR fn = pSettings->r_string		(sect_name,"cam_eff_name");
+		const char* fn = pSettings->r_string		(sect_name,"cam_eff_name");
 		cam_anm->Start						(fn);
 		A->Cameras().AddCamEffector			(cam_anm);
 	}
@@ -162,23 +162,23 @@ CAnimatorCamEffector::~CAnimatorCamEffector()
 	delete_data				(m_objectAnimator);
 }
 
-void CAnimatorCamEffector::Start(LPCSTR fn)
+void CAnimatorCamEffector::Start(const char* fn)
 {
 	m_objectAnimator->Load		(fn);
 	m_objectAnimator->Play		(Cyclic());
 	fLifeTime					= m_objectAnimator->GetLength();
 }
 
-BOOL CAnimatorCamEffector::Valid()
+bool CAnimatorCamEffector::Valid()
 {
-	if(Cyclic())	return TRUE;
+	if(Cyclic())	return true;
 	return			inherited::Valid();
 }
 
-BOOL CAnimatorCamEffector::ProcessCam(SCamEffectorInfo& info)
+bool CAnimatorCamEffector::ProcessCam(SCamEffectorInfo& info)
 {
 	if(!inherited::ProcessCam(info))	
-		return FALSE;
+		return false;
 
 	const Fmatrix& m			= m_objectAnimator->XFORM();
 	m_objectAnimator->Update	(Device.fTimeDelta);
@@ -204,12 +204,12 @@ BOOL CAnimatorCamEffector::ProcessCam(SCamEffectorInfo& info)
 	if(m_fov>0.0f)
 		info.fFov				= m_fov;
 
-	return						TRUE;
+	return						true;
 }
 
-BOOL CAnimatorCamLerpEffector::ProcessCam(SCamEffectorInfo& info)
+bool CAnimatorCamLerpEffector::ProcessCam(SCamEffectorInfo& info)
 {
-	if(!inherited::inherited::ProcessCam(info))	return FALSE;
+	if(!CEffectorCam::ProcessCam(info))	return false;
 
 	const Fmatrix& m			= m_objectAnimator->XFORM();
 	m_objectAnimator->Update	(Device.fTimeDelta);
@@ -246,7 +246,7 @@ BOOL CAnimatorCamLerpEffector::ProcessCam(SCamEffectorInfo& info)
 	if(m_fov>0.0f)
 		info.fFov				= m_fov;
 
-	return TRUE;
+	return true;
 }
 
 
@@ -269,41 +269,41 @@ CCameraEffectorControlled::~CCameraEffectorControlled()
 	m_controller->SetCam(nullptr);
 }
 
-BOOL CCameraEffectorControlled::Valid()
+bool CCameraEffectorControlled::Valid()
 {
 	return m_controller->Valid();
 }
 
 #define SND_MIN_VOLUME_FACTOR (0.1f)
 
-SndShockEffector::SndShockEffector	()
+TSndShockEffector::TSndShockEffector()
 {
-	m_snd_length			= 0.0f;
-	m_cur_length			= 0.0f;
-	m_stored_volume			= -1.0f;
-	m_actor					= nullptr;
+	m_snd_length = 0.0f;
+	m_cur_length = 0.0f;
+	m_stored_volume = -1.0f;
+	m_actor = nullptr;
 }
 
-SndShockEffector::~SndShockEffector	()
+TSndShockEffector::~TSndShockEffector()
 {
-	psSoundVFactor		= m_stored_volume;
-	if(m_actor&&(m_ce||m_pe))
-		RemoveEffector	(m_actor, effHit);
+	psSoundVFactor = m_stored_volume;
+	if (m_actor && (m_ce || m_pe))
+		RemoveEffector(m_actor, effHit);
 
-	R_ASSERT	(!m_ce&&!m_pe);
+	R_ASSERT(!m_ce && !m_pe);
 }
 
-BOOL SndShockEffector::Valid()
+bool TSndShockEffector::Valid()
 {
 	return (m_cur_length<=m_snd_length);
 }
 
-BOOL SndShockEffector::InWork()
+bool TSndShockEffector::InWork()
 {
 	return inherited::Valid();
 }
 
-float SndShockEffector::GetFactor()
+float TSndShockEffector::GetFactor()
 {
 	float f				= (m_end_time-Device.fTimeGlobal)/m_life_time;
 	
@@ -311,34 +311,33 @@ float SndShockEffector::GetFactor()
 	return clampr(ff, 0.0f, 1.0f);
 }
 
-void SndShockEffector::Start(CActor* A, float snd_length, float power)
+void TSndShockEffector::Start(float snd_length, float power)
 {
-	clamp			(power, 0.1f, 1.5f);
-	m_actor			= A;
-	m_snd_length	= snd_length;
+	clamp(power, 0.1f, 1.5f);
+	m_snd_length = snd_length;
 
-	if( m_stored_volume<0.0f )
+	if (m_stored_volume < 0.0f)
 		m_stored_volume = psSoundVFactor;
-	
 
-	m_cur_length		= 0;
-	psSoundVFactor		= m_stored_volume*SND_MIN_VOLUME_FACTOR;
-	
-	static float		xxx = 6.0f/1.50f; //6sec on max power(1.5)
 
-	m_life_time			= power*xxx;
-	m_end_time			= Device.fTimeGlobal + m_life_time;
+	m_cur_length = 0;
+	psSoundVFactor = m_stored_volume * SND_MIN_VOLUME_FACTOR;
 
-	AddEffector			(A, effHit,"snd_shock_effector", this);
+	static float		xxx = 6.0f / 1.50f; //6sec on max power(1.5)
+
+	m_life_time = power * xxx;
+	m_end_time = Device.fTimeGlobal + m_life_time;
+
+	AddEffector(m_actor, effHit, "snd_shock_effector", this);
 }
 
-void SndShockEffector::Update()
+void TSndShockEffector::Update()
 {
-	m_cur_length		+= Device.dwTimeDelta;
-	float x				= float(m_cur_length)/m_snd_length;
-	float y				= 2.f*x-1;
-	if (y>0.f){
-		psSoundVFactor	= y*(m_stored_volume-m_stored_volume*SND_MIN_VOLUME_FACTOR)+m_stored_volume*SND_MIN_VOLUME_FACTOR;
+	m_cur_length += Device.dwTimeDelta;
+	float x = float(m_cur_length) / m_snd_length;
+	float y = 2.f * x - 1;
+	if (y > 0.f) {
+		psSoundVFactor = y * (m_stored_volume - m_stored_volume * SND_MIN_VOLUME_FACTOR) + m_stored_volume * SND_MIN_VOLUME_FACTOR;
 	}
 }
 
@@ -373,7 +372,7 @@ CControllerPsyHitCamEffector::CControllerPsyHitCamEffector(ECamEffectorType type
 	m_direction.normalize		();
 }
 
-BOOL CControllerPsyHitCamEffector::ProcessCam(SCamEffectorInfo& info)
+bool CControllerPsyHitCamEffector::ProcessCam(SCamEffectorInfo& info)
 {
 	Fmatrix	Mdef;
 	Mdef.identity		();
@@ -425,7 +424,7 @@ BOOL CControllerPsyHitCamEffector::ProcessCam(SCamEffectorInfo& info)
 	info.n.set		(mR.j);
 	info.p.set		(mR.c);
 
-	return TRUE;
+	return true;
 }
 bool similar_cam_info(const SCamEffectorInfo& c1, const SCamEffectorInfo& c2)
 {

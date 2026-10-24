@@ -2,7 +2,7 @@
 
 #include "AmebaZone.h"
 #include "ZoneVisual.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "../xrEngine/xr_collide_form.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "PhysicsShellHolder.h"
@@ -20,7 +20,7 @@ CAmebaZone::~CAmebaZone()
 {
 }
 
-void CAmebaZone::Load(LPCSTR section)
+void CAmebaZone::Load(const char* section)
 {
 	inherited::Load		(section);
 	m_fVelocityLimit	= pSettings->r_float(section,"max_velocity_in_zone");
@@ -40,7 +40,7 @@ bool CAmebaZone::BlowoutState()
 
 void  CAmebaZone::Affect(SZoneObjectInfo* O) 
 {
-	CPhysicsShellHolder *pGameObject = smart_cast<CPhysicsShellHolder*>(O->object);
+	CPhysicsShellHolder *pGameObject = O->object != nullptr ? O->object->cast_physics_shell_holder() : nullptr;
 	if(!pGameObject) return;
 
 	if(O->zone_ignore) return;

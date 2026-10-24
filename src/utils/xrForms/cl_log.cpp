@@ -20,7 +20,10 @@ xr_vector<xr_string>& GetLogVector()
 	return myLogVector;
 }
 
-volatile BOOL				bClose = FALSE;
+void ClearLogVector()
+{
+	myLogVector.clear();
+}
 
 static char					status[1024] = "";
 static char					additional_data[1024] = "";
@@ -33,6 +36,18 @@ static u32					phase_total_time = 0;
 
 xr_vector<IterationData> iterationData;
 IterationData* ActiveIteration = nullptr;
+
+void DebugMsg(const char* format, ...)
+{
+	string256 msg;
+	va_list				mark;
+	va_start(mark, format);
+	vsprintf(msg, format, mark);
+
+	OutputDebugStringA(msg);
+	OutputDebugStringA("\n");
+}
+
 
 xr_string make_time(u32 sec)
 {
@@ -100,8 +115,7 @@ void SetActiveIteration(IterationData* i)
 }
 
 extern size_t GetHeapMemory();
-// extern void GetMemoryUsedStorage();
-
+ 
 void Phase(const char* phase_name)
 {
 	csLog.Enter();
@@ -113,9 +127,7 @@ void Phase(const char* phase_name)
 	{
  		ActiveIteration->phases[ActiveIteration->phases.size() - 1].used_memory = GetHeapMemory();
 		ActiveIteration->phases[ActiveIteration->phases.size() - 1].status		= Complete;
-
-		// GetMemoryUsedStorage();
-	}
+ 	}
 
 	ActiveIteration->phases.push_back({ phase_name });
 
@@ -126,6 +138,16 @@ void Phase(const char* phase_name)
 	csLog.Leave();
 }
 
+void PhaseEnd()
+{
+ 	// Start _new phase
+ 	if (ActiveIteration->phases.size() > 0)
+	{
+		ActiveIteration->phases[ActiveIteration->phases.size() - 1].used_memory = GetHeapMemory();
+		ActiveIteration->phases[ActiveIteration->phases.size() - 1].status = Complete;
+	}
+}
+
 void AditionalData(const char* format, ...)
 {
 	csLog.Enter();
@@ -133,8 +155,7 @@ void AditionalData(const char* format, ...)
 	va_list		mark;
 	va_start(mark, format);
 	vsprintf(additional_data, format, mark);
-
-
+ 
 	if (ActiveIteration->phases.size() > 0)
 	{
 		ActiveIteration->phases[ActiveIteration->phases.size() - 1].AdditionalData = additional_data;
@@ -154,7 +175,7 @@ void logThread(void* dummy)
 	xrLogger::RemoveLogCallback(MyLogCallback);
 }
 
-void clLog(LPCSTR msg) {
+void clLog(const char* msg) {
 	csLog.Enter();
 	Log(msg);
 	csLog.Leave();
@@ -165,8 +186,7 @@ void __cdecl clMsg(const char* format, ...) {
 	char buf[4 * 256];
 	va_start(mark, format);
 	vsprintf(buf, format, mark);
-
-
+ 
 	string1024		_out_;
 	xr_strconcat(_out_, "    |    | ", buf);
 	clLog(_out_);
@@ -175,11 +195,11 @@ void __cdecl clMsg(const char* format, ...) {
 class client_log_impl : public i_lc_log
 {
 
-	virtual void clMsg(LPCSTR msg) override { ::clMsg(msg); }
-	virtual void clLog(LPCSTR msg) override { ::clLog(msg); }
-	virtual void Status(LPCSTR msg) override { ::Status(msg); }
+	virtual void clMsg(const char* msg) override { ::clMsg(msg); }
+	virtual void clLog(const char* msg) override { ::clLog(msg); }
+	virtual void Status(const char* msg) override { ::Status(msg); }
 	virtual	void Progress(const float F) override { ::Progress(F); }
-	virtual	void Phase(LPCSTR phase_name) override { ::Phase(phase_name); }
+	virtual	void Phase(const char* phase_name) override { ::Phase(phase_name); }
 public:
 	client_log_impl() { lc_log = this; }
 } client_log_impl;

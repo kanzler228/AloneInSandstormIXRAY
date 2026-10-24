@@ -129,8 +129,8 @@ IC	void CDetailPathManager::adjust_point(
 	Fvector2			&dest
 ) const
 {
-	dest.x				= -_sin(yaw);
-	dest.y				= _cos(yaw);
+	dest.x				= -std::sin(yaw);
+	dest.y				= std::cos(yaw);
 	dest.mad			(source,dest,magnitude);
 }
 
@@ -144,23 +144,31 @@ IC	void CDetailPathManager::assign_angle(
 ) const
 {
 	if (positive)
+	{
 		if (dest_yaw >= start_yaw)
-			angle		= dest_yaw - start_yaw;
+			angle = dest_yaw - start_yaw;
 		else
-			angle		= PI_MUL_2 - start_yaw + dest_yaw;
+			angle = PI_MUL_2 - start_yaw + dest_yaw;
+	}
 	else
+	{
 		if (dest_yaw <= start_yaw)
-			angle		= dest_yaw - start_yaw;
+			angle = dest_yaw - start_yaw;
 		else
-			angle		= dest_yaw - start_yaw - PI_MUL_2;
-
+			angle = dest_yaw - start_yaw - PI_MUL_2;
+	}
 	if (!start && ((direction_type == eDirectionTypePP) || (direction_type == eDirectionTypeNN)))
+	{
 		if (angle <= 0.f)
+		{
 			angle = angle + PI_MUL_2;
+		}
 		else
+		{
 			angle = angle - PI_MUL_2;
-
-	VERIFY				(_valid(angle));
+		}
+	}
+	VERIFY(_valid(angle));
 }
 
 IC	bool CDetailPathManager::compute_circles(
@@ -173,7 +181,7 @@ IC	bool CDetailPathManager::compute_circles(
 		return			false;
 	}
 
-	point.radius		= _abs(point.linear_velocity)/point.angular_velocity;
+	point.radius		= std::abs(point.linear_velocity)/point.angular_velocity;
 	circles[0].radius	= circles[1].radius = point.radius;
 	VERIFY				(fsimilar(point.direction.square_magnitude(),1.f));
 	circles[0].center.x =  point.direction.y*point.radius + point.position.x;

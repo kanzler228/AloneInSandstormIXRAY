@@ -6,7 +6,7 @@
 //	Description : Server items for ALife simulator, script export
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "xrServer_Objects_ALife_Items.h"
 #include "xrServer_script_macroses.h"
@@ -19,7 +19,7 @@ void CSE_ALifeInventoryItem::script_register(lua_State *L)
 	module(L)[
 		class_<CSE_ALifeInventoryItem>
 			("cse_alife_inventory_item")
-//			.def(		constructor<LPCSTR>())
+//			.def(		constructor<const char*>())
 	];
 }
 

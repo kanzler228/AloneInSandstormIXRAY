@@ -14,7 +14,7 @@ void XRayEditor::Level_Scan()
 {
 }
 
-int XRayEditor::Level_ID(LPCSTR name, LPCSTR ver, bool bSet)
+int XRayEditor::Level_ID(const char* name, const char* ver, bool bSet)
 {
 	return 0;
 }
@@ -27,7 +27,7 @@ void XRayEditor::LoadAllArchives()
 {
 }
 
-CInifile* XRayEditor::GetArchiveHeader(LPCSTR name, LPCSTR ver)
+CInifile* XRayEditor::GetArchiveHeader(const char* name, const char* ver)
 {
 	return nullptr;
 }
@@ -40,7 +40,7 @@ void XRayEditor::LoadEnd()
 {
 }
 
-void XRayEditor::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)
+void XRayEditor::LoadTitleInt(const char* str1, const char* str2, const char* str3)
 {
 }
 
@@ -58,12 +58,12 @@ void XRayEditor::LoadDraw()
 
 void XRayEditor::OnEvent(EVENT E, u64 P1, u64 P2)
 {
-	CApplication::OnEvent(E,P1,P2);
+	CEngineApp::OnEvent(E, P1, P2);
 }
 
-void _BCL XRayEditor::OnFrame()
+void XRayEditor::OnFrame()
 {
-	CApplication::OnFrame();
+	CEngineApp::OnFrame();
 }
 
 void XRayEditor::load_draw_internal()

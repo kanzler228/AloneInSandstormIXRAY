@@ -13,7 +13,7 @@ bool motion_find_pred	(COMotion* a, 	shared_str b)	{	return a->name<b;}
 CObjectAnimator::CObjectAnimator()
 {
 	bLoop			= false;
-    m_Current		= 0;
+    m_Current		= nullptr;
     m_Speed			= 1.f;
 	m_Name			= "";
 }
@@ -28,7 +28,7 @@ void CObjectAnimator::Clear()
 	for(MotionIt m_it=m_Motions.begin(); m_it!=m_Motions.end(); m_it++)
 		xr_delete		(*m_it);
 	m_Motions.clear		();
-    SetActiveMotion		(0);
+    SetActiveMotion		(nullptr);
 }
 
 void CObjectAnimator::SetActiveMotion(COMotion* mot)
@@ -38,14 +38,14 @@ void CObjectAnimator::SetActiveMotion(COMotion* mot)
 	m_XFORM.identity	();
 }
 
-void CObjectAnimator::LoadMotions(LPCSTR fname)
+void CObjectAnimator::LoadMotions(const char* fname)
 {
 	string_path			full_path;
 	if (!FS.exist( full_path, "$level$", fname ))
 		if (!FS.exist( full_path, "$game_anims$", fname ))
 			Debug.fatal(DEBUG_INFO,"Can't find motion file '%s'.",fname);
             
-    LPCSTR  ext			= strext(full_path);
+    const char*  ext			= strext(full_path);
     if (ext){
 		Clear			();
     	if (0==xr_strcmp(ext,".anm")){
@@ -71,7 +71,7 @@ void CObjectAnimator::Load(const char * name)
 {
 	m_Name				= name;
 	LoadMotions			(name); 
-	SetActiveMotion		(0);
+	SetActiveMotion		(nullptr);
 }
 
 void CObjectAnimator::Update(float dt)
@@ -85,7 +85,7 @@ void CObjectAnimator::Update(float dt)
 	}
 }
 
-COMotion* CObjectAnimator::Play(bool loop, LPCSTR name)
+COMotion* CObjectAnimator::Play(bool loop, const char* name)
 {
 	if (name&&name[0]){
 		MotionIt it = std::lower_bound(m_Motions.begin(),m_Motions.end(),name,motion_find_pred);
@@ -113,7 +113,7 @@ COMotion* CObjectAnimator::Play(bool loop, LPCSTR name)
 
 void CObjectAnimator::Stop()
 {
-	SetActiveMotion		(0);
+	SetActiveMotion		(nullptr);
 	m_MParam.Stop		();
 }
 
@@ -153,7 +153,7 @@ void CObjectAnimator::DrawPath()
         RCache.set_xform_world(Fidentity);
 
         if (!path_points.empty())
-            DU_impl.DrawPrimitiveL(D3DPT_LINESTRIP, path_points.size() - 1, path_points.data(), path_points.size(), clr, true, false);
+            DU_impl.DrawPrimitiveL(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP, path_points.size() - 1, path_points.data(), path_points.size(), clr, true, false);
 
         CEnvelope* E = m_Current->Envelope();
 

@@ -24,7 +24,7 @@ void CMPPlayersBag::OnEvent(NET_Packet& P, u16 type)
 			{
 				P.r_u16(id);
 				CObject* O = Level().Objects.net_Find(id);
-				CInventoryItem*	pIItem		= smart_cast<CInventoryItem*>(O);
+				CInventoryItem*	pIItem		= O->cast_inventory_item();
 				R_ASSERT					(pIItem->m_pInventory==nullptr);
 				
 #ifdef MP_LOGGING
@@ -49,7 +49,7 @@ void CMPPlayersBag::OnEvent(NET_Packet& P, u16 type)
 	}
 }
 
-extern INT g_iWeaponRemove;
+extern int g_iWeaponRemove;
 bool CMPPlayersBag::NeedToDestroyObject()	const
 {
 	if (IsGameTypeSingle()) return false;

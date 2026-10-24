@@ -2,12 +2,7 @@
 #pragma once
 
 #include "UIStatic.h"
-
-namespace text_editor
-{
-	class ENGINE_API line_edit_control;
-	enum init_mode;
-};
+#include "../xrEngine/line_edit_control.h"
 
 class UI_API CUICustomEdit : 
 	public CUIStatic
@@ -37,12 +32,13 @@ public:
 			void	SetNextFocusCapturer(CUICustomEdit* next_capturer) { m_next_focus_capturer = next_capturer; };
 	
 			void	ClearText		();
-	virtual	void	SetText			(LPCSTR str);
-	virtual LPCSTR	GetText			()	const;
+	virtual	void	SetText			(const char* str);
+	virtual const char*	GetText			()	const;
 
 	virtual void	Enable			(bool status);
 			
 			void	SetPasswordMode	(bool mode = true);
+			void	SetPlaceholder	(const char* stId, bool blink = false);
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIStatic* ui_cast_static() { return this; }
@@ -72,4 +68,5 @@ protected:
 	bool	m_read_mode;
 
 	CUICustomEdit*	m_next_focus_capturer;
+	CUIStatic*		m_pPlaceholder;
 };

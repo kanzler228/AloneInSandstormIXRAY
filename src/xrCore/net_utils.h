@@ -23,7 +23,7 @@ struct XRCORE_API IIniFileStream
 	virtual void 	__stdcall	w_s16			( s16 a)					= 0;
 	virtual void	__stdcall	w_u8			( u8 a)						= 0;
 	virtual void	__stdcall	w_s8			( s8 a)						= 0;
-	virtual void	__stdcall	w_stringZ		( LPCSTR S)					= 0;
+	virtual void	__stdcall	w_stringZ		( const char* S)					= 0;
 					
 	virtual void	__stdcall	r_vec3			(Fvector&)					= 0;
 	virtual void	__stdcall	r_vec4			(Fvector4&)					= 0;
@@ -82,7 +82,7 @@ public:
 	u32				timeReceive;
 	bool			w_allow;
 public:
-	NET_Packet			():inistream(NULL),w_allow(true)	{}
+	NET_Packet			():inistream(nullptr),r_pos(0),timeReceive(0),w_allow(true)	{}
 	// writing - main
 	IC void write_start	()				{	B.count=0;				INI_W(move_begin());}
 	IC void	w_begin		( u16 type	)	{	B.count=0;	w_u16(type);}
@@ -115,7 +115,7 @@ public:
 		r(&value, (u32)sizeof(T));
 	}
 
-	IC void w_seek	(u32 pos, const void* p, u32 count);
+	void w_seek	(u32 pos, const void* p, u32 count);
 	IC u32	w_tell	()						{ return B.count; }
 
 	// writing - utilities
@@ -158,7 +158,7 @@ public:
 		w_dir	(C);
 		w_float (mag);
 	}
-	IC void w_stringZ			( LPCSTR S )	{ W_guard g(&w_allow); w(S,(u32)xr_strlen(S)+1);	INI_W(w_stringZ(S));		}
+	IC void w_stringZ			( const char* S )	{ W_guard g(&w_allow); w(S,(u32)xr_strlen(S)+1);	INI_W(w_stringZ(S));		}
 	IC void w_stringZ			( const shared_str& p)
 	{
 		W_guard g(&w_allow); 
@@ -166,7 +166,7 @@ public:
 			w(*p,p.size()+1);
 		else{
 			IIniFileStream* tmp = inistream;
-			inistream = NULL;
+			inistream = nullptr;
 			w_u8(0);
 			inistream = tmp; //hack -(
 		}
@@ -229,7 +229,7 @@ public:
 		r_pos		+= count;
 		VERIFY		(r_pos<=B.count);
 	}
-	BOOL		r_eof			();
+	bool		r_eof			();
 	u32			r_elapsed		();
 	void		r_advance		(u32 size);
 

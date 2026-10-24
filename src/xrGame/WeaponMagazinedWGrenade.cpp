@@ -14,36 +14,26 @@
 #include "Actor_Flags.h"
 #include "Inventory.h"
 #include "InventoryOwner.h"
+#include "Weapons/Components/WeaponAmmoBones.h"
 
 #ifdef DEBUG
-#	include "phdebug.h"
+#	include "PHDebug.h"
 #endif
 
-CWeaponMagazinedWGrenade::CWeaponMagazinedWGrenade(ESoundTypes eSoundType) : CWeaponMagazined(eSoundType)
-{
-	m_ammoType2 = 0;
-	m_bGrenadeMode = false;
-}
-
-CWeaponMagazinedWGrenade::~CWeaponMagazinedWGrenade()
-{
-}
-
-void CWeaponMagazinedWGrenade::Load(LPCSTR section)
+void CWeaponMagazinedWGrenade::Load(const char* section)
 {
 	inherited::Load(section);
 	CRocketLauncher::Load(section);
-
-	m_sFlameParticles2 = pSettings->r_string(section, "grenade_flame_particles");
 
 	if (m_eGrenadeLauncherStatus == ALife::eAddonPermanent)
 	{
 		CRocketLauncher::m_fLaunchSpeed = pSettings->r_float(section, "grenade_vel");
 	}
+	grenade_bone_name = READ_IF_EXISTS(pSettings, r_string, hud_sect, "grenade_bone", "grenade");
 
 	// load ammo classes SECOND (grenade_class)
 	m_ammoTypes2.clear();
-	LPCSTR				S = pSettings->r_string(section, "grenade_class");
+	const char*				S = pSettings->r_string(section, "grenade_class");
 	if (S && S[0])
 	{
 		string128		_ammoItem;
@@ -57,35 +47,50 @@ void CWeaponMagazinedWGrenade::Load(LPCSTR section)
 
 	iMagazineSize2 = iMagazineSize;
 
-	if (pSettings->line_exist(hud_sect, "gl_ammo_params_section") && pSettings->section_exist(pSettings->r_string(hud_sect, "gl_ammo_params_section")))
+	auto ReachInAllSections = [&](const char* param_name)
 	{
-		SAmmoBonesParams* bone_params = new SAmmoBonesParams(undefined_ammo_type);
-		bone_params->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"), 1);
-		m_ammo_bones_gl.push_back(bone_params);
-	}
-	else for (int i = 0; i < m_ammoTypes2.size(); i++)
-	{
-		static shared_str params_section;
-		params_section.printf("gl_ammo_params_section_%d", i);
-		if (pSettings->line_exist(hud_sect, *params_section))
+		const char* reached_sect = section;
+		const shared_str hud_section = HudSection();
+		if (pSettings->line_exist(hud_section, param_name))
 		{
-			SAmmoBonesParams* bone_params = new SAmmoBonesParams(i);
-			bone_params->Load(pSettings->r_string(hud_sect, *params_section), 1);
-			m_ammo_bones_gl.push_back(bone_params);
+			reached_sect = hud_section.c_str();
+		}
+		return reached_sect;
+	};
+
+	for (u8 i = 0; i < m_ammoTypes2.size(); i++)
+	{
+		shared_str mag_bone_type = shared_str().printf("gl_bone_type_%d", i);
+
+		if (pSettings->line_exist(ReachInAllSections(*mag_bone_type), *mag_bone_type))
+		{
+			CreateComponent<TGrenadeLauncherAmmoBones>();
+			break;
 		}
 	}
 }
 
-void CWeaponMagazinedWGrenade::LoadSounds(LPCSTR section)
+void CWeaponMagazinedWGrenade::LoadSounds(const char* section)
 {
 	inherited::LoadSounds(section);
 
-	m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot);
+	m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot, st_Shooting);
 
 	if (SoundExist(section, "snd_shoot_grenade_actor"))
 	{
-		m_eSoundsFlags.set(ESoundsFlags::sf_shoot_grenade_actor, TRUE);
-		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot);
+		m_eSoundsShotFlags.set(ESoundsShotFlags::ssf_shoot_grenade_actor, true);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot, st_Shooting);
+	}
+
+	if (SoundExist(section, "snd_shoot_grenade_indoor"))
+	{
+		m_eSoundsShotFlags.set(ESoundsShotFlags::ssf_shoot_indoor_grenade, true);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_indoor", "sndShotGIndoor", false, m_eSoundShot);
+		if (SoundExist(section, "snd_shoot_grenade_actor_indoor"))
+		{
+			m_eSoundsShotFlags.set(ESoundsShotFlags::ssf_shoot_indoor_grenade_actor, true);
+			m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor_indoor", "sndShotGActorIndoor", false, m_eSoundShot);
+		}
 	}
 
 	if (SoundExist(section, "snd_load_grenade"))
@@ -99,7 +104,7 @@ void CWeaponMagazinedWGrenade::LoadSounds(LPCSTR section)
 
 	if (SoundExist(section, "snd_change_grenade"))
 	{
-		m_eSoundsFlags.set(ESoundsFlags::sf_grenade_change, TRUE);
+		m_eSoundsFlags.set(ESoundsFlags::sf_grenade_change, true);
 		m_sounds.LoadSound(section, "snd_change_grenade", "sndChangeGrenade", true, m_eSoundReload);
 	}
 
@@ -107,7 +112,7 @@ void CWeaponMagazinedWGrenade::LoadSounds(LPCSTR section)
 
 	if (SoundExist(section, "snd_switch_g"))
 	{
-		m_eSoundsFlags.set(ESoundsFlags::sf_switch_g, TRUE);
+		m_eSoundsFlags.set(ESoundsFlags::sf_switch_g, true);
 		m_sounds.LoadSound(section, "snd_switch_g", "sndSwitchG", true, m_eSoundReload);
 	}
 }
@@ -117,58 +122,63 @@ void CWeaponMagazinedWGrenade::net_Destroy()
 	inherited::net_Destroy();
 }
 
-BOOL CWeaponMagazinedWGrenade::net_Spawn(CSE_Abstract* DC)
+bool CWeaponMagazinedWGrenade::net_Spawn(CSE_Abstract* DC)
 {
-	CSE_ALifeItemWeapon* const weapon = smart_cast<CSE_ALifeItemWeapon*>(DC);
+	CSE_ALifeItemWeapon* const weapon = DC->cast_item_weapon();
 	R_ASSERT(weapon);
+
 	if (IsGameTypeSingle())
 	{
 		inherited::net_Spawn_install_upgrades(weapon->m_upgrades);
 	}
 
-	BOOL l_res = inherited::net_Spawn(DC);
-
-	UpdateGrenadeVisibility(!!iAmmoElapsed);
-	SetPending(FALSE);
-
-	if (!IsGameTypeSingle())
+	if (const CSE_ALifeItemWeaponMagazinedWGL* wgl = DC->cast_item_weapon_magazined_wgl())
 	{
-		iAmmoElapsed2 = weapon->a_elapsed_grenades.grenades_count;
-		m_ammoType2 = weapon->a_elapsed_grenades.grenades_type;
+		m_bGrenadeMode = wgl->m_bGrenadeMode;
 	}
 
-	m_DefaultCartridge2.Load(m_ammoTypes2[m_ammoType2].c_str(), m_ammoType2);
+	bool l_res = inherited::net_Spawn(DC);
 
-	if (!IsGameTypeSingle())
+	m_DefaultCartridge2.Load(m_ammoTypes2[AmmoType.GrenadeType].c_str(), AmmoType.GrenadeType);
+	if (AmmoElapsed.GrenadeElapsed)
 	{
-		if (!m_bGrenadeMode && IsGrenadeLauncherAttached() && !getRocketCount() && iAmmoElapsed2)
+		for (int i = 0; i < AmmoElapsed.GrenadeElapsed; ++i)
 		{
 			m_magazine2.push_back(m_DefaultCartridge2);
-
-			shared_str grenade_name = m_DefaultCartridge2.m_ammoSect;
-			shared_str fake_grenade_name = pSettings->r_string(grenade_name, "fake_grenade_name");
-
-			CRocketLauncher::SpawnRocket(*fake_grenade_name, this);
 		}
+
+		if (!getRocketCount())
+		{
+			CRocketLauncher::SpawnRocket(pSettings->r_string(m_magazine2.back().m_ammoSect, "fake_grenade_name"), this);
+		}
+	}
+
+	UpdateGrenadeVisibility(!!AmmoElapsed.GrenadeElapsed);
+
+	if (m_bGrenadeMode && IsGrenadeLauncherAttached())
+	{
+		iMagazineSize = m_bGrenadeMode ? 1 : iMagazineSize2;
+
+		CShootingObject::fire_mode = m_bGrenadeMode ? eGlauncherFire : IsSilencerAttached() ? eSilencerFire : eDefaultFire;
+
+		m_ammoTypes.swap(m_ammoTypes2);
+
+		u8 old = AmmoType.MagazineType;
+		AmmoType.MagazineType = AmmoType.GrenadeType;
+		AmmoType.GrenadeType = old;
+
+		swap(m_DefaultCartridge, m_DefaultCartridge2);
+
+		m_magazine.swap(m_magazine2);
+
+		AmmoElapsed.MagazineElapsed = (int)m_magazine.size();
+		AmmoElapsed.GrenadeElapsed = (int)m_magazine2.size();
 	}
 	else
 	{
-		xr_vector<CCartridge>* pM = nullptr;
-		bool b_if_grenade_mode = (m_bGrenadeMode && iAmmoElapsed && !getRocketCount());
-		if (b_if_grenade_mode)
-			pM = &m_magazine;
-
-		bool b_if_simple_mode = (!m_bGrenadeMode && m_magazine2.size() && !getRocketCount());
-		if (b_if_simple_mode)
-			pM = &m_magazine2;
-
-		if (b_if_grenade_mode || b_if_simple_mode)
-		{
-			shared_str fake_grenade_name = pSettings->r_string(pM->back().m_ammoSect, "fake_grenade_name");
-
-			CRocketLauncher::SpawnRocket(*fake_grenade_name, this);
-		}
+		m_bGrenadeMode = false;
 	}
+
 	return l_res;
 }
 
@@ -183,6 +193,16 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentReloadAnimation()
 
 	if (H_Parent() && H_Parent() == Level().CurrentControlEntity())
 	{
+		const char* end_suffix = m_bGrenadeMode ? "_g" : m_disable_random_animations ? "_gl" : "_w_gl";
+
+		if (m_bUseRevolverScheme && !IsGrenadeMode() && !IsMisfire() && !IsChangeAmmoType())
+		{
+			if (AddSuffixName(anim, shared_str().printf("_%d", AmmoElapsed.MagazineElapsed).c_str(), end_suffix))
+			{
+				return anim;
+			}
+		}
+
 		if (GetQueueSize() == -1)
 		{
 			AddSuffixName(anim, "_auto");
@@ -192,12 +212,12 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentReloadAnimation()
 			AddSuffixName(anim, "_triple");
 		}
 
-		int GetElapsed = m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed;
+		int GetElapsed = m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed;
 		bool empty = m_bAmmoInChamber ? iAmmoChamberElapsed == 0 && GetElapsed == 0 : GetElapsed == 0;
-		LPCSTR end_suffix = m_bGrenadeMode ? "_g" : "_w_gl";
+
 		if (IsMisfire())
 		{
-			if (IsChangeAmmoType() && (!m_bGrenadeMode || iAmmoElapsed))
+			if (IsChangeAmmoType() && (!m_bGrenadeMode || AmmoElapsed.MagazineElapsed))
 			{
 				AddSuffixName(anim, "_jammed_ammochange", end_suffix);
 			}
@@ -215,7 +235,7 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentReloadAnimation()
 		}
 		else if (empty)
 		{
-			if (IsChangeAmmoType() && (!m_bGrenadeMode || iAmmoElapsed))
+			if (IsChangeAmmoType() && (!m_bGrenadeMode || AmmoElapsed.MagazineElapsed))
 			{
 				AddSuffixName(anim, "_empty_ammochange", end_suffix);
 			}
@@ -223,7 +243,7 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentReloadAnimation()
 			AddSuffixName(anim, "_empty", end_suffix);
 		}
 
-		if (IsChangeAmmoType() && (!m_bGrenadeMode || iAmmoElapsed))
+		if (IsChangeAmmoType() && (!m_bGrenadeMode || AmmoElapsed.MagazineElapsed))
 		{
 			AddSuffixName(anim, "_ammochange", end_suffix);
 		}
@@ -246,8 +266,12 @@ void CWeaponMagazinedWGrenade::switch2_Reload()
 	if (IsGrenadeLauncherAttached() && m_bGrenadeMode)
 	{
 		m_bIsReloaded = false;
-		UpdateAmmoBones(m_ammo_bones_gl, iAmmoElapsed, GetAmmoType(true));
-		if (IsChangeAmmoType() && iAmmoElapsed && m_eSoundsFlags.test(ESoundsFlags::sf_grenade_change))
+		if (TGrenadeLauncherAmmoBones* GLAmmoBones = GetComponent<TGrenadeLauncherAmmoBones>())
+		{
+			GLAmmoBones->UpdateGLAmmoBones(this, GetAmmoType(true));
+		}
+
+		if (IsChangeAmmoType() && AmmoElapsed.MagazineElapsed && m_eSoundsFlags.test(ESoundsFlags::sf_grenade_change))
 		{
 			PlaySound("sndChangeGrenade", get_LastFP2());
 		}
@@ -274,7 +298,7 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentShootAnimation()
 
 	if (H_Parent() && H_Parent() == Level().CurrentControlEntity())
 	{
-		int GetElapsed = m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed;
+		int GetElapsed = m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed;
 		bool empty = m_bAmmoInChamber ? iAmmoChamberElapsed == 0 && GetElapsed == 0 : GetElapsed == 0;
 		bool last_empty = m_bAmmoInChamber ? iAmmoChamberElapsed == 1 && GetElapsed == 0 : GetElapsed == 1;
 
@@ -316,7 +340,12 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentShootAnimation()
 			AddSuffixName(anim, "_l");
 		}
 
-		AddSuffixName(anim, m_bGrenadeMode ? "_g" : "_w_gl");
+		if (Actor()->SuicideNow && Actor()->IsSuicideInreversible())
+		{
+			AddSuffixName(anim, "_suicide");
+		}
+
+		AddSuffixName(anim, m_bGrenadeMode ? "_g" : m_disable_random_animations ? "_gl" : "_w_gl");
 	}
 
 	return anim;
@@ -327,7 +356,7 @@ void CWeaponMagazinedWGrenade::switch2_Hiding()
 	OnZoomOut();
 	CWeapon::FireEnd();
 
-	int default_mag = (m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed) + iAmmoChamberElapsed;
+	int default_mag = (m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed) + iAmmoChamberElapsed;
 
 	if (m_sounds_enabled)
 	{
@@ -370,12 +399,12 @@ void CWeaponMagazinedWGrenade::switch2_Hiding()
 	}
 
 	PlayAnimHide();
-	SetPending(TRUE);
+	SetPending(true);
 }
 
 void CWeaponMagazinedWGrenade::switch2_Showing()
 {
-	int default_mag = (m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed) + iAmmoChamberElapsed;
+	int default_mag = (m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed) + iAmmoChamberElapsed;
 
 	if (m_sounds_enabled)
 	{
@@ -417,24 +446,28 @@ void CWeaponMagazinedWGrenade::switch2_Showing()
 		}
 	}
 
-	SetPending(TRUE);
+	SetPending(true);
 	PlayAnimShow();
 }
 
 bool CWeaponMagazinedWGrenade::SwitchMode()
 {
 	if (!IsGrenadeLauncherAttached())
+	{
 		return false;
+	}
 
 	if (!SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfGLAUNCHSWITCH))
 	{
 		return false;
 	}
 
-	bool bUsefulStateToSwitch = (!IsPending() && !IsZoomed() && (GetState() == eIdle || GetState() == eMisfire));
+	bool bUsefulStateToSwitch = !IsPending() && GetState() != eFire && !IsZoomed();
 
 	if (!bUsefulStateToSwitch)
+	{
 		return false;
+	}
 
 	SwitchState(eSwitch);
 
@@ -449,16 +482,20 @@ void CWeaponMagazinedWGrenade::PerformSwitchGL()
 
 	iMagazineSize = m_bGrenadeMode ? 1 : iMagazineSize2;
 
+	CShootingObject::fire_mode = m_bGrenadeMode ? eGlauncherFire : IsSilencerAttached() ? eSilencerFire : eDefaultFire;
+
 	m_ammoTypes.swap(m_ammoTypes2);
 
-	swap(m_ammoType, m_ammoType2);
+	u8 old = AmmoType.MagazineType;
+	AmmoType.MagazineType = AmmoType.GrenadeType;
+	AmmoType.GrenadeType = old;
 
 	swap(m_DefaultCartridge, m_DefaultCartridge2);
 
 	m_magazine.swap(m_magazine2);
 
-	iAmmoElapsed = (int)m_magazine.size();
-	iAmmoElapsed2 = (int)m_magazine2.size();
+	AmmoElapsed.MagazineElapsed = (int)m_magazine.size();
+	AmmoElapsed.GrenadeElapsed = (int)m_magazine2.size();
 
 	m_BriefInfo_CalcFrame = 0;
 }
@@ -487,13 +524,13 @@ void CWeaponMagazinedWGrenade::FireStart()
 		return;
 	}
 
-	u32 CurrentState = GetState();
+	u8 CurrentState = GetState();
 
-	if (!iAmmoElapsed)
+	if (!AmmoElapsed.MagazineElapsed)
 	{
 		if (!infinite_fire())
 		{
-			if (CurrentState == eIdle || CurrentState == eEmptyClick && !m_bBlockEmptyClick)
+			if (!IsPending() && CurrentState != eFire)
 			{
 				if (m_eAnimationsFlags.test(EAnimationsFlags::af_empty_click))
 				{
@@ -512,7 +549,7 @@ void CWeaponMagazinedWGrenade::FireStart()
 		}
 	}
 
-	if (GetState() != eIdle)
+	if (CurrentState == eFire)
 	{
 		return;
 	}
@@ -541,24 +578,21 @@ void CWeaponMagazinedWGrenade::state_Fire(float dt)
 	//режим стрельбы подствольника
 	if (m_bGrenadeMode)
 	{
-		if (!iAmmoElapsed)
+		if (!AmmoElapsed.MagazineElapsed)
 			return;
 
 		Fvector	p1, d;
 		p1.set(get_LastFP2());
 		d.set(get_LastFD());
-		if (!H_Parent()) return;
-		CGameObject* GO = H_Parent()->cast_game_object();
-		if (!GO || GO->getDestroy()) return;
-		CEntity* entity = GO->cast_entity();
-		if (!entity) return;
-		CInventoryOwner* inventory_owner = entity->cast_inventory_owner();
-		if (!inventory_owner || !inventory_owner->m_inventory) return;
+		
 
-		entity->g_fireParams(this, p1, d);
+		if (CEntity* entity = H_Parent() ? H_Parent()->cast_entity() : nullptr)
+		{
+			entity->g_fireParams(this, p1, d);
+		}
 
-		if (IsGameTypeSingle())
-			p1.set(get_LastFP2());
+		//if (IsGameTypeSingle())
+			//p1.set(get_LastFP2());
 
 		Fmatrix launch_matrix;
 		launch_matrix.identity();
@@ -567,16 +601,10 @@ void CWeaponMagazinedWGrenade::state_Fire(float dt)
 
 		launch_matrix.c.set(p1);
 
-		if (IsGameTypeSingle() && IsZoomed() && GO->cast_actor())
+		if (IsGameTypeSingle() && IsZoomed() && H_Parent() && H_Parent()->cast_actor())
 		{
-			H_Parent()->setEnabled(FALSE);
-			setEnabled(FALSE);
-
 			collide::rq_result RQ;
-			BOOL HasPick = Level().ObjectSpace.RayPick(p1, d, 300.0f, collide::rqtStatic, RQ, this);
-
-			setEnabled(TRUE);
-			H_Parent()->setEnabled(TRUE);
+			bool HasPick = Level().ObjectSpace.RayPick(p1, d, 300.0f, collide::rqtStatic, RQ, H_Parent());
 
 			if (HasPick)
 			{
@@ -592,21 +620,47 @@ void CWeaponMagazinedWGrenade::state_Fire(float dt)
 			}
 		};
 
+		if (H_Parent() && H_Parent()->cast_actor() && H_Parent()->cast_actor()->ControlledTimeRemains > 0)
+		{
+			d.set(0.0f, -2.0f, 0.0f);
+		}
+
 		d.normalize();
 		d.mul(CRocketLauncher::m_fLaunchSpeed);
 		VERIFY2(_valid(launch_matrix), "CWeaponMagazinedWGrenade::SwitchState. Invalid launch_matrix!");
-		CRocketLauncher::LaunchRocket(launch_matrix, d, zero_vel);
+		CRocketLauncher::LaunchRocket(launch_matrix, d, zero_vel); 
 
-		CExplosiveRocket* pGrenade = smart_cast<CExplosiveRocket*>(getCurrentRocket());
+		CExplosiveRocket* pGrenade = getCurrentRocket()->cast_explosive_rocket();
+		if (!IsGameTypeSingle())
+		{
+			if (!pGrenade)
+			{
+				if (m_ammoTypes.size() > AmmoType.MagazineType && pSettings->line_exist(m_ammoTypes[AmmoType.MagazineType].c_str(), "fake_grenade_name"))
+				{
+					shared_str fake_grenade_name = pSettings->r_string(m_ammoTypes[AmmoType.MagazineType].c_str(), "fake_grenade_name");
+					if (fake_grenade_name.size())
+					{
+						CRocketLauncher::SpawnRocket(*fake_grenade_name, this);
+						pGrenade = smart_cast<CExplosiveRocket*>(getCurrentRocket());
+					}
+				}
+
+				if (!pGrenade)
+				{
+					return;
+				}
+			}
+		}
+
 		VERIFY(pGrenade);
-		pGrenade->SetInitiator(H_Parent()->ID());
+		pGrenade->SetInitiator(H_Parent() ? H_Parent()->ID() : ID());
 
 		if (Local() && OnServer())
 		{
 			VERIFY(m_magazine.size());
 			m_magazine.pop_back();
-			--iAmmoElapsed;
-			VERIFY((u32)iAmmoElapsed == m_magazine.size());
+			--AmmoElapsed.MagazineElapsed;
+			VERIFY((u32)AmmoElapsed.MagazineElapsed == m_magazine.size());
 
 			NET_Packet P;
 			u_EventGen(P, GE_LAUNCH_ROCKET, ID());
@@ -665,17 +719,33 @@ void CWeaponMagazinedWGrenade::OnEvent(NET_Packet& P, u16 type)
 		{
 			PlayAnimShoot();
 
-			if (m_eSoundsFlags.test(ESoundsFlags::sf_shoot_grenade_actor))
+			if ((ParentIsActor() && m_eSoundsShotFlags.test(ESoundsShotFlags::ssf_shoot_indoor_grenade_actor) || m_eSoundsShotFlags.test(ESoundsShotFlags::ssf_shoot_indoor_grenade)) && Sound->object_in_audiozone(get_LastFP2()))
 			{
-				m_layered_sounds.PlaySound("sndShotGActor", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
+				if (ParentIsActor() && m_eSoundsShotFlags.test(ESoundsShotFlags::ssf_shoot_indoor_grenade_actor))
+				{
+					m_layered_sounds.PlaySound("sndShotGActorIndoor", get_LastFP2(), H_Root(), GetHUDmode(), false, true);
+				}
+				else
+				{
+					m_layered_sounds.PlaySound("sndShotGIndoor", get_LastFP2(), H_Root(), GetHUDmode(), false, true);
+				}
 			}
 			else
 			{
-				m_layered_sounds.PlaySound("sndShotG", get_LastFP2(), H_Root(), !!GetHUDmode(), false, true);
+				if (m_eSoundsShotFlags.test(ESoundsShotFlags::ssf_shoot_grenade_actor))
+				{
+					m_layered_sounds.PlaySound("sndShotGActor", get_LastFP2(), H_Root(), GetHUDmode(), false, true);
+				}
+				else
+				{
+					m_layered_sounds.PlaySound("sndShotG", get_LastFP2(), H_Root(), GetHUDmode(), false, true);
+				}
 			}
 
-			AddShotEffector();
-			StartFlameParticles2();
+			if (H_Parent())
+				AddShotEffector();
+			
+			StartFlameParticle();
 		}
 		break;
 	}
@@ -696,7 +766,7 @@ void CWeaponMagazinedWGrenade::ReloadMagazine()
 		bMisfire = last_bMisfire;
 		if (!getRocketCount())
 		{
-			shared_str fake_grenade_name = pSettings->r_string(m_ammoTypes[m_ammoType].c_str(), "fake_grenade_name");
+			shared_str fake_grenade_name = pSettings->r_string(m_ammoTypes[AmmoType.MagazineType].c_str(), "fake_grenade_name");
 			CRocketLauncher::SpawnRocket(*fake_grenade_name, this);
 		}
 	}
@@ -715,7 +785,7 @@ void CWeaponMagazinedWGrenade::UnloadMagazine(bool spawn_ammo)
 	}
 }
 
-void CWeaponMagazinedWGrenade::OnStateSwitch(u32 S)
+void CWeaponMagazinedWGrenade::OnStateSwitch(u8 S)
 {
 	switch (S)
 	{
@@ -725,27 +795,27 @@ void CWeaponMagazinedWGrenade::OnStateSwitch(u32 S)
 	}
 
 	inherited::OnStateSwitch(S);
-	UpdateGrenadeVisibility(!!iAmmoElapsed || S == eReload);
+	UpdateGrenadeVisibility(!!AmmoElapsed.MagazineElapsed || S == eReload);
 }
 
 void CWeaponMagazinedWGrenade::switch2_SwitchMode()
 {
-	SetPending(TRUE);
+	SetPending(true);
 	PerformSwitchGL();
 
 	if (m_bGrenadeMode && m_eSoundsFlags.test(ESoundsFlags::sf_switch_g))
 	{
-		PlaySound("sndSwitchG", get_LastFP());
+		PlaySound("sndSwitchG", get_LastFP(), true);
 	}
 	else
 	{
-		PlaySound("sndSwitch", get_LastFP());
+		PlaySound("sndSwitch", get_LastFP(), true);
 	}
 
 	PlayAnimModeSwitch();
 }
 
-void CWeaponMagazinedWGrenade::OnAnimationEnd(u32 state)
+void CWeaponMagazinedWGrenade::OnAnimationEnd(u8 state)
 {
 	switch (state)
 	{
@@ -760,11 +830,11 @@ void CWeaponMagazinedWGrenade::OnH_B_Independent(bool just_before_destroy)
 {
 	inherited::OnH_B_Independent(just_before_destroy);
 
-	SetPending(FALSE);
+	SetPending(false);
 	if (m_bGrenadeMode)
 	{
 		SetState(eIdle);
-		SetPending(FALSE);
+		SetPending(false);
 	}
 }
 
@@ -782,7 +852,7 @@ bool CWeaponMagazinedWGrenade::CanAttach(PIItem pIItem)
 	}
 }
 
-bool CWeaponMagazinedWGrenade::CanDetach(LPCSTR item_section_name)
+bool CWeaponMagazinedWGrenade::CanDetach(const char* item_section_name)
 {
 	if (ALife::eAddonAttachable == m_eGrenadeLauncherStatus && 0 != (m_flagsAddOnState & CSE_ALifeItemWeapon::eWeaponAddonGrenadeLauncher) && !xr_strcmp(*m_sGrenadeLauncherName, item_section_name))
 	{
@@ -836,7 +906,7 @@ bool CWeaponMagazinedWGrenade::Attach(PIItem pIItem, bool b_send_event)
 	}
 }
 
-bool CWeaponMagazinedWGrenade::Detach(LPCSTR item_section_name, bool b_spawn_item)
+bool CWeaponMagazinedWGrenade::Detach(const char* item_section_name, bool b_spawn_item)
 {
 	if (ALife::eAddonAttachable == m_eGrenadeLauncherStatus && 0 != (m_flagsAddOnState & CSE_ALifeItemWeapon::eWeaponAddonGrenadeLauncher) && !xr_strcmp(*m_sGrenadeLauncherName, item_section_name))
 	{
@@ -860,6 +930,8 @@ bool CWeaponMagazinedWGrenade::Detach(LPCSTR item_section_name, bool b_spawn_ite
 			PlayAnimIdle();
 		}
 
+		m_fGrenadeAttachedRecoil = 1.0f;
+
 		return CInventoryItemObject::Detach(item_section_name, b_spawn_item);
 	}
 	else
@@ -877,8 +949,10 @@ void CWeaponMagazinedWGrenade::InitAddons()
 		if (IsGrenadeLauncherAttached())
 		{
 			CRocketLauncher::m_fLaunchSpeed = pSettings->r_float(*m_sGrenadeLauncherName, "grenade_vel");
+			m_fGrenadeAttachedRecoil = READ_IF_EXISTS(pSettings, r_float, *m_sGrenadeLauncherName, "grenade_attached_recoil", 1.0f);
 		}
 	}
+
 }
 
 bool CWeaponMagazinedWGrenade::UseScopeTexture()
@@ -895,7 +969,7 @@ float	CWeaponMagazinedWGrenade::CurrentZoomFactor()
 //виртуальные функции для проигрывания анимации HUD
 void CWeaponMagazinedWGrenade::PlayAnimModeSwitch()
 {
-	PlayHUDMotion(SetCurrentStateAnimation("anm_switch"), EHudMixType::eMixAll, eSwitch);
+	PlayHUDMotion(SetCurrentStateAnimation("anm_switch"), m_bGrenadeMode ? "anm_switch_grenade_on" : "anm_switch_grenade_off", EHudMixType::eMixAll, eSwitch);
 }
 
 shared_str CWeaponMagazinedWGrenade::SetCurrentStateAnimation(const shared_str& first_name)
@@ -918,10 +992,10 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentStateAnimation(const shared_str& 
 			AddSuffixName(anim, "_triple");
 		}
 
-		int GetElapsed = m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed;
+		int GetElapsed = m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed;
 		bool empty = m_bAmmoInChamber ? iAmmoChamberElapsed == 0 && GetElapsed == 0 : GetElapsed == 0;
 
-		LPCSTR end_suffix = m_bGrenadeMode ? "_g" : "_w_gl";
+		const char* end_suffix = m_bGrenadeMode ? "_g" : ((HudAnimationExist("anm_draw_gl") && !HudAnimationExist("anm_show_w_gl")) || m_disable_random_animations) ? "_gl" : "_w_gl";
 
 		if (IsZoomed() && IsMisfire())
 		{
@@ -942,6 +1016,14 @@ shared_str CWeaponMagazinedWGrenade::SetCurrentStateAnimation(const shared_str& 
 		else if (empty)
 		{
 			AddSuffixName(anim, "_empty", end_suffix);
+		}
+
+		if (const CActor* pActor = Level().CurrentControlEntity()->cast_actor())
+		{
+			if (pActor->IsSafemode())
+			{
+				AddSuffixName(anim, "_safemode", end_suffix);
+			}
 		}
 
 		AddSuffixName(anim, end_suffix);
@@ -966,7 +1048,7 @@ void CWeaponMagazinedWGrenade::UpdateSounds()
 	if (Device.dwFrame % 3 == 0)
 	{
 		m_layered_sounds.SetPosition("sndShotG", P);
-		if (m_eSoundsFlags.test(ESoundsFlags::sf_shoot_grenade_actor))
+		if (m_eSoundsShotFlags.test(ESoundsShotFlags::ssf_shoot_grenade_actor))
 		{
 			m_layered_sounds.SetPosition("sndShotGActor", P);
 		}
@@ -991,40 +1073,22 @@ void CWeaponMagazinedWGrenade::UpdateSounds()
 
 void CWeaponMagazinedWGrenade::UpdateGrenadeVisibility(bool visibility)
 {
-	if (!GetHUDmode())							return;
-	HudItemData()->set_bone_visible("grenade", visibility, TRUE);
+	if (HudItemData() != nullptr)
+	{
+		HudItemData()->set_bone_visible(grenade_bone_name, visibility, TRUE);
+	}
 }
 
 void CWeaponMagazinedWGrenade::save(NET_Packet& output_packet)
 {
 	inherited::save(output_packet);
 	save_data(m_bGrenadeMode, output_packet);
-	save_data((u32)m_magazine2.size(), output_packet);
-	save_data(m_ammoType2, output_packet);
-
 }
 
 void CWeaponMagazinedWGrenade::load(IReader& input_packet)
 {
 	inherited::load(input_packet);
-	bool b = false;
-	load_data(b, input_packet);
-	if (b != m_bGrenadeMode)
-	{
-		PerformSwitchGL();
-	}
-
-	u32 sz = 0;
-	load_data(sz, input_packet);
-	load_data(m_ammoType2, input_packet);
-
-	CCartridge l_cartridge;
-	l_cartridge.Load(m_ammoTypes2[m_ammoType2].c_str(), m_ammoType2);
-
-	while (sz > (u32)m_magazine2.size())
-	{
-		m_magazine2.push_back(l_cartridge);
-	}
+	load_data(m_bGrenadeMode, input_packet);
 }
 
 void CWeaponMagazinedWGrenade::net_Export(NET_Packet& P)
@@ -1036,7 +1100,7 @@ void CWeaponMagazinedWGrenade::net_Export(NET_Packet& P)
 
 void CWeaponMagazinedWGrenade::net_Import(NET_Packet& P)
 {
-	bool NewMode = FALSE;
+	bool NewMode = false;
 	NewMode = !!P.r_u8();
 	if (NewMode != m_bGrenadeMode)
 		PerformSwitchGL();
@@ -1058,9 +1122,9 @@ bool CWeaponMagazinedWGrenade::IsNecessaryItem(const shared_str& item_sect)
 		);
 }
 
-bool CWeaponMagazinedWGrenade::install_upgrade_ammo_class(LPCSTR section, bool test)
+bool CWeaponMagazinedWGrenade::install_upgrade_ammo_class(const char* section, bool test)
 {
-	LPCSTR str = {};
+	const char* str = {};
 
 	bool result = false;
 	bool result2 = false;
@@ -1069,11 +1133,12 @@ bool CWeaponMagazinedWGrenade::install_upgrade_ammo_class(LPCSTR section, bool t
 
 	int& current_size = grenade_mode ? iMagazineSize2 : iMagazineSize;
 
-	result2 = process_if_exists(section, "ammo_mag_size", &CInifile::r_s32, current_size, test);
+	result = process_if_exists(section, "ammo_mag_size", current_size, test);
 
+	if (!test && !grenade_mode)
 	iMagazineSize2 = iMagazineSize;
 
-	result2 = process_if_exists_set(section, "ammo_class", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "ammo_class", str, test);
 	if (result2 && !test)
 	{
 		xr_vector<shared_str>& ammo_types = grenade_mode ? m_ammoTypes2 : m_ammoTypes;
@@ -1085,20 +1150,20 @@ bool CWeaponMagazinedWGrenade::install_upgrade_ammo_class(LPCSTR section, bool t
 			ammo_types.push_back(ammo_item);
 		}
 
-		m_ammoType = 0;
-		m_ammoType2 = 0;
+		AmmoType.MagazineType = 0;
+		AmmoType.GrenadeType = 0;
 	}
 	result |= result2;
 
-	return result2;
+	return result;
 }
 
-bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
+bool CWeaponMagazinedWGrenade::install_upgrade_impl(const char* section, bool test)
 {
-	LPCSTR str = {};
+	const char* str = {};
 	bool result = inherited::install_upgrade_impl(section, test);
 
-	bool result2 = process_if_exists_set(section, "grenade_class", &CInifile::r_string, str, test);
+	bool result2 = process_if_exists_set(section, "grenade_class", str, test);
 	if (result2 && !test)
 	{
 		RStringVec& ammo_types = !m_bGrenadeMode ? m_ammoTypes2 : m_ammoTypes;
@@ -1110,29 +1175,29 @@ bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 			ammo_types.push_back(ammo_item);
 		}
 
-		m_ammoType = 0;
-		m_ammoType2 = 0;
+		AmmoType.MagazineType = 0;
+		AmmoType.GrenadeType = 0;
 	}
 	result |= result2;
 
-	result |= process_if_exists(section, "launch_speed", &CInifile::r_float, m_fLaunchSpeed, test);
+	result |= process_if_exists(section, "launch_speed", m_fLaunchSpeed, test);
 
-	result2 = process_if_exists_set(section, "snd_shoot_grenade", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_shoot_grenade", str, test);
 	if (result2 && !test)
 	{
-		m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade", "sndShotG", false, m_eSoundShot, st_Shooting);
 	}
 	result |= result2;
 
-	result2 = process_if_exists_set(section, "snd_shoot_grenade_actor", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_shoot_grenade_actor", str, test);
 	if (result2 && !test)
 	{
-		m_eSoundsFlags.set(ESoundsFlags::sf_shoot_grenade_actor, TRUE);
-		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot);
+		m_eSoundsShotFlags.set(ESoundsShotFlags::ssf_shoot_grenade_actor, true);
+		m_layered_sounds.LoadSound(section, "snd_shoot_grenade_actor", "sndShotGActor", false, m_eSoundShot, st_Shooting);
 	}
 	result |= result2;
 
-	result2 = process_if_exists_set(section, "snd_reload_grenade", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_reload_grenade", str, test);
 	if (result2 && !test)
 	{
 		if (SoundExist(section, "snd_load_grenade"))
@@ -1146,45 +1211,17 @@ bool CWeaponMagazinedWGrenade::install_upgrade_impl(LPCSTR section, bool test)
 	}
 	result |= result2;
 
-	result2 = process_if_exists_set(section, "snd_change_grenade", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_change_grenade", str, test);
 	if (result2 && !test) { m_sounds.LoadSound(section, "snd_change_grenade", "sndChangeGrenade", true, m_eSoundReload); }
 	result |= result2;
 
-	result2 = process_if_exists_set(section, "snd_switch", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_switch", str, test);
 	if (result2 && !test) { m_sounds.LoadSound(section, "snd_switch", "sndSwitch", true, m_eSoundReload); }
 	result |= result2;
 
-	result2 = process_if_exists_set(section, "snd_switch_g", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "snd_switch_g", str, test);
 	if (result2 && !test) { m_sounds.LoadSound(section, "snd_switch_g", "sndSwitchG", true, m_eSoundReload); }
 	result |= result2;
-
-	RStringVec& gl_types = m_bGrenadeMode ? m_ammoTypes : m_ammoTypes2;
-
-	if (pSettings->line_exist(hud_sect, "gl_ammo_params_section"))
-	{
-		for (auto& bone_param : m_ammo_bones_gl)
-		{
-			if (bone_param->AmmoType == undefined_ammo_type)
-			{
-				bone_param->Load(pSettings->r_string(hud_sect, "gl_ammo_params_section"), 1);
-			}
-		}
-	}
-	else for (int i = 0; i < gl_types.size(); i++)
-	{
-		static shared_str params_section;
-		params_section.printf("gl_ammo_params_section_%d", i);
-		if (pSettings->line_exist(hud_sect, *params_section))
-		{
-			for (auto& bone_param : m_ammo_bones_gl)
-			{
-				if (bone_param->AmmoType == i)
-				{
-					bone_param->Load(pSettings->r_string(hud_sect, *params_section), 1);
-				}
-			}
-		}
-	}
 
 	return result;
 }
@@ -1222,10 +1259,7 @@ bool CWeaponMagazinedWGrenade::GetBriefInfo(II_BriefInfo& info)
 		info.fire_mode._set(int_str);
 	}
 
-	if (m_pInventory->ModifyFrame() <= m_BriefInfo_CalcFrame)
-		return false;
-
-	const int at = GetSuitableAmmoTotal() - (GetAmmoElapsed() + (m_bGrenadeMode ? 0 : iAmmoChamberElapsed)); // update m_BriefInfo_CalcFrame
+	const int at = GetSuitableAmmoTotal() - (GetAmmoElapsed() + iAmmoChamberElapsed); // update m_BriefInfo_CalcFrame
 	xr_sprintf(int_str, "%d", at);
 	info.total_ammo = int_str;
 
@@ -1266,17 +1300,17 @@ bool CWeaponMagazinedWGrenade::GetBriefInfo(II_BriefInfo& info)
 	}
 
 	auto& CurrVector = !m_bGrenadeMode && m_bAmmoInChamber ? m_chamber : m_magazine;
-	u8 CurrAmmoType = !m_bGrenadeMode && m_bAmmoInChamber ? m_ChamberAmmoType : m_ammoType;
+	u8 CurrAmmoType = !m_bGrenadeMode && m_bAmmoInChamber ? m_ChamberAmmoType : AmmoType.MagazineType;
 
 	if (ae != 0 && CurrVector.size() != 0)
 	{
-		LPCSTR ammo_type = m_ammoTypes[CurrVector.back().m_LocalAmmoType].c_str();
+		const char* ammo_type = m_ammoTypes[CurrVector.back().m_LocalAmmoType].c_str();
 		info.name._set(g_pStringTable->translate(pSettings->r_string(ammo_type, "inv_name_short")));
 		info.icon._set(ammo_type);
 	}
 	else
 	{
-		LPCSTR ammo_type = m_ammoTypes[CurrAmmoType].c_str();
+		const char* ammo_type = m_ammoTypes[CurrAmmoType].c_str();
 		info.name._set(g_pStringTable->translate(pSettings->r_string(ammo_type, "inv_name_short")));
 		info.icon._set(ammo_type);
 	}
@@ -1324,19 +1358,21 @@ u8 CWeaponMagazinedWGrenade::GetAmmoType(bool for_grenade_mode) const
 {
 	if (for_grenade_mode)
 	{
-		return m_bGrenadeMode ? m_ammoType : m_ammoType2;
+		return m_bGrenadeMode ? AmmoType.MagazineType : AmmoType.GrenadeType;
 	}
 	else
 	{
-		return m_bGrenadeMode ? m_ammoType2 : m_ammoType;
+		return m_bGrenadeMode ? AmmoType.GrenadeType : AmmoType.MagazineType;
 	}
 }
 
 void CWeaponMagazinedWGrenade::ForceUpdateHUD()
 {
 	inherited::ForceUpdateHUD();
-	int ammo_elapsed = m_bGrenadeMode ? iAmmoElapsed : iAmmoElapsed2;
-	UpdateAmmoBones(m_ammo_bones_gl, ammo_elapsed, GetAmmoType(true));
+	if (TGrenadeLauncherAmmoBones* GLAmmoBones = GetComponent<TGrenadeLauncherAmmoBones>())
+	{
+		GLAmmoBones->UpdateGLAmmoBones(this, GetAmmoType(true));
+	}
 }
 
 const xr_vector<shared_str>& CWeaponMagazinedWGrenade::getAmmoTypes(bool for_grenade_mode) const
@@ -1355,10 +1391,10 @@ int CWeaponMagazinedWGrenade::GetCurrentElapsed(bool for_grenade_mode) const
 {
 	if (for_grenade_mode)
 	{
-		return m_bGrenadeMode ? iAmmoElapsed : iAmmoElapsed2;
+		return m_bGrenadeMode ? AmmoElapsed.MagazineElapsed : AmmoElapsed.GrenadeElapsed;
 	}
 	else
 	{
-		return m_bGrenadeMode ? iAmmoElapsed2 : iAmmoElapsed;
+		return m_bGrenadeMode ? AmmoElapsed.GrenadeElapsed : AmmoElapsed.MagazineElapsed;
 	}
 }

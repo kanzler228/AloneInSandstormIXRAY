@@ -13,23 +13,25 @@
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-CLightmap::CLightmap()
-{
-}
+CLightmap::CLightmap() = default;
 
 CLightmap::~CLightmap()
 {
+	lm.clear_memory();
+	lm_texture.pSurface.Clear();
 }
  
-void CLightmap::Capture		(CDeflector *D, int b_u, int b_v, int s_u, int s_v, BOOL bRotated)
+void CLightmap::Capture		(CDeflector *D, int b_u, int b_v, int s_u, int s_v, bool bRotated)
 {
-	// Allocate 512x512 texture if needed
+	// Allocate texture if needed
 	if (lm.surface.empty())
-		lm.create(getLMSIZE(),getLMSIZE());
+		lm.create(gCompilerMode.LC_sizeLmaps, gCompilerMode.LC_sizeLmaps);
 	
+	u32 BORDER = gCompilerMode.LC_BORDER;
+
 	// Addressing
 	xr_vector<UVtri>	tris;
-	D->RemapUV			(tris,b_u+BORDER,b_v+BORDER,s_u-2*BORDER,s_v-2*BORDER, getLMSIZE(), getLMSIZE(), bRotated);
+	D->RemapUV			(tris, b_u+BORDER, b_v+BORDER, s_u-2*BORDER, s_v-2*BORDER, gCompilerMode.LC_sizeLmaps, gCompilerMode.LC_sizeLmaps, bRotated);
 	
 	// Capture faces and setup their coords
 	for (UVIt T=tris.begin(); T!=tris.end(); T++)
@@ -39,16 +41,18 @@ void CLightmap::Capture		(CDeflector *D, int b_u, int b_v, int s_u, int s_v, BOO
 		F->lmap_layer		= this;
 		F->AddChannel		(P.uv[0], P.uv[1], P.uv[2]);
 	}
+	tris.clear(); 
+	tris.shrink_to_fit();
 	
 	// Perform BLIT
 	lm_layer&	L		=	D->layer;
-	u32 real_H = (L.height + 2 * BORDER);
-	u32 real_W = (L.width + 2 * BORDER);
+	u32 real_H			=   (L.height + 2 * BORDER);
+	u32 real_W			=   (L.width + 2 * BORDER);
 
 	if (!bRotated) 
-		blit	(lm,getLMSIZE(),getLMSIZE(),L,real_W,real_H,b_u,b_v,254-BORDER);
+		blit	(lm, gCompilerMode.LC_sizeLmaps, gCompilerMode.LC_sizeLmaps,L,real_W,real_H,b_u,b_v, 254-BORDER);
 	else 
-		blit_r	(lm,getLMSIZE(),getLMSIZE(),L,real_W,real_H,b_u,b_v,254-BORDER);
+		blit_r	(lm, gCompilerMode.LC_sizeLmaps, gCompilerMode.LC_sizeLmaps,L,real_W,real_H,b_u,b_v, 254-BORDER);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -62,12 +66,14 @@ IC void pixel	(int x, int y,  b_texture* T, u32 C=color_rgba(0,255,0,0))
 {
 	if (x<0) return; else if (x>=(int)T->dwWidth)	return;
 	if (y<0) return; else if (y>=(int)T->dwHeight)	return;
-	T->pSurface[y*T->dwWidth+x]	= C;
+
+	u32* raw = static_cast<u32*>(*T->pSurface);
+	raw[y * T->dwWidth + x] = C;
 }
 IC void line	( int x1, int y1, int x2, int y2, b_texture* T )
 {
-    int dx = _abs(x2 - x1);
-    int dy = _abs(y2 - y1);
+    int dx = std::abs(x2 - x1);
+    int dy = std::abs(y2 - y1);
     int sx = x2 >= x1 ? 1 : -1;
     int sy = y2 >= y1 ? 1 : -1;
 
@@ -101,97 +107,106 @@ IC void line	( int x1, int y1, int x2, int y2, b_texture* T )
     }
 }
 
-void CLightmap::Save( LPCSTR path )
+
+void CLightmap::Save(LPCSTR path)
 {
-	static int		lmapNameID = 0; ++lmapNameID;
-	CTimer t;
-	t.Start();
+	++pBuild->lmapNameID;
+ 	u32 BORDER = gCompilerMode.LC_BORDER;;
 
 	// Borders correction
- 	for (u32 _y=0; _y<getLMSIZE(); _y++)
+	for (u32 _y = 0; _y < gCompilerMode.LC_sizeLmaps; _y++)
 	{
-		for (u32 _x=0; _x<getLMSIZE(); _x++)
+		for (u32 _x = 0; _x < gCompilerMode.LC_sizeLmaps; _x++)
 		{
-			u32	offset	= _y*getLMSIZE()+_x;
-			if (lm.marker[offset]>=(254-BORDER))
-				lm.marker[offset]=255;
-			else 
-				lm.marker[offset]=0;
+			u32	offset = _y * gCompilerMode.LC_sizeLmaps + _x;
+			if (lm.marker[offset] >= (254 - BORDER))
+				lm.marker[offset] = 255;
+			else
+				lm.marker[offset] = 0;
 		}
 	}
-	clMsg("[Lightmap] Borders correction: %u ms", t.GetElapsed_ms());
-	
-	t.Start();
-	for (u32 ref=254; ref>(254-16); ref--) 
+
+	lm.ApplyBordersFast(254 - 16);
+
+	lm_texture.bHasAlpha = true;
+	lm_texture.dwWidth = lm.width;
+	lm_texture.dwHeight = lm.height;
+	lm_texture.pSurface.Clear();
+
+	// Записываем RGB + SUN
+	if (true)
 	{
-		ApplyBorders	(lm, ref);
-		Progress		(1.f - float(ref)/float(254-16));
-	}
-	clMsg("[Lightmap] Apply Borders: %u ms", t.GetElapsed_ms());
-
-	Progress			(1.f);
-
-	xr_vector<u32>			lm_packed;
-	lm.Pack					(lm_packed);
-
-	xr_vector<u32>			hemi_packed;
-	lm.Pack_hemi			(hemi_packed);
-
-	lm_texture.bHasAlpha		= TRUE;
-	lm_texture.dwWidth			= lm.width;
-	lm_texture.dwHeight			= lm.height;
-	lm_texture.pSurface			= NULL;
-	
-	lm.destroy					();
-	
- 	t.Start();
-	Status			("Compression base...");
-	{
-
-
 		string_path				FN;
-		xr_sprintf					(lm_texture.name,"lmap#%d",lmapNameID			); 
-		xr_sprintf					(FN,"%s%s_1.dds",	path,lm_texture.name);
-		BYTE*	raw_data		= LPBYTE(&*lm_packed.begin());
-		u32	w					= lm_texture.dwWidth;//lm.width;
-		u32	h					= lm_texture.dwHeight;//lm.height;
-		u32	pitch				= w*4;
+		xr_sprintf(lm_texture.name, "lmap#%d", pBuild->lmapNameID);
+		xr_sprintf(FN, "%s%s_1.dds", path, lm_texture.name);
 
 		STextureParams fmt;
-		fmt.fmt = lc_global_data()->GetLmapRGBA() ? STextureParams::tfRGBA : STextureParams::tfDXT5;
-		fmt.flags.set			(STextureParams::flDitherColor,		FALSE);
-		fmt.flags.set			(STextureParams::flGenerateMipMaps,	FALSE);
-		fmt.flags.set			(STextureParams::flBinaryAlpha,		FALSE);
-		DXTUtils::Compress(FN,raw_data,0,w,h,pitch,&fmt,4);
+		switch (gCompilerMode.LmapsFormat)
+		{
+			case LCLightmapFormat::FORMAT_RGBA: fmt.fmt = STextureParams::tfRGBA; break;
+			case LCLightmapFormat::FORMAT_BC7:  fmt.fmt = STextureParams::tfBC7; break;
+			case LCLightmapFormat::FORMAT_BC5:  fmt.fmt = STextureParams::tfDXT5; break;
+		}
+
+		fmt.flags.set(STextureParams::flDitherColor, false);
+		fmt.flags.set(STextureParams::flGenerateMipMaps, false);
+		fmt.flags.set(STextureParams::flBinaryAlpha, false);
+
+		if (!gCompilerMode.LC_SkipStaticMap)
+		{
+			xr_vector<u32>			lm_packed;
+			lm.Pack(lm_packed);
+			u32	w = lm_texture.dwWidth; 
+			u32	h = lm_texture.dwHeight; 
+			u32	pitch = w * 4;
+
+			BYTE* raw_data = LPBYTE(&*lm_packed.begin());
+			DXTUtils::Compress(FN, raw_data, 0, w, h, pitch, &fmt, 4);
+		}
+		else
+		{
+ 			xr_vector<u32> colors(4 * 4);
+			for (auto& C : colors)
+				C = color_rgba(0, 0, 0, 255);
+
+			BYTE* raw_data = LPBYTE(&*colors.begin());
+			u32 w = 4, h = 4, pitch = w * 4;
+			DXTUtils::Compress(FN, raw_data, 0, w, h, pitch, &fmt, 4);
+		}
 	}
-	lm_packed.clear();
-	
-	clMsg("[Lightmap] Save Base: %u ms",t.GetElapsed_ms());
-
-	t.Start();
-	Status			("Compression hemi..."); //.
-	{
-
-
-		u32 w					= lm_texture.dwWidth;//lm.width;
-		u32 h					= lm_texture.dwHeight;//lm.height;
-		u32	pitch				= w*4;
-
-		string_path				FN;
-		xr_sprintf					(lm_texture.name,"lmap#%d",lmapNameID			); 
-		xr_sprintf					(FN,"%s%s_2.dds", path, lm_texture.name);
-		BYTE*	raw_data		= LPBYTE(&*hemi_packed.begin());
-
-		STextureParams fmt;
-		fmt.fmt = lc_global_data()->GetLmapRGBA() ? STextureParams::tfRGBA : STextureParams::tfDXT5;
-		fmt.flags.set			(STextureParams::flDitherColor,		FALSE);
-		fmt.flags.set			(STextureParams::flGenerateMipMaps,	FALSE);
-		fmt.flags.set			(STextureParams::flBinaryAlpha,		FALSE);
-		DXTUtils::Compress(FN,raw_data,0,w,h,pitch,&fmt,4);
-	}
-
-	clMsg("[Lightmap] Save Hemi: %u ms", t.GetElapsed_ms());
-
-	GetHeapMemory();
-}
  
+	// Записываем Hemi + SUN
+	if (true)
+	{
+ 		xr_vector<u32>			hemi_packed;
+		lm.Pack_hemi(hemi_packed);
+ 
+		string_path				FN;
+		xr_sprintf(lm_texture.name, "lmap#%d", pBuild->lmapNameID);
+		xr_sprintf(FN, "%s%s_2.dds", path, lm_texture.name);
+
+		STextureParams fmt;
+		switch (gCompilerMode.LmapsFormat)
+		{
+			case LCLightmapFormat::FORMAT_RGBA: fmt.fmt = STextureParams::tfRGBA; break;
+			case LCLightmapFormat::FORMAT_BC7:  fmt.fmt = STextureParams::tfBC7; break;
+			case LCLightmapFormat::FORMAT_BC5:  fmt.fmt = STextureParams::tfDXT5; break;
+		}
+
+		fmt.flags.set(STextureParams::flDitherColor, false);
+		fmt.flags.set(STextureParams::flGenerateMipMaps, false);
+		fmt.flags.set(STextureParams::flBinaryAlpha, false);
+
+
+		u32 w = lm_texture.dwWidth;		//lm.width;
+		u32 h = lm_texture.dwHeight;	//lm.height;
+		u32	pitch = w * 4;
+
+		u8* raw_data = LPBYTE(&*hemi_packed.begin());
+		DXTUtils::Compress(FN, raw_data, 0, w, h, pitch, &fmt, 4);
+	}
+	 
+
+	// Освобождаем память
+	lm.clear_memory();
+}

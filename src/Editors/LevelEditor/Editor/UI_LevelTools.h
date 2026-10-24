@@ -32,7 +32,7 @@ class CLevelTool: public CToolCustom
 	ObjClassID			iNeedTarget;
 	int					iNeedSubTarget;
 
-	ESceneToolBase*		pCurTool;
+	ESceneToolBase*		CurrentTool;
 	
 	TfrmObjectList*		pObjectListForm;
 
@@ -44,19 +44,15 @@ class CLevelTool: public CToolCustom
 	UIPropertiesForm* m_Props;
 	UIPropertiesForm* m_WorldProps;
 	void   	OnPropsModified		();
-	void   	OnPropsClose		();
 
-	void				RealUpdateProperties();
-	void				RealUpdateObjectList();
+	void UpdateProperties();
+	void UpdateObjectList();
 
-private:
 	HANDLE mtPropObj = nullptr;
-	static void			mtUpdateProperties(void*);
+	static void mtUpdateProperties(void*);
 	xr_vector<IViewport*> Viewlist;
 
 public:
-	volatile bool PropUpdateIsCompleted = true;
-
 	float 				fFogness;
 	u32					dwFogColor;
 	xr_string			m_LastSelectionName;
@@ -90,12 +86,12 @@ public:
 	virtual bool		IsModified			();
 	virtual void		Modified			(){;}
 
-	virtual LPCSTR		GetInfo				();
+	virtual const char*		GetInfo				();
 	
-	virtual void		ZoomObject			(BOOL bSelOnly);
+	virtual void		ZoomObject			(bool bSelOnly);
 
-	virtual bool		Load				(LPCSTR name){return true;}
-	virtual bool		Save				(LPCSTR name, bool bInternal=false){return true;}
+	virtual bool		Load				(const char* name){return true;}
+	virtual bool		Save				(const char* name, bool bInternal=false){return true;}
 	virtual void		Reload				(){;}
 	
 	virtual void		OnDeviceCreate		(){;}
@@ -116,9 +112,8 @@ public:
 	virtual bool		Pick				(TShiftState Shift);
 	virtual bool 		RayPick				(const Fvector& start, const Fvector& dir, float& dist, Fvector* pt, Fvector* n);
 
-	virtual void		ShowProperties		(LPCSTR focused_item);
-	virtual void		UpdateProperties	(BOOL bForced){m_Flags.set(flUpdateProperties|flUpdateObjectList,TRUE); if (bForced) OnFrame();}
-	virtual void		RefreshProperties	();
+	virtual void		ShowProperties		(const char* focused_item);
+	virtual void		UpdateProperties	(bool bForced){m_Flags.set(flUpdateProperties|flUpdateObjectList,true); if (bForced) OnFrame();}
 	virtual bool UpdateCamera();
 private:
 	virtual void		Simulate			();
@@ -134,16 +129,15 @@ public:
 
 	ObjClassID 			CurrentClassID		();
 
-	void				ShowObjectList		();
 	virtual bool		GetSelectionPosition(Fmatrix& result);
 
 	// commands
 	CCommandVar			CommandChangeTarget		(CCommandVar p1, CCommandVar p2);
-	CCommandVar			CommandShowObjectList	(CCommandVar p1, CCommandVar p2);
 	CCommandVar			CommandEnableTarget		(CCommandVar p1, CCommandVar p2);
 	CCommandVar			CommandShowTarget		(CCommandVar p1, CCommandVar p2);
 	CCommandVar			CommandReadonlyTarget	(CCommandVar p1, CCommandVar p2);
 	CCommandVar			CommandMultiRenameObjects(CCommandVar p1,CCommandVar p2);
+
 public:
 	void RunGame(const char* Params = "");
 	void RunXrLC();

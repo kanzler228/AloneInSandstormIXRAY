@@ -38,37 +38,109 @@
 #define EAX_ENVIRONMENT_DRUGGED 23
 #define EAX_ENVIRONMENT_DIZZY 24
 #define EAX_ENVIRONMENT_PSYCHOTIC 25
-#define EAX_ENVIRONMENT_COUNT 26
+
+#define EAX_ENVIRONMENT_FACTORY_SMALLROOM 26
+#define EAX_ENVIRONMENT_FACTORY_SHORTPASSAGE 27
+#define EFX_ENVIRONMENT_FACTORY_MEDIUMROOM 28
+#define EFX_ENVIRONMENT_FACTORY_LARGEROOM 29
+#define EFX_ENVIRONMENT_FACTORY_LONGPASSAGE 30
+#define EFX_ENVIRONMENT_FACTORY_HALL 31
+#define EFX_ENVIRONMENT_FACTORY_COURTYARD 32
+#define EFX_ENVIRONMENT_FACTORY_ALCOVE 33
+
+#define EFX_ENVIRONMENT_SPORT_EMPTYSTADIUM 34
+#define EFX_ENVIRONMENT_SPORT_SMALLSWIMMINGPOOL 35
+#define EFX_ENVIRONMENT_SPORT_LARGESWIMMINGPOOL 36
+
+#define EFX_ENVIRONMENT_PREFAB_WORKSHOP 37
+#define EFX_ENVIRONMENT_PREFAB_SCHOOLROOM 38
+#define EFX_ENVIRONMENT_PREFAB_PRACTISEROOM 39
+#define EFX_ENVIRONMENT_PREFAB_OUTHOUSE 40
+#define EFX_ENVIRONMENT_PREFAB_CARAVAN 41
+
+#define EFX_ENVIRONMENT_PRESET_DOME_TOMB 42
+
+#define EFX_ENVIRONMENT_OUTDOORS_BACKYARD 43
+#define EFX_ENVIRONMENT_OUTDOORS_CREEK 44
+#define EFX_ENVIRONMENT_OUTDOORS_VALLEY 45
+
+#define EFX_ENVIRONMENT_DRIVING_PITGARAGE 46
+#define EFX_ENVIRONMENT_DRIVING_TUNNEL 47
+
+#define EFX_ENVIRONMENT_CITY_STREETS 48
+#define EFX_ENVIRONMENT_CITY_SUBWAY 49
+#define EFX_ENVIRONMENT_CITY_UNDERPASS 50
+#define EFX_ENVIRONMENT_CITY_ABANDONED 51
+
+#define EFX_ENVIRONMENT_DUSTYROOM 52
+#define EFX_ENVIRONMENT_SMALLWATERROOM 53
+#define EAX_ENVIRONMENT_COUNT 54
 
 xr_token eax_environment[] =
 {
-	{"Alley",               EAX_ENVIRONMENT_ALLEY			},                          
-	{"Arena",               EAX_ENVIRONMENT_ARENA			},                          
-	{"Auditorium",          EAX_ENVIRONMENT_AUDITORIUM		},                               
-	{"Bathroom",            EAX_ENVIRONMENT_BATHROOM		},                             
-	{"Carpeted Hallway",    EAX_ENVIRONMENT_CARPETEDHALLWAY	},                                     
-	{"Cave",                EAX_ENVIRONMENT_CAVE			},                         
-	{"City",                EAX_ENVIRONMENT_CITY			},                         
-	{"Concert Hall",        EAX_ENVIRONMENT_CONCERTHALL		},                                 
-	{"Dizzy",               EAX_ENVIRONMENT_DIZZY			},                          
-	{"Drugged",             EAX_ENVIRONMENT_DRUGGED			},                            
-	{"Forest",              EAX_ENVIRONMENT_FOREST			},                           
-	{"Generic",			   	EAX_ENVIRONMENT_GENERIC			},
-	{"Hallway",             EAX_ENVIRONMENT_HALLWAY			},                            
-	{"Hangar",              EAX_ENVIRONMENT_HANGAR			},                           
-	{"Livingroom",          EAX_ENVIRONMENT_LIVINGROOM		},                               
-	{"Mountains",           EAX_ENVIRONMENT_MOUNTAINS		},                              
-	{"Padded Cell",		    EAX_ENVIRONMENT_PADDEDCELL		},
-	{"Parkinglot",          EAX_ENVIRONMENT_PARKINGLOT		},                               
-	{"Plain",               EAX_ENVIRONMENT_PLAIN			},                          
-	{"Psychotic",           EAX_ENVIRONMENT_PSYCHOTIC		},
-	{"Quarry",              EAX_ENVIRONMENT_QUARRY			},                           
-	{"Room",                EAX_ENVIRONMENT_ROOM			},
-	{"Sewer Pipe",          EAX_ENVIRONMENT_SEWERPIPE		},                               
-	{"Stone Corridor",      EAX_ENVIRONMENT_STONECORRIDOR	},                                   
-	{"Stone Room",          EAX_ENVIRONMENT_STONEROOM		},                               
-	{"Under Water",         EAX_ENVIRONMENT_UNDERWATER		},                                
-	{0,						0								}
+	{"Alley",						EAX_ENVIRONMENT_ALLEY					},                          
+	{"Arena",						EAX_ENVIRONMENT_ARENA					},                          
+	{"Auditorium",					EAX_ENVIRONMENT_AUDITORIUM				},                               
+	{"Bathroom",					EAX_ENVIRONMENT_BATHROOM				},                             
+	{"Carpeted Hallway",			EAX_ENVIRONMENT_CARPETEDHALLWAY			},                                     
+	{"Cave",						EAX_ENVIRONMENT_CAVE					},                         
+	{"City",						EAX_ENVIRONMENT_CITY					},                         
+	{"Concert Hall",				EAX_ENVIRONMENT_CONCERTHALL				},                                 
+	{"Dizzy",						EAX_ENVIRONMENT_DIZZY					},                          
+	{"Drugged",						EAX_ENVIRONMENT_DRUGGED					},                            
+	{"Forest",						EAX_ENVIRONMENT_FOREST					},                           
+	{"Generic",			   			EAX_ENVIRONMENT_GENERIC					},
+	{"Hallway",						EAX_ENVIRONMENT_HALLWAY					},                            
+	{"Hangar",						EAX_ENVIRONMENT_HANGAR					},                           
+	{"Living Room",					EAX_ENVIRONMENT_LIVINGROOM				},                               
+	{"Mountains",					EAX_ENVIRONMENT_MOUNTAINS				},                              
+	{"Padded Cell",					EAX_ENVIRONMENT_PADDEDCELL				},
+	{"Parking Lot",					EAX_ENVIRONMENT_PARKINGLOT				},                               
+	{"Plain",						EAX_ENVIRONMENT_PLAIN					},                          
+	{"Psychotic",					EAX_ENVIRONMENT_PSYCHOTIC				},
+	{"Quarry",						EAX_ENVIRONMENT_QUARRY					},                           
+	{"Room",						EAX_ENVIRONMENT_ROOM					},
+	{"Sewer Pipe",					EAX_ENVIRONMENT_SEWERPIPE				},                               
+	{"Stone Corridor",				EAX_ENVIRONMENT_STONECORRIDOR			},                                   
+	{"Stone Room",					EAX_ENVIRONMENT_STONEROOM				},                               
+	{"Under Water",					EAX_ENVIRONMENT_UNDERWATER				},
+
+	{"Factory Small Room",			EAX_ENVIRONMENT_FACTORY_SMALLROOM		},
+	{"Factory Short Passage",		EAX_ENVIRONMENT_FACTORY_SHORTPASSAGE	},
+	{"Factory Medium Room",			EFX_ENVIRONMENT_FACTORY_MEDIUMROOM		},
+	{"Factory Large Room",			EFX_ENVIRONMENT_FACTORY_LARGEROOM		},
+	{"Factory Long Passage",		EFX_ENVIRONMENT_FACTORY_LONGPASSAGE		},
+	{"Factory Hall",				EFX_ENVIRONMENT_FACTORY_HALL			},
+	{"Factory Courtyard",			EFX_ENVIRONMENT_FACTORY_COURTYARD		},
+	{"Factory Alcove",				EFX_ENVIRONMENT_FACTORY_ALCOVE			},
+
+	{"Sport Empty Stadium",			EFX_ENVIRONMENT_SPORT_EMPTYSTADIUM		},
+	{"Sport Small Swimming Pool",	EFX_ENVIRONMENT_SPORT_SMALLSWIMMINGPOOL	},
+	{"Sport Large Swimming Pool",	EFX_ENVIRONMENT_SPORT_LARGESWIMMINGPOOL	},
+
+	{"Prefab Workshop",				EFX_ENVIRONMENT_PREFAB_WORKSHOP			},
+	{"Prefab School Room",			EFX_ENVIRONMENT_PREFAB_SCHOOLROOM		},
+	{"Prefab Practice Room",		EFX_ENVIRONMENT_PREFAB_PRACTISEROOM		},
+	{"Prefab Outhouse",				EFX_ENVIRONMENT_PREFAB_OUTHOUSE			},
+	{"Prefab Caravan",				EFX_ENVIRONMENT_PREFAB_CARAVAN			},
+
+	{"Dome Tomb",					EFX_ENVIRONMENT_PRESET_DOME_TOMB		},
+
+	{"Outdoors Backyard",			EFX_ENVIRONMENT_OUTDOORS_BACKYARD		},
+	{"Outdoors Creek",				EFX_ENVIRONMENT_OUTDOORS_CREEK			},
+	{"Outdoors Valley",				EFX_ENVIRONMENT_OUTDOORS_VALLEY			},
+
+	{"Driving Pit Garage",			EFX_ENVIRONMENT_DRIVING_PITGARAGE		},
+	{"Driving Tunnel",				EFX_ENVIRONMENT_DRIVING_TUNNEL			},
+
+	{"City Streets",				EFX_ENVIRONMENT_CITY_STREETS			},
+	{"City Subway",					EFX_ENVIRONMENT_CITY_SUBWAY				},
+	{"City Underpass",				EFX_ENVIRONMENT_CITY_UNDERPASS			},
+	{"City Abandoned",				EFX_ENVIRONMENT_CITY_ABANDONED			},
+
+	{"Dusty Room",					EFX_ENVIRONMENT_DUSTYROOM				},
+	{"Small Water Room",			EFX_ENVIRONMENT_SMALLWATERROOM			},
+	{0,								0										}
 };
 
 struct EAXID2EFXPRESET
@@ -79,32 +151,68 @@ struct EAXID2EFXPRESET
 
 EAXID2EFXPRESET EFXPresetTable[] =
 {
-	{ EAX_ENVIRONMENT_ALLEY,			EFX_REVERB_PRESET_ALLEY },
-	{ EAX_ENVIRONMENT_ARENA,			EFX_REVERB_PRESET_ARENA },
-	{ EAX_ENVIRONMENT_AUDITORIUM,		EFX_REVERB_PRESET_AUDITORIUM },
-	{ EAX_ENVIRONMENT_BATHROOM,			EFX_REVERB_PRESET_BATHROOM },
-	{ EAX_ENVIRONMENT_CARPETEDHALLWAY,  EFX_REVERB_PRESET_CARPETEDHALLWAY },
-	{ EAX_ENVIRONMENT_CAVE,				EFX_REVERB_PRESET_CAVE },
-	{ EAX_ENVIRONMENT_CITY,				EFX_REVERB_PRESET_CITY },
-	{ EAX_ENVIRONMENT_CONCERTHALL,		EFX_REVERB_PRESET_CONCERTHALL },
-	{ EAX_ENVIRONMENT_DIZZY,			EFX_REVERB_PRESET_DIZZY },
-	{ EAX_ENVIRONMENT_DRUGGED,			EFX_REVERB_PRESET_DRUGGED },
-	{ EAX_ENVIRONMENT_FOREST,			EFX_REVERB_PRESET_FOREST },
-	{ EAX_ENVIRONMENT_GENERIC,			EFX_REVERB_PRESET_GENERIC },
-	{ EAX_ENVIRONMENT_HALLWAY,			EFX_REVERB_PRESET_HALLWAY },
-	{ EAX_ENVIRONMENT_HANGAR,			EFX_REVERB_PRESET_HANGAR },
-	{ EAX_ENVIRONMENT_LIVINGROOM,		EFX_REVERB_PRESET_LIVINGROOM },
-	{ EAX_ENVIRONMENT_MOUNTAINS,		EFX_REVERB_PRESET_MOUNTAINS },
-	{ EAX_ENVIRONMENT_PADDEDCELL,		EFX_REVERB_PRESET_PADDEDCELL },
-	{ EAX_ENVIRONMENT_PARKINGLOT,		EFX_REVERB_PRESET_PARKINGLOT },
-	{ EAX_ENVIRONMENT_PLAIN,			EFX_REVERB_PRESET_PLAIN },
-	{ EAX_ENVIRONMENT_PSYCHOTIC,		EFX_REVERB_PRESET_PSYCHOTIC },
-	{ EAX_ENVIRONMENT_QUARRY,			EFX_REVERB_PRESET_QUARRY },
-	{ EAX_ENVIRONMENT_ROOM,				EFX_REVERB_PRESET_ROOM },
-	{ EAX_ENVIRONMENT_SEWERPIPE,		EFX_REVERB_PRESET_SEWERPIPE },
-	{ EAX_ENVIRONMENT_STONECORRIDOR,	EFX_REVERB_PRESET_STONECORRIDOR },
-	{ EAX_ENVIRONMENT_STONEROOM,		EFX_REVERB_PRESET_STONEROOM },
-	{ EAX_ENVIRONMENT_UNDERWATER,		EFX_REVERB_PRESET_UNDERWATER },
+	{ EAX_ENVIRONMENT_ALLEY,					EFX_REVERB_PRESET_ALLEY },
+	{ EAX_ENVIRONMENT_ARENA,					EFX_REVERB_PRESET_ARENA },
+	{ EAX_ENVIRONMENT_AUDITORIUM,				EFX_REVERB_PRESET_AUDITORIUM },
+	{ EAX_ENVIRONMENT_BATHROOM,					EFX_REVERB_PRESET_BATHROOM },
+	{ EAX_ENVIRONMENT_CARPETEDHALLWAY,			EFX_REVERB_PRESET_CARPETEDHALLWAY },
+	{ EAX_ENVIRONMENT_CAVE,						EFX_REVERB_PRESET_CAVE },
+	{ EAX_ENVIRONMENT_CITY,						EFX_REVERB_PRESET_CITY },
+	{ EAX_ENVIRONMENT_CONCERTHALL,				EFX_REVERB_PRESET_CONCERTHALL },
+	{ EAX_ENVIRONMENT_DIZZY,					EFX_REVERB_PRESET_DIZZY },
+	{ EAX_ENVIRONMENT_DRUGGED,					EFX_REVERB_PRESET_DRUGGED },
+	{ EAX_ENVIRONMENT_FOREST,					EFX_REVERB_PRESET_FOREST },
+	{ EAX_ENVIRONMENT_GENERIC,					EFX_REVERB_PRESET_GENERIC },
+	{ EAX_ENVIRONMENT_HALLWAY,					EFX_REVERB_PRESET_HALLWAY },
+	{ EAX_ENVIRONMENT_HANGAR,					EFX_REVERB_PRESET_HANGAR },
+	{ EAX_ENVIRONMENT_LIVINGROOM,				EFX_REVERB_PRESET_LIVINGROOM },
+	{ EAX_ENVIRONMENT_MOUNTAINS,				EFX_REVERB_PRESET_MOUNTAINS },
+	{ EAX_ENVIRONMENT_PADDEDCELL,				EFX_REVERB_PRESET_PADDEDCELL },
+	{ EAX_ENVIRONMENT_PARKINGLOT,				EFX_REVERB_PRESET_PARKINGLOT },
+	{ EAX_ENVIRONMENT_PLAIN,					EFX_REVERB_PRESET_PLAIN },
+	{ EAX_ENVIRONMENT_PSYCHOTIC,				EFX_REVERB_PRESET_PSYCHOTIC },
+	{ EAX_ENVIRONMENT_QUARRY,					EFX_REVERB_PRESET_QUARRY },
+	{ EAX_ENVIRONMENT_ROOM,						EFX_REVERB_PRESET_ROOM },
+	{ EAX_ENVIRONMENT_SEWERPIPE,				EFX_REVERB_PRESET_SEWERPIPE },
+	{ EAX_ENVIRONMENT_STONECORRIDOR,			EFX_REVERB_PRESET_STONECORRIDOR },
+	{ EAX_ENVIRONMENT_STONEROOM,				EFX_REVERB_PRESET_STONEROOM },
+	{ EAX_ENVIRONMENT_UNDERWATER,				EFX_REVERB_PRESET_UNDERWATER },
+
+	{ EAX_ENVIRONMENT_FACTORY_SMALLROOM,		EFX_REVERB_PRESET_FACTORY_SMALLROOM},
+	{ EAX_ENVIRONMENT_FACTORY_SHORTPASSAGE,		EFX_REVERB_PRESET_FACTORY_SHORTPASSAGE},
+	{ EFX_ENVIRONMENT_FACTORY_MEDIUMROOM,		EFX_REVERB_PRESET_FACTORY_MEDIUMROOM},
+	{ EFX_ENVIRONMENT_FACTORY_LARGEROOM,		EFX_REVERB_PRESET_FACTORY_LARGEROOM},
+	{ EFX_ENVIRONMENT_FACTORY_LONGPASSAGE,		EFX_REVERB_PRESET_FACTORY_LONGPASSAGE},
+	{ EFX_ENVIRONMENT_FACTORY_HALL,				EFX_REVERB_PRESET_FACTORY_HALL},
+	{ EFX_ENVIRONMENT_FACTORY_COURTYARD,		EFX_REVERB_PRESET_FACTORY_COURTYARD},
+	{ EFX_ENVIRONMENT_FACTORY_ALCOVE,			EFX_REVERB_PRESET_FACTORY_ALCOVE},
+
+	{ EFX_ENVIRONMENT_SPORT_EMPTYSTADIUM,		EFX_REVERB_PRESET_SPORT_EMPTYSTADIUM},
+	{ EFX_ENVIRONMENT_SPORT_SMALLSWIMMINGPOOL,	EFX_REVERB_PRESET_SPORT_SMALLSWIMMINGPOOL},
+	{ EFX_ENVIRONMENT_SPORT_LARGESWIMMINGPOOL,	EFX_REVERB_PRESET_SPORT_LARGESWIMMINGPOOL},
+
+	{ EFX_ENVIRONMENT_PREFAB_WORKSHOP,			EFX_REVERB_PRESET_PREFAB_WORKSHOP},
+	{ EFX_ENVIRONMENT_PREFAB_SCHOOLROOM,		EFX_REVERB_PRESET_PREFAB_SCHOOLROOM},
+	{ EFX_ENVIRONMENT_PREFAB_PRACTISEROOM,		EFX_REVERB_PRESET_PREFAB_PRACTISEROOM},
+	{ EFX_ENVIRONMENT_PREFAB_OUTHOUSE,			EFX_REVERB_PRESET_PREFAB_OUTHOUSE},
+	{ EFX_ENVIRONMENT_PREFAB_CARAVAN,			EFX_REVERB_PRESET_PREFAB_CARAVAN},
+
+	{ EFX_ENVIRONMENT_PRESET_DOME_TOMB,			EFX_REVERB_PRESET_DOME_TOMB},
+
+	{ EFX_ENVIRONMENT_OUTDOORS_BACKYARD,		EFX_REVERB_PRESET_OUTDOORS_BACKYARD},
+	{ EFX_ENVIRONMENT_OUTDOORS_CREEK,			EFX_REVERB_PRESET_OUTDOORS_CREEK},
+	{ EFX_ENVIRONMENT_OUTDOORS_VALLEY,			EFX_REVERB_PRESET_OUTDOORS_VALLEY},
+
+	{ EFX_ENVIRONMENT_DRIVING_PITGARAGE,		EFX_REVERB_PRESET_DRIVING_PITGARAGE},
+	{ EFX_ENVIRONMENT_DRIVING_TUNNEL,			EFX_REVERB_PRESET_DRIVING_TUNNEL},
+
+	{ EFX_ENVIRONMENT_CITY_STREETS,				EFX_REVERB_PRESET_CITY_STREETS},
+	{ EFX_ENVIRONMENT_CITY_SUBWAY,				EFX_REVERB_PRESET_CITY_SUBWAY},
+	{ EFX_ENVIRONMENT_CITY_UNDERPASS,			EFX_REVERB_PRESET_CITY_UNDERPASS},
+	{ EFX_ENVIRONMENT_CITY_ABANDONED,			EFX_REVERB_PRESET_CITY_ABANDONED},
+	
+	{ EFX_ENVIRONMENT_DUSTYROOM,				EFX_REVERB_PRESET_DUSTYROOM},
+	{ EFX_ENVIRONMENT_SMALLWATERROOM,			EFX_REVERB_PRESET_SMALLWATERROOM},
 };
 
 //------------------------------------------------------------------------------
@@ -124,7 +232,7 @@ CSHSoundEnvTools::~CSHSoundEnvTools()
 void CSHSoundEnvTools::OnChangeWAV	(PropValue* prop)
 {
 
-	BOOL bPlay 		= !!m_PreviewSnd._feedback();
+	bool bPlay 		= m_PreviewSnd.is_playing();
 	m_PreviewSnd.destroy();
 	if (m_SoundName.size()){
 		m_PreviewSnd.create				(*m_SoundName,st_Effect,sg_Undefined);
@@ -162,16 +270,15 @@ void CSHSoundEnvTools::OnActivate()
 		B->OnBtnClickEvent.bind		(this,&CSHSoundEnvTools::OnControlClick);
 		
 		Ext.m_PreviewProps->AssignItems(items);
-	   // Ext.m_PreviewProps->ShowProperties();
 	}
 	// fill items
 	FillItemList		();
    // Ext.m_Items->SetOnModifiedEvent		(fastdelegate::bind<TOnModifiedEvent>(this,&CSHSoundEnvTools::Modified));
-	Ext.m_Items->SetOnItemCloneEvent    (TOnItemClone(this,  &CSHSoundEnvTools::OnCloneItem));
-	Ext.m_Items->SetOnItemCreaetEvent(TOnItemCreate(this, &CSHSoundEnvTools::OnCreateItem));
+	Ext.m_Items->SetOnItemCloneEvent    ({this,  &CSHSoundEnvTools::OnCloneItem});
+	Ext.m_Items->SetOnItemCreaetEvent({this, &CSHSoundEnvTools::OnCreateItem});
 
-	Ext.m_Items->SetOnItemRenameEvent	(TOnItemRename(this,&CSHSoundEnvTools::OnRenameItem));
-	Ext.m_Items->SetOnItemRemoveEvent	(TOnItemRemove(this,&CSHSoundEnvTools::OnRemoveItem));
+	Ext.m_Items->SetOnItemRenameEvent	({this,&CSHSoundEnvTools::OnRenameItem});
+	Ext.m_Items->SetOnItemRemoveEvent	({this,&CSHSoundEnvTools::OnRemoveItem});
 	inherited::OnActivate		();
 }
 //---------------------------------------------------------------------------
@@ -194,7 +301,7 @@ void CSHSoundEnvTools::OnFrame()
 
 void CSHSoundEnvTools::OnRender()
 {
-	if (m_PreviewSnd._handle()){	
+	if (m_PreviewSnd.is_playing()){	
 		RCache.set_xform_world	(Fidentity);
 		EDevice->SetShader	(EDevice->m_WireShader);
 		u32 clr0			= SOUND_SEL0_COLOR;
@@ -214,7 +321,7 @@ bool CSHSoundEnvTools::OnCreate()
 void CSHSoundEnvTools::OnDestroy()
 {
 	m_Library.Unload	();
-	m_bModified 		= FALSE;
+	m_bModified 		= false;
 }
 //---------------------------------------------------------------------------
 
@@ -247,7 +354,7 @@ void CSHSoundEnvTools::Load()
 	string_path 		fn;
 	FS.update_path		(fn,_game_data_,SNDENV_FILENAME);
 
-	m_bLockUpdate		= TRUE;
+	m_bLockUpdate		= true;
 
 	if (FS.exist(fn))
 	{
@@ -257,13 +364,13 @@ void CSHSoundEnvTools::Load()
 		ELog.DlgMsg(mtInformation,"Can't find file '%s'",fn);
 	}
 
-	m_bLockUpdate		= FALSE;
+	m_bLockUpdate		= false;
 }
 
 bool CSHSoundEnvTools::Save()
 {
 	ApplyChanges();
-	m_bLockUpdate				= TRUE;
+	m_bLockUpdate				= true;
 
 	// save
 	string_path 				fn;
@@ -272,21 +379,21 @@ bool CSHSoundEnvTools::Save()
 	// save new file
 	EFS.MarkFile				(fn,false);
 	bool bRes					= m_Library.Save(fn);
-	m_bLockUpdate				= FALSE;
+	m_bLockUpdate				= false;
 
-	if (bRes) 					m_bModified	= FALSE;
+	if (bRes) 					m_bModified	= false;
 	return bRes;
 }
 
 
-CSoundRender_Environment* CSHSoundEnvTools::FindItem(LPCSTR name)
+CSoundRender_Environment* CSHSoundEnvTools::FindItem(const char* name)
 {
 	if (name && name[0]){
 		return m_Library.Get(name);
 	}else return 0;
 }
 
-void CSHSoundEnvTools::AppendItem(LPCSTR folder_name, LPCSTR parent_name)
+void CSHSoundEnvTools::AppendItem(const char* folder_name, const char* parent_name)
 {
 	CSoundRender_Environment* parent= FindItem(parent_name);
 	m_LastSelection = folder_name;
@@ -298,7 +405,7 @@ void CSHSoundEnvTools::AppendItem(LPCSTR folder_name, LPCSTR parent_name)
 	Modified			();
 }
 
-void CSHSoundEnvTools::OnRenameItem(LPCSTR old_full_name, LPCSTR new_full_name, EItemType type)
+void CSHSoundEnvTools::OnRenameItem(UIItemListForm::Node& node, const char* old_full_name, const char* new_full_name, EItemType type)
 {
 	if (type==TYPE_OBJECT){
 		ApplyChanges	();
@@ -309,9 +416,18 @@ void CSHSoundEnvTools::OnRenameItem(LPCSTR old_full_name, LPCSTR new_full_name, 
 	}
 }
 
-void CSHSoundEnvTools::OnRemoveItem(LPCSTR name, EItemType type)
+void CSHSoundEnvTools::OnRemoveItem(UIItemListForm::Node& node/*, const char* name, EItemType type*/)
 {
-	if (type==TYPE_OBJECT){
+	string_path path;
+	if (node.Path.size())
+	{
+		xr_strconcat(path, node.Path.c_str(), "\\", node.Name.c_str());
+	} else
+	{
+		xr_strcpy(path, node.Name.c_str());
+	}
+	const char* name = path;
+	if (node.IsObject()){
 		R_ASSERT		(name && name[0]);
 		if (m_Env && m_Env->name == name)
 		{
@@ -322,7 +438,7 @@ void CSHSoundEnvTools::OnRemoveItem(LPCSTR name, EItemType type)
 	}
 }
 
-void CSHSoundEnvTools::SetCurrentItem(LPCSTR name, bool bView)
+void CSHSoundEnvTools::SetCurrentItem(const char* name, bool bView)
 {
 	if (m_bLockUpdate) return;
 	CSoundRender_Environment* S = FindItem(name);
@@ -462,15 +578,15 @@ void CSHSoundEnvTools::RealUpdateProperties()
 		V->OnChangeEvent.bind	(this,&CSHSoundEnvTools::OnEnvSizeChange);
 		PHelper().CreateFloat	(items, "Environment\\Diffusion",				&S.EnvironmentDiffusion,EAXLISTENER_MINENVIRONMENTDIFFUSION,EAXLISTENER_MAXENVIRONMENTDIFFUSION		,0.01f,	3);
 		PHelper().CreateFloat	(items, "Room\\Room",							&S.Room                ,(float)EAXLISTENER_MINROOM, 	  	(float)EAXLISTENER_MAXROOM				,1.f,	0);
-		PHelper().CreateFloat	(items, "Room\\RoomHF",							&S.RoomHF              ,(float)EAXLISTENER_MINROOMHF, 	  	(float)EAXLISTENER_MAXROOMHF			,1.f,	0);
-		PHelper().CreateFloat	(items, "Distance Effects\\RoomRolloffFactor",	&S.RoomRolloffFactor   ,EAXLISTENER_MINROOMROLLOFFFACTOR, 	EAXLISTENER_MAXROOMROLLOFFFACTOR		,0.01f,	3);
-		PHelper().CreateFloat	(items, "Distance Effects\\AirAbsorptionHF",  	&S.AirAbsorptionHF     ,EAXLISTENER_MINAIRABSORPTIONHF, 	EAXLISTENER_MAXAIRABSORPTIONHF			,0.01f,	3);
+		PHelper().CreateFloat	(items, "Room\\Room HF",							&S.RoomHF              ,(float)EAXLISTENER_MINROOMHF, 	  	(float)EAXLISTENER_MAXROOMHF			,1.f,	0);
+		PHelper().CreateFloat	(items, "Distance Effects\\Room Rolloff Factor",	&S.RoomRolloffFactor   ,EAXLISTENER_MINROOMROLLOFFFACTOR, 	EAXLISTENER_MAXROOMROLLOFFFACTOR		,0.01f,	3);
+		PHelper().CreateFloat	(items, "Distance Effects\\Air Absorption HF",  	&S.AirAbsorptionHF     ,EAXLISTENER_MINAIRABSORPTIONHF, 	EAXLISTENER_MAXAIRABSORPTIONHF			,0.01f,	3);
 		PHelper().CreateFloat	(items, "Reflections\\Reflections",				&S.Reflections         ,(float)EAXLISTENER_MINREFLECTIONS,	(float)EAXLISTENER_MAXREFLECTIONS		,1.f,	0);
-		PHelper().CreateFloat	(items, "Reflections\\ReflectionsDelay",		&S.ReflectionsDelay    ,EAXLISTENER_MINREFLECTIONSDELAY, 	EAXLISTENER_MAXREFLECTIONSDELAY			,0.01f,	3);
+		PHelper().CreateFloat	(items, "Reflections\\Reflections Delay",		&S.ReflectionsDelay    ,EAXLISTENER_MINREFLECTIONSDELAY, 	EAXLISTENER_MAXREFLECTIONSDELAY			,0.01f,	3);
 		PHelper().CreateFloat	(items, "Reverb\\Reverb",						&S.Reverb              ,(float)EAXLISTENER_MINREVERB, 	  	(float)EAXLISTENER_MAXREVERB			,1.f,	0);
-		PHelper().CreateFloat	(items, "Reverb\\ReverbDelay",					&S.ReverbDelay         ,EAXLISTENER_MINREVERBDELAY, 		EAXLISTENER_MAXREVERBDELAY				,0.01f,	3);
-		PHelper().CreateFloat	(items, "Decay\\DecayTime",						&S.DecayTime           ,EAXLISTENER_MINDECAYTIME, 			EAXLISTENER_MAXDECAYTIME				,0.01f,	3);
-		PHelper().CreateFloat	(items, "Decay\\DecayHFRatio",					&S.DecayHFRatio        ,EAXLISTENER_MINDECAYHFRATIO, 		EAXLISTENER_MAXDECAYHFRATIO				,0.01f,	3);
+		PHelper().CreateFloat	(items, "Reverb\\Reverb Delay",					&S.ReverbDelay         ,EAXLISTENER_MINREVERBDELAY, 		EAXLISTENER_MAXREVERBDELAY				,0.01f,	3);
+		PHelper().CreateFloat	(items, "Decay\\Decay Time",						&S.DecayTime           ,EAXLISTENER_MINDECAYTIME, 			EAXLISTENER_MAXDECAYTIME				,0.01f,	3);
+		PHelper().CreateFloat	(items, "Decay\\Decay HF Ratio",					&S.DecayHFRatio        ,EAXLISTENER_MINDECAYHFRATIO, 		EAXLISTENER_MAXDECAYHFRATIO				,0.01f,	3);
 	}
 
 	Ext.m_ItemProps->ClearProperties();

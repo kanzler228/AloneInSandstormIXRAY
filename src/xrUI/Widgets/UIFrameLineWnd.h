@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UIWindow.h"
+#include "UIStatic.h"
 
 class UI_API CUIFrameLineWnd: 
 	public CUIWindow
@@ -16,10 +17,10 @@ public:
 	};
 
 				 CUIFrameLineWnd	();
-			bool InitFrameLineWnd	(LPCSTR base_name, Fvector2 pos, Fvector2 size, bool horizontal = true, bool fatal = true);
+			bool InitFrameLineWnd	(const char* base_name, Fvector2 pos, Fvector2 size, bool horizontal = true, bool fatal = true);
 			void InitFrameLineWnd	(Fvector2 pos, Fvector2 size, bool horizontal = true);
-			bool InitTexture		(LPCSTR tex_name,LPCSTR sh_name="hud\\default", bool fatal = true);
-			bool InitTextureEx		(LPCSTR tex_name,LPCSTR sh_name="hud\\default", bool fatal = true) {return InitTexture(tex_name, sh_name, fatal); }; // for compiler
+			bool InitTexture		(const char* tex_name,const char* sh_name="hud\\default", bool fatal = true);
+			bool InitTextureEx		(const char* tex_name,const char* sh_name="hud\\default", bool fatal = true) {return InitTexture(tex_name, sh_name, fatal); }; // for compiler
 	virtual void Draw				();
 
 			float GetTextureHeight	() const						{return m_tex_rect[0].height();}
@@ -35,6 +36,9 @@ public:
 				R_ASSERT(idx >= flFirst && idx <= flSecond);
 				m_tex_rect[idx] = rect;
 			}
+			// Also we can display textual caption on the frame
+			CUIStatic UITitleText;
+			CUIStatic* GetTitleStatic() { return &UITitleText; };
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 

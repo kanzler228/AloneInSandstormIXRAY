@@ -5,12 +5,12 @@
 
 IRenderable::IRenderable()
 {
-	ISpatialOwner::spatial_create(g_SpatialSpace, this, STYPE_RENDERABLE);
+	ISpatialOwner::spatial_create(g_SpatialSpace, this, ESPATIAL_TYPE::RENDERABLE);
 
 	renderable.xform.identity			();
 	renderable.visual					= nullptr;
 	renderable.pROS						= nullptr;
-	renderable.pROS_Allowed				= TRUE;
+	renderable.pROS_Allowed				= true;
 }
 
 extern ENGINE_API xr_atomic_bool g_bRendering; 

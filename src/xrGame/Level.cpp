@@ -1,11 +1,10 @@
 #include "StdAfx.h"
 #include "pch_script.h"
-#include "../xrEngine/FDemoRecord.h"
-#include "../xrEngine/FDemoPlay.h"
+#include "FDemoRecord.h"
+#include "FDemoPlay.h"
 #include "../xrEngine/Environment.h"
 #include "../xrEngine/IGame_Persistent.h"
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 #include "Level.h"
 #include "HUDManager.h"
 #include "xrServer.h"
@@ -33,7 +32,6 @@
 #include "autosave_manager.h"
 #include "ClimableObject.h"
 #include "level_graph.h"
-#include "mt_config.h"
 #include "PHCommander.h"
 #include "map_manager.h"
 #include "../xrEngine/CameraManager.h"
@@ -53,12 +51,21 @@
 
 #include "../xrPhysics/IPHWorld.h"
 #include "../xrPhysics/console_vars.h"
+
+#include "ScriptsSubsystems/Condlist/CondlistGC.h"
+
+// lua to cpp
+#include "ScriptsSubsystems/Condlist/script_xr_conditions.h"
+#include "ScriptsSubsystems/Condlist/script_xr_effects.h"
+#include "ScriptsSubsystems/Condlist/script_xr_logic.h"
+#include "level_changer.h"
+
 #ifdef DEBUG_DRAW
 #	include "level_debug.h"
 #	include "ai/stalker/ai_stalker.h"
 #	include "debug_renderer.h"
-#	include "physicobject.h"
-#	include "phdebug.h"
+#	include "PhysicObject.h"
+#	include "PHDebug.h"
 
 // Lain:added
 #	include "debug_text_tree.h"
@@ -66,16 +73,15 @@
 #endif
 
 #include "inventory_upgrade_manager.h"
+#include "ElectronicsProblemsManager.h"
 
-ENGINE_API bool g_dedicated_server;
+#include "UIWorldSpace.h"
 
-//extern BOOL	g_bDebugDumpPhysicsStep;
 extern CUISequencer * g_tutorial;
 extern CUISequencer * g_tutorial2;
 
-
-float		g_cl_lvInterp		= 0.1f;
-u32			lvInterpSteps		= 0;
+float g_cl_lvInterp	= 0.1f;
+u32 lvInterpSteps	= 0;
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -101,8 +107,8 @@ CLevel::CLevel():
 		::Sound->create(m_screenshot_sound_event, soundScreenshot, st_Effect, sg_SourceType);
 	}
 
-	game_configured				= FALSE;
-	m_bGameConfigStarted		= FALSE;
+	game_configured				= false;
+	m_bGameConfigStarted		= false;
 	m_connect_server_err		= xrServer::ErrNoError;
 
 	eChangeRP					= g_pEventManager->Event.Handler_Attach	("LEVEL:ChangeRP",this);
@@ -113,6 +119,7 @@ CLevel::CLevel():
 	eEntitySpawn				= g_pEventManager->Event.Handler_Attach	("LEVEL:spawn",this);
 
 	m_pBulletManager			= new CBulletManager();
+	shell_manager				= new SShellManager();
 
 	m_map_manager				= new CMapManager();
 	m_game_task_manager			= new CGameTaskManager();
@@ -160,8 +167,6 @@ CLevel::CLevel():
 	//---------------------------------------------------------
 	pObjects4CrPr.clear();
 	pActors4CrPr.clear();
-	//---------------------------------------------------------
-	pCurrentControlEntity = nullptr;
 
 	//---------------------------------------------------------
 	m_dwCL_PingLastSendTime = 0;
@@ -171,11 +176,11 @@ CLevel::CLevel():
 	//---------------------------------------------------------	
 	m_writer = nullptr;
 	m_reader = nullptr;
-	m_DemoPlay = FALSE;
-	m_DemoPlayStarted	= FALSE;
-	m_DemoPlayStoped	= FALSE;
-	m_DemoSave = FALSE;
-	m_DemoSaveStarted = FALSE;
+	m_DemoPlay = false;
+	m_DemoPlayStarted	= false;
+	m_DemoPlayStoped	= false;
+	m_DemoSave = false;
+	m_DemoSaveStarted = false;
 	m_current_spectator = nullptr;
 	m_msg_filter = nullptr;
 	m_demoplay_control = nullptr;
@@ -198,6 +203,16 @@ CLevel::CLevel():
 	m_chunk = 0;
 	spawn = 0;
 
+	GCondlistGC = new CCondlistGarbageCollector;
+
+	WorldSpaceUIManager = new CUIWorldSpaceManager();
+
+#if defined(IXRAY_USE_LUA_AND_CPP_IMPLEMENTATION) || \
+	defined(IXRAY_USE_CPP_ONLY_IMPLEMENTATION)
+	m_pScriptXRCondition = new CScriptXRConditionsStorage();
+	m_pScriptXREffects = new CScriptXREffectsStorage();
+	m_pScriptXRParser = new CScriptXRParser();
+#endif
 }
 
 extern CAI_Space *g_ai_space;
@@ -206,7 +221,6 @@ CLevel::~CLevel()
 {
 	PROF_EVENT("CLevel::~CLevel");
 
-	DestroyImGuiInGame();
 	xr_delete					(g_player_hud);
 	delete_data					(hud_zones_list);
 	hud_zones_list				= nullptr;
@@ -258,15 +272,22 @@ CLevel::~CLevel()
 
 	ai().script_engine().remove_script_process(ScriptEngine::eScriptProcessorLevel);
 
+#if defined(IXRAY_USE_LUA_AND_CPP_IMPLEMENTATION) || \
+	defined(IXRAY_USE_CPP_ONLY_IMPLEMENTATION)
+	xr_delete(m_pScriptXRCondition);
+	xr_delete(m_pScriptXREffects);
+	xr_delete(m_pScriptXRParser);
+#endif
 	xr_delete					(game);
 	xr_delete					(game_events);
-
+	xr_delete					(Server);
 
 	//by Dandy
 	//destroy fog of war
 //	xr_delete					(m_pFogOfWar);
 	//destroy bullet manager
 	xr_delete					(m_pBulletManager);
+	xr_delete					(shell_manager);
 	//-----------------------------------------------------------
 	xr_delete					(pStatGraphR);
 	xr_delete					(pStatGraphS);
@@ -295,6 +316,7 @@ CLevel::~CLevel()
 	delete_data(m_game_task_manager);
 
 	xr_delete(m_upgrade_manager);
+	xr_delete(m_electronics_problems_manager);
 //	xr_delete					(m_pFogOfWarMngr);
 	
 	// here we clean default trade params
@@ -327,9 +349,12 @@ CLevel::~CLevel()
 	}
 	deinit_compression();
 
+	xr_delete(GCondlistGC);
 	xr_delete(m_game_graph);
 	m_chunk->close();
 	FS.r_close(spawn);
+
+	xr_delete(WorldSpaceUIManager);
 }
 
 
@@ -347,7 +372,7 @@ void CLevel::GetLevelInfo( CServerInfo* si )
 }
 
 
-void CLevel::PrefetchSound		(LPCSTR name)
+void CLevel::PrefetchSound		(const char* name)
 {
 	// preprocess sound name
 	string_path					tmp;
@@ -363,11 +388,11 @@ void CLevel::PrefetchSound		(LPCSTR name)
 }
 
 // Game interface ////////////////////////////////////////////////////
-int	CLevel::get_RPID(LPCSTR /**name/**/)
+int	CLevel::get_RPID(const char* /**name/**/)
 {
 	/*
 	// Gain access to string
-	LPCSTR	params = pLevel->r_string("respawn_point",name);
+	const char*	params = pLevel->r_string("respawn_point",name);
 	if (0==params)	return -1;
 
 	// Read data
@@ -376,14 +401,14 @@ int	CLevel::get_RPID(LPCSTR /**name/**/)
 	sscanf		(params,"%f,%f,%f,%d,%f",&pos.x,&pos.y,&pos.z,&team,&pos.w); pos.y += 0.1f;
 
 	// Search respawn point
-	svector<Fvector4,maxRP>	&rp = Level().get_team(team).RespawnPoints;
+	FixedVector<Fvector4,maxRP>	&rp = Level().get_team(team).RespawnPoints;
 	for (int i=0; i<(int)(rp.size()); ++i)
 		if (pos.similar(rp[i],EPS_L))	return i;
 	*/
 	return -1;
 }
 
-BOOL		g_bDebugEvents = FALSE	;
+bool		g_bDebugEvents = false	;
 
 
 void CLevel::cl_Process_Event				(u16 dest, u16 type, NET_Packet& P)
@@ -433,7 +458,7 @@ void CLevel::cl_Process_Event				(u16 dest, u16 type, NET_Packet& P)
 			ok			= false;
 		}
 
-		CGameObject		*GD = D->cast_game_object();
+		CGameObject* GD = D ? D->cast_game_object() : nullptr;
 		if (!GD)		{
 #ifndef MASTER_GOLD
 			Msg			("! ERROR: c_EVENT[%d] : non-game-object",id);
@@ -505,7 +530,7 @@ void CLevel::ProcessGameEvents		()
 
 					NET_Packet PRespond;
 					PRespond.w_begin(M_MOVE_PLAYERS_RESPOND);
-					Send(PRespond, net_flags(TRUE, TRUE));
+					Send(PRespond, net_flags(true, true));
 				}break;
 			case M_STATISTIC_UPDATE:
 				{
@@ -566,25 +591,24 @@ void CLevel::OnFrame()
 	DBG_RenderUpdate();
 #endif // #ifdef DEBUG
 
+	if (GCondlistGC != nullptr)
+	{
+		GCondlistGC->Update();
+	}
+
 	Fvector	temp_vector;
 	m_feel_deny.feel_touch_update(temp_vector, 0.f);
 
 	if (GameID() != eGameIDSingle)		psDeviceFlags.set(rsDisableObjectsAsCrows, true);
 	else								psDeviceFlags.set(rsDisableObjectsAsCrows, false);
 
-	// commit events from bullet manager from prev-frame
-	Device.Statistic->TEST0.Begin();
-	BulletManager().CommitEvents();
-	Device.Statistic->TEST0.End();
+	BulletManager().Update(Device.fTimeDelta);
 
 	// Client receive
 	if (net_isDisconnected())
 	{
 		if (OnClient() && !IsGameTypeSingle())
 		{
-#ifdef DEBUG
-			Msg("--- I'm disconnected, so clear all objects...");
-#endif // #ifdef DEBUG
 			ClearAllObjects();
 		}
 
@@ -603,14 +627,14 @@ void CLevel::OnFrame()
 	ProcessGameEvents();
 
 
-	if (m_bNeed_CrPr)					make_NetCorrectionPrediction();
+	if (m_bNeed_CrPr)
+	{
+		make_NetCorrectionPrediction();
+	}
 
 	if (!g_dedicated_server)
 	{
-		if (g_mt_config.test(mtMap))
-			Device.seqParallel.push_back(xr_make_delegate(m_map_manager, &CMapManager::Update));
-		else
-			MapManager().Update();
+		Device.seqParallel.push_back(xr_make_delegate(m_map_manager, &CMapManager::Update));
 	}
 	// Inherited update
 	inherited::OnFrame();
@@ -705,16 +729,9 @@ void CLevel::OnFrame()
 #endif
 	g_pGamePersistent->Environment().SetGameTime(GetEnvironmentGameDayTimeSec(), game->GetEnvironmentGameTimeFactor());
 
-	// update static sounds
-	if (g_mt_config.test(mtLevelSounds))
-		Device.seqParallel.push_back(xr_make_delegate(m_level_sound_manager, &CLevelSoundManager::Update));
-	else
-		m_level_sound_manager->Update();
-
-	if (g_mt_config.test(mtLUA_GC))	
-		Device.seqParallel.push_back(xr_make_delegate(this, &CLevel::script_gc));
-	else						
-		script_gc();
+	// update static sounds & gc
+	Device.seqParallel.push_back(xr_make_delegate(m_level_sound_manager, &CLevelSoundManager::Update));
+	Device.seqParallel.push_back(xr_make_delegate(this, &CLevel::script_gc));
 
 	//-----------------------------------------------------
 	if (pStatGraphR)
@@ -724,6 +741,11 @@ void CLevel::OnFrame()
 
 		pStatGraphR->AppendItem(float(m_dwRPC) * fRPC_Mult, 0xffff0000, 1);
 		pStatGraphR->AppendItem(float(m_dwRPS) * fRPS_Mult, 0xff00ff00, 0);
+	}
+
+	if (m_electronics_problems_manager != nullptr)
+	{
+		m_electronics_problems_manager->UpdateCL();
 	}
 }
 
@@ -756,7 +778,7 @@ extern UI_API void draw_wnds_rects();
 
 void CLevel::OnRender()
 {
-	inherited::OnRender	();
+	inherited::OnRender();
 
 	if (!game)
 		return;
@@ -766,13 +788,19 @@ void CLevel::OnRender()
 	//Device.Statistic->TEST1.Begin();
 	//Device.Statistic->TEST1.End();
 	// c 
+
+	if (g_actor && g_actor->g_Alive() && WorldSpaceUIManager)
+	{
+		WorldSpaceUIManager->OnRender();
+	}
+
 	HUD().RenderUI();
 
 #ifdef DEBUG
 	draw_wnds_rects();
-	physics_world()->OnRender	();
+	physics_world()->OnRender();
 
-	if (ai().get_level_graph()&&dynamic_cast<CLevelGraph*>(&ai().level_graph()))
+	if (ai().get_level_graph() && dynamic_cast<CLevelGraph*>(&ai().level_graph()))
 		dynamic_cast<CLevelGraph*>(&ai().level_graph())->render();
 
 #endif // DEBUG
@@ -800,7 +828,7 @@ void CLevel::OnRender()
 				stalker->OnRender();
 			}
 
-			if (CCustomMonster* monster = _O != nullptr ? _O->cast_custom_monster() : nullptr)
+			if (CCreature* monster = _O != nullptr ? _O->cast_creature() : nullptr)
 			{
 				monster->OnRender();
 			}
@@ -926,25 +954,34 @@ void CLevel::OnRender()
 
 void CLevel::OnEvent(EVENT E, u64 P1, u64 /**P2/**/)
 {
-	if (E==eEntitySpawn)	{
-		char	Name[128];	Name[0]=0;
-		sscanf	(LPCSTR(P1),"%s", Name);
-		Level().g_cl_Spawn	(Name,0xff, M_SPAWN_OBJECT_LOCAL, Fvector().set(0,0,0));
-	} else if (E==eChangeRP && P1) {
-	} else if (E==eDemoPlay && P1) {
+	if (E == eEntitySpawn)
+	{
+		char	Name[128];	Name[0] = 0;
+		sscanf((const char*)P1, "%127s", Name);
+		Level().g_cl_Spawn(Name, 0xff, M_SPAWN_OBJECT_LOCAL, Fvector().set(0, 0, 0));
+	}
+	else if (E == eChangeRP && P1) 
+	{
+	}
+	else if (E == eDemoPlay && P1) 
+	{
 		char* name = (char*)P1;
 		string_path RealName;
-		xr_strcpy		(RealName,name);
-		xr_strcat			(RealName,".xrdemo");
-		Cameras().AddCamEffector(new CDemoPlay (RealName,1.3f,0));
-	} else if (E==eChangeTrack && P1) {
+		xr_strcpy(RealName, name);
+		xr_strcat(RealName, ".xrdemo");
+		Cameras().AddCamEffector(new CDemoPlay(RealName, 1.3f, 0));
+	}
+	else if (E == eChangeTrack && P1)
+	{
 		// int id = atoi((char*)P1);
 		// Environment->Music_Play(id);
-	} else if (E==eEnvironment) {
+	}
+	else if (E == eEnvironment)
+	{
 		// int id=0; float s=1;
 		// sscanf((char*)P1,"%d,%f",&id,&s);
 		// Environment->set_EnvMode(id,s);
-	} else return;
+	}
 }
 
 void CLevel::AddObject_To_Objects4CrPr(CGameObject* pObj)
@@ -1241,10 +1278,11 @@ void CLevel::OnAlifeSimulatorLoaded()
 	{
 		// moved from alife simulator for supporting in MP
 		m_upgrade_manager = new inventory::upgrade::Manager();
+		m_electronics_problems_manager = new CElectronicsProblemsManager();
 	}
 }
 
-void CLevel::OnSessionTerminate		(LPCSTR reason)
+void CLevel::OnSessionTerminate		(const char* reason)
 {
 	MainMenu()->OnSessionTerminate(reason);
 }

@@ -7,6 +7,9 @@
 #define		r2_RT_S				"$user$surface"			      // MRT
 #define		r2_RT_albedo		"$user$albedo"			      // MRT
 #define		r2_RT_velocity		"$user$velocity"			  // MRT
+
+#define		r2_RT_N_temp		"$user$normal_temp"		      // MRT
+#define		r2_RT_S_temp		"$user$surface_temp"	      // MRT
 #else
 #define		r2_RT_depth			"$user$depth"			// MRT
 #define		r2_RT_P				"$user$position"		// MRT
@@ -31,9 +34,16 @@
 #define		r2_RT_backbuffer_lut "$user$backbufferlut"
 #define		r2_RT_generic0_prev "$user$generic0_prev"
 
-#define		r2_RT_env			"$user$sky"
-#define		r2_RT_env_depth		"$user$sky_depth"
-#define		r2_RT_env_temp		"$user$sky_1temp"
+#define		r2_RT_env			"$user$env"
+#define		r2_RT_env_depth		"$user$env_depth"
+#define		r2_RT_env_fwd		"$user$env_fwd"
+#define		r2_RT_env_temp		"$user$env_temp"
+
+#define		r2_RT_upscaled_depth "$user$upscaled_depth"
+#define		r2_RT_upscaled_depth_old "$user$upscaled_depth_old"
+
+#define		r2_RT_ui_depth		"$user$ui_depth"
+#define		r2_RT_ui_color		"$user$ui_color"
 
 #define		r2_RT_sslr			"$user$sslr"
 #define		r2_RT_sslr_old		"$user$sslr_old"
@@ -44,24 +54,54 @@
 #define		r2_RT_half_depth	"$user$half_depth"		//temporary rt for hbao calculation
 
 #if USE_DX11
-#define		r2_RT_generic		"$user$generic"		// ---
-#define		r2_RT_backbuffer_final "$user$backbuffer"
-#define		r2_RT_backbuffer_lut "$user$backbufferlut"
-#define		r2_RT_backbuffer_AA "$user$backbuffer_aa"
+	#define r2_RT_generic "$user$generic"
+	#define r2_RT_backbuffer_final "$user$backbuffer"
+	#define r2_RT_backbuffer_lut "$user$backbufferlut"
+	#define r2_RT_backbuffer_AA "$user$backbuffer_aa"
+
+	#define r2_RT_wboit "$user$wboit"
+	#define r2_RT_wboit_revealage "$user$wboit_revealage"
+
+	#define r2_RT_bloomA  "$user$bloomA"
+	#define r2_RT_bloomB  "$user$bloomB"
+	#define r2_RT_bloomC  "$user$bloomC"
+	#define r2_RT_bloomD  "$user$bloomD"
+	#define r2_RT_bloomE  "$user$bloomE"
+	#define r2_RT_bloomF  "$user$bloomF"
+	#define r2_RT_bloomG  "$user$bloomG"
+	#define r2_RT_bloomA2 "$user$bloomA2"
+	#define r2_RT_bloomB2 "$user$bloomB2"
+	#define r2_RT_bloomC2 "$user$bloomC2"
+	#define r2_RT_bloomD2 "$user$bloomD2"
+	#define r2_RT_bloomE2 "$user$bloomE2"
+	#define r2_RT_bloomF2 "$user$bloomF2"
+
+	#define r2_RT_lumA "$user$lum_A"
+	#define r2_RT_lumB "$user$lum_B"
+	#define r2_RT_lumC "$user$lum_C"
+#else
+	#define r2_RT_bloom1 "$user$bloom1"
+	#define r2_RT_bloom2 "$user$bloom2"
+
+	#define r2_RT_luminance_t64	"$user$lum_t64"
+	#define r2_RT_luminance_t8 "$user$lum_t8"
+	#define r2_RT_luminance_src	"$user$tonemap_src"
+	#define r2_RT_luminance_pool "$user$luminance"
 #endif //USE_DX11
 
-#define		r2_RT_bloom1		"$user$bloom1"			// ---
-#define		r2_RT_bloom2		"$user$bloom2"			// ---
+#define r2_RT_luminance_cur	"$user$tonemap"
 
-#define		r2_RT_luminance_t64	"$user$lum_t64"			// --- temp
-#define		r2_RT_luminance_t8	"$user$lum_t8"			// --- temp
-
-#define		r2_RT_luminance_src	"$user$tonemap_src"		// --- prev-frame-result
-#define		r2_RT_luminance_cur	"$user$tonemap"			// --- result
-#define		r2_RT_luminance_pool "$user$luminance"		// --- pool
+#define		r2_RT_dof_focus			"$user$dof_focus"		// --- 24 bit, 1x1, current focus distance
+#define		r2_RT_dof_focus_prev	"$user$dof_focus_prev"	// --- 24 bit, 1x1, previous frame focus distance
+#define		r2_RT_dof_coc			"$user$dof_coc"			// --- 16 bit, dim, circle of confusion
+#define		r2_RT_dof_coc_prev		"$user$dof_coc_prev"	// --- 16 bit, dim, previous frame circle of confusion
+#define 	r2_RT_dof_blur1			"$user$dof_blur1"		// --- 32 bit, dim, blur pass1
+#define 	r2_RT_dof_blur2			"$user$dof_blur2"		// --- 32 bit, dim, blur pass2
+#define 	r2_RT_dof_blur3			"$user$dof_blur3"		// --- 32 bit, dim, blur pass3
 
 #define		r2_RT_smap_surf		"$user$smap_surf"		// --- directional
 #define		r2_RT_smap_depth	"$user$smap_depth"		// ---directional
+#define		r2_RT_smap_depth_sun	"$user$smap_depth_sun"
 
 #define		r2_material			"$user$material"		// ---
 #define		r2_ds2_fade			"$user$ds2_fade"		// ---
@@ -72,16 +112,19 @@
 #define		r2_RT_smaa_edgetex "$user$edgetex"
 #define		r2_RT_smaa_blendtex "$user$blendtex"
 
+#define		r_ui_pda			"$user$ui_pda"
+
 #define		JITTER(a) r2_jitter #a
 
 const		float				SMAP_near_plane		= .1f	;
 
-const		u32					SMAP_adapt_min		= 32	;
-const		u32					SMAP_adapt_optimal	= 768	;
-const		u32					SMAP_adapt_max		= 1536	;
+#define SMAP_adapt_min (RImplementation.o.smapsize / 64)    //GSC - 32. Now 2048 / 64 = 32, same for 2048 atlas size    
+#define SMAP_adapt_optimal (RImplementation.o.smapsize / 4)    //GSC - 768. Now 2048 / 4 = 512, seems legit fits 16 shadowmaps
+#define SMAP_adapt_max (RImplementation.o.smapsize / 2)    //GSC - 1536. Now 2048 / 2 = 1024, seems legit fits 4 shadowmaps
 
 const		u32					TEX_material_LdotN	= 128	;	// diffuse,		X, almost linear = small res
 const		u32					TEX_material_LdotH	= 256	;	// specular,	Y
+#define		SE_R2_HUD			5	// hud generation
 
 #if USE_DX11
 const		u32					TEX_material_Count	= 4		;	// Number of materials,	Z
@@ -99,6 +142,7 @@ const		u32					LUMINANCE_size = 16;
 #define		SE_R2_NORMAL_LQ		1	// low quality
 #define		SE_R2_SHADOW		2	// shadow generation
 #define		SE_R2_REFLECTIONS	3	// reflections generation
+#define		SE_R2_UI			4	// ui static generation
 
 #if USE_DX11
 #define		SE_R2_DETAIL_SHADOW_HQ 2	 // shadow generation (Wind)

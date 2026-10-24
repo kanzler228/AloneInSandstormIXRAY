@@ -12,9 +12,9 @@ public:
 	xrP_BOOL	oBlend;
 	xrP_BOOL	oNotAnTree;
 public:
-	virtual		LPCSTR		getComment()	{ return "LEVEL: trees/bushes";	}
-	virtual		BOOL		canBeLMAPped()	{ return FALSE; }
-	virtual		BOOL		canBeDetailed()	{ return TRUE; }
+	virtual		const char*		getComment()	{ return "LEVEL: trees/bushes";	}
+	virtual		bool		canBeLMAPped()	{ return false; }
+	virtual		bool		canBeDetailed()	{ return true; }
 
 	virtual		void		Save			(IWriter&	fs);
 	virtual		void		Load			(IReader&	fs, u16 version);

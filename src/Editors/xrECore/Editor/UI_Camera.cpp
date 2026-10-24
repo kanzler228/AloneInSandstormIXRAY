@@ -60,7 +60,10 @@ const Fvector& CUI_Camera::GetPosition() const
 {
     if (UI->IsPlayInEditor())
     {
-        return g_pGameLevel->Cameras().Position();
+        static Fvector LastPos;
+        LastPos = g_pGameLevel->Cameras().Position();
+
+        return LastPos; 
     }
     return m_Position;
 }
@@ -69,7 +72,10 @@ const Fvector& CUI_Camera::GetRight() const
 {
 	if (UI->IsPlayInEditor())
 	{
-        return g_pGameLevel->Cameras().Right();
+        static Fvector LastPos;
+        LastPos = g_pGameLevel->Cameras().Right();
+
+        return LastPos;
 	}
    return m_CamMat.i;
 }
@@ -78,7 +84,10 @@ const Fvector& CUI_Camera::GetNormal() const
 {
 	if (UI->IsPlayInEditor())
 	{
-        return g_pGameLevel->Cameras().Up();
+        static Fvector LastPos;
+        LastPos = g_pGameLevel->Cameras().Up();
+
+        return LastPos;
 	}
     return m_CamMat.j;
 }
@@ -87,7 +96,10 @@ const Fvector& CUI_Camera::GetDirection() const
 {
 	if (UI->IsPlayInEditor())
 	{
-        return g_pGameLevel->Cameras().Direction();
+        static Fvector LastPos;
+        LastPos = g_pGameLevel->Cameras().Direction();
+
+        return LastPos;
 	}
     return m_CamMat.k;
 }
@@ -172,8 +184,8 @@ static const Fvector down_dir={0.f,-1.f,0.f};
 void CUI_Camera::Update(float dt)
 {
 	if (m_bMoving){
-    	BOOL bLeftDn = m_Shift&ssLeft;
-    	BOOL bRightDn = m_Shift&ssRight;
+    	bool bLeftDn = m_Shift&ssLeft;
+    	bool bRightDn = m_Shift&ssRight;
 		if ((m_Style==csFreeFly)&&(bLeftDn||bRightDn)&&!(bLeftDn&&bRightDn)){
 			Fvector vmove;
 	        vmove.set( m_CamMat.k );
@@ -352,20 +364,10 @@ void CUI_Camera::ZoomExtents(const Fbox& bb)
 	D.mul(m_CamMat.k,-1);
     H1 = R/sinf(deg2rad(EDevice->fFOV)*0.5f);
     H2 = R/sinf(deg2rad(EDevice->fFOV)*0.5f/EDevice->fASPECT);
-    m_Position.mad(C,D,_max(H1,H2));
+    m_Position.mad(C,D, std::max(H1,H2));
 	m_Target.set(C);
 
 	BuildCamera();
-/*
-	eye_k - фокусное расстояние, eye_k=eye_width/2
-	camera.alfa:=0;
-     camera.beta:=-30*pi/180;
-     camera.gama:=0;
-     s:=(maxx-minx)*eye_k/eye_width*0.5*0.5;
-     camera.posx:=(maxx+minx)/2;
-     camera.posy:=maxy+s*tan(30*pi/180);
-     camera.posz:=minz-s;
-*/
 }
 
 void CUI_Camera::ArcBall(TShiftState Shift, float dx, float dy)

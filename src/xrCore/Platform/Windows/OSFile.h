@@ -11,8 +11,13 @@ class FS_Path;
 #define xr_ftell ftell
 #endif
 
+#define PLATFORM_SLASH '\\'
+#define PLATFORM_SLASH_STR "\\"
+
 namespace Platform
 {
+    constexpr const char* kPreferredSeparator = "\\";
+
     IC const char* ValidPath(const char* In)
     {
         return In;
@@ -30,7 +35,7 @@ namespace Platform
     IC std::filesystem::path GetBinaryFolderPath()
     {
         char BinPath[MAX_PATH];
-        int bytes = GetModuleFileNameA(NULL, BinPath, sizeof(BinPath));
+        int bytes = GetModuleFileNameA(nullptr, BinPath, sizeof(BinPath));
         if (bytes == 0) 
         {
             return {};
@@ -41,7 +46,7 @@ namespace Platform
     IC std::string GetModuleName()
     {
         char ModuleName[MAX_PATH];
-        int bytes = GetModuleFileNameA(NULL, ModuleName, sizeof(ModuleName));
+        int bytes = GetModuleFileNameA(nullptr, ModuleName, sizeof(ModuleName));
         if (bytes == 0) 
         {
             return {};
@@ -87,8 +92,8 @@ namespace Platform
         return {};
     }
 
-	bool OpenFileWnd(char* buffer, size_t sz_buf, FS_Path* P, int start_flt_ext, char flt[1024], LPCSTR offset, bool bMulti);
-	//bool SaveFileWnd(char* buffer, size_t sz_buf, FS_Path* P, int start_flt_ext, char flt[1024], LPCSTR offset);
+	bool OpenFileWnd(char* buffer, size_t sz_buf, FS_Path* P, int start_flt_ext, char flt[1024], const char* offset, bool bMulti);
+	//bool SaveFileWnd(char* buffer, size_t sz_buf, FS_Path* P, int start_flt_ext, char flt[1024], const char* offset);
 
     IC FileHandle CreateFile(const char* FilePath, bool SharedWrite)
     {
@@ -105,7 +110,7 @@ namespace Platform
             FlagsRight |= FILE_SHARE_WRITE;
         }
 
-        auto FileSource = ::CreateFile(Path, FlagsLeft, FlagsRight, 0, OPEN_EXISTING, 0, 0);
+        auto FileSource = ::CreateFile(Path, FlagsLeft, FlagsRight, nullptr, OPEN_EXISTING, 0, nullptr);
         //R_ASSERT3(FileSource != INVALID_HANDLE_VALUE, cFileName, Debug.error2string(GetLastError()));
         return FileSource;
     }
@@ -113,7 +118,7 @@ namespace Platform
     IC FileHandle OpenFile(const char* FilePath)
     {
         const xr_special_char* Path = Platform::ANSI_TO_TCHAR_U8(FilePath);
-        auto Handle = ::CreateFile(Path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        auto Handle = ::CreateFile(Path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 
         return Handle;
     }
@@ -125,13 +130,13 @@ namespace Platform
 
     IC size_t GetFileSize(FileHandle Src)
     {
-        return ::GetFileSize(Src, NULL);
+        return ::GetFileSize(Src, nullptr);
     }
 
     IC void* CreateMapData(FileHandle hSrcFile, bool ReadOnly = false)
     {
         auto MapFlags = ReadOnly ? PAGE_READONLY : PAGE_READWRITE;
-        return CreateFileMapping(hSrcFile, 0, MapFlags, 0, 0, 0);
+        return CreateFileMapping(hSrcFile, nullptr, MapFlags, 0, 0, nullptr);
     }
 
     IC void* MapFile(FileHandle hSrcFile, [[maybe_unused]] size_t Size, bool bRead = false, size_t Offset = 0)
@@ -156,7 +161,7 @@ namespace Platform
         return _wunlink(Platform::ANSI_TO_TCHAR_U8(path));
     }
 
-    size_t Stat(const char* path, time_t& Time);
+    XRCORE_API size_t Stat(const char* path, time_t& Time);
 
     static constexpr size_t INVALID_READ_SIZE = (size_t)-1;
 
@@ -179,5 +184,10 @@ namespace Platform
             return INVALID_READ_SIZE;
 
         return bytesRead;
+    }
+
+    IC void GetAbsolutePath(char* in_path, char* out_buffer, size_t buffer_size)
+    {
+        _fullpath(in_path, out_buffer, buffer_size);
     }
 }

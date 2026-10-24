@@ -89,43 +89,57 @@ static FLvertexVec 	m_GridPoints;
 u32 m_ColorAxis	= 0xff000000;
 u32 m_ColorGrid	= 0xff909090;
 u32 m_ColorGridTh = 0xffb4b4b4;
-u32 m_SelectionRect = color_rgba(127,255,127,64);
+constexpr u32 m_SelectionRect = color_rgba(127,255,127,64);
 
 u32 m_ColorSafeRect = 0xffB040B0;
 
-void SPrimitiveBuffer::CreateFromData(D3DPRIMITIVETYPE _pt, u32 _p_cnt, u32 FVF, LPVOID vertices, u32 _v_cnt, u16* indices, u32 _i_cnt)
+void SPrimitiveBuffer::CreateFromData(ERHI_PRIMITIVE_TOPOLOGY _pt, u32 _p_cnt, u32 FVF, LPVOID vertices, u32 _v_cnt, u16* indices, u32 _i_cnt)
 {
-#ifdef USE_DX11
-//	TODO: DX10: Implement SPrimitiveBuffer::CreateFromData for DX10
-//	VERIFY(!"SPrimitiveBuffer::CreateFromData not implemented for dx10");
-#else //USE_DX11
-	ID3DVertexBuffer*	pVB=0;
-	ID3DIndexBuffer*	pIB=0;
-	p_cnt				= _p_cnt;
-	p_type				= _pt;
-	v_cnt				= _v_cnt;
-	i_cnt				= _i_cnt;
-	u32 stride = (u32)FVF::ComputeVertexSize(FVF);
-	R_CHK(RDevice->CreateVertexBuffer(v_cnt*stride, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &pVB, 0));
-    u8* bytes{};
-	R_CHK				(pVB->Lock(0,0,(LPVOID*)&bytes,0));
-	FLvertexVec	verts	(v_cnt);
-	for (u32 k=0; k<v_cnt; ++k)
-		verts[k].set	(((Fvector*)vertices)[k],0xFFFFFFFF);
-	Memory.mem_copy		(bytes,&*verts.begin(),v_cnt*stride);
-	R_CHK				(pVB->Unlock());
-	if (i_cnt){ 
-		R_CHK(RDevice->CreateIndexBuffer	(i_cnt*sizeof(u16),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_MANAGED,&pIB,nullptr));
-		R_CHK			(pIB->Lock(0,0,(LPVOID*)&bytes,0));
-		Memory.mem_copy	(bytes,indices,i_cnt*sizeof(u16));
-		R_CHK			(pIB->Unlock());
-		OnRender.bind	(this,&SPrimitiveBuffer::RenderDIP);
-	}else{
-		OnRender.bind	(this,&SPrimitiveBuffer::RenderDP);
-	}
-	pGeom.create		(FVF,pVB,pIB);
-#endif
+    IRHIBuffer* pVB = nullptr;
+    IRHIBuffer* pIB = nullptr;
+
+    p_cnt = _p_cnt;
+    p_type = _pt;
+    v_cnt = _v_cnt;
+    i_cnt = _i_cnt;
+
+    u32 stride = FVF::ComputeVertexSize(FVF);
+
+    FLvertexVec verts(v_cnt);
+    for (u32 k = 0; k < v_cnt; ++k)
+        verts[k].set(((Fvector*)vertices)[k], 0xFFFFFFFF);
+
+    R_ASSERT(RHIUtils::CreateVertexBuffer(&pVB, verts.data(), v_cnt * stride, false));
+
+    if (i_cnt)
+    {
+        R_ASSERT(RHIUtils::CreateIndexBuffer(&pIB, indices, i_cnt * sizeof(u16), false));
+        OnRender.bind(this, &SPrimitiveBuffer::RenderDIP);
+    }
+    else
+    {
+        OnRender.bind(this, &SPrimitiveBuffer::RenderDP);
+    }
+
+    RHIMappedSubresource mapped = {};
+    if (pVB->Map(ERHI_BUFFER_MAP::WRITE_DISCARD, 0, &mapped))
+    {
+        Memory.mem_copy(mapped.pData, verts.data(), v_cnt * stride);
+        pVB->Unmap();
+    }
+
+    if (pIB && i_cnt > 0)
+    {
+        if (pIB->Map(ERHI_BUFFER_MAP::WRITE_DISCARD, 0, &mapped))
+        {
+            Memory.mem_copy(mapped.pData, indices, i_cnt * sizeof(u16));
+            pIB->Unmap();
+        }
+    }
+
+    pGeom.create(FVF, pVB, pIB);
 }
+
 void SPrimitiveBuffer::Destroy()
 {                       
 	if (pGeom){
@@ -183,20 +197,20 @@ void CDrawUtilities::OnDeviceCreate()
 {
 	Device.seqRender.Add			(this,REG_PRIORITY_LOW-1000);
 
-	m_SolidBox.CreateFromData		(D3DPT_TRIANGLELIST,DU_BOX_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_box_vertices,			DU_BOX_NUMVERTEX,			du_box_faces,			DU_BOX_NUMFACES*3);
-	m_SolidCone.CreateFromData		(D3DPT_TRIANGLELIST,DU_CONE_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cone_vertices,		DU_CONE_NUMVERTEX,			du_cone_faces,			DU_CONE_NUMFACES*3);
-	m_SolidSphere.CreateFromData	(D3DPT_TRIANGLELIST,DU_SPHERE_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_vertices,		DU_SPHERE_NUMVERTEX,		du_sphere_faces,		DU_SPHERE_NUMFACES*3);
-	m_SolidSpherePart.CreateFromData(D3DPT_TRIANGLELIST,DU_SPHERE_PART_NUMFACES,D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_part_vertices,	DU_SPHERE_PART_NUMVERTEX,	du_sphere_part_faces,	DU_SPHERE_PART_NUMFACES*3);
-    m_SolidCylinder.CreateFromData	(D3DPT_TRIANGLELIST,DU_CYLINDER_NUMFACES,	D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cylinder_vertices,	DU_CYLINDER_NUMVERTEX,		du_cylinder_faces,		DU_CYLINDER_NUMFACES*3);
-    m_WireBox.CreateFromData		(D3DPT_LINELIST,	DU_BOX_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_box_vertices,			DU_BOX_NUMVERTEX,			du_box_lines,			DU_BOX_NUMLINES*2);
-	m_WireCone.CreateFromData		(D3DPT_LINELIST,	DU_CONE_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cone_vertices,		DU_CONE_NUMVERTEX,			du_cone_lines,			DU_CONE_NUMLINES*2);
-	m_WireSphere.CreateFromData		(D3DPT_LINELIST,	DU_SPHERE_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_verticesl,		DU_SPHERE_NUMVERTEXL,		du_sphere_lines,		DU_SPHERE_NUMLINES*2);
-	m_WireSpherePart.CreateFromData	(D3DPT_LINELIST,	DU_SPHERE_PART_NUMLINES,D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_part_vertices,	DU_SPHERE_PART_NUMVERTEX,	du_sphere_part_lines,	DU_SPHERE_PART_NUMLINES*2);
-    m_WireCylinder.CreateFromData	(D3DPT_LINELIST,	DU_CYLINDER_NUMLINES,	D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cylinder_vertices,	DU_CYLINDER_NUMVERTEX,		du_cylinder_lines,		DU_CYLINDER_NUMLINES*2);
+	m_SolidBox.CreateFromData		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,DU_BOX_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_box_vertices,			DU_BOX_NUMVERTEX,			du_box_faces,			DU_BOX_NUMFACES*3);
+	m_SolidCone.CreateFromData		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,DU_CONE_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cone_vertices,		DU_CONE_NUMVERTEX,			du_cone_faces,			DU_CONE_NUMFACES*3);
+	m_SolidSphere.CreateFromData	(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,DU_SPHERE_NUMFACES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_vertices,		DU_SPHERE_NUMVERTEX,		du_sphere_faces,		DU_SPHERE_NUMFACES*3);
+	m_SolidSpherePart.CreateFromData(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,DU_SPHERE_PART_NUMFACES,D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_part_vertices,	DU_SPHERE_PART_NUMVERTEX,	du_sphere_part_faces,	DU_SPHERE_PART_NUMFACES*3);
+    m_SolidCylinder.CreateFromData	(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,DU_CYLINDER_NUMFACES,	D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cylinder_vertices,	DU_CYLINDER_NUMVERTEX,		du_cylinder_faces,		DU_CYLINDER_NUMFACES*3);
+    m_WireBox.CreateFromData		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,	DU_BOX_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_box_vertices,			DU_BOX_NUMVERTEX,			du_box_lines,			DU_BOX_NUMLINES*2);
+	m_WireCone.CreateFromData		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,	DU_CONE_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cone_vertices,		DU_CONE_NUMVERTEX,			du_cone_lines,			DU_CONE_NUMLINES*2);
+	m_WireSphere.CreateFromData		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,	DU_SPHERE_NUMLINES,		D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_verticesl,		DU_SPHERE_NUMVERTEXL,		du_sphere_lines,		DU_SPHERE_NUMLINES*2);
+	m_WireSpherePart.CreateFromData	(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,	DU_SPHERE_PART_NUMLINES,D3DFVF_XYZ|D3DFVF_DIFFUSE,du_sphere_part_vertices,	DU_SPHERE_PART_NUMVERTEX,	du_sphere_part_lines,	DU_SPHERE_PART_NUMLINES*2);
+    m_WireCylinder.CreateFromData	(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,	DU_CYLINDER_NUMLINES,	D3DFVF_XYZ|D3DFVF_DIFFUSE,du_cylinder_vertices,	DU_CYLINDER_NUMVERTEX,		du_cylinder_lines,		DU_CYLINDER_NUMLINES*2);
 
 	for(int i=0;i<LINE_DIVISION;i++){                                
 		float angle = M_PI * 2.f * (i / (float)LINE_DIVISION);
-        float _sa=_sin(angle), _ca=_cos(angle);
+        float _sa= std::sin(angle), _ca= std::cos(angle);
 		circledef1[i].x = _ca;
 		circledef1[i].y = _sa;
 		circledef1[i].z = 0;
@@ -257,8 +271,8 @@ void CDrawUtilities::DrawSpotLight(const Fvector& p, const Fvector& d, float ran
 	Fvector p1;
     float H,P;
     float da	= PI_MUL_2/LINE_DIVISION;
-	float b		= range*_cos(PI_DIV_2-phi/2);
-	float a		= range*_sin(PI_DIV_2-phi/2);
+	float b		= range*std::cos(PI_DIV_2-phi/2);
+	float a		= range*std::sin(PI_DIV_2-phi/2);
     d.getHP		(H,P);
     T.setHPB	(H,P,0);     
     T.translate_over(p);
@@ -266,8 +280,8 @@ void CDrawUtilities::DrawSpotLight(const Fvector& p, const Fvector& d, float ran
     u32				vBase;
     FVF::L*	pv	 	= (FVF::L*)Stream->Lock(LINE_DIVISION*2+2,vs_L->vb_stride,vBase);
 	for (float angle=0; angle<PI_MUL_2; angle+=da){
-        float _sa	=_sin(angle);
-        float _ca	=_cos(angle);
+        float _sa	=std::sin(angle);
+        float _ca	=std::cos(angle);
 		p1.x		= b * _ca;
 		p1.y		= b * _sa;
         p1.z		= a;
@@ -281,7 +295,7 @@ void CDrawUtilities::DrawSpotLight(const Fvector& p, const Fvector& d, float ran
     pv->set			(p1,clr); pv++;
     Stream->Unlock	(LINE_DIVISION*2+2,vs_L->vb_stride);
     // and Render it as triangle list
-    DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,LINE_DIVISION+1);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,LINE_DIVISION+1);
 }
 
 void CDrawUtilities::DrawDirectionalLight(const Fvector& p, const Fvector& d, float radius, float range, u32 c)
@@ -291,7 +305,7 @@ void CDrawUtilities::DrawDirectionalLight(const Fvector& p, const Fvector& d, fl
 	Fmatrix rot;
 
     N.set		(0,1,0);
-	if (_abs(D.y)>0.99f) N.set(1,0,0);
+	if (std::abs(D.y)>0.99f) N.set(1,0,0);
 	R.crossproduct(N,D); R.normalize();
 	N.crossproduct(D,R); N.normalize();
     rot.set(R,N,D,p);
@@ -310,7 +324,7 @@ void CDrawUtilities::DrawDirectionalLight(const Fvector& p, const Fvector& d, fl
 	Stream->Unlock	(6,vs_L->vb_stride);
 
 	// and Render it as triangle list
-    DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,3);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,3);
 
     Fbox b;
     b.min.set(-r,-r,-r);
@@ -339,7 +353,7 @@ void CDrawUtilities::DrawEntity(u32 clr, ref_shader s)
 	Stream->Unlock	(5,vs_L->vb_stride);
 	// render flagshtok
 	DU_DRAW_SH		(dxRenderDeviceRender::Instance().m_WireShader);
-    DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,4);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,4);
 
     if (s) DU_DRAW_SH(s);
     {
@@ -353,11 +367,11 @@ void CDrawUtilities::DrawEntity(u32 clr, ref_shader s)
         pv_->set		(0.f,1.f,.5f,clr,1.f,0.f);	pv_++;
         Stream->Unlock	(6,vs_LIT->vb_stride);
         // and Render it as line list
-        DU_DRAW_DP		(D3DPT_TRIANGLEFAN,vs_LIT,vBase,4);
+        DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_FAN,vs_LIT,vBase,4);
     }
 }
 
-void CDrawUtilities::DrawFlag(const Fvector& p, float heading, float height, float sz, float sz_fl, u32 clr, BOOL bDrawEntity){
+void CDrawUtilities::DrawFlag(const Fvector& p, float heading, float height, float sz, float sz_fl, u32 clr, bool bDrawEntity){
 	// fill VB
 	_VertexStream*	Stream	= &RCache.Vertex;
 	u32			vBase;
@@ -366,12 +380,12 @@ void CDrawUtilities::DrawFlag(const Fvector& p, float heading, float height, flo
     pv->set			(p.x,p.y+height,p.z,clr); pv++;
 	Stream->Unlock	(2,vs_L->vb_stride);
 	// and Render it as triangle list
-    DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,1);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,1);
 
     if (bDrawEntity){
 		// fill VB
-        float rx		= _sin(heading);
-        float rz		= _cos(heading);
+        float rx		= std::sin(heading);
+        float rz		= std::cos(heading);
 		FVF::L*	pv_	 	= (FVF::L*)Stream->Lock(6,vs_L->vb_stride,vBase);
         sz				*= 0.8f;
         pv_->set			(p.x,p.y+height,p.z,clr);											pv_++;
@@ -383,19 +397,19 @@ void CDrawUtilities::DrawFlag(const Fvector& p, float heading, float height, flo
         pv_->set			(p.x+rx*sz,p.y+height*(1.f-sz_fl),p.z+rz*sz,clr);                   pv_++;
 		Stream->Unlock	(6,vs_L->vb_stride);
 		// and Render it as line list
-    	DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,3);
+    	DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,3);
     }else{
 		// fill VB
 		FVF::L*	pv_	 	= (FVF::L*)Stream->Lock(6,vs_L->vb_stride,vBase);
 	    pv_->set			(p.x,p.y+height*(1.f-sz_fl),p.z,clr); 								pv_++;
     	pv_->set			(p.x,p.y+height,p.z,clr); 											pv_++;
-	    pv_->set			(p.x+_sin(heading)*sz,((pv_-2)->p.y+(pv_-1)->p.y)/2,p.z+_cos(heading)*sz,clr); pv_++;
+	    pv_->set			(p.x+ std::sin(heading)*sz,((pv_-2)->p.y+(pv_-1)->p.y)/2,p.z+ std::cos(heading)*sz,clr); pv_++;
     	pv_->set			(*(pv_-3)); 															pv_++;
 	    pv_->set			(*(pv_-2)); 															pv_++;
     	pv_->set			(*(pv_-4)); 															pv_++;
 		Stream->Unlock	(6,vs_L->vb_stride);
 		// and Render it as triangle list
-    	DU_DRAW_DP		(D3DPT_TRIANGLELIST,vs_L,vBase,2);
+    	DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,vBase,2);
     }
 }
 
@@ -433,7 +447,7 @@ static const WORD IT[24]={2,4,0, 4,3,0, 3,5,0, 5,2,0, 4,2,1, 2,5,1, 5,3,1, 3,4,1
     StreamI->Unlock(24);
 
 	// and Render it as triangle list
-	DU_DRAW_DIP		(D3DPT_TRIANGLELIST,vs_L,vBase,0,6, iBase,12);
+	DU_DRAW_DIP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,vBase,0,6, iBase,12);
 
     // draw lines
 	pv	 			= (FVF::L*)Stream->Lock(6,vs_L->vb_stride,vBase);
@@ -449,7 +463,7 @@ static const WORD IT[24]={2,4,0, 4,3,0, 3,5,0, 5,2,0, 4,2,1, 2,5,1, 5,3,1, 3,4,1
     for (k=0; k<24; k++,i++) *i=IL[k];
     StreamI->Unlock	(24);
 
-	DU_DRAW_DIP		(D3DPT_LINELIST,vs_L,vBase,0,6, iBase,12);
+	DU_DRAW_DIP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,0,6, iBase,12);
 }
 //------------------------------------------------------------------------------
 
@@ -457,7 +471,7 @@ void CDrawUtilities::DrawSound(const Fvector& p, float r, u32 c){
 	DrawCross(p, r,r,r, r,r,r, c, true);
 }
 //------------------------------------------------------------------------------
-void CDrawUtilities::DrawIdentCone	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawIdentCone	(bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
     if (bWire){
         DU_DRAW_SH_C		(dxRenderDeviceRender::Instance().m_WireShader, clr_w);
@@ -470,7 +484,7 @@ void CDrawUtilities::DrawIdentCone	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_
 	DU_DRAW_RS	(D3DRS_TEXTUREFACTOR,	0xffffffff);
 }
 
-void CDrawUtilities::DrawIdentSphere	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawIdentSphere	(bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
     if (bWire){
         DU_DRAW_SH_C	(dxRenderDeviceRender::Instance().m_WireShader,clr_w);
@@ -483,7 +497,7 @@ void CDrawUtilities::DrawIdentSphere	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 cl
 	DU_DRAW_RS	(D3DRS_TEXTUREFACTOR,	0xffffffff);
 }
 
-void CDrawUtilities::DrawIdentSpherePart(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawIdentSpherePart(bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
     if (bWire){
         DU_DRAW_SH_C	(dxRenderDeviceRender::Instance().m_WireShader,clr_w);
@@ -496,7 +510,7 @@ void CDrawUtilities::DrawIdentSpherePart(BOOL bSolid, BOOL bWire, u32 clr_s, u32
 	DU_DRAW_RS	(D3DRS_TEXTUREFACTOR,	0xffffffff);
 }
 
-void CDrawUtilities::DrawIdentCylinder	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawIdentCylinder	(bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
     if (bWire){
         DU_DRAW_SH_C	(dxRenderDeviceRender::Instance().m_WireShader,clr_w);
@@ -509,7 +523,7 @@ void CDrawUtilities::DrawIdentCylinder	(BOOL bSolid, BOOL bWire, u32 clr_s, u32 
 	DU_DRAW_RS	(D3DRS_TEXTUREFACTOR,	0xffffffff);
 }
 
-void CDrawUtilities::DrawIdentBox(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawIdentBox(bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
     if (bWire){
         DU_DRAW_SH_C	(dxRenderDeviceRender::Instance().m_WireShader,clr_w);
@@ -522,7 +536,7 @@ void CDrawUtilities::DrawIdentBox(BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
 	DU_DRAW_RS	(D3DRS_TEXTUREFACTOR,	0xffffffff);
 }
 
-void CDrawUtilities::DrawLineSphere(const Fvector& p, float radius, u32 c, BOOL bCross)
+void CDrawUtilities::DrawLineSphere(const Fvector& p, float radius, u32 c, bool bCross)
 {
 	// fill VB
 	_VertexStream*	Stream	= &RCache.Vertex;
@@ -534,19 +548,19 @@ void CDrawUtilities::DrawLineSphere(const Fvector& p, float radius, u32 c, BOOL 
 	for( i=0; i<LINE_DIVISION; i++,pv++){ pv->p.mad(p,circledef1[i],radius); pv->color=c;}
     pv->set(*(pv-LINE_DIVISION));
 	Stream->Unlock	(LINE_DIVISION+1,vs_L->vb_stride);
-	DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,LINE_DIVISION);
+	DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,LINE_DIVISION);
     // seg 1
 	pv	 			= (FVF::L*)Stream->Lock(LINE_DIVISION+1,vs_L->vb_stride,vBase);
 	for( i=0; i<LINE_DIVISION; i++){ pv->p.mad(p,circledef2[i],radius); pv->color=c; pv++; }
     pv->set(*(pv-LINE_DIVISION)); pv++;
 	Stream->Unlock	(LINE_DIVISION+1,vs_L->vb_stride);
-	DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,LINE_DIVISION);
+	DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,LINE_DIVISION);
     // seg 2
 	pv	 			= (FVF::L*)Stream->Lock(LINE_DIVISION+1,vs_L->vb_stride,vBase);
 	for( i=0; i<LINE_DIVISION; i++){ pv->p.mad(p,circledef3[i],radius); pv->color=c; pv++; }
     pv->set(*(pv-LINE_DIVISION)); pv++;
 	Stream->Unlock	(LINE_DIVISION+1,vs_L->vb_stride);
-	DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,LINE_DIVISION);
+	DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,LINE_DIVISION);
 
     if (bCross) DrawCross(p, radius,radius,radius, radius,radius,radius, c);
 }
@@ -564,7 +578,7 @@ IC float 				_y2real			(float y)
 { return (y+1)*RCache.get_height()*0.5f;}
 #endif
 
-void CDrawUtilities::dbgDrawPlacement(const Fvector& p, int sz, u32 clr, LPCSTR caption, u32 clr_font)
+void CDrawUtilities::dbgDrawPlacement(const Fvector& p, int sz, u32 clr, const char* caption, u32 clr_font)
 {
 	VERIFY( Device.b_is_Ready );
     Fvector c;
@@ -586,20 +600,20 @@ void CDrawUtilities::dbgDrawPlacement(const Fvector& p, int sz, u32 clr, LPCSTR 
 	Stream->Unlock(5,vs_TL->vb_stride);
 
 	// Render it as line strip
-    DU_DRAW_DP		(D3DPT_LINESTRIP,vs_TL,vBase,4);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_TL,vBase,4);
     if (caption){
 	    m_Font->SetColor(clr_font);
     	m_Font->Out(c.x,c.y+s,"%s",caption);
     }
 }
 
-void CDrawUtilities::dbgDrawVert(const Fvector& p0, u32 clr, LPCSTR caption)
+void CDrawUtilities::dbgDrawVert(const Fvector& p0, u32 clr, const char* caption)
 {
 	dbgDrawPlacement(p0,1,clr,caption);
 	DrawCross		(p0,0.01f,0.01f,0.01f, 0.01f,0.01f,0.01f, clr,false);
 }
 
-void CDrawUtilities::dbgDrawEdge(const Fvector& p0,	const Fvector& p1, u32 clr, LPCSTR caption)
+void CDrawUtilities::dbgDrawEdge(const Fvector& p0,	const Fvector& p1, u32 clr, const char* caption)
 {
 	dbgDrawPlacement(p0,1,clr,caption);
 	DrawCross		(p0,0.01f,0.01f,0.01f, 0.01f,0.01f,0.01f, clr,false);
@@ -607,7 +621,7 @@ void CDrawUtilities::dbgDrawEdge(const Fvector& p0,	const Fvector& p1, u32 clr, 
     DrawLine		(p0,p1,clr);
 }
 
-void CDrawUtilities::dbgDrawFace(const Fvector& p0,	const Fvector& p1, const Fvector& p2, u32 clr, LPCSTR caption)
+void CDrawUtilities::dbgDrawFace(const Fvector& p0,	const Fvector& p1, const Fvector& p2, u32 clr, const char* caption)
 {
 	dbgDrawPlacement(p0,1,clr,caption);
 	DrawCross		(p0,0.01f,0.01f,0.01f, 0.01f,0.01f,0.01f, clr,false);
@@ -628,7 +642,7 @@ void CDrawUtilities::DrawLine(const Fvector& p0, const Fvector& p1, u32 c){
     pv->set			(p1,c); pv++;
 	Stream->Unlock	(2,vs_L->vb_stride);
 	// and Render it as triangle list
-    DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,1);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,1);
 }
 
 //----------------------------------------------------
@@ -649,11 +663,11 @@ void CDrawUtilities::DrawSelectionBox(const Fvector& C, const Fvector& S, u32* c
 
 	// and Render it as triangle list
 	DU_DRAW_RS	(D3DRS_FILLMODE,D3DFILL_SOLID);
-    DU_DRAW_DP	(D3DPT_LINELIST,vs_L,vBase,boxvertcount/2);
+    DU_DRAW_DP	(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,boxvertcount/2);
     DU_DRAW_RS	(D3DRS_FILLMODE,FILL_MODE);
 }
 
-void CDrawUtilities::DrawBox(const Fvector& offs, const Fvector& Size, BOOL bSolid, BOOL bWire, u32 clr_s, u32 clr_w)
+void CDrawUtilities::DrawBox(const Fvector& offs, const Fvector& Size, bool bSolid, bool bWire, u32 clr_s, u32 clr_w)
 {
 	_VertexStream*	Stream	= &RCache.Vertex;
     if (bWire){
@@ -667,7 +681,7 @@ void CDrawUtilities::DrawBox(const Fvector& offs, const Fvector& Size, BOOL bSol
         }
 		Stream->Unlock(identboxwirecount,vs_L->vb_stride);
 
-	    DU_DRAW_DP		(D3DPT_LINELIST,vs_L,vBase,identboxwirecount/2);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,identboxwirecount/2);
     }
     if (bSolid){
         u32			vBase;
@@ -680,7 +694,7 @@ void CDrawUtilities::DrawBox(const Fvector& offs, const Fvector& Size, BOOL bSol
         }
 		Stream->Unlock(DU_BOX_NUMVERTEX2,vs_L->vb_stride);
 
-	    DU_DRAW_DP		(D3DPT_TRIANGLELIST,vs_L,vBase,DU_BOX_NUMFACES);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,vBase,DU_BOX_NUMFACES);
     }
 }
 //----------------------------------------------------
@@ -697,7 +711,7 @@ void CDrawUtilities::DrawOBB(const Fmatrix& parent, const Fobb& box, u32 clr_s, 
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawAABB(const Fmatrix& parent, const Fvector& center, const Fvector& size, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawAABB(const Fmatrix& parent, const Fvector& center, const Fvector& size, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
     Fmatrix			R,S;
     S.scale			(size.x*2.f,size.y*2.f,size.z*2.f);
@@ -707,17 +721,17 @@ void CDrawUtilities::DrawAABB(const Fmatrix& parent, const Fvector& center, cons
 	DrawIdentBox	(bSolid,bWire,clr_s,clr_w);
 }
 
-void CDrawUtilities::DrawAABB(const Fvector& p0, const Fvector& p1, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawAABB(const Fvector& p0, const Fvector& p1, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
     Fmatrix			R;
 	Fvector	C; C.set((p1.x+p0.x)*0.5f,(p1.y+p0.y)*0.5f,(p1.z+p0.z)*0.5f);
-    R.scale			(_abs(p1.x-p0.x),_abs(p1.y-p0.y),_abs(p1.z-p0.z));
+    R.scale			(std::abs(p1.x-p0.x), std::abs(p1.y-p0.y), std::abs(p1.z-p0.z));
     R.translate_over(C);
 	RCache.set_xform_world(R);
 	DrawIdentBox	(bSolid,bWire,clr_s,clr_w);
 }
 
-void CDrawUtilities::DrawSphere(const Fmatrix& parent, const Fvector& center, float radius, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawSphere(const Fmatrix& parent, const Fvector& center, float radius, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
     Fmatrix B;
     B.scale				(radius,radius,radius);
@@ -728,7 +742,7 @@ void CDrawUtilities::DrawSphere(const Fmatrix& parent, const Fvector& center, fl
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawFace(const Fvector& p0, const Fvector& p1, const Fvector& p2, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawFace(const Fvector& p0, const Fvector& p1, const Fvector& p2, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
 	_VertexStream*	Stream	= &RCache.Vertex;
 
@@ -740,7 +754,7 @@ void CDrawUtilities::DrawFace(const Fvector& p0, const Fvector& p1, const Fvecto
         pv->set			(p1,clr_s); pv++;
         pv->set			(p2,clr_s); pv++;
         Stream->Unlock	(3,vs_L->vb_stride);
-	    DU_DRAW_DP		(D3DPT_TRIANGLELIST,vs_L,vBase,1);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,vBase,1);
     }
     if (bWire)
     {
@@ -750,24 +764,24 @@ void CDrawUtilities::DrawFace(const Fvector& p0, const Fvector& p1, const Fvecto
         pv->set			(p2,clr_w); pv++;
         pv->set			(p0,clr_w); pv++;
         Stream->Unlock	(4,vs_L->vb_stride);
-	    DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,3);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,3);
     }
 }
 //----------------------------------------------------
 
 static const u32 MAX_VERT_COUNT 	= 0xFFFF;
-void CDrawUtilities::DD_DrawFace_begin(BOOL bWire)
+void CDrawUtilities::DD_DrawFace_begin(bool bWire)
 {
 	VERIFY				(m_DD_pv_start==0);
     m_DD_wire			= bWire;
     m_DD_pv_start		= (FVF::L*)RCache.Vertex.Lock(MAX_VERT_COUNT,vs_L->vb_stride,m_DD_base);	
     m_DD_pv				= m_DD_pv_start;
 }
-void CDrawUtilities::DD_DrawFace_flush(BOOL try_again)
+void CDrawUtilities::DD_DrawFace_flush(bool try_again)
 {
     RCache.Vertex.Unlock((u32)(m_DD_pv-m_DD_pv_start),vs_L->vb_stride);
     if (m_DD_wire)		DU_DRAW_RS(D3DRS_FILLMODE,D3DFILL_WIREFRAME);
-    DU_DRAW_DP			(D3DPT_TRIANGLELIST,vs_L,m_DD_base,u32(m_DD_pv-m_DD_pv_start)/3);
+    DU_DRAW_DP			(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,m_DD_base,u32(m_DD_pv-m_DD_pv_start)/3);
     if (m_DD_wire)		DU_DRAW_RS(D3DRS_FILLMODE,FILL_MODE);
     if (try_again){
 	    m_DD_pv_start	= (FVF::L*)RCache.Vertex.Lock(MAX_VERT_COUNT,vs_L->vb_stride,m_DD_base);	
@@ -780,16 +794,16 @@ void CDrawUtilities::DD_DrawFace_push(const Fvector& p0, const Fvector& p1, cons
     m_DD_pv->set		(p1,clr); m_DD_pv++;
     m_DD_pv->set		(p2,clr); m_DD_pv++;
     if (m_DD_pv-m_DD_pv_start==MAX_VERT_COUNT)
-        DD_DrawFace_flush	(TRUE); 
+        DD_DrawFace_flush	(true); 
 }
 void CDrawUtilities::DD_DrawFace_end()
 {
-    DD_DrawFace_flush	(FALSE); 	
+    DD_DrawFace_flush	(false); 	
     m_DD_pv_start 		= 0;
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawCylinder(const Fmatrix& parent, const Fvector& center, const Fvector& dir, float height, float radius, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawCylinder(const Fmatrix& parent, const Fvector& center, const Fvector& dir, float height, float radius, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
     Fmatrix mScale;
     mScale.scale		(2.f*radius,2.f*radius,height);
@@ -797,7 +811,7 @@ void CDrawUtilities::DrawCylinder(const Fmatrix& parent, const Fvector& center, 
     // build final rotation / translation
     Fvector             L_dir,L_up,L_right;
     L_dir.set           (dir);       		    L_dir.normalize			();
-    L_up.set            (0,1,0);				if (_abs(L_up.dotproduct(L_dir))>.99f)  L_up.set(0,0,1);
+    L_up.set            (0,1,0);				if (std::abs(L_up.dotproduct(L_dir))>.99f)  L_up.set(0,0,1);
     L_right.crossproduct(L_up,L_dir);           L_right.normalize       ();
     L_up.crossproduct   (L_dir,L_right);        L_up.normalize          ();
 
@@ -815,7 +829,7 @@ void CDrawUtilities::DrawCylinder(const Fmatrix& parent, const Fvector& center, 
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawCone	(const Fmatrix& parent, const Fvector& apex, const Fvector& dir, float height, float radius, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawCone	(const Fmatrix& parent, const Fvector& apex, const Fvector& dir, float height, float radius, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
     Fmatrix mScale;
     mScale.scale		(2.f*radius,2.f*radius,height);
@@ -823,7 +837,7 @@ void CDrawUtilities::DrawCone	(const Fmatrix& parent, const Fvector& apex, const
     // build final rotation / translation
     Fvector             L_dir,L_up,L_right;
     L_dir.set           (dir);       		    L_dir.normalize			();
-    L_up.set            (0,1,0);				if (_abs(L_up.dotproduct(L_dir))>.99f)  L_up.set(0,0,1);
+    L_up.set            (0,1,0);				if (std::abs(L_up.dotproduct(L_dir))>.99f)  L_up.set(0,0,1);
     L_right.crossproduct(L_up,L_dir);           L_right.normalize       ();
     L_up.crossproduct   (L_dir,L_right);        L_up.normalize          ();
 
@@ -841,12 +855,12 @@ void CDrawUtilities::DrawCone	(const Fmatrix& parent, const Fvector& apex, const
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawPlane	(const Fvector& p, const Fvector& n, const Fvector2& scale, u32 clr_s, u32 clr_w, BOOL bCull, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawPlane	(const Fvector& p, const Fvector& n, const Fvector2& scale, u32 clr_s, u32 clr_w, bool bCull, bool bSolid, bool bWire)
 {
 	if (n.square_magnitude()<EPS_S) return;
     // build final rotation / translation
     Fvector             L_dir,L_up=n,L_right;
-    L_dir.set           (0,0,1);				if (_abs(L_up.dotproduct(L_dir))>.99f)  L_dir.set(1,0,0);
+    L_dir.set           (0,0,1);				if (std::abs(L_up.dotproduct(L_dir))>.99f)  L_dir.set(1,0,0);
     L_right.crossproduct(L_up,L_dir);           L_right.normalize	();
     L_dir.crossproduct  (L_right,L_up);        	L_dir.normalize		();
 
@@ -870,7 +884,7 @@ void CDrawUtilities::DrawPlane	(const Fvector& p, const Fvector& n, const Fvecto
         pv->set		(*(pv-4));
         Stream->Unlock(5,vs_L->vb_stride);
         if (!bCull) DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_NONE);
-        DU_DRAW_DP		(D3DPT_TRIANGLEFAN,vs_L,vBase,2);
+        DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_FAN,vs_L,vBase,2);
         if (!bCull) DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_CCW);
     }
 
@@ -883,12 +897,12 @@ void CDrawUtilities::DrawPlane	(const Fvector& p, const Fvector& n, const Fvecto
         pv->set		(-scale.x, 0, +scale.y, clr_w); mR.transform_tiny(pv->p); pv++;
         pv->set		(*(pv-4));
         Stream->Unlock(5,vs_L->vb_stride);
-	    DU_DRAW_DP	(D3DPT_LINESTRIP,vs_L,vBase,4);
+	    DU_DRAW_DP	(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,4);
     }
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawPlane  (const Fvector& center, const Fvector2& scale, const Fvector& rotate, u32 clr_s, u32 clr_w, BOOL bCull, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawPlane  (const Fvector& center, const Fvector2& scale, const Fvector& rotate, u32 clr_s, u32 clr_w, bool bCull, bool bSolid, bool bWire)
 {
     Fmatrix M;
     M.setHPB		(rotate.y,rotate.x,rotate.z);
@@ -907,7 +921,7 @@ void CDrawUtilities::DrawPlane  (const Fvector& center, const Fvector2& scale, c
         pv->set		(*(pv-4));
         Stream->Unlock(5,vs_L->vb_stride);
         if (!bCull) DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_NONE);
-        DU_DRAW_DP		(D3DPT_TRIANGLEFAN,vs_L,vBase,2);
+        DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_FAN,vs_L,vBase,2);
         if (!bCull) DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_CCW);
     }
 
@@ -920,12 +934,12 @@ void CDrawUtilities::DrawPlane  (const Fvector& center, const Fvector2& scale, c
         pv->set		(-scale.x, 0, +scale.y, clr_w); M.transform_tiny(pv->p); pv++;
         pv->set		(*(pv-4));
         Stream->Unlock(5,vs_L->vb_stride);
-	    DU_DRAW_DP	(D3DPT_LINESTRIP,vs_L,vBase,4);
+	    DU_DRAW_DP	(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,4);
     }
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawRectangle(const Fvector& o, const Fvector& u, const Fvector& v, u32 clr_s, u32 clr_w, BOOL bSolid, BOOL bWire)
+void CDrawUtilities::DrawRectangle(const Fvector& o, const Fvector& u, const Fvector& v, u32 clr_s, u32 clr_w, bool bSolid, bool bWire)
 {
 	_VertexStream*	Stream	= &RCache.Vertex;
 
@@ -941,7 +955,7 @@ void CDrawUtilities::DrawRectangle(const Fvector& o, const Fvector& u, const Fve
         pv->set			(o.x+u.x,		o.y+u.y,	o.z+u.z,	clr_s); pv++;
         pv->set			(o.x+u.x+v.x,	o.y+u.y+v.y,o.z+u.z+v.z,clr_s); pv++;
         Stream->Unlock	(6,vs_L->vb_stride);
-	    DU_DRAW_DP		(D3DPT_TRIANGLELIST,vs_L,vBase,2);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vs_L,vBase,2);
     }
     if (bWire)
     {
@@ -953,12 +967,12 @@ void CDrawUtilities::DrawRectangle(const Fvector& o, const Fvector& u, const Fve
         pv->set			(o.x+v.x,		o.y+v.y,	o.z+v.z,	clr_w); pv++;
         pv->set			(o.x,			o.y,		o.z,		clr_w); pv++;
         Stream->Unlock	(5,vs_L->vb_stride);
-	    DU_DRAW_DP		(D3DPT_LINESTRIP,vs_L,vBase,4);
+	    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP,vs_L,vBase,4);
     }
 }
 //----------------------------------------------------
 
-void CDrawUtilities::DrawCross(const Fvector& p, float szx1, float szy1, float szz1, float szx2, float szy2, float szz2, u32 clr, BOOL bRot45)
+void CDrawUtilities::DrawCross(const Fvector& p, float szx1, float szy1, float szz1, float szx2, float szy2, float szz2, u32 clr, bool bRot45)
 {
 	_VertexStream*	Stream	= &RCache.Vertex;
 	// actual rendering
@@ -982,7 +996,7 @@ void CDrawUtilities::DrawCross(const Fvector& p, float szx1, float szy1, float s
     }
 	// unlock VB and Render it as triangle list
 	Stream->Unlock(bRot45?12:6,vs_L->vb_stride);
-    DU_DRAW_DP			(D3DPT_LINELIST,vs_L,vBase,bRot45?6:3);
+    DU_DRAW_DP			(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase,bRot45?6:3);
 }
 
 void CDrawUtilities::DrawPivot(const Fvector& pos, float sz){
@@ -1023,7 +1037,7 @@ void CDrawUtilities::DrawAxis(const Fmatrix& T)
 	Stream->Unlock(6,vs_TL->vb_stride);
 	DU_DRAW_RS(D3DRS_SHADEMODE,D3DSHADE_GOURAUD);
 	DU_DRAW_SH(dxRenderDeviceRender::Instance().m_WireShader);
-    DU_DRAW_DP(D3DPT_LINELIST,vs_TL,vBase,3);
+    DU_DRAW_DP(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_TL,vBase,3);
 	DU_DRAW_RS(D3DRS_SHADEMODE,SHADE_MODE);
 
     m_Font->SetColor(0xFF909090);
@@ -1036,7 +1050,7 @@ void CDrawUtilities::DrawAxis(const Fmatrix& T)
     m_Font->Out(p[5].x-1,p[5].y-1,"z");
 }
 
-void CDrawUtilities::DrawObjectAxis(const Fmatrix& T, float sz, BOOL sel)
+void CDrawUtilities::DrawObjectAxis(const Fmatrix& T, float sz, bool sel)
 {
 	VERIFY( Device.b_is_Ready );
 	_VertexStream*	Stream	= &RCache.Vertex;
@@ -1067,7 +1081,7 @@ void CDrawUtilities::DrawObjectAxis(const Fmatrix& T, float sz, BOOL sel)
 	// Render it as line list
 	DU_DRAW_RS	(D3DRS_SHADEMODE,D3DSHADE_GOURAUD);
 	DU_DRAW_SH(dxRenderDeviceRender::Instance().m_WireShader);
-    DU_DRAW_DP		(D3DPT_LINELIST,vs_TL,vBase,3);
+    DU_DRAW_DP		(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_TL,vBase,3);
 	DU_DRAW_RS	(D3DRS_SHADEMODE,SHADE_MODE);
 
     m_Font->SetColor(sel?0xFF000000:0xFF909090);
@@ -1094,7 +1108,7 @@ void CDrawUtilities::DrawGrid()
     ddd.identity();
     RCache.set_xform_world(ddd);
 	DU_DRAW_SH(dxRenderDeviceRender::Instance().m_WireShader);
-    DU_DRAW_DP(D3DPT_LINELIST,vs_L,vBase, (u32)m_GridPoints.size()/2);
+    DU_DRAW_DP(ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST,vs_L,vBase, (u32)m_GridPoints.size()/2);
 }
 
 void CDrawUtilities::DrawSelectionRect(const Ivector2& m_SelStart, const Ivector2& m_SelEnd){
@@ -1111,11 +1125,11 @@ void CDrawUtilities::DrawSelectionRect(const Ivector2& m_SelStart, const Ivector
 	// Render it as triangle list
     DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_NONE);
 	DU_DRAW_SH(dxRenderDeviceRender::Instance().m_SelectionShader);
-    DU_DRAW_DP(D3DPT_TRIANGLEFAN,vs_TL,vBase,2);
+    DU_DRAW_DP(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_FAN,vs_TL,vBase,2);
     DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_CCW);
 }
 
-void CDrawUtilities::DrawPrimitiveL	(D3DPRIMITIVETYPE pt, u32 pc, Fvector* vertices, int vc, u32 color, BOOL bCull, BOOL bCycle)
+void CDrawUtilities::DrawPrimitiveL	(ERHI_PRIMITIVE_TOPOLOGY pt, u32 pc, Fvector* vertices, int vc, u32 color, bool bCull, bool bCycle)
 {
 	// fill VB
 	_VertexStream*	Stream	= &RCache.Vertex;
@@ -1131,7 +1145,7 @@ void CDrawUtilities::DrawPrimitiveL	(D3DPRIMITIVETYPE pt, u32 pc, Fvector* verti
     if (!bCull) DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_CCW);
 }
 
-void CDrawUtilities::DrawPrimitiveTL(D3DPRIMITIVETYPE pt, u32 pc, FVF::TL* vertices, int vc, BOOL bCull, BOOL bCycle)
+void CDrawUtilities::DrawPrimitiveTL(ERHI_PRIMITIVE_TOPOLOGY pt, u32 pc, FVF::TL* vertices, int vc, bool bCull, bool bCycle)
 {
 	// fill VB
 	_VertexStream*	Stream	= &RCache.Vertex;
@@ -1147,7 +1161,7 @@ void CDrawUtilities::DrawPrimitiveTL(D3DPRIMITIVETYPE pt, u32 pc, FVF::TL* verti
     if (!bCull) 	DU_DRAW_RS(D3DRS_CULLMODE,D3DCULL_CCW);
 }
 
-void CDrawUtilities::DrawPrimitiveLIT(D3DPRIMITIVETYPE pt, u32 pc, FVF::LIT* vertices, int vc, BOOL bCull, BOOL bCycle)
+void CDrawUtilities::DrawPrimitiveLIT(ERHI_PRIMITIVE_TOPOLOGY pt, u32 pc, FVF::LIT* vertices, int vc, bool bCull, bool bCycle)
 {
 	// fill VB
 	_VertexStream*	Stream	= &RCache.Vertex;
@@ -1193,7 +1207,7 @@ void CDrawUtilities::OnRender()
 	m_Font->OnRender();
 }
 
-void CDrawUtilities::OutText(const Fvector& pos, LPCSTR text, u32 color, u32 shadow_color)
+void CDrawUtilities::OutText(const Fvector& pos, const char* text, u32 color, u32 shadow_color)
 {
 	Fvector p;
 	float w	= pos.x*Device.mFullTransform._14 + pos.y*Device.mFullTransform._24 + pos.z*Device.mFullTransform._34 + Device.mFullTransform._44;

@@ -6,7 +6,7 @@
 #pragma once
 #include "Artefact.h"
 
-class CElectricBall : public CArtefact 
+class CElectricBall final : public CArtefact 
 {
 private:
 	typedef CArtefact inherited;
@@ -14,7 +14,7 @@ public:
 	CElectricBall(void);
 	virtual ~CElectricBall(void);
 
-	virtual void Load				(LPCSTR section);
+	virtual void Load				(const char* section);
 
 protected:
 	virtual void	UpdateCLChild	();

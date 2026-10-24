@@ -1,6 +1,6 @@
 #include "api.h"
 #include <imgui.h>
-#include "../../editors/xrEUI/imgui_impl_sdl3.h"
+#include "../../Editors/xrEUI/imgui_impl_sdl3.h"
 #include "../xrForms/imgui_impl_sdlrenderer3.h"
 
 #include "../../Editors/xrEUI/spectrum.h"
@@ -369,7 +369,7 @@ void SDL_Application()
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	Debug._initialize(false);
-	Core._initialize("IXRay SQL Gen", nullptr, TRUE, "fsgame.ltx");
+	Core._initialize("IXRay SQL Gen", nullptr, true, "fsgame.ltx");
 	
 	auto LogCallback = [](const char* Msg)
 	{

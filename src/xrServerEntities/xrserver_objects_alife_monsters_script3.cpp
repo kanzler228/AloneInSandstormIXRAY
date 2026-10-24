@@ -6,7 +6,7 @@
 //	Description : Server monsters for ALife simulator, script export, the second part
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "xrServer_script_macroses.h"
@@ -33,7 +33,7 @@ void CSE_ALifeTorridZone::script_register(lua_State *L)
 		luabind_class_dynamic_alife2(
 			CSE_ALifeTorridZone,
 			"cse_torrid_zone",
-			CSE_ALifeCustomZone,
+			CSE_ALifeAnomalyZone,
 			CSE_Motion
 			)
 	];
@@ -106,6 +106,8 @@ void CSE_ALifeOnlineOfflineGroup::script_register(lua_State *L)
 		.def("add_location_type",	&CSE_ALifeOnlineOfflineGroup::add_location_type)
 		.def("clear_location_types",&CSE_ALifeOnlineOfflineGroup::clear_location_types)
 		.def("force_change_position",&CSE_ALifeOnlineOfflineGroup::force_change_position)
+		.def("getSquadMemberId", &CSE_ALifeOnlineOfflineGroup::get_squad_memberId)
+		.def("getSquadMember", &CSE_ALifeOnlineOfflineGroup::get_squad_member)
 #endif //#ifdef XRGAME_EXPORTS
 	];
 }

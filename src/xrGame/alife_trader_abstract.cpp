@@ -18,7 +18,7 @@
 #include "alife_schedule_registry.h"
 
 #ifdef DEBUG
-extern Flags32 psAI_Flags;
+extern Flags64 psAI_Flags;
 #endif
 
 void CSE_ALifeTraderAbstract::spawn_supplies()
@@ -26,13 +26,13 @@ void CSE_ALifeTraderAbstract::spawn_supplies()
 	CSE_ALifeDynamicObject* dynamic_object = smart_cast<CSE_ALifeDynamicObject*>(this);
 	VERIFY(dynamic_object);
 	CSE_Abstract* abstract = dynamic_object->alife().spawn_item(pGameGlobals->r_string("actor_item", "pda_item"), base()->o_Position, dynamic_object->m_tNodeID, dynamic_object->m_tGraphID, base()->ID);
-	CSE_ALifeItemPDA* pda = smart_cast<CSE_ALifeItemPDA*>(abstract);
+	CSE_ALifeItemPDA* pda = abstract->cast_item_pda();
 	pda->m_original_owner = base()->ID;
 
 #ifdef XRGAME_EXPORTS
 	character_profile();
 	m_SpecificCharacter = shared_str();
-	m_community_index = NO_COMMUNITY_INDEX;
+	m_community_index = s32(-1);
 	pda->m_specific_character = specific_character();
 #endif
 
@@ -52,7 +52,7 @@ void CSE_ALifeTraderAbstract::spawn_supplies()
 				xr_strlen(dynamic_object->m_ini_string)
 			);
 
-			CInifile ini(&temp, FS.get_path("$game_config$")->m_Path);
+			CInifile ini(&temp, FS.get_path(_game_config_)->m_Path);
 #pragma warning(pop)
 
 			if (ini.section_exist("dont_spawn_character_supplies"))
@@ -159,7 +159,7 @@ void add_online_impl						(CSE_ALifeDynamicObject *object, const bool &update_re
 //		R_ASSERT3								(ai().level_graph().valid_vertex_id(l_tpALifeDynamicObject->m_tNodeID),"Invalid vertex for object ",l_tpALifeInventoryItem->name_replace());
 		l_tpALifeDynamicObject->o_Position		= object->o_Position;
 		l_tpALifeDynamicObject->m_tNodeID		= object->m_tNodeID;
-		object->alife().server().Process_spawn	(tNetPacket,clientID,FALSE,l_tpALifeInventoryItem->base());
+		object->alife().server().Process_spawn	(tNetPacket,clientID,false,l_tpALifeInventoryItem->base());
 		l_tpALifeDynamicObject->s_flags.band		(u16(-1) ^ M_SPAWN_UPDATE);
 		l_tpALifeDynamicObject->m_bOnline		= true;
 	}

@@ -1,5 +1,3 @@
-#ifndef	dx9R_Backend_Runtime_included
-#define	dx9R_Backend_Runtime_included
 #pragma once
 
 IC void		CBackend::set_xform			(u32 ID, const Fmatrix& M_)
@@ -8,122 +6,50 @@ IC void		CBackend::set_xform			(u32 ID, const Fmatrix& M_)
 	CHK_DX				(RDevice->SetTransform((D3DTRANSFORMSTATETYPE)ID,(D3DMATRIX*)&M_));
 }
 
-IC void CBackend::set_RT(ID3DRenderTargetView* RT, u32 ID)
+IC void CBackend::set_RT(IRHIRenderTargetView* RT, u32 ID)
 {
-	if (RT!=pRT[ID])
-	{
-		PGO				(Msg("PGO:setRT"));
-		stat.target_rt	++;
-		pRT[ID]			= RT;
-		CHK_DX			(RDevice->SetRenderTarget(ID,RT));
-	}
-}
-
-IC void	CBackend::set_ZB(ID3DDepthStencilView* ZB)
-{
-	if (ZB!=pZB)
-	{
-		PGO				(Msg("PGO:setZB"));
-		stat.target_zb	++;
-		pZB				= ZB;
-		CHK_DX			(RDevice->SetDepthStencilSurface(ZB));
-	}
+	GRHI->SetRenderTargetView(RT, ID);
 }
 
 ICF void CBackend::set_Format(IDirect3DVertexDeclaration9* _decl)
 {
 	if (decl!=_decl)
 	{
-		PGO				(Msg("PGO:v_format:%x",_decl));
-#ifdef DEBUG
-		stat.decl		++;
-#endif
 		decl			= _decl;
 		CHK_DX			(RDevice->SetVertexDeclaration(decl));
 	}
 }
 
-ICF void CBackend::set_PS(ID3DPixelShader* _ps, LPCSTR _n)
+ICF void CBackend::Render(ERHI_PRIMITIVE_TOPOLOGY topology, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC)
 {
-	if (ps!=_ps)
-	{
-		PGO				(Msg("PGO:Pshader:%x",_ps));
-		stat.ps			++;
-		ps				= _ps;
-		CHK_DX			(RDevice->SetPixelShader(ps));
-#ifdef DEBUG
-		ps_name			= _n;
-#endif
-	}
+    //Fix D3D ERROR
+    if (PC==0)
+        return;
+
+    stat.calls++;
+    stat.verts += countV;
+    stat.polys += PC;
+    constants.flush();
+
+	GRHI->ApplyRenderTargetChange();
+    GRHI->SetPrimitiveTopology(topology);
+    GRHI->DrawIndexed(baseV, startV, countV, startI, PC);
 }
 
-ICF void CBackend::set_VS(ID3DVertexShader* _vs, LPCSTR _n)
+ICF void CBackend::Render(ERHI_PRIMITIVE_TOPOLOGY topology, u32 startV, u32 PC)
 {
-	if (vs!=_vs)
-	{
-		PGO				(Msg("PGO:Vshader:%x",_vs));
-		stat.vs			++;
-		vs				= _vs;
-		CHK_DX			(RDevice->SetVertexShader(vs));
-#ifdef DEBUG
-		vs_name			= _n;
-#endif
-	}
-}
+    //Fix D3D ERROR
+    if (PC==0)
+        return;
 
-ICF void CBackend::set_Vertices(ID3DVertexBuffer* _vb, u32 _vb_stride)
-{
-	if ((vb!=_vb) || (vb_stride!=_vb_stride))
-	{
-		PGO				(Msg("PGO:VB:%x,%d",_vb,_vb_stride));
-#ifdef DEBUG
-		stat.vb			++;
-#endif
-		vb				= _vb;
-		vb_stride		= _vb_stride;
-		CHK_DX			(RDevice->SetStreamSource(0,vb,0,vb_stride));
-	}
-}
-
-ICF void CBackend::set_Indices(ID3DIndexBuffer* _ib)
-{
-	if (ib!=_ib)
-	{
-		PGO				(Msg("PGO:IB:%x",_ib));
-#ifdef DEBUG
-		stat.ib			++;
-#endif
-		ib				= _ib;
-		CHK_DX			(RDevice->SetIndices(ib));
-	}
-}
-
-ICF void CBackend::Render(D3DPRIMITIVETYPE T_, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC)
-{
-	//Fix D3D ERROR
-	if (PC==0)
-		return;
-
-	stat.calls			++;
-	stat.verts			+= countV;
-	stat.polys			+= PC;
-	constants.flush		();
-	CHK_DX				(RDevice->DrawIndexedPrimitive(T_,baseV, startV, countV,startI,PC));
-	PGO					(Msg("PGO:DIP:%dv/%df",countV,PC));
-}
-
-ICF void CBackend::Render(D3DPRIMITIVETYPE T_, u32 startV, u32 PC)
-{
-	//Fix D3D ERROR
-	if (PC==0)
-		return;
-
-	stat.calls			++;
-	stat.verts			+= 3*PC;
-	stat.polys			+= PC;
-	constants.flush		();
-	CHK_DX				(RDevice->DrawPrimitive(T_, startV, PC));
-	PGO					(Msg("PGO:DIP:%dv/%df",3*PC,PC));
+    stat.calls++;
+    stat.verts += 3*PC;
+    stat.polys += PC;
+    constants.flush();
+    
+	GRHI->ApplyRenderTargetChange();
+    GRHI->SetPrimitiveTopology(topology);
+    GRHI->Draw(startV, PC);
 }
 
 IC void CBackend::set_Geometry(SGeometry* _geom)
@@ -133,99 +59,30 @@ IC void CBackend::set_Geometry(SGeometry* _geom)
 	set_Indices			(_geom->ib);
 }
 
-IC void	CBackend::set_Scissor(Irect*	R)
-{
-	if (R)			
-	{
-		CHK_DX		(RDevice->SetRenderState(D3DRS_SCISSORTESTENABLE,TRUE));
-		RECT	*	clip	= (RECT	*)R;
-		CHK_DX		(RDevice->SetScissorRect(clip));
-	} 
-	else
-	{
-		CHK_DX		(RDevice->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE));
-	}
-}
-
-IC void CBackend::set_Stencil(u32 _enable, u32 _func, u32 _ref, u32 _mask, u32 _writemask, u32 _fail, u32 _pass, u32 _zfail)
-{
-	// Simple filter
-	if (stencil_enable		!= _enable)		{ stencil_enable=_enable;		CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILENABLE,		_enable				)); }
-	if (!stencil_enable)					return;
-	if (stencil_func		!= _func)		{ stencil_func=_func;			CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILFUNC,		_func				)); }
-	if (stencil_ref			!= _ref)		{ stencil_ref=_ref;				CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILREF,			_ref				)); }
-	if (stencil_mask		!= _mask)		{ stencil_mask=_mask;			CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILMASK,		_mask				)); }
-	if (stencil_writemask	!= _writemask)	{ stencil_writemask=_writemask;	CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILWRITEMASK,	_writemask			)); }
-	if (stencil_fail		!= _fail)		{ stencil_fail=_fail;			CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILFAIL,		_fail				)); }
-	if (stencil_pass		!= _pass)		{ stencil_pass=_pass;			CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILPASS,		_pass				)); }
-	if (stencil_zfail		!= _zfail)		{ stencil_zfail=_zfail;			CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILZFAIL,		_zfail				)); }
-}
-
-IC  void CBackend::set_Z(u32 _enable)
-{
-	if (z_enable != _enable)
-	{ 
-		z_enable=_enable;
-		CHK_DX(RDevice->SetRenderState	( D3DRS_ZENABLE, _enable )); 
-	}
-}
-
-IC  void CBackend::set_ZFunc(u32 _func)
-{
-	if (z_func!=_func)
-	{
-		z_func = _func;
-		CHK_DX(RDevice->SetRenderState( D3DRS_ZFUNC, _func));
-	}
-}
-
-IC  void CBackend::set_AlphaRef (u32 _value)
-{
-	if (alpha_ref != _value)
-	{ 
-		alpha_ref = _value;
-		CHK_DX(RDevice->SetRenderState(D3DRS_ALPHAREF,_value));
-	}
-}
-
-IC void	CBackend::set_ColorWriteEnable	(u32 _mask )
-{
-	if (colorwrite_mask		!= _mask)		{ 
-		colorwrite_mask=_mask;		
-		CHK_DX(RDevice->SetRenderState	( D3DRS_COLORWRITEENABLE,	_mask	));	
-		CHK_DX(RDevice->SetRenderState	( D3DRS_COLORWRITEENABLE1,	_mask	));	
-		CHK_DX(RDevice->SetRenderState	( D3DRS_COLORWRITEENABLE2,	_mask	));	
-		CHK_DX(RDevice->SetRenderState	( D3DRS_COLORWRITEENABLE3,	_mask	));	
-	}
-}
-
-ICF void	CBackend::set_CullMode		(u32 _mode)
-{
-	if (cull_mode		!= _mode)		{ cull_mode = _mode;			CHK_DX(RDevice->SetRenderState	( D3DRS_CULLMODE,			_mode				)); }
-}
-
 ICF void CBackend::set_VS(ref_vs& _vs)
 {
-	set_VS(_vs->vs,_vs->cName.c_str());				
+	GRHI->SetShader(_vs->vs, ERHI_SHADER_TYPE::VS);
 }
 
 IC void CBackend::set_Constants			(R_constant_table* C_)
 {
 	// caching
-	if (ctable==C_)	return;
+	if (ctable==C_)
+		return;
+
 	ctable			= C_;
 	xforms.unmap	();
 	hemi.unmap		();
 	tree.unmap		();
-	if (0==C_)		return;
 
-	PGO				(Msg("PGO:c-table"));
+	if (0==C_)
+		return;
 
 	// process constant-loaders
 	R_constant_table::c_table::iterator	it	= C_->table.begin();
 	R_constant_table::c_table::iterator	end	= C_->table.end	();
 	for (; it!=end; it++)	{
-		R_constant*		Cs	= &**it;
+		RHIShaderConstant*		Cs	= &**it;
 		VERIFY(Cs);
 		if (Cs && Cs->handler) {
 			Cs->handler->setup(Cs);
@@ -253,5 +110,8 @@ IC float CBackend::get_target_height()
 	return RDEVICE.TargetHeight;
 }
 
-
-#endif	//	dx9R_Backend_Runtime_included
+IC void CBackend::DrawTriangleFan(ERHI_PRIMITIVE_TOPOLOGY topology, ref_geom geom, u32 vBase, u32 pc)
+{
+	RCache.set_Geometry(geom);
+	RCache.Render(topology, vBase, pc);
+}

@@ -2,21 +2,19 @@
 #include "IGame_Level.h"
 #include "IGame_Persistent.h"
 
-#include "x_ray.h"
-#include "std_classes.h"
-#include "CustomHUD.h"
-#include "Render.h"
-#include "GameFont.h"
-#include "xrLevel.h"
 #include "CameraManager.h"
-#include "xr_object.h"
+#include "CustomHUD.h"
 #include "Feel_Sound.h"
-
-#include "FPSCounter.h"
+#include "Render.h"
+#include "std_classes.h"
+#include "xrLevel.h"
+#include "xr_object.h"
+#include "x_ray.h"
+#include "GameMtlLib.h"
 #include "../xrGame/AnimNotify/AnimNotifyGame.h"
 
 ENGINE_API	IGame_Level*	g_pGameLevel	= nullptr;
-extern	BOOL g_bLoaded;
+extern	bool g_bLoaded;
 
 IGame_Level::IGame_Level	()
 {
@@ -27,6 +25,7 @@ IGame_Level::IGame_Level	()
 	bReady						= false;
 	pCurrentEntity				= nullptr;
 	pCurrentViewEntity			= nullptr;
+	pCurrentControlEntity		= nullptr;
 #ifdef DEBUG
 	if (!Device.IsEditorMode())
 	{
@@ -35,7 +34,7 @@ IGame_Level::IGame_Level	()
 #endif // DEBUG
 }
 
-IGame_Level::~IGame_Level()
+IGame_Level::~IGame_Level() noexcept
 {
 	if (Core.ParamsData.test(ECoreParams::nes_texture_storing))
 		Device.m_pRender->ResourcesStoreNecessaryTextures();
@@ -86,12 +85,97 @@ void  _sound_event		(ref_sound_data_ptr S, float range)
 {
 	if ( g_pGameLevel && S && S->feedback )	g_pGameLevel->SoundEvent_Register	(S,range);
 }
-static void 	build_callback	(Fvector* V, size_t Vcnt, CDB::TRI* T, size_t Tcnt, void* params)
+
+void IGame_Level::Load_GameSpecific_CFORM(CDB::TRI* tris, size_t count)
 {
-	g_pGameLevel->Load_GameSpecific_CFORM( T, Tcnt );
+	struct translation_pair
+	{
+		u32 m_id;
+		u16 m_index;
+
+		IC translation_pair(u32 id, u16 index)
+		{
+			m_id = id;
+			m_index = index;
+		}
+
+		IC bool operator==(const u16& id) const
+		{
+			return (m_id == id);
+		}
+
+		IC bool operator<(const translation_pair& pair) const
+		{
+			return (m_id < pair.m_id);
+		}
+
+		IC bool operator<(const u16& id) const
+		{
+			return (m_id < id);
+		}
+	};
+
+	typedef xr_vector<translation_pair>	ID_INDEX_PAIRS;
+	ID_INDEX_PAIRS						translator;
+	translator.reserve(GMLib.CountMaterial());
+	u16									default_id = (u16)GMLib.GetMaterialIdx("default");
+	translator.push_back(translation_pair(u32(-1), default_id));
+
+	u16									index = 0, static_mtl_count = 1;
+	int max_ID = 0;
+	int max_static_ID = 0;
+	for (GameMtlIt I = GMLib.FirstMaterial(); GMLib.LastMaterial() != I; ++I, ++index) {
+		if (!(*I)->Flags.test(SGameMtl::flDynamic)) {
+			++static_mtl_count;
+			if (Device.IsEditorMode())
+				translator.push_back(translation_pair((*I)->GetID(), (*I)->GetID()));
+			else
+				translator.push_back(translation_pair((*I)->GetID(), index));
+			if ((*I)->GetID() > max_static_ID)	max_static_ID = (*I)->GetID();
+		}
+		if ((*I)->GetID() > max_ID)				max_ID = (*I)->GetID();
+	}
+	// Msg("* Material remapping ID: [Max:%d, StaticMax:%d]",max_ID,max_static_ID);
+	VERIFY(max_static_ID < 0xFFFF);
+
+	if (static_mtl_count < 128) {
+		CDB::TRI* I = tris;
+		CDB::TRI* E = tris + count;
+		for (; I != E; ++I) {
+			ID_INDEX_PAIRS::iterator	i = std::find(translator.begin(), translator.end(), (u16)(*I).material);
+			if (i != translator.end()) {
+				(*I).material = (*i).m_index;
+				SGameMtl* mtl = GMLib.GetMaterialByIdx((*i).m_index);
+				(*I).suppress_shadows = mtl->Flags.is(SGameMtl::flSuppressShadows);
+				(*I).suppress_wm = mtl->Flags.is(SGameMtl::flSuppressWallmarks);
+				continue;
+			}
+			if (Device.IsEditorMode() == false)
+				Debug.fatal(DEBUG_INFO, "Game material '%d' not found", (*I).material);
+		}
+		return;
+	}
+
+	std::sort(translator.begin(), translator.end());
+	{
+		CDB::TRI* I = tris;
+		CDB::TRI* E = tris + count;
+		for (; I != E; ++I) {
+			ID_INDEX_PAIRS::iterator	i = std::lower_bound(translator.begin(), translator.end(), (u16)(*I).material);
+			if ((i != translator.end()) && ((*i).m_id == (*I).material)) {
+				(*I).material = (*i).m_index;
+				SGameMtl* mtl = GMLib.GetMaterialByIdx((*i).m_index);
+				(*I).suppress_shadows = mtl->Flags.is(SGameMtl::flSuppressShadows);
+				(*I).suppress_wm = mtl->Flags.is(SGameMtl::flSuppressWallmarks);
+				continue;
+			}
+			if (Device.IsEditorMode() == false)
+				Debug.fatal(DEBUG_INFO, "Game material '%d' not found", (*I).material);
+		}
+	}
 }
 
-BOOL IGame_Level::Load			(u32 dwNum) 
+bool IGame_Level::Load			(u32 dwNum) 
 {
 	PROF_EVENT("IGame_Level::Load");
 	// Initialize level data
@@ -121,7 +205,15 @@ BOOL IGame_Level::Load			(u32 dwNum)
 	// CForms
 	g_pGamePersistent->SetLoadStageTitle("st_loading_cform");
 	g_pGamePersistent->LoadTitle	();
-	ObjectSpace.Load			( build_callback );
+
+	ObjectSpace.Load
+	(
+		[](Fvector * V, size_t Vcnt, CDB::TRI * T, size_t Tcnt, void* params)
+		{
+			g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);
+		}
+	);
+
 	//Sound->set_geometry_occ		( &Static );
 	Sound->set_geometry_occ		(ObjectSpace.GetStaticModel	());
 	Sound->set_handler			( _sound_event );
@@ -158,14 +250,14 @@ BOOL IGame_Level::Load			(u32 dwNum)
 	}
 
 	Device.seqFrame.Add			(this);
-	return TRUE;	
+	return true;	
 }
 
 int		psNET_DedicatedSleep	= 5;
-bool IsFpsShow = false;
 void	IGame_Level::OnRender		( ) 
 {
-	if (!g_dedicated_server) {
+	if (!g_dedicated_server)
+	{
 		{
 			PROF_EVENT("IGame_Level::OnRender: Calculate");
 			Render->Calculate();
@@ -174,48 +266,58 @@ void	IGame_Level::OnRender		( )
 			PROF_EVENT("IGame_Level::OnRender: Render");
 			Render->Render();
 		}
-
-		if (IsFpsShow) {
-			pFPSCounter->OnRender();
-		}
 	}
 }
 
-void	IGame_Level::OnFrame		( ) 
+
+void IGame_Level::OnFrame()
 {
 	PROF_EVENT("IGame_Level::OnFrame");
-	// Update all objects
-	VERIFY						(bReady);
-	if(IAnimNotifyHandler::IsValid())
+
+	VERIFY(bReady);
+
+	if (IAnimNotifyHandler::IsValid())
 	{
 		IAnimNotifyHandler::Get().Update();
 	}
-	Objects.Update				(false);
-	g_hud->OnFrame				();
+
+	std::erase_if(scheduled_tasks, [&](const ScheduledCallbackItem& item)
+	{
+		if (Device.dwTimeGlobal >= item.execution_time)
+		{
+			item.task();
+			return true;
+		}
+		return false; 
+	});
+
+	Objects.Update(false);
+	g_hud->OnFrame();
 
 	// Ambience
-	if (Sounds_Random.size() && (Device.dwTimeGlobal > Sounds_Random_dwNextTime))
+	if (!Sounds_Random.empty() && Device.dwTimeGlobal > Sounds_Random_dwNextTime)
 	{
-		Sounds_Random_dwNextTime		= Device.dwTimeGlobal + ::Random.randI	(10000,20000);
-		Fvector	pos;
-		pos.random_dir().normalize().mul(::Random.randF(30,100)).add	(Device.vCameraPosition);
-		int		id						= ::Random.randI(Sounds_Random.size());
-		if (Sounds_Random_Enabled)		{
-			Sounds_Random[id].play_at_pos	(0,pos,0);
-			Sounds_Random[id].set_volume	(1.f);
-			Sounds_Random[id].set_range		(10,200);
+		Sounds_Random_dwNextTime = Device.dwTimeGlobal + Random.randI(10000, 20000);
+		Fvector pos;
+		pos.random_dir().normalize().mul(Random.randF(30, 100)).add(Device.vCameraPosition);
+		int id = Random.randI(Sounds_Random.size());
+		if (Sounds_Random_Enabled)
+		{
+			Sounds_Random[id].play_at_pos(nullptr, pos, 0);
+			Sounds_Random[id].set_volume(1.f);
+			Sounds_Random[id].set_range(10, 200);
 		}
 	}
 }
 // ==================================================================================================
 
-void CServerInfo::AddItem( LPCSTR name_, LPCSTR value_, u32 color_ )
+void CServerInfo::AddItem( const char* name_, const char* value_, u32 color_ )
 {
 	shared_str s_name( name_ );
 	AddItem( s_name, value_, color_ );
 }
 
-void CServerInfo::AddItem( shared_str& name_, LPCSTR value_, u32 color_ )
+void CServerInfo::AddItem( shared_str& name_, const char* value_, u32 color_ )
 {
 	SItem_ServerInfo it;
 	//	shared_str s_name = CStringTable().translate( name_ );
@@ -256,65 +358,60 @@ void IGame_Level::SetViewEntity( CObject* O  )
 
 void	IGame_Level::SoundEvent_Register	( ref_sound_data_ptr S, float range )
 {
-	PROF_EVENT("IGame_Level::SoundEvent_Register")
+	PROF_EVENT("IGame_Level::SoundEvent_Register");
 	if (!g_bLoaded)									return;
 	if (!S)											return;
-	if (S->g_object && S->g_object->getDestroy())	{S->g_object=0; return;}
+	if (S->g_object && S->g_object->getDestroy())	{S->g_object=nullptr; return;}
 	if (0==S->feedback)								return;
 
 	clamp					(range,0.1f,500.f);
 
-	const CSound_params* p	= S->feedback->get_params();
-	Fvector snd_position	= p->position;
+	CSound_params p	= S->feedback->get_params();
+	Fvector snd_position	= p.position;
 	if(S->feedback->is_2D()){
 		snd_position.add	(Sound->listener_position());
 	}
-
-	VERIFY					(p && _valid(range) );
-	range					= _min(range,p->max_ai_distance);
+	VERIFY					(_valid(range) );
+	range = std::min(range,p.max_ai_distance);
 	VERIFY					(_valid(snd_position));
-	VERIFY					(_valid(p->max_ai_distance));
-	VERIFY					(_valid(p->volume));
+	VERIFY					(_valid(p.max_ai_distance));
+	VERIFY					(_valid(p.volume));
 
-	// Query objects
-	Fvector					bb_size	=	{range,range,range};
-	g_SpatialSpace->q_box	(snd_ER,0,STYPE_REACTTOSOUND,snd_position,bb_size);
+	g_SpatialSpace->q_box(snd_ER, 0, ESPATIAL_TYPE::REACTTOSOUND, snd_position, { range,range,range });
 
 	// Iterate
-	auto it	= snd_ER.begin	();
-	auto end	= snd_ER.end	();
-	for (; it!=end; it++)	{
-		Feel::Sound* L		= (*it)->dcast_FeelSound	();
+	for (auto& spatial : snd_ER)
+	{
+		Feel::Sound* L = spatial->dcast_FeelSound();
 		if (0==L)			continue;
-		CObject* CO = (*it)->dcast_CObject();	VERIFY(CO);
+		CObject* CO = spatial->dcast_CObject();
+		VERIFY(CO);
 		if (CO->getDestroy()) continue;
 
 		// Energy and signal
-		VERIFY				(_valid((*it)->spatial.sphere.P));
-		float dist			= snd_position.distance_to((*it)->spatial.sphere.P);
-		if (dist>p->max_ai_distance) continue;
+		VERIFY(_valid(spatial->sphere.P));
+		float dist = snd_position.distance_to(spatial->sphere.P);
+		if (dist>p.max_ai_distance) continue;
 		VERIFY				(_valid(dist));
-		VERIFY2				(!fis_zero(p->max_ai_distance), S->handle->file_name());
-		float Power			= (1.f-dist/p->max_ai_distance)*p->volume;
+		VERIFY2				(!fis_zero(p.max_ai_distance), S->handle->file_name());
+		float Power			= (1.f-dist/p.max_ai_distance)*p.volume;
 		VERIFY				(_valid(Power));
-		if (Power>EPS_S)	{
-			float occ		= Sound->get_occlusion_to((*it)->spatial.sphere.P,snd_position);
-			VERIFY			(_valid(occ))	;
-			Power			*= occ;
-			if (Power>EPS_S)	{
-				_esound_delegate	D	=	{ L, S, Power };
-				snd_Events.push_back	(D)	;
+		if (Power>EPS_S)
+		{
+			float occ = Sound->get_occlusion_to(spatial->sphere.P,snd_position);
+			VERIFY(_valid(occ));
+			Power *= occ;
+			if (Power>EPS_S)
+				snd_Events.push_back({ L, S, Power });
 			}
 		}
 	}
-	snd_ER.resize(0);
-}
 
 void	IGame_Level::SoundEvent_Dispatch	( )
 {
 	PROF_EVENT("IGame_Level::SoundEvent_Dispatch");
-	while	(!snd_Events.empty())	{
-		_esound_delegate&	D	= snd_Events.back	();
+	for(_esound_delegate& D : snd_Events)
+	{
 		VERIFY				(D.dest && D.source);
 		if (D.source->feedback)	{
 			D.dest->feel_sound_new	(
@@ -323,33 +420,28 @@ void	IGame_Level::SoundEvent_Dispatch	( )
 				D.source->g_userdata,
 
 				D.source->feedback->is_2D() ? Device.vCameraPosition : 
-					D.source->feedback->get_params()->position,
+					(D.source->feedback->get_params()).position,
 				D.power
 				);
 		}
-		snd_Events.pop_back		();
 	}
+
+	snd_Events.clear();
 }
 
 // Lain: added
 void   IGame_Level::SoundEvent_OnDestDestroy (Feel::Sound* obj)
 {
-	PROF_EVENT("IGame_Level::SoundEvent_OnDestDestroy")
-	struct rem_pred
-	{
-		rem_pred(Feel::Sound* obj) : m_obj(obj) {}
+	PROF_EVENT("IGame_Level::SoundEvent_OnDestDestroy");
+	if(!snd_Events.empty())
+		snd_Events.erase(std::remove_if(snd_Events.begin(), snd_Events.end(), [obj](const _esound_delegate& d) {return d.dest == obj; }), snd_Events.end() );
+}
 
-		bool operator () (const _esound_delegate& d)
-		{
-			return d.dest == m_obj;
-		}
-
-	private:
-		Feel::Sound* m_obj;
-	};
-
-	snd_Events.erase( std::remove_if(snd_Events.begin(), snd_Events.end(), rem_pred(obj)),
-	                  snd_Events.end() );
+void   IGame_Level::SoundEvent_net_Relcase(CObject* obj)
+{
+	PROF_EVENT("IGame_Level::SoundEvent_net_Relcase");
+	if (!snd_Events.empty())
+		snd_Events.erase(std::remove_if(snd_Events.begin(), snd_Events.end(), [obj](const _esound_delegate& d) {return d.source->g_object == obj; }), snd_Events.end());
 }
 
 

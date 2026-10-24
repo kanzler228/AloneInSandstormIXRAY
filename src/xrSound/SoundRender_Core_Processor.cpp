@@ -1,14 +1,14 @@
 #include "stdafx.h"
 
 
-#include "cl_intersect.h"
+#include "../xrCore/Collision/cl_intersect.h"
 #include "SoundRender_Core.h"
 #include "SoundRender_CoreA.h"
 #include "SoundRender_Emitter.h"
 #include "SoundRender_TargetA.h"
 #include "SoundRender_Source.h"
 
-CSoundRender_Emitter*	CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
+CSoundRender_Emitter*	CSoundRender_Core::i_play(ref_sound* S, bool _loop, float delay)
 {
 	VERIFY					(S->_p->feedback==0);
 	CSoundRender_Emitter* E	=	new CSoundRender_Emitter();
@@ -23,7 +23,7 @@ void CSoundRender_Core::update	( const Fvector& P, const Fvector& D, const Fvect
 	u32 it;
 
 	if (0==bReady)				return;
-    bLocked						= TRUE;
+    bLocked						= true;
 	float new_tm				= Timer.GetElapsed_sec();
 	fTimer_Delta				= new_tm-fTimer_Value;
 //.	float dt					= float(Timer_Delta)/1000.f;
@@ -103,7 +103,7 @@ void CSoundRender_Core::update	( const Fvector& P, const Fvector& D, const Fvect
 	{
         if (bListenerMoved)
 		{
-            bListenerMoved			= FALSE;
+            bListenerMoved			= false;
             e_target				= *get_environment	(P);
         }
 
@@ -135,7 +135,7 @@ void CSoundRender_Core::update	( const Fvector& P, const Fvector& D, const Fvect
 	// Events
 	update_events					();
 
-    bLocked							= FALSE;
+    bLocked							= false;
 }
 
 static	u32	g_saved_event_count		= 0;
@@ -256,7 +256,7 @@ float CSoundRender_Core::get_occlusion(Fvector& P, float R, Fvector* occ)
 				// cache polygon
 				const CDB::RESULT*	R_ = geom_DB.r_begin		();
 				const CDB::TRI&		T = geom_MODEL->get_tris	() [ R_->id ];
-				const Fvector*		V = geom_MODEL->get_verts	();
+				xr_vector<Fvector>& V = geom_MODEL->get_verts();
 				occ[0].set			(V[T.verts[0]]);
 				occ[1].set			(V[T.verts[1]]);
 				occ[2].set			(V[T.verts[2]]);

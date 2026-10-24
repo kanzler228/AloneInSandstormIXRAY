@@ -8,7 +8,7 @@
 #include "../Level.h"
 #include "../../xrEngine/string_table.h"
 
-CUISpeechMenu::CUISpeechMenu(LPCSTR section_name)
+CUISpeechMenu::CUISpeechMenu(const char* section_name)
 {
 	m_pList						= new CUIScrollView();
 	AttachChild					(m_pList);
@@ -25,14 +25,12 @@ CUISpeechMenu::CUISpeechMenu(LPCSTR section_name)
 
 CUISpeechMenu::~CUISpeechMenu()
 {
-	int x=0;
-	x=x;
 }
 
-void CUISpeechMenu::InitList(LPCSTR section_name)
+void CUISpeechMenu::InitList(const char* section_name)
 {
 	R_ASSERT2(pSettings->section_exist(section_name), section_name);
-	CUITextWnd* pItem = nullptr;
+	CUIStatic* pItem = nullptr;
 
 	string64 phrase;
 	string256 str;
@@ -42,7 +40,7 @@ void CUISpeechMenu::InitList(LPCSTR section_name)
 		if (pSettings->line_exist(section_name, phrase))
 		{
 			
-            LPCSTR s				= pSettings->r_string(section_name, phrase);
+            const char* s				= pSettings->r_string(section_name, phrase);
 			_GetItem				(s,0,phrase);
 			xr_sprintf				(str, "%d. %s",i+1, g_pStringTable->translate(phrase).c_str());
 
@@ -60,7 +58,7 @@ bool CUISpeechMenu::OnKeyboardAction(int dik, EUIMessages keyboard_action)
     if (dik < SDL_SCANCODE_1 || dik > SDL_SCANCODE_0)
 		return CUIDialogWnd::OnKeyboardAction(dik, keyboard_action);
 
-	game_cl_mp* game = smart_cast<game_cl_mp*>(&Game());
+	game_cl_mp* game = Game().cast_game_cl_mp();
 
 	HideDialog();
 	game->OnMessageSelected(this, static_cast<u8>(dik - SDL_SCANCODE_1));

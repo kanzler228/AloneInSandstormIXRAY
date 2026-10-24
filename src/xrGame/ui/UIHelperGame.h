@@ -8,19 +8,19 @@
 #include "../xrUI/UIXmlInit.h"
 #include "../xrUI/UIHelper.h"
 
-class UIHelperGame: 
+class UIHelperGame final :
 	public UIHelper
 {
 public:
-	static	CUIDragDropListEx*			CreateDragDropListEx( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIDragDropReferenceList*	CreateDragDropReferenceList( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
+	static	CUIDragDropListEx*			CreateDragDropListEx( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUIDragDropReferenceList*	CreateDragDropReferenceList( CUIXml& xml, const char* ui_path, CUIWindow* parent );
 
 }; // class UIHelper
 
-class CUIXmlInitGame: 
+class CUIXmlInitGame final :
 	public CUIXmlInit
 {
 public:
 
-	static bool InitDragDropListEx(CUIXml& xml_doc, LPCSTR path, int index, CUIDragDropListEx* pWnd);
+	static bool InitDragDropListEx(CUIXml& xml_doc, const char* path, int index, CUIDragDropListEx* pWnd);
 };

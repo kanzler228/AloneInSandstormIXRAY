@@ -16,7 +16,7 @@ template <class T, u32 limit>
 class	R_constant_cache
 {
 private:
-	ALIGN(16)	svector<T,limit>		array;
+	ALIGN(16)	FixedVector<T,limit>		array;
 	u32									lo,hi;
 public:
 	R_constant_cache()
@@ -36,18 +36,18 @@ class	R_constant_array
 public:
 	typedef		R_constant_cache<Fvector4,256>	t_f;
 	typedef		R_constant_cache<Ivector4,16>	t_i;
-	typedef		R_constant_cache<BOOL,16>		t_b;
+	typedef		R_constant_cache<bool,16>		t_b;
 public:
 	ALIGN(16)	t_f					c_f;
 //	ALIGN(16)	t_i					c_i;
 //	ALIGN(16)	t_b					c_b;
-	BOOL							b_dirty;
+	bool							b_dirty;
 public:
 	t_f&					get_array_f		()	{ return c_f;	}
 //	t_i&					get_array_i		()	{ return c_i;	}
 //	t_b&					get_array_b		()	{ return c_b;	}
 
-	void					set		(R_constant* C, R_constant_load& L, const Fmatrix& A)
+	void					set		(RHIShaderConstant* C, RHIShaderConstant::Loader& L, const Fmatrix& A)
 	{
 		VERIFY		(RC_float == C->type);
 		Fvector4*	it	= c_f.access	(L.index);
@@ -80,7 +80,7 @@ public:
 		}
 	}
 
-	void					set		(R_constant* C, R_constant_load& L, const Fvector4& A)
+	void					set		(RHIShaderConstant* C, RHIShaderConstant::Loader& L, const Fvector4& A)
 	{
 		VERIFY		(RC_float	== C->type);
 		VERIFY		(RC_1x4		== L.cls);
@@ -88,7 +88,7 @@ public:
 		c_f.dirty	(L.index,L.index+1);
 	}
 
-	void					seta	(R_constant* C, R_constant_load& L, u32 e, const Fmatrix& A)
+	void					seta	(RHIShaderConstant* C, RHIShaderConstant::Loader& L, u32 e, const Fmatrix& A)
 	{
 		VERIFY		(RC_float == C->type);
 		u32			base;
@@ -128,7 +128,7 @@ public:
 		}
 	}
 
-	void					seta	(R_constant* C, R_constant_load& L, u32 e, const Fvector4& A)
+	void					seta	(RHIShaderConstant* C, RHIShaderConstant::Loader& L, u32 e, const Fvector4& A)
 	{
 		VERIFY		(RC_float	== C->type);
 		VERIFY		(RC_1x4		== L.cls);
@@ -147,29 +147,29 @@ public:
 	void					flush_cache	();
 public:
 	// fp, non-array versions
-	ICF void				set		(R_constant* C, const Fmatrix& A)		{
-		if (C->destination&1)		{ a_pixel.set	(C,C->ps,A); a_pixel.b_dirty=TRUE;		}
-		if (C->destination&2)		{ a_vertex.set	(C,C->vs,A); a_vertex.b_dirty=TRUE;		}
+	ICF void				set		(RHIShaderConstant* C, const Fmatrix& A)		{
+		if (C->destination&1)		{ a_pixel.set	(C,C->ps,A); a_pixel.b_dirty=true;		}
+		if (C->destination&2)		{ a_vertex.set	(C,C->vs,A); a_vertex.b_dirty=true;		}
 	}
-	ICF void				set		(R_constant* C, const Fvector4& A)		{
-		if (C->destination&1)		{ a_pixel.set	(C,C->ps,A); a_pixel.b_dirty=TRUE;		}
-		if (C->destination&2)		{ a_vertex.set	(C,C->vs,A); a_vertex.b_dirty=TRUE;		}
+	ICF void				set		(RHIShaderConstant* C, const Fvector4& A)		{
+		if (C->destination&1)		{ a_pixel.set	(C,C->ps,A); a_pixel.b_dirty=true;		}
+		if (C->destination&2)		{ a_vertex.set	(C,C->vs,A); a_vertex.b_dirty=true;		}
 	}
-	ICF void				set		(R_constant* C, float x, float y, float z, float w)	{
+	ICF void				set		(RHIShaderConstant* C, float x, float y, float z, float w)	{
 		Fvector4 data;		data.set(x,y,z,w);
 		set					(C,data);
 	}
 
 	// fp, array versions
-	ICF void				seta	(R_constant* C, u32 e, const Fmatrix& A)		{
-		if (C->destination&1)		{ a_pixel.seta	(C,C->ps,e,A); a_pixel.b_dirty=TRUE;	}
-		if (C->destination&2)		{ a_vertex.seta	(C,C->vs,e,A); a_vertex.b_dirty=TRUE;	}
+	ICF void				seta	(RHIShaderConstant* C, u32 e, const Fmatrix& A)		{
+		if (C->destination&1)		{ a_pixel.seta	(C,C->ps,e,A); a_pixel.b_dirty=true;	}
+		if (C->destination&2)		{ a_vertex.seta	(C,C->vs,e,A); a_vertex.b_dirty=true;	}
 	}
-	ICF void				seta	(R_constant* C, u32 e, const Fvector4& A)		{
-		if (C->destination&1)		{ a_pixel.seta	(C,C->ps,e,A); a_pixel.b_dirty=TRUE;	}
-		if (C->destination&2)		{ a_vertex.seta	(C,C->vs,e,A); a_vertex.b_dirty=TRUE;	}
+	ICF void				seta	(RHIShaderConstant* C, u32 e, const Fvector4& A)		{
+		if (C->destination&1)		{ a_pixel.seta	(C,C->ps,e,A); a_pixel.b_dirty=true;	}
+		if (C->destination&2)		{ a_vertex.seta	(C,C->vs,e,A); a_vertex.b_dirty=true;	}
 	}
-	ICF void				seta	(R_constant* C, u32 e, float x, float y, float z, float w)	{
+	ICF void				seta	(RHIShaderConstant* C, u32 e, float x, float y, float z, float w)	{
 		Fvector4 data;		data.set(x,y,z,w);
 		seta				(C,e,data);
 	}

@@ -19,9 +19,10 @@
 7. [Радиальные индикаторы](radial-progress-shape.md)
 8. [SVG на HUD](hud-svg-vector-icons.md)
 9. [Прогресс бар веса](weight-progress-bar.md)
+10. [Окно сна](sleep-dialog.md)
 
 ## Быстрые переключатели
 
-1. `UseCompassBar` в `configs/engine_external.ltx` переключает миникарту и горизонтальный компас.
+1. `UseCompassBar` в `configs/engine_external.ltx` (**deprecated** boot-hint). Рекомендуется `SetNavigationMode` через Lua или IXR Options. Подробности: [компас / миникарта / motion icon](hud-compass-minimap-motion-icon.md).
 2. `hud_minimap` включает или выключает блок карты или компаса.
 3. `hud_hide_quick_slots` переключает автоскрытие панели быстрых слотов.

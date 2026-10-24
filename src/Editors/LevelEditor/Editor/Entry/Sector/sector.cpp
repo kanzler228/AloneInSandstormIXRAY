@@ -29,7 +29,7 @@ bool CSectorItem::IsItem(const char* O, const char* M){
 	return (0==stricmp(O,object->GetName()))&&(0==stricmp(M,mesh->Name().c_str()));
 }
 
-CSector::CSector(LPVOID data, LPCSTR name):CCustomObject(data,name)
+CSector::CSector(LPVOID data, const char* name):CCustomObject(data,name)
 {
 	Construct(data);
 }
@@ -78,7 +78,7 @@ bool CSector::AddMesh	(CSceneObject* O, CEditableMesh* M)
 	if (!PortalUtils.FindSector(O,M))
 		if (!FindSectorItem(O, M, it)){
 			sector_items.push_back(CSectorItem(O, M, M->Name()));
-			m_Flags.set(flNeedUpdateVolume,TRUE);
+			m_Flags.set(flNeedUpdateVolume,true);
 			return true;
 		}
 	return false;
@@ -91,7 +91,7 @@ int CSector::DelMesh	(CSceneObject* O, CEditableMesh* M)
 	SItemIt it;
 	if (FindSectorItem(O, M, it)){
 		sector_items.erase(it);
-		m_Flags.set(flNeedUpdateVolume,TRUE);
+		m_Flags.set(flNeedUpdateVolume,true);
 		res = 1;
 	}
 	if (sector_items.empty()){
@@ -200,7 +200,7 @@ void CSector::UpdateVolume()
 
 	UI->RedrawScene();
 
-	m_Flags.set(flNeedUpdateVolume,FALSE);
+	m_Flags.set(flNeedUpdateVolume,false);
 }
 
 void CSector::OnDestroy( )
@@ -221,7 +221,7 @@ void CSector::OnSceneUpdate()
 	}
 	if (bUpdate) PortalUtils.RemoveSectorPortal(this);
 */
-	m_Flags.set(flNeedUpdateVolume,TRUE);
+	m_Flags.set(flNeedUpdateVolume,true);
 }
 
 
@@ -312,7 +312,7 @@ void CSector::CaptureInsideVolume(){
 					AddMesh(obj,*m_def);
 			}
 		}
-		m_Flags.set		(flNeedUpdateVolume,TRUE);
+		m_Flags.set		(flNeedUpdateVolume,true);
 		UI->RedrawScene	();
 		ExecCommand		(COMMAND_UPDATE_PROPERTIES);
 	}
@@ -352,7 +352,7 @@ void CSector::DistributeInsideObjects(){
 				}
 			}
 		}
-		m_Flags.set		(flNeedUpdateVolume,TRUE);
+		m_Flags.set		(flNeedUpdateVolume,true);
 		UI->RedrawScene	();
 		ExecCommand		(COMMAND_UPDATE_PROPERTIES);
 	}
@@ -454,10 +454,10 @@ void CSector::LoadSectorDef(IReader* F)
 	sector_items.push_back(sitem);
 }
 
-void CSector::LoadSectorDefLTX(CInifile& ini, LPCSTR sect_name, u32 item_idx)
+void CSector::LoadSectorDefLTX(CInifile& ini, const char* sect_name, u32 item_idx)
 {
-	LPCSTR 		o_name = NULL;
-	LPCSTR 		m_name = NULL;
+	const char* 		o_name = NULL;
+	const char* 		m_name = NULL;
 
 	CSectorItem 	sitem;
 	string512 		buff;
@@ -501,7 +501,7 @@ void CSector::LoadSectorDefLTX(CInifile& ini, LPCSTR sect_name, u32 item_idx)
 	sector_items.push_back(sitem);
 }
 
-bool CSector::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool CSector::LoadLTX(CInifile& ini, const char* sect_name)
 {
 	u32 version = ini.r_u32		(sect_name, "version");
 	if( version<0x0011)
@@ -527,13 +527,13 @@ bool CSector::LoadLTX(CInifile& ini, LPCSTR sect_name)
 		
 	if (sector_items.empty()) return false;
 
-	m_Flags.set(flNeedUpdateVolume,TRUE);
+	m_Flags.set(flNeedUpdateVolume,true);
 	IsLoaded = true;
 
 	return true;
 }
 
-void CSector::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void CSector::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	CCustomObject::SaveLTX(ini, sect_name);
 
@@ -593,7 +593,7 @@ bool CSector::LoadStream(IReader& F)
 
 	if (sector_items.empty()) return false;
 
-	m_Flags.set(flNeedUpdateVolume,TRUE);
+	m_Flags.set(flNeedUpdateVolume,true);
 	return true;
 }
 
@@ -665,7 +665,7 @@ xr_token level_sub_map[] =
     {NULL, 30}
 };
 
-void CSector::FillProp(LPCSTR pref, PropItemVec& items)
+void CSector::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref,items);        
 	PHelper().CreateFColor(items, PrepareKey(pref,"Color"), &sector_color);

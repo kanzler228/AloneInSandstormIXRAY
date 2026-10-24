@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "dog.h"
 #include "dog_state_manager.h"
 #include "../monster_velocity_space.h"
@@ -26,9 +26,12 @@ CAI_Dog::CAI_Dog()
 	m_smelling_count	= Random.randI(3);
 	CControlled::init_external	(this);
 
-	com_man().add_ability(ControlCom::eControlJump);
-    com_man().add_ability(ControlCom::eControlRotationJump);
-//	com_man().add_ability(ControlCom::eControlMeleeJump);
+	if (!EngineExternal().ShadowOfChernobylMode())
+		com_man().add_ability(ControlCom::eControlJump);
+	else
+		com_man().add_ability(ControlCom::eControlMeleeJump);
+	
+	com_man().add_ability(ControlCom::eControlRotationJump);
 }
 
 CAI_Dog::~CAI_Dog()
@@ -36,7 +39,7 @@ CAI_Dog::~CAI_Dog()
 	xr_delete(StateMan);
 }
 
-void CAI_Dog::Load(LPCSTR section)
+void CAI_Dog::Load(const char* section)
 {
 	inherited::Load	(section);
 	if(pSettings->line_exist(section,"anim_factor"))
@@ -127,7 +130,7 @@ void CAI_Dog::Load(LPCSTR section)
 	anim().AddAnim(eAnimRunTurnRight,	"stand_run_turn_right_",-1, &velocity_run,		PS_STAND);
 
 	anim().AddAnim(eAnimCheckCorpse,	"stand_check_corpse_",	-1,	&velocity_none,		PS_STAND);
-	anim().AddAnim(eAnimDragCorpse,		"stand_drage_",			-1, &velocity_drag,		PS_STAND);
+	anim().AddAnim(eAnimDragCorpse, { "stand_drage_", "stand_drag_" },			-1, &velocity_drag,		PS_STAND);
 	//anim().AddAnim(eAnimSniff,		"stand_sniff_",			-1, &velocity_none,		PS_STAND);
 	//anim().AddAnim(eAnimHowling,		"stand_howling_",		-1,	&velocity_none,		PS_STAND);
 	
@@ -135,7 +138,7 @@ void CAI_Dog::Load(LPCSTR section)
 	//anim().AddAnim(eAnimJumpGlide,   	"stand_jump_left_",		 0, &velocity_none,		PS_STAND);
 	anim().AddAnim(eAnimJumpGlide,   	"stand_jump_left_",	   	 0, &velocity_none,		PS_STAND);
 		
-	anim().AddAnim(eAnimSteal,			"stand_walk_fwd_",		-1, &velocity_steal,	PS_STAND);
+	anim().AddAnim(eAnimSteal,			{ "stand_walk_fwd_", "stand_steal_" },		-1, &velocity_steal,	PS_STAND);
 	anim().AddAnim(eAnimThreaten,		"stand_threaten_",		-1, &velocity_none,		PS_STAND);
 
 	anim().AddAnim(eAnimSitLieDown,		"sit_lie_down_",		-1, &velocity_none,		PS_SIT);
@@ -149,8 +152,8 @@ void CAI_Dog::Load(LPCSTR section)
 
 /////////////mob home
 
-	anim().AddAnim(eAnimHomeWalkSmelling,	"stand_walk_smelling_",	-1,	&velocity_walk_smell,	PS_STAND);
-	anim().AddAnim(eAnimHomeWalkGrowl,		"stand_growl_walk_",	-1, &velocity_walk_growl,	PS_STAND);
+	anim().AddAnim(eAnimHomeWalkSmelling, "stand_walk_fwd_",	-1,	&velocity_walk_smell,	PS_STAND);
+	anim().AddAnim(eAnimHomeWalkGrowl, "stand_walk_fwd_",	-1, &velocity_walk_growl,	PS_STAND);
 
 /////////////end mob home
 
@@ -195,12 +198,11 @@ void CAI_Dog::Load(LPCSTR section)
 void CAI_Dog::reinit()
 {
 	inherited::reinit();
-
-	if(CCustomMonster::use_simplified_visual())	return;
 	
 	com_man().add_rotation_jump_data("1","2","3","4", PI_DIV_2);
 	com_man().add_rotation_jump_data("5","6","7","8", deg(179));
-	//com_man().add_melee_jump_data("5","jump_right_0");
+	if (EngineExternal().ShadowOfChernobylMode())
+		com_man().add_melee_jump_data("5","jump_right_0");
 	//com_man().add_rotation_jump_data("stand_jump_left_0","stand_jump_left_0",
 	//	                             "stand_jump_right_0","stand_jump_right_0", deg(179));
 	//com_man().add_melee_jump_data("stand_jump_left_0", "stand_jump_right_0");
@@ -315,7 +317,7 @@ void CAI_Dog::start_animation()
 
 	b_state_anim = true;
 	com_man().script_capture(ControlCom::eControlAnimation);
-	smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle(get_current_animation(),TRUE,animation_end,this);
+	Visual()->dcast_PKinematicsAnimated()->PlayCycle(get_current_animation(), true, animation_end, this);
 	b_state_end = true;
 }
 
@@ -344,36 +346,74 @@ void CAI_Dog::set_custom_anim_state(bool b_state_animation)
 	b_state_anim = b_state_animation;
 }
 
-LPCSTR CAI_Dog::get_current_animation()
+const char* CAI_Dog::get_current_animation()
 {
 	switch(current_anim)
 	{
-	case 1:  return "stand_idle_smelling_up_0";			//Нюхает вверх
-	case 2:  return "stand_idle_smelling_down_0";		//Нюхает вниз
-	case 3:  return "stand_idle_smelling_look_around_0";	//Нюхает по кругу
-	case 4:  return "stand_idle_dig_ground_0";			//Обнюховает и роет землю
-	case 5:  return "stand_idle_howl_0";					//Воет
-	case 6:  return "stand_growl_idle_0";				//Рычит стоя
-	case 7:  return "stand_idle_shake_0";				//Отряхивается !!!!!
-	case 8:  return "stand_sit_down_0";				//Садиться
-	case 9:  return "sit_idle_0";				//Cидит
-	case 10: return "sit_idle_1";				//Чухается сидя
-	case 11: return "sit_idle_2";				//Оглядывается сидя
-	case 12: return "sit_stand_up_0";				//Встает
-	case 13: return "sit_lie_down_0";			//Ложится
-	case 14: return "lie_to_sit_0";				//Подымается
-	case 15: return "stand_eat_0";			//Отрывает куски
-	case 16: return "stand_threaten_0";			//Лает
-	default: return "stand_idle_1";						//Нюхает вперед
+	case 1:
+	{
+		return "stand_check_corpse_0";
+	}
+	case 2:  
+	{
+		return "stand_check_corpse_0";
+	}
+	case 3:  
+	{
+		return "stand_check_corpse_0";
+	}
+	case 4:  
+	{
+		return "stand_check_corpse_0";
+	}
+	case 5:  
+	{
+		return "stand_threaten_0";
+	}
+	case 6:  
+	{
+		return "stand_threaten_0";
+	}
+	case 7:  
+	{
+		return "stand_threaten_0";
+	}
+	case 8:  
+		return "stand_sit_down_0";				//Садится
+	case 9:  
+		return "sit_idle_0";				//Cидит
+	case 10: 
+	{
+		return "sit_idle_0";
+	}
+	case 11: 
+	{
+		return "sit_idle_0";
+	}
+	case 12: 
+		return "sit_stand_up_0";				//Встает
+	case 13: 
+		return "sit_lie_down_0";			//Ложится
+	case 14: 
+		return "lie_to_sit_0";				//Подымается
+	case 15: 
+		return "stand_eat_0";			//Отрывает куски
+	case 16: 
+		return "stand_threaten_0";			//Лает
+	default: 
+		return "stand_idle_1";						//Нюхает вперед
 	}
 }
 
-void CAI_Dog::reload(LPCSTR section)
+void CAI_Dog::reload(const char* section)
 {
 	inherited::reload (section);
-	com_man().load_jump_data(0, "jump_ataka_01", "jump_ataka_02", "jump_ataka_03",
-	 						 MonsterMovement::eVelocityParameterRunNormal,
-						     MonsterMovement::eVelocityParameterRunNormal, 0);
+	if (!EngineExternal().ShadowOfChernobylMode())
+	{
+		com_man().load_jump_data(0, "jump_ataka_01", "jump_ataka_02", "jump_ataka_03",
+			MonsterMovement::eVelocityParameterRunNormal,
+			MonsterMovement::eVelocityParameterRunNormal, 0);
+	}
 }
 
 void CAI_Dog::HitEntityInJump (const CEntity *pEntity) 
@@ -408,7 +448,7 @@ bool  CAI_Dog::can_use_agressive_jump (const CObject* enemy)
 #ifdef _DEBUG
 void CAI_Dog::debug_on_key(int key)
 {
-	IKinematicsAnimated *skel = smart_cast<IKinematicsAnimated *>(Visual());
+	IKinematicsAnimated *skel = Visual()->dcast_PKinematicsAnimated();
 
 	switch (key){
 	case SDL_SCANCODE_1:

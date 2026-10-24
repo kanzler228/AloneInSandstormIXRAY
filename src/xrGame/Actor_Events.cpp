@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "Actor.h"
 #include "Weapon.h"
+#include "WeaponAmmo.h"
 #include "Artefact.h"
 #include "Scope.h"
 #include "Silencer.h"
@@ -15,11 +16,34 @@
 #include "cameralook.h"
 #include "CameraFirstEye.h"
 #include "holder_custom.h"
+#include "PhysicsShellHolder.h"
 //.#include "ui/uiinventoryWnd.h"
 #include "game_base_space.h"
 #ifdef DEBUG
 #include "PHDebug.h"
 #endif
+
+namespace
+{
+void RestoreWorldItemPhysics(CObject* Obj)
+{
+	if (Obj == nullptr || Obj->H_Parent() != nullptr)
+	{
+		return;
+	}
+
+	CGameObject* gameObject = Obj->cast_game_object();
+	CPhysicsShellHolder* shellHolder = gameObject != nullptr ? gameObject->cast_physics_shell_holder() : nullptr;
+	if (shellHolder == nullptr || shellHolder->PPhysicsShell() != nullptr)
+	{
+		return;
+	}
+
+	Obj->setVisible(true);
+	Obj->setEnabled(true);
+	shellHolder->setup_physic_shell();
+}
+}
 
 void CActor::OnEvent(NET_Packet& P, u16 type)
 {
@@ -50,7 +74,11 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 				break;
 			}
 			
-			if (inventory().CanTakeItem(_GO->cast_inventory_item()))
+			CInventoryItem* invItem = _GO->cast_inventory_item();
+			const bool canTake = invItem && inventory().CanTakeItem(invItem);
+			const bool forceAmmoTake = IsGameTypeSingle() && invItem && invItem->cast_weapon_ammo() != nullptr;
+
+			if (canTake || forceAmmoTake)
 			{
 				Obj->H_SetParent(dcast_CObject());
 				
@@ -60,7 +88,7 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 				Msg("--- Actor [%d][%s]  %s  [%d][%s]", ID(), Name(), act, _GO->ID(), _GO->cNameSect().c_str());
 #endif // MP_LOGGING
 				
-				inventory().Take	(_GO, false, true);
+				inventory().Take(_GO, false, true, !canTake && forceAmmoTake);
 			
 				SelectBestWeapon(Obj);
 			}
@@ -68,11 +96,10 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 			{
 				if (IsGameTypeSingle())
 				{
-					NET_Packet		P_;
-					u_EventGen		(P_,GE_OWNERSHIP_REJECT,ID());
-					P_.w_u16			(u16(Obj->ID()));
-					u_EventSend		(P_);
-				} else
+					RestoreWorldItemPhysics(Obj);
+					Level().m_feel_deny.feel_touch_deny(Obj, 1000);
+				}
+				else
 				{
 					Msg("! ERROR: Actor [%d][%s]  tries to drop on take [%d][%s]", ID(), Name(), _GO->ID(), _GO->cNameSect().c_str());
 				}
@@ -171,10 +198,10 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 					SetZoomRndSeed(ZoomRndSeed);
 				if (cmd == kWPN_FIRE)
 					SetShotRndSeed(ShotRndSeed);
-				IR_OnKeyboardPress(cmd);
+				IR_OnKeyboardPress(get_action_dik((EGameActions)cmd));
 			}
 			else
-				IR_OnKeyboardRelease(cmd);
+				IR_OnKeyboardRelease(get_action_dik((EGameActions)cmd));
 		}
 		break;
 	case GEG_PLAYER_START_HUD_ANIMATOR:
@@ -189,7 +216,7 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 
 		if (HudAnimator())
 		{
-			HudAnimator()->StartAnimator(animator_section);
+			HudAnimator()->ItemAnimator()->StartAnimator(animator_section);
 		}
 	}break;
 	case GEG_PLAYER_ITEM2SLOT:
@@ -281,7 +308,7 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 	case GEG_PLAYER_WEAPON_HIDE_STATE:
 		{
 			u16 State		= P.r_u16();
-			BOOL	Set		= !!P.r_u8();
+			bool	Set		= !!P.r_u8();
 			inventory().SetSlotsBlocked	(State, !!Set);
 		}break;
 	case GE_MOVE_ACTOR:

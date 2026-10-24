@@ -3,16 +3,18 @@
 
 #include "dxUIShader.h"
 
-dxUIRender	UIRenderImpl;
+dxUIRender UIRenderImpl;
 
 void dxUIRender::CreateUIGeom()
 {
-	hGeom_TL.create(FVF::F_TL, RCache.Vertex.Buffer(), 0);
-	hGeom_LIT.create(FVF::F_LIT, RCache.Vertex.Buffer(), 0);
+	hGeom_L.create(FVF::F_L, RCache.Vertex.Buffer(), nullptr);
+	hGeom_TL.create(FVF::F_TL, RCache.Vertex.Buffer(), nullptr);
+	hGeom_LIT.create(FVF::F_LIT, RCache.Vertex.Buffer(), nullptr);
 }
 
 void dxUIRender::DestroyUIGeom()
 {
+	hGeom_L = nullptr;
 	hGeom_TL = nullptr;
 	hGeom_LIT = nullptr;
 }
@@ -27,160 +29,43 @@ void dxUIRender::SetShader(IUIShader &shader)
 
 void dxUIRender::SetAlphaRef(int aref)
 {
-	//CHK_DX(RDevice->SetRenderState(D3DRS_ALPHAREF,aref));
 	RCache.set_AlphaRef(aref);
 }
-/*
-void dxUIRender::StartTriList(u32 iMaxVerts)
-{
-	VERIFY(PrimitiveType==ptNone);
-	m_PointType = pttLIT;
-	m_iMaxVerts = iMaxVerts;
-	start_pv	= (FVF::LIT*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_fan.stride(),vOffset);
-	pv			= start_pv;
-	PrimitiveType = ptTriList;
-}
 
-void dxUIRender::FlushTriList()
-{
-	VERIFY(PrimitiveType==ptTriList);
-	VERIFY(u32(pv-start_pv)<=m_iMaxVerts);
-
-	std::ptrdiff_t p_cnt		= (pv-start_pv)/3;							
-	RCache.Vertex.Unlock		(u32(pv-start_pv),hGeom_fan.stride());
-	RCache.set_Geometry			(hGeom_fan);
-	if (p_cnt!=0)RCache.Render	(D3DPT_TRIANGLELIST,vOffset,u32(p_cnt));
-
-	PrimitiveType = ptNone;
-}
-
-void dxUIRender::StartTriFan(u32 iMaxVerts)
-{
-	VERIFY(PrimitiveType==ptNone);
-	m_iMaxVerts = iMaxVerts;
-	start_pv	= (FVF::LIT*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_fan.stride(),vOffset);
-	pv			= start_pv;
-	PrimitiveType = ptTriFan;
-	m_PointType	= pttLIT;
-
-}
-
-void dxUIRender::FlushTriFan()
-{
-	VERIFY(PrimitiveType==ptTriFan);
-	VERIFY(u32(pv-start_pv)<=m_iMaxVerts);
-
-	std::ptrdiff_t p_cnt		= pv-start_pv;
-	RCache.Vertex.Unlock		(u32(p_cnt),hGeom_fan.stride());
-	RCache.set_Geometry	 		(hGeom_fan);
-	if (p_cnt>2) RCache.Render	(D3DPT_TRIANGLEFAN,vOffset,u32(p_cnt-2));
-
-	PrimitiveType = ptNone;
-}
-
-void dxUIRender::StartTriStrip(u32 iMaxVerts)
-{
-	VERIFY(PrimitiveType==ptNone);
-	m_iMaxVerts = iMaxVerts;
-	start_pv	= (FVF::TL*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_fan.stride(),vOffset);
-	pv			= start_pv;
-	PrimitiveType = ptTriStrip;
-}
-
-void dxUIRender::FlushTriStrip()
-{
-}
-
-
-void dxUIRender::StartLineStrip(u32 iMaxVerts)
-{
-	VERIFY(PrimitiveType==ptNone);
-	m_iMaxVerts = iMaxVerts;
-	start_pv	= (FVF::LIT*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_fan.stride(),vOffset);
-	pv			= start_pv;
-	PrimitiveType = ptLineStrip;
-	m_PointType = pttLIT;
-}
-
-void dxUIRender::FlushLineStrip()
-{
-	VERIFY(PrimitiveType==ptLineStrip);
-	VERIFY(u32(pv-start_pv)<=m_iMaxVerts);
-
-	std::ptrdiff_t p_cnt		= pv-start_pv;
-	RCache.Vertex.Unlock		(u32(p_cnt),hGeom_fan.stride());
-	RCache.set_Geometry	 		(hGeom_fan);
-	if (p_cnt>1) RCache.Render	(D3DPT_LINESTRIP,vOffset,u32(p_cnt-1));
-
-	PrimitiveType = ptNone;
-}
-
-void dxUIRender::StartLineList(u32 iMaxVerts)
-{
-	VERIFY(PrimitiveType==ptNone);
-	m_iMaxVerts = iMaxVerts;
-	start_pv	= (FVF::LIT*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_fan.stride(),vOffset);
-	pv			= start_pv;
-	PrimitiveType = ptLineList;
-}
-
-void dxUIRender::FlushLineList()
-{
-	VERIFY(PrimitiveType==ptLineList);
-	VERIFY(u32(pv-start_pv)<=m_iMaxVerts);
-
-	std::ptrdiff_t p_cnt		= pv-start_pv;
-	RCache.Vertex.Unlock		(u32(p_cnt),hGeom_fan.stride());
-	RCache.set_Geometry	 		(hGeom_fan);
-	if (p_cnt>1) RCache.Render	(D3DPT_LINELIST,vOffset,u32(p_cnt)/2);
-
-	PrimitiveType = ptNone;
-}
-*/
 void dxUIRender::SetScissor(Irect* rect)
 {
-#if RENDER == R_R4
+	if (rect) 
+	{
+		copy_scissor.set(*rect);
+	}
+	else 
+	{
+		copy_scissor.set(0, 0, Device.TargetWidth, Device.TargetHeight);
+	}
+
 	RCache.set_Scissor(rect);
-	StateManager.OverrideScissoring( rect?true:false, TRUE );
-#else
-	RCache.set_Scissor(rect);
-#endif
+	GRHI->StateManager->OverrideScissoring(rect != nullptr, true);
 }
 
 void dxUIRender::GetActiveTextureResolution(Fvector2 &res)
 {
-	CTexture* T		= RCache.get_ActiveTexture(0);
-	res.set			(float(T->get_Width()),float(T->get_Height()));
+	CTexture* T = RCache.get_ActiveTexture(0);
+	res.set(float(T->get_Width()),float(T->get_Height()));
 }
 
-LPCSTR dxUIRender::UpdateShaderName(LPCSTR tex_name, LPCSTR sh_name)
+const char* dxUIRender::UpdateShaderName(const char* tex_name, const char* sh_name)
 {
 	string_path buff;
-	if ( FS.exist(buff,"$game_textures$", tex_name, ".ogm") )
+	if (FS.exist(buff, _game_textures_, tex_name, ".ogm"))
+	{
 		return "hud\\movie";
-	else
-		return sh_name;
+	}
+
+	return sh_name;
 }
-/*
-void dxUIRender::PushPoint(float x, float y, u32 c, float u, float v)
-{
-	VERIFY(m_PointType==pttNone);
-	pv->set(x, y, 0.0f, c, u, v);
-	++pv;
-}
-*/
-/*
-void dxUIRender::PushPoint(int x, int y, u32 c, float u, float v)
-{
-	VERIFY(m_PointType==pttNone);
-	pv->set(x, y, 0, c, u, v);
-	++pv;
-}
-*/
 
 void dxUIRender::PushPoint(float x, float y, float z, u32 C, float u, float v)
 {
-//.	VERIFY(m_PointType==pttLIT);
 	switch(m_PointType)
 	{
 	case pttLIT:
@@ -191,10 +76,14 @@ void dxUIRender::PushPoint(float x, float y, float z, u32 C, float u, float v)
 		TL_pv->set(x, y, C, u, v);
 		++TL_pv;
 		break;
+	case pttL:
+		L_pv->set(x, y, z, C);
+		++L_pv;
+		break;
 	}
 }
 
-void dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointType pointType)
+void** dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointType pointType)
 {
 	VERIFY(PrimitiveType == ptNone);
 	VERIFY(m_PointType == pttNone);
@@ -206,20 +95,26 @@ void dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointTy
 	switch(m_PointType)
 	{
 	case pttLIT:
-		LIT_start_pv	= (FVF::LIT*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_LIT.stride(),vOffset);
+		LIT_start_pv	= (FVF::LIT*)RCache.Vertex.Lock(m_iMaxVerts,hGeom_LIT.stride(),vOffset);
 		LIT_pv			= LIT_start_pv;
-		break;
+		return (void**)&LIT_pv;
 	case pttTL:
-		TL_start_pv		= (FVF::TL*)RCache.Vertex.Lock	(m_iMaxVerts,hGeom_TL.stride(),vOffset);
+		TL_start_pv		= (FVF::TL*)RCache.Vertex.Lock(m_iMaxVerts,hGeom_TL.stride(),vOffset);
 		TL_pv			= TL_start_pv;
-		break;
+		return (void**)&TL_pv;
+	case pttL:
+		L_start_pv		= (FVF::L*)RCache.Vertex.Lock(m_iMaxVerts,hGeom_L.stride(),vOffset);
+		L_pv			= L_start_pv;
+		return (void**)&L_pv;
 	}
+
+	return nullptr;
 }
 
 void dxUIRender::FlushPrimitive()
 {
 	u32 primCount					= 0;
-	_D3DPRIMITIVETYPE d3dPrimType	= D3DPT_FORCE_DWORD;
+	ERHI_PRIMITIVE_TOPOLOGY d3dPrimType	= ERHI_PRIMITIVE_TOPOLOGY::UNDEFINED;
 	std::ptrdiff_t p_cnt			= 0;
 
 	switch(m_PointType)
@@ -238,6 +133,13 @@ void dxUIRender::FlushPrimitive()
 		RCache.Vertex.Unlock		(u32(p_cnt),hGeom_TL.stride());
 		RCache.set_Geometry	 		(hGeom_TL);
 		break;
+	case pttL:
+		p_cnt = L_pv - L_start_pv;
+		VERIFY(u32(p_cnt) <= m_iMaxVerts);
+
+		RCache.Vertex.Unlock(u32(p_cnt), hGeom_L.stride());
+		RCache.set_Geometry(hGeom_L);
+		break;
 	default:
 		NODEFAULT;
 	}
@@ -247,19 +149,19 @@ void dxUIRender::FlushPrimitive()
 	{
 	case ptTriStrip:
 		primCount = (u32)(p_cnt-2);
-		d3dPrimType = D3DPT_TRIANGLESTRIP;
+		d3dPrimType = ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_STRIP;
 		break;
 	case ptTriList:
 		primCount = (u32)(p_cnt/3);
-		d3dPrimType = D3DPT_TRIANGLELIST;
+		d3dPrimType = ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST;
 		break;
 	case ptLineStrip:
 		primCount = (u32)(p_cnt-1);
-		d3dPrimType = D3DPT_LINESTRIP;
+		d3dPrimType = ERHI_PRIMITIVE_TOPOLOGY::LINE_STRIP;
 		break;
 	case ptLineList:
 		primCount = (u32)(p_cnt/2);
-		d3dPrimType = D3DPT_LINELIST;
+		d3dPrimType = ERHI_PRIMITIVE_TOPOLOGY::LINE_LIST;
 		break;
 	default:
 		NODEFAULT;
@@ -277,8 +179,27 @@ void dxUIRender::CacheSetXformWorld(const Fmatrix& M)
 	RCache.set_xform_world(M);
 }
 
-void dxUIRender::CacheSetCullMode(CullMode m)
+void dxUIRender::CacheSetProject(const Fmatrix& M)
 {
-	RCache.set_CullMode	(CULL_NONE+m);
+	RCache.set_xform_project(M);
 }
 
+void dxUIRender::CacheSetView(const Fmatrix& M)
+{
+	RCache.set_xform_view(M);
+}
+
+void dxUIRender::CacheSetCullMode(ERHI_CULLMODE m)
+{
+	GRHI->StateManager->SetCullMode(m);
+}
+
+void dxUIRender::zb_enable(u32 val)
+{
+	RCache.set_Z(val);
+}
+
+u32 dxUIRender::VBuffMaxSize()
+{
+	return RCache.Vertex.GetSize();
+}

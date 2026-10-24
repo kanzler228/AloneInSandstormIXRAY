@@ -9,8 +9,7 @@
 #pragma once
 
 #include "../xrScripts/script_export_space.h"
-#include "../xrParticles/stdafx.h"
-#include "../xrParticles/ParticlesObject.h"
+#include "ParticlesObject.h"
 
 // refs
 class CObjectAnimator;
@@ -23,23 +22,21 @@ public:
 	CObjectAnimator*			m_animator;
 	virtual						~CScriptParticlesCustom();
 	CScriptParticles* m_owner;
-								CScriptParticlesCustom(CScriptParticles* owner, LPCSTR caParticlesName);
-	virtual void				shedule_Update		(u32 dt);
+								CScriptParticlesCustom(CScriptParticles* owner, const char* caParticlesName);
+	virtual void				Update		(u32 dt, CFrustum& viewbase);
 
-	void						LoadPath			(LPCSTR caPathName);
+	void						LoadPath			(const char* caPathName);
 	void						StartPath			(bool looped);
 	void						StopPath			();
 	void						PausePath			(bool val);
-	virtual void				PSI_internal_delete	();
-	virtual void				PSI_destroy			();
-			void				remove_owner		();
+	void						remove_owner		();
 };
 
 class CScriptParticles
 {
 public:
 	xr_shared_ptr<CScriptParticlesCustom> m_particles;
-								CScriptParticles	(LPCSTR caParticlesName);
+								CScriptParticles	(const char* caParticlesName);
 	virtual						~CScriptParticles	();
 
 	void						Play				();
@@ -51,13 +48,13 @@ public:
 	bool						IsLooped			() const;
 
 	void						MoveTo				(const Fvector &pos, const Fvector& vel);
-
-	void						LoadPath			(LPCSTR caPathName);
+	void						SetXFORM_DIR_X			(const Fvector& pos, const Fvector& dir, const Fvector& vel);
+	void						SetXFORM_DIR_Y			(const Fvector& pos, const Fvector& dir, const Fvector& vel);
+	void						SetXFORM_DIR_Z			(const Fvector& pos, const Fvector& dir, const Fvector& vel);
+	void						LoadPath			(const char* caPathName);
 	void						StartPath			(bool looped);
 	void						StopPath			();
 	void						PausePath			(bool val);
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
-
-#include "script_particles_inline.h"

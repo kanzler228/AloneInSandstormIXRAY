@@ -1,18 +1,23 @@
 #include "stdafx.h"
 
-#include "OverlayAPI\DLSSWrapper.h"
-
-extern Fvector3 ps_r_taa_jitter_full;
+#include "OverlayAPI/DLSSWrapper.h"
 
 void CRenderTarget::init_dlss()
 {
-	g_DLSSWrapper.Destroy();
-
 	DLSSWrapper::ContextParameters initParams;
 	initParams.device = RDevice;
-	initParams.displaySize = { (int)RCache.get_target_width(), (int)RCache.get_target_height() };
-	initParams.renderSize = { (int)RCache.get_width(), (int)RCache.get_height() };
-	g_DLSSWrapper.Create(initParams);
+
+	initParams.displaySize = { 
+		(int)RCache.get_target_width(),
+		(int)RCache.get_target_height() 
+	};
+
+	initParams.renderSize = { 
+		(int)RCache.get_width(),
+		(int)RCache.get_height() 
+	};
+
+	g_DLSSWrapper.Resize(initParams);
 }
 
 bool CRenderTarget::phase_dlss()
@@ -22,15 +27,15 @@ bool CRenderTarget::phase_dlss()
 	DLSSWrapper::DrawParameters dlssParams = {};
 	dlssParams.deviceContext = RContext;
 
-	dlssParams.unresolvedColorResource = rt_Generic_0->pSurface;
-	dlssParams.motionvectorResource = rt_Velocity->pSurface;
-	dlssParams.depthbufferResource = rt_Position->pSurface;
+	dlssParams.unresolvedColorResource = (ID3D11Texture2D*)rt_Generic_0->pSurface->GetRawTexture();
+	dlssParams.motionvectorResource = (ID3D11Texture2D*)rt_Velocity->pSurface->GetRawTexture();
+	dlssParams.depthbufferResource = (ID3D11Texture2D*)rt_Position->pSurface->GetRawTexture();
 
 	dlssParams.exposureResource = nullptr;
 	dlssParams.reactiveMapResource = nullptr;
 	dlssParams.transparencyAndCompositionResource = nullptr;
 
-	dlssParams.resolvedColorResource = rt_Generic->pSurface;
+	dlssParams.resolvedColorResource = (ID3D11Texture2D*)rt_Generic->pSurface->GetRawTexture();
 
 	dlssParams.renderWidth = (int)RCache.get_width();
 	dlssParams.renderHeight = (int)RCache.get_height();

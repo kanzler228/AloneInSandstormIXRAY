@@ -22,8 +22,6 @@
 
 #include "ui/UICDkey.h"
 
-#include <shellapi.h>
-
 #include "object_broker.h"
 
 #include "../xrCore/discord/discord.h"
@@ -31,7 +29,13 @@
 #include <GamePersistent.h>
 
 #include "../xrCore/git_version.h"
+#include "ImUtils/ImUtils.h"
 
+#ifdef XR_MP_BUILD
+#	include <shellapi.h>
+#endif
+
+#include "../xrEngine/GamepadService.h"
 //#define DEMO_BUILD
 
 string128	ErrMsgBoxTemplate	[]	= {
@@ -132,7 +136,7 @@ CMainMenu::~CMainMenu	()
 void CMainMenu::ReadTextureInfo()
 {
 	FS_FileSet fset;
-	FS.file_list(fset, "$game_config$", FS_ListFiles,"ui\\textures_descr\\*.xml");
+	FS.file_list(fset, _game_config_, FS_ListFiles,"ui\\textures_descr\\*.xml");
 	FS_FileSetIt fit	= fset.begin();
 	FS_FileSetIt fit_e	= fset.end();
 
@@ -144,10 +148,26 @@ void CMainMenu::ReadTextureInfo()
 
 		CUITextureMaster::ParseShTexInfo(fn3);
 	}
+	if (pSettings->section_exist("texture_desc"))
+	{
+		shared_str itemsList = pSettings->r_string("texture_desc", "files");
+		if (itemsList.size() == 0)
+		{
+			return;
+		}
+		int itemsCount = _GetItemCount(itemsList.c_str());
 
+		string256 single_item;
+		for (int i = 0; i < itemsCount; i++)
+		{
+			_GetItem(itemsList.c_str(), i, single_item);
+			strcat(single_item, ".xml");
+			CUITextureMaster::ParseShTexInfoLegacy(single_item);
+		}
+	}
 }
 
-extern ENGINE_API BOOL	bShowPauseString;
+extern ENGINE_API bool	bShowPauseString;
 extern bool				IsGameTypeSingle();
 static xr_string StrMainMenu = g_pStringTable->translate("st_discord_menu").c_str();
 
@@ -165,9 +185,12 @@ void CMainMenu::Activate	(bool bActivate)
 
 	if(bActivate)
 	{
+		GGamepadService->ClearTriggerEffect(true);
+		GGamepadService->ClearTriggerEffect(false);
+
 		b_shniaganeed_pp			= true;
-		Device.Pause				(TRUE, FALSE, TRUE, "mm_activate1");
-		m_Flags.set					(flActive|flNeedChangeCapture,TRUE);
+		Device.Pause				(true, false, true, "mm_activate1");
+		m_Flags.set					(flActive|flNeedChangeCapture,true);
 
 		m_Flags.set					(flRestoreCursor,GetUICursor().IsVisible());
 
@@ -183,9 +206,9 @@ void CMainMenu::Activate	(bool bActivate)
 		if(b_is_single)
 		{
 			m_Flags.set					(flRestorePauseStr, bShowPauseString);
-			bShowPauseString			= FALSE;
+			bShowPauseString			= false;
 			if(!m_Flags.test(flRestorePause))
-				Device.Pause			(TRUE, TRUE, FALSE, "mm_activate2");
+				Device.Pause			(true, true, false, "mm_activate2");
 		}
 
 		if(g_pGameLevel)
@@ -195,16 +218,16 @@ void CMainMenu::Activate	(bool bActivate)
 			}
 			Device.seqRender.Remove			(g_pGameLevel);
 			CCameraManager::ResetPP			();
-		};
-		Device.seqRender.Add				(this, 4); // 1-console 2-cursor 3-tutorial
-
+		}
+		
+		Device.seqRender.Add				(this, UI_MAIN_MENU); // 1-console 2-cursor 3-tutorial
 		//Console->Execute					("stat_memory");
 
 		g_Discord.SetPhase(StrMainMenu);
 	}else{
 		m_deactivated_frame					= Device.dwFrame;
-		m_Flags.set							(flActive,				FALSE);
-		m_Flags.set							(flNeedChangeCapture,	TRUE);
+		m_Flags.set							(flActive,				false);
+		m_Flags.set							(flNeedChangeCapture,	true);
 
 		Device.seqRender.Remove				(this);
 
@@ -236,7 +259,7 @@ void CMainMenu::Activate	(bool bActivate)
 		if(b_is_single)
 		{
 			if(!m_Flags.test(flRestorePause))
-				Device.Pause			(FALSE, TRUE, FALSE, "mm_deactivate1");
+				Device.Pause			(false, true, false, "mm_deactivate1");
 
 			bShowPauseString			= m_Flags.test(flRestorePauseStr);
 		}	
@@ -244,11 +267,11 @@ void CMainMenu::Activate	(bool bActivate)
 		if(m_Flags.test(flRestoreCursor))
 			GetUICursor().Show			();
 
-		Device.Pause					(FALSE, TRUE, TRUE, "mm_deactivate2");
+		Device.Pause					(false, true, true, "mm_deactivate2");
 
 		if(m_Flags.test(flNeedVidRestart))
 		{
-			m_Flags.set			(flNeedVidRestart, FALSE);
+			m_Flags.set			(flNeedVidRestart, false);
 			Console->Execute	("vid_restart");
 		}
 
@@ -267,7 +290,7 @@ bool CMainMenu::ReloadUI()
 	DLL_Pure* dlg = NEW_INSTANCE(TEXT2CLSID("MAIN_MNU"));
 	if(!dlg) 
 	{
-		m_Flags.set				(flActive|flNeedChangeCapture,FALSE);
+		m_Flags.set				(flActive|flNeedChangeCapture,false);
 		return false;
 	}
 	xr_delete					(m_startDialog);
@@ -324,16 +347,29 @@ void	CMainMenu::IR_OnMouseStop(int x, int y)
 {
 };
 
-void	CMainMenu::IR_OnKeyboardPress(int dik)
+void CMainMenu::IR_OnMouseWheel(int direction)
 {
-	if(!IsActive()) return;
+	if (!IsActive())
+	{
+		return;
+	}
 
-	if( is_binded(kCONSOLE, dik) )
+	CDialogHolder::IR_UIOnMouseWheel(direction);
+}
+
+void CMainMenu::IR_OnKeyboardPress(int dik)
+{
+	if (!IsActive()) 
+		return;
+	
+	if (is_binded(kCONSOLE, dik) && !EngineExternal()[EEngineExternalSystem::DisableConsole])
 	{
 		Console->Show();
 		return;
 	}
-	if (SDL_SCANCODE_F12 == dik){
+	
+	if (SDL_SCANCODE_F12 == dik)
+	{
 		Render->Screenshot();
 		return;
 	}
@@ -357,26 +393,45 @@ void	CMainMenu::IR_OnKeyboardHold(int dik)
 
 void CMainMenu::IR_GamepadKeyPress(int id)
 {
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_DOWN)
-		IR_UIOnKeyboardPress(SDL_SCANCODE_DOWN);
+	if (!IsActive()) 
+		return;
 
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_DPAD_UP)
-		IR_UIOnKeyboardPress(SDL_SCANCODE_UP);
-
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_SOUTH)
-		IR_UIOnKeyboardPress(SDL_SCANCODE_RETURN);
-
-	if (id == SDL_GamepadButton::SDL_GAMEPAD_BUTTON_EAST)
-		IR_UIOnKeyboardPress(SDL_SCANCODE_ESCAPE);
+	CDialogHolder::IR_UIOnGamepadKeyPress(id);
 }
 
-void CMainMenu::IR_OnMouseWheel(int direction)
+void CMainMenu::IR_GamepadKeyHold(int id)
 {
-	if(!IsActive()) return;
-	
-	CDialogHolder::IR_UIOnMouseWheel(direction);
+	if (!IsActive())
+		return;
+
+	CDialogHolder::IR_UIOnGamepadKeyHold(id);
 }
 
+void CMainMenu::IR_GamepadUpdateStick(int id, Fvector2 value)
+{
+	if (!IsActive()) 
+		return;
+
+	CDialogHolder::IR_UIOnGamepadUpdateStick(id, value);
+}
+
+void	CMainMenu::IR_OnGyroscopeMove(Fvector3 value)
+{
+	if (!IsActive())
+	{
+		return;
+	}
+	CDialogHolder::IR_UIOnGyroscopeMove(value);
+};
+
+void	CMainMenu::IR_OnTouchpadMove(Fvector2 value)
+{
+	if (!IsActive())
+	{
+		return;
+	}
+	CDialogHolder::IR_UIOnTouchpadMove(value);
+};
 
 bool CMainMenu::OnRenderPPUI_query()
 {
@@ -454,7 +509,7 @@ void CMainMenu::OnFrame()
 {
 	if (m_Flags.test(flNeedChangeCapture))
 	{
-		m_Flags.set					(flNeedChangeCapture,FALSE);
+		m_Flags.set					(flNeedChangeCapture,false);
 		if (m_Flags.test(flActive))	IR_Capture();
 		else						IR_Release();
 	}
@@ -464,7 +519,7 @@ void CMainMenu::OnFrame()
 	//screenshot stuff
 	if(m_Flags.test(flGameSaveScreenshot) && Device.dwFrame > m_screenshotFrame  )
 	{
-		m_Flags.set					(flGameSaveScreenshot,FALSE);
+		m_Flags.set					(flGameSaveScreenshot,false);
 		::Render->Screenshot		(IRender_interface::SM_FOR_GAMESAVE, m_screenshot_name);
 		
 		if(g_pGameLevel && m_Flags.test(flActive))
@@ -499,13 +554,13 @@ void CMainMenu::OnDeviceCreate()
 }
 
 
-void CMainMenu::Screenshot(IRender_interface::ScreenshotMode mode, LPCSTR name)
+void CMainMenu::Screenshot(IRender_interface::ScreenshotMode mode, const char* name)
 {
 	if(mode != IRender_interface::SM_FOR_GAMESAVE)
 	{
 		::Render->Screenshot		(mode,name);
 	}else{
-		m_Flags.set					(flGameSaveScreenshot, TRUE);
+		m_Flags.set					(flGameSaveScreenshot, true);
 		xr_strcpy(m_screenshot_name,name);
 		if(g_pGameLevel && m_Flags.test(flActive)){
 			Device.seqFrame.Add		(g_pGameLevel);
@@ -558,7 +613,7 @@ void CMainMenu::DestroyInternal(bool bForce)
 		xr_delete		(m_startDialog);
 }
 
-void CMainMenu::OnNewPatchFound(LPCSTR VersionName, LPCSTR URL)
+void CMainMenu::OnNewPatchFound(const char* VersionName, const char* URL)
 {
 	if (m_sPDProgress.IsInProgress) return;
 	
@@ -589,6 +644,7 @@ void CMainMenu::OnNoNewPatchFound()
 
 void CMainMenu::OnDownloadPatch(CUIWindow*, void*)
 {
+#ifdef IXR_WINDOWS
 	CGameSpy_Available GSA;
 	shared_str result_string;
 	if (!GSA.CheckAvailableServices(result_string))
@@ -597,7 +653,7 @@ void CMainMenu::OnDownloadPatch(CUIWindow*, void*)
 		return;
 	};
 	
-	LPCSTR fileName = *m_sPatchURL;
+	const char* fileName = *m_sPatchURL;
 	if (!fileName) return;
 
 	string4096 FilePath = "";
@@ -619,6 +675,7 @@ void CMainMenu::OnDownloadPatch(CUIWindow*, void*)
 	m_sPDProgress.Status		= "";
 
 	m_pGameSpyFull->GetGameSpyHTTP()->DownloadFile(*m_sPatchURL, *m_sPatchFileName);
+#endif
 }
 
 void	CMainMenu::OnDownloadPatchError()
@@ -634,13 +691,13 @@ void	CMainMenu::OnDownloadPatchSuccess			()
 	m_pMB_ErrDlgs[PatchDownloadSuccess]->ShowDialog(false);
 }
 
-void	CMainMenu::OnSessionTerminate				(LPCSTR reason)
+void	CMainMenu::OnSessionTerminate				(const char* reason)
 {
 	if ( m_NeedErrDialog == SessionTerminate && (Device.dwTimeGlobal - m_start_time) < 8000 )
 		return;
 
 	m_start_time = Device.dwTimeGlobal;
-	LPCSTR str = g_pStringTable->translate("ui_st_kicked_by_server").c_str();
+	const char* str = g_pStringTable->translate("ui_st_kicked_by_server").c_str();
 	string256 text;
 
 	if ( reason && xr_strlen(reason) && reason[0] == '@' )
@@ -656,9 +713,9 @@ void	CMainMenu::OnSessionTerminate				(LPCSTR reason)
 	SetErrorDialog(CMainMenu::SessionTerminate);
 }
 
-void	CMainMenu::OnLoadError				(LPCSTR module)
+void	CMainMenu::OnLoadError				(const char* module)
 {
-	LPCSTR str = g_pStringTable->translate("ui_st_error_loading").c_str();
+	const char* str = g_pStringTable->translate("ui_st_error_loading").c_str();
 	string1024 Text;
 	xr_strconcat(Text,str," ");
 	xr_strcat(Text,sizeof(Text),module);
@@ -690,7 +747,7 @@ void CMainMenu::CancelDownload()
 
 void CMainMenu::SetNeedVidRestart()
 {
-	m_Flags.set(flNeedVidRestart,TRUE);
+	m_Flags.set(flNeedVidRestart,true);
 }
 
 void CMainMenu::OnDeviceReset()
@@ -701,7 +758,7 @@ void CMainMenu::OnDeviceReset()
 
 // -------------------------------------------------------------------------------------------------
 
-LPCSTR AddHyphens( LPCSTR c )
+const char* AddHyphens( const char* c )
 {
 	static string64 buf;
 
@@ -723,12 +780,12 @@ LPCSTR AddHyphens( LPCSTR c )
 	return buf;
 }
 
-LPCSTR DelHyphens( LPCSTR c )
+const char* DelHyphens( const char* c )
 {
 	static string64 buf;
 
 	u32 sz = xr_strlen( c );
-	u32 sz1 = _min( iFloor(sz/4.0f), 3 );
+	u32 sz1 = std::min( iFloor(sz/4.0f), 3 );
 
 	u32 j = 0; 
 	for ( u32 i = 0; i < sz - sz1; ++i )
@@ -774,13 +831,14 @@ void CMainMenu::OnConnectToMasterServerOkClicked(CUIWindow*, void*)
 	Hide_CTMS_Dialog();
 }
 
-LPCSTR CMainMenu::GetGSVer()
+const char* CMainMenu::GetGSVer()
 {
 	static string256	buff;
 	if(m_pGameSpyFull && Engine.External.hGameSpy != 0)
 	{
 		xr_strcpy(buff, m_pGameSpyFull->GetGameVersion());
-	}else
+	}
+	else
 	{
 		xr_strcpy(buff, "1.6.02");
 	}
@@ -788,7 +846,7 @@ LPCSTR CMainMenu::GetGSVer()
 	return buff;
 }
 
-LPCSTR CMainMenu::GetPlayerName()
+const char* CMainMenu::GetPlayerName()
 {
 	string512 name;
 	GetPlayerName_FromRegistry( name, sizeof(name) );
@@ -796,7 +854,7 @@ LPCSTR CMainMenu::GetPlayerName()
 	return m_player_name.c_str();
 }
 
-LPCSTR CMainMenu::GetCDKeyFromRegistry()
+const char* CMainMenu::GetCDKeyFromRegistry()
 {
 	string512 key;
 	GetCDKey_FromRegistry( key );
@@ -804,7 +862,7 @@ LPCSTR CMainMenu::GetCDKeyFromRegistry()
 	return m_cdkey.c_str();
 }
 
-void CMainMenu::Show_DownloadMPMap(LPCSTR text, LPCSTR url)
+void CMainMenu::Show_DownloadMPMap(const char* text, const char* url)
 {
 	VERIFY( m_pMB_ErrDlgs[DownloadMPMap] );
 
@@ -818,19 +876,21 @@ void CMainMenu::Show_DownloadMPMap(LPCSTR text, LPCSTR url)
 
 void CMainMenu::OnDownloadMPMap_CopyURL(CUIWindow* w, void* d)
 {
-	LPCSTR url = m_downloaded_mp_map_url.c_str();
+	const char* url = m_downloaded_mp_map_url.c_str();
 	os_clipboard::copy_to_clipboard( url );
 }
 
 void CMainMenu::OnDownloadMPMap(CUIWindow* w, void* d)
 {
-	LPCSTR url = m_downloaded_mp_map_url.c_str();
+#ifdef XR_MP_BUILD
+	const char* url = m_downloaded_mp_map_url.c_str();
 	string256 params = {};
 	xr_strconcat(params, "/C start ", url);
 	ShellExecuteA(0, "open", "cmd.exe", params, nullptr, SW_SHOW);
+#endif
 }
 
-demo_info const * CMainMenu::GetDemoInfo(LPCSTR file_name)
+demo_info const * CMainMenu::GetDemoInfo(const char* file_name)
 {
 	if (!m_demo_info_loader)
 	{
@@ -838,3 +898,8 @@ demo_info const * CMainMenu::GetDemoInfo(LPCSTR file_name)
 	}
 	return m_demo_info_loader->get_demofile_info(file_name);
 }
+
+void CMainMenu::ReloadLegend()
+{
+	m_startDialog->Dispatch(1, 1);
+};

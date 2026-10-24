@@ -30,18 +30,18 @@ public:
 private:
 	DANGERS				m_objects;
 	IGNORED				m_ignored;
-	const CDangerObject	*m_selected;
+	ptrdiff_t			m_selected_index;
 	u32					m_time_line;
 
 private:
-	CCustomMonster		*m_object;
+	CCreature		*m_object;
 
 public:
-	IC					CDangerManager		(CCustomMonster *object);
+	IC					CDangerManager		(CCreature *object);
 	virtual				~CDangerManager		();
-	virtual void		Load				(LPCSTR section);
+	virtual void		Load				(const char* section);
 	virtual void		reinit				();
-	virtual void		reload				(LPCSTR section);
+	virtual void		reload				(const char* section);
 	virtual void		update				();
 	virtual bool		useful				(const CDangerObject &object) const;
 	virtual bool		is_useful			(const CDangerObject &object) const;

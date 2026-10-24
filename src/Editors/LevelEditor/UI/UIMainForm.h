@@ -20,8 +20,13 @@ public:
 private:
     void DrawContextMenu();
     void DrawRenderToolBar(ImVec2 Pos, ImVec2 Size);
+    void DrawMenuSettings();
     void RenderOldCameraButtons();
     void RenderAxisButtons();
+
+    shared_str GetCommandShortcat(int CommandID) const;
+    void DrawMenuItem(const char* label, int command, int param = 0, int flag = 0);
+    void DrawMenuItemI(const char* label, const char* icon, int command, int param = 0, int flag = 0);
 
 private:
     UITopBarForm* m_TopBar;
@@ -58,6 +63,8 @@ private:
 
     ref_texture m_tCsLocal;
     ref_texture m_tNuScale;
+    ref_texture TransformLocalOrWorld;
+    ref_texture TransformLocalOrWorld2;
 
     // Axis
     ref_texture m_tX;

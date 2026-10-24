@@ -5,19 +5,25 @@
 CBlender_SPP::CBlender_SPP() { description.CLS = 0; }
 CBlender_SPP::~CBlender_SPP() {}
 
-void CBlender_SPP::Compile(CBlender_Compile& C) {
+void CBlender_SPP::Compile(CBlender_Compile& C)
+{
 	IBlender::Compile(C);
+
 	switch (C.iElement)
 	{
-	case ScreenPostProcessType::Vignette:
-		C.r_Pass("null", "vignette", FALSE, FALSE, FALSE);
-		break;
-	case ScreenPostProcessType::Aberration:
-		C.r_Pass("null", "chromatic_aberration", FALSE, FALSE, FALSE);
-		break;
-	case ScreenPostProcessType::Saturation:
-		C.r_Pass("null", "saturation", FALSE, FALSE, FALSE);
-		break;
+		case ScreenPostProcessType::Vignette:
+			C.r_Pass("null", "vignette", false, false, false);
+			break;
+		case ScreenPostProcessType::Aberration:
+			C.r_Pass("null", "chromatic_aberration", false, false, false);
+			break;
+		case ScreenPostProcessType::Saturation:
+			C.r_Pass("null", "saturation", false, false, false);
+			break;
+		case ScreenPostProcessType::Raindrops:
+			C.r_Pass("null", "raindrops", false, false, false);
+			C.r_Sampler("s_droplets", "shaders\\fx_hud_droplets");
+			break;
 	}
 
 	C.r_Sampler_clf("s_image", r2_RT_albedo);

@@ -5,13 +5,14 @@
 #include "../xrScripts/script_engine.h"
 #include "Level.h"
 #include "xrMessages.h"
+#include "alife_simulator.h"
+#include "alife_time_manager.h"
 
 u64		g_qwStartGameTime		= 12*60*60*1000;
 float	g_fTimeFactor			= pSettings->r_float("alife","time_factor");
 u64		g_qwEStartGameTime		= 12*60*60*1000;
 
-ENGINE_API	bool g_dedicated_server;
-EGameIDs ParseStringToGameType(LPCSTR str);
+EGameIDs ParseStringToGameType(const char* str);
 
 game_PlayerState::game_PlayerState(NET_Packet* account_info)
 {
@@ -95,35 +96,35 @@ void game_PlayerState::resetFlag(u16 f)
 	flags__ &= ~(f);
 }
 
-void	game_PlayerState::net_Export(NET_Packet& P, BOOL Full)
+void game_PlayerState::net_Export(NET_Packet& P, bool Full)
 {
-	P.w_u8			(Full ? 1 : 0);
-	
-	P.w_u8			(	team	);
-	P.w_s16			(	m_iRivalKills	);
-	P.w_s16			(	m_iSelfKills	);
-	P.w_s16			(	m_iTeamKills	);
-	P.w_s16			(	m_iDeaths		);
-	P.w_s32			(	money_for_round	);
-	P.w_u8			(	rank		);
-	P.w_u8			(	af_count	);
-	P.w_u16			(	flags__	);
-	P.w_u16			(	ping	);
+	P.w_u8(Full ? 1 : 0);
 
-	P.w_u16			(	GameID	);
-	P.w_s8			(	skin	);
-	P.w_u8			(	m_bCurrentVoteAgreed	);
+	P.w_u8(team);
+	P.w_s16(m_iRivalKills);
+	P.w_s16(m_iSelfKills);
+	P.w_s16(m_iTeamKills);
+	P.w_s16(m_iDeaths);
+	P.w_s32(money_for_round);
+	P.w_u8(rank);
+	P.w_u8(af_count);
+	P.w_u16(flags__);
+	P.w_u16(ping);
 
-	P.w_u32			(Device.dwTimeGlobal - DeathTime);
+	P.w_u16(GameID);
+	P.w_s8(skin);
+	P.w_u8(m_bCurrentVoteAgreed);
+
+	P.w_u32(Device.dwTimeGlobal - DeathTime);
 	if (Full)
 	{
 		m_account.net_Export(P);
 	}
-};
+}
 
 void	game_PlayerState::net_Import(NET_Packet& P)
 {
-	BOOL	bFullUpdate = !!P.r_u8();
+	bool	bFullUpdate = !!P.r_u8();
 
 	P.r_u8			(	team	);
 	
@@ -151,7 +152,7 @@ void	game_PlayerState::net_Import(NET_Packet& P)
 
 void	game_PlayerState::skip_Import(NET_Packet& P)
 {
-	BOOL	bFullUpdate = !!P.r_u8();
+	bool	bFullUpdate = !!P.r_u8();
 
 	P.r_u8			();//	team	);
 	
@@ -216,19 +217,19 @@ game_GameState::game_GameState()
 	m_fETimeFactor				= m_fTimeFactor			;
 }
 
-CLASS_ID game_GameState::getCLASS_ID(LPCSTR game_type_name, bool isServer)
+CLASS_ID game_GameState::getCLASS_ID(const char* game_type_name, bool isServer)
 {
 /*	if (!g_dedicated_server)
 	{
 		string_path		S;
-		FS.update_path	(S,"$game_config$","script.ltx");
+		FS.update_path	(S,_game_config_,"script.ltx");
 		CInifile		*l_tpIniFile = new CInifile(S);
 		R_ASSERT		(l_tpIniFile);
 
 		string256				I;
 		xr_strcpy(I,l_tpIniFile->r_string("common","game_type_clsid_factory"));
 
-		luabind::functor<LPCSTR>	result;
+		luabind::functor<const char*>	result;
 		R_ASSERT					(ai().script_engine().functor(I,result));
 		shared_str clsid = result		(game_type_name, isServer);
 
@@ -282,16 +283,25 @@ void game_GameState::switch_Phase		(u32 new_phase)
 
 ALife::_TIME_ID  game_GameState::GetStartGameTime()
 {
+	if (ai().get_alife() && ai().alife().initialized())
+		return(ai().alife().time_manager().start_game_time());
+
 	return			(m_qwStartGameTime);
 }
 
 ALife::_TIME_ID game_GameState::GetGameTime()
 {
+	if (ai().get_alife() && ai().alife().initialized())
+		return(ai().alife().time_manager().game_time());
+
 	return			(m_qwStartGameTime + ALife::_TIME_ID(m_fTimeFactor*float(Level().timeServer_Async() - m_qwStartProcessorTime)));
 }
 
 float game_GameState::GetGameTimeFactor()
 {
+	if (ai().get_alife() && ai().alife().initialized())
+		return(ai().alife().time_manager().time_factor());
+
 	return			(m_fTimeFactor);
 }
 
@@ -311,11 +321,17 @@ void game_GameState::SetGameTimeFactor	(ALife::_TIME_ID GameTime, const float fT
 
 ALife::_TIME_ID game_GameState::GetEnvironmentGameTime()
 {
+	if (ai().get_alife() && ai().alife().initialized())
+		return	(ai().alife().time_manager().game_time());
+
 	return						(m_qwEStartGameTime + ALife::_TIME_ID(m_fETimeFactor*float(Level().timeServer_Async() - m_qwEStartProcessorTime)));
 }
 
 float game_GameState::GetEnvironmentGameTimeFactor()
 {
+	if (ai().get_alife() && ai().alife().initialized())
+		return	(ai().alife().time_manager().time_factor());
+
 	return						(m_fETimeFactor);
 }
 

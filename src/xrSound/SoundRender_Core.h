@@ -9,12 +9,12 @@ class CNotificationClient;
 class CSoundRender_Core				
 	: public CSound_manager_interface
 {
-    volatile BOOL						bLocked;
+    volatile bool						bLocked;
 protected:
-	virtual void						_create_data			( ref_sound_data& S, LPCSTR fName,	esound_type sound_type, int game_type); 
+	virtual void						_create_data			( ref_sound_data& S, const char* fName,	esound_type sound_type, int game_type); 
 	virtual void						_destroy_data			( ref_sound_data& S);
 protected:
-    BOOL								bListenerMoved;
+    bool								bListenerMoved;
 
 	CNotificationClient*				pSysNotification = nullptr;
 	CSoundRender_Environment			e_current;
@@ -23,9 +23,9 @@ public:
 	typedef	std::pair<ref_sound_data_ptr,float>	event;                                               
 	xr_vector<event>					s_events;
 public:
-	BOOL								bPresent;
-	BOOL								bUserEnvironment;
-    BOOL								bReady;
+	bool								bPresent;
+	bool								bUserEnvironment;
+    bool								bReady;
 
 	bool m_is_supported; // Boolean variable to indicate presence of EFX Extension
 
@@ -67,8 +67,8 @@ public:
 
 	// Sound interface
 			void						verify_refsound			( ref_sound& S);
-	virtual void						create					( ref_sound& S, LPCSTR fName,			esound_type sound_type, int	game_type);
-	virtual void						attach_tail				( ref_sound& S, LPCSTR fName);
+	virtual void						create					( ref_sound& S, const char* fName, esound_type sound_type, int	game_type);
+	virtual void						attach_tail				( ref_sound& S, const char* fName);
 
 	virtual void						clone					( ref_sound& S, const ref_sound& from,	esound_type sound_type, int	game_type);
 	virtual void						destroy					( ref_sound& S);
@@ -77,12 +77,17 @@ public:
 
 	virtual void						play					( ref_sound& S, CObject* O,								u32 flags=0, float delay=0.f);
 	virtual void						play_at_pos				( ref_sound& S, CObject* O,		const Fvector &pos,		u32 flags=0, float delay=0.f);
-	virtual void						play_no_feedback		( ref_sound& S, CObject* O,	u32 flags=0, float delay=0.f, Fvector* pos=0, float* vol=0, float* freq=0, Fvector2* range=0);
+	virtual void						play_no_feedback		( ref_sound& S, CObject* O,	u32 flags=0, float delay=0.f, Fvector* pos=0, float* vol=0, float* freq=0, Fvector2* range=0, float* base_vol_scale=0);
 	virtual void						set_master_volume		( float			f )=0;
 	virtual void						set_geometry_env		( IReader*		I );
 	virtual void						set_geometry_som		( IReader*		I );
 	virtual void						set_geometry_occ		( CDB::MODEL*	M );
 	virtual void						set_handler				( sound_event*	E );
+
+	virtual CDB::COLLIDER* get_geometry_db();
+	virtual CDB::MODEL* get_geometry_env();
+	virtual CDB::MODEL* get_geometry_som();
+	virtual CDB::MODEL* get_geometry_occ();
 
 	virtual void						update					( const Fvector& P, const Fvector& D, const Fvector& N );
 	virtual void						update_events			( );
@@ -105,20 +110,21 @@ public:
     virtual void						set_environment_size	(CSound_environment* src_env, CSound_environment** dst_env);
 
 public:
-	CSoundRender_Source*				i_create_source			( LPCSTR name				);
+	CSoundRender_Source*				i_create_source			( const char* name				);
 	void								i_destroy_source		( CSoundRender_Source*  S	);
-	CSoundRender_Emitter*				i_play					( ref_sound* S, BOOL _loop, float delay	);
+	CSoundRender_Emitter*				i_play					( ref_sound* S, bool _loop, float delay	);
 	void								i_start					( CSoundRender_Emitter* E	);
 	void								i_stop					( CSoundRender_Emitter* E	);
 	void								i_rewind				( CSoundRender_Emitter* E	);
-	BOOL								i_allow_play			( CSoundRender_Emitter* E	);
-    virtual BOOL						i_locked 				(){return bLocked;}
+	bool								i_allow_play			( CSoundRender_Emitter* E	);
+    virtual bool						i_locked 				(){return bLocked;}
 
 	virtual void						object_relcase			( CObject* obj );
 
 	virtual float						get_occlusion_to		( const Fvector& hear_pt, const Fvector& snd_pt, float dispersion=0.2f );
 	float								get_occlusion			( Fvector& P, float R, Fvector* occ );
 	CSoundRender_Environment*			get_environment			( const Fvector& P );
+	virtual bool						object_in_audiozone		(const Fvector& P);
 
 	void								env_load				();
 	void								env_unload				();

@@ -28,7 +28,7 @@
 CMemoryManager::CMemoryManager		(CEntityAlive *entity_alive, CSound_UserDataVisitor *visitor)
 {
 	VERIFY				(entity_alive);
-	m_object			= entity_alive ? entity_alive->cast_custom_monster() : NULL;
+	m_object			= entity_alive ? entity_alive->cast_creature() : NULL;
 	m_stalker			= m_object ? m_object->cast_stalker() : NULL;
 
 	if (m_stalker)
@@ -53,7 +53,7 @@ CMemoryManager::~CMemoryManager		()
 	xr_delete			(m_danger);
 }
 
-void CMemoryManager::Load			(LPCSTR section)
+void CMemoryManager::Load			(const char* section)
 {
 	sound().Load		(section);
 	hit().Load			(section);
@@ -72,7 +72,7 @@ void CMemoryManager::reinit			()
 	danger().reinit		();
 }
 
-void CMemoryManager::reload			(LPCSTR section)
+void CMemoryManager::reload			(const char* section)
 {
 	visual().reload		(section);
 	sound().reload		(section);

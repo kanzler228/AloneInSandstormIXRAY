@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "fracture.h"
 #include "fracture_state_manager.h"
 #include "../monster_velocity_space.h"
@@ -16,7 +16,7 @@ CFracture::~CFracture()
 	xr_delete(StateMan);
 }
 
-void CFracture::Load(LPCSTR section)
+void CFracture::Load(const char* section)
 {
 	inherited::Load	(section);
 

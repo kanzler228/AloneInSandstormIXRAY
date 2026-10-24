@@ -27,7 +27,7 @@ CProjector::~CProjector()
 	glow_render.destroy		();
 }
 
-void CProjector::Load(LPCSTR section)
+void CProjector::Load(const char* section)
 {
 	inherited::Load(section);
 }
@@ -54,18 +54,18 @@ void  CProjector::BoneCallbackY(CBoneInstance *B)
 	B->mTransform.mulB_43(M);
 }
 
-BOOL CProjector::net_Spawn(CSE_Abstract* DC)
+bool CProjector::net_Spawn(CSE_Abstract* DC)
 {
 	CSE_Abstract				*e		= (CSE_Abstract*)(DC);
 	CSE_ALifeObjectProjector	*slight	= smart_cast<CSE_ALifeObjectProjector*>(e);
 	R_ASSERT				(slight);
 	
 	if (!inherited::net_Spawn(DC))
-		return			(FALSE);
+		return			(false);
 	
-	R_ASSERT				(Visual() && smart_cast<IKinematics*>(Visual()));
+	R_ASSERT				(Visual() && PKinematics(Visual()));
 
-	IKinematics* K			= smart_cast<IKinematics*>(Visual());
+	IKinematics* K			= PKinematics(Visual());
 	CInifile* pUserData		= K->LL_UserData(); 
 	R_ASSERT3				(pUserData,"Empty Projector user data!",slight->get_visual());
 	lanim					= LALib.FindItem(pUserData->r_string("projector_definition","color_animator"));
@@ -83,24 +83,24 @@ BOOL CProjector::net_Spawn(CSE_Abstract* DC)
 	glow_render->set_color	(clr);
 	glow_render->set_radius	(pUserData->r_float					("projector_definition","glow_radius"));
 
-	setVisible	(TRUE);
-	setEnabled	(TRUE);
+	setVisible	(true);
+	setEnabled	(true);
 
 	TurnOn		();
 	
 	//////////////////////////////////////////////////////////////////////////
-	CBoneInstance& b_x = smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(bone_x.id);	
+	CBoneInstance& b_x = PKinematics(Visual())->LL_GetBoneInstance(bone_x.id);
 	b_x.set_callback(bctCustom,BoneCallbackX,this);
 
-	CBoneInstance& b_y = smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(bone_y.id);	
+	CBoneInstance& b_y = PKinematics(Visual())->LL_GetBoneInstance(bone_y.id);
 	b_y.set_callback(bctCustom,BoneCallbackY,this);
 	
 	Direction().getHP(_current.yaw,_current.pitch);
 	_start = _target = _current;
 
 	//////////////////////////////////////////////////////////////////////////
-
-	return TRUE;
+	SpatialComponent->type |= ESPATIAL_TYPE::LIGHT_LAMP;
+	return true;
 }
 
 void CProjector::shedule_Update	(u32 dt)
@@ -116,11 +116,11 @@ void CProjector::TurnOn()
 	light_render->set_active(true);
 	glow_render->set_active (true);
 
-	IKinematics *visual = smart_cast<IKinematics*>(Visual());
+	IKinematics *visual = PKinematics(Visual());
 
-	visual->LL_SetBoneVisible			(guid_bone, TRUE, TRUE);
+	visual->LL_SetBoneVisible			(guid_bone, true, true);
 	visual->CalculateBones_Invalidate	();
-	visual->CalculateBones				(TRUE);
+	visual->CalculateBones				(true);
 }
 
 void CProjector::TurnOff()
@@ -130,7 +130,7 @@ void CProjector::TurnOff()
 	light_render->set_active(false);
 	glow_render->set_active (false);
 	
-	smart_cast<IKinematics*>(Visual())->LL_SetBoneVisible(guid_bone, FALSE, TRUE);
+	PKinematics(Visual())->LL_SetBoneVisible(guid_bone, false, true);
 }
 
 void CProjector::UpdateCL	()
@@ -152,7 +152,7 @@ void CProjector::UpdateCL	()
 			glow_render->set_color(fclr);
 		}
 
-		CBoneInstance& BI = smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(guid_bone);
+		CBoneInstance& BI = PKinematics(Visual())->LL_GetBoneInstance(guid_bone);
 		Fmatrix M;
 
 		M.mul(XFORM(),BI.mTransform);
@@ -175,9 +175,9 @@ void CProjector::renderable_Render()
 	inherited::renderable_Render	();
 }
 
-BOOL CProjector::UsedAI_Locations()
+bool CProjector::UsedAI_Locations()
 {
-	return					(FALSE);
+	return					(false);
 }
 
 bool CProjector::bfAssignWatch(CScriptEntityAction *tpEntityAction)

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "PHDynamicData.h"
 #include "Physics.h"
 #include "tri-colliderknoopc/dTriList.h"
@@ -37,7 +37,7 @@ const float base_fixed_step											=	0.02f				;
 const float base_erp												=	0.54545456f			;
 const float base_cfm												=	1.1363636e-006f		;
 //base params
-float 			fixed_step											=	0.01f;
+float 			fixed_step											=	.00666666667f; // 150hz
 float 			world_cfm											=	Cfm(Spring(base_cfm,base_erp,base_fixed_step), Damping(base_cfm,base_erp));
 float 			world_erp											=	Erp(Spring(base_cfm,base_erp,base_fixed_step), Damping(base_cfm,base_erp));
 float			world_spring										=	1.0f* Spring(world_cfm,world_erp);
@@ -142,7 +142,7 @@ IC static int CollideIntoGroup(dGeomID o1, dGeomID o2,dJointGroupID jointGroup,C
 		{
 #pragma warning(push)
 #pragma warning(disable:4245)
-			if(material_1->Flags.test(SGameMtl::flSlowDown)&&!(usr_data_2->pushing_neg||usr_data_2->pushing_b_neg))
+			if(usr_data_2 && material_1->Flags.test(SGameMtl::flSlowDown)&&!(usr_data_2->pushing_neg||usr_data_2->pushing_b_neg))
 #pragma warning(pop)
 			{
 				dBodyID body=dGeomGetBody(g2);
@@ -167,7 +167,7 @@ IC static int CollideIntoGroup(dGeomID o1, dGeomID o2,dJointGroupID jointGroup,C
 		{
 #pragma warning(push)
 #pragma warning(disable:4245)
-			if(material_2->Flags.test(SGameMtl::flSlowDown)&&!(usr_data_1->pushing_neg||usr_data_1->pushing_b_neg))
+			if(usr_data_1 && material_2->Flags.test(SGameMtl::flSlowDown)&&!(usr_data_1->pushing_neg||usr_data_1->pushing_b_neg))
 #pragma warning(pop)
 			{
 
@@ -194,8 +194,8 @@ IC static int CollideIntoGroup(dGeomID o1, dGeomID o2,dJointGroupID jointGroup,C
 		if(flags_1.test(SGameMtl::flBounceable)&&flags_2.test(SGameMtl::flBounceable))
 		{
 			surface.mode		|=	dContactBounce;
-			surface.bounce_vel	=	_max(material_1->fPHBounceStartVelocity,material_2->fPHBounceStartVelocity);
-			surface.bounce		=	_min(material_1->fPHBouncing,material_2->fPHBouncing);
+			surface.bounce_vel	= std::max(material_1->fPHBounceStartVelocity,material_2->fPHBounceStartVelocity);
+			surface.bounce		= std::min(material_1->fPHBouncing,material_2->fPHBouncing);
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		if(usr_data_2&&usr_data_2->object_callbacks){

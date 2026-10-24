@@ -53,7 +53,7 @@ file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_BTN_FILES
 )
 
 file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_LIST_FILES "Widgets/UIListBox*.*")
-file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_SCROLL_FILES "Widgets/UIScroll*.*" "Widgets/UIFixedScrollBar.*")
+file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_SCROLL_FILES "Widgets/UIScroll*.*")
 file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_TAB_FILES "Widgets/UITab*.*")
 file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_PROGRESS_FILES "Widgets/UIProgress*.*" "Widgets/UIDoubleProgressBar*.*")
 file(GLOB_RECURSE XRPU_SOURCE_ELEMENTS_OPTIONS_FILES "Widgets/UIOptions*.*")
@@ -97,7 +97,7 @@ target_include_directories(xrUI PUBLIC "${IXRAY_SDK_INC}")
 target_compile_definitions(xrUI PRIVATE XR_UI_EXPORTS)
 
 # Linker list
-target_link_libraries(xrUI PUBLIC xrAbstractions)
+target_link_libraries(xrUI PUBLIC xrEngineCore)
 target_link_libraries(xrUI PUBLIC xrScripts)
 
 # Move precompiled header

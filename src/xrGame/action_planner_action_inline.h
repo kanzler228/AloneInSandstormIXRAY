@@ -12,7 +12,7 @@
 #define CPlanner				CActionPlannerAction<_object_type>
 
 TEMPLATE_SPECIALIZATION
-IC	CPlanner::CActionPlannerAction	(_object_type *object, LPCSTR action_name) :
+IC	CPlanner::CActionPlannerAction	(_object_type *object, const char* action_name) :
 	inherited_action					(object,action_name)
 {
 }
@@ -66,20 +66,20 @@ void CPlanner::execute				()
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_condition	(_world_operator *action, _condition_type condition_id, _value_type condition_value)
+IC	void CPlanner::add_condition(_world_operator *action, u32 condition_id, bool condition_value)
 {
-	inherited_planner::add_condition	(action,condition_id,condition_value);
+	inherited_planner::add_condition(action,condition_id,condition_value);
 }
 
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::add_effect		(_world_operator *action, _condition_type condition_id, _value_type condition_value)
+IC	void CPlanner::add_effect(_world_operator *action, u32 condition_id, bool condition_value)
 {
-	inherited_planner::add_effect		(action,condition_id,condition_value);
+	inherited_planner::add_effect(action,condition_id,condition_value);
 }
 
 #ifdef LOG_ACTION
 TEMPLATE_SPECIALIZATION
-IC	void CPlanner::show				(LPCSTR offset)
+IC	void CPlanner::show				(const char* offset)
 {
 	inherited_action::show	(offset);
 	inherited_planner::show	(offset);

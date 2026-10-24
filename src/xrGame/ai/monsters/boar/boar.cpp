@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "boar.h"
 #include "boar_state_manager.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
@@ -22,7 +22,7 @@ CAI_Boar::~CAI_Boar()
 
 
 
-void CAI_Boar::Load(LPCSTR section)
+void CAI_Boar::Load(const char* section)
 {
 	inherited::Load	(section);
 
@@ -113,7 +113,6 @@ void CAI_Boar::Load(LPCSTR section)
 void CAI_Boar::reinit()
 {
 	inherited::reinit();
-	if(CCustomMonster::use_simplified_visual())	return;
 	com_man().add_rotation_jump_data("stand_jump_left_0",0,"stand_jump_right_0",0, PI - PI_DIV_6, SControlRotationJumpData::eStopAtOnce | SControlRotationJumpData::eRotateOnce);
 }
 
@@ -129,21 +128,21 @@ void  CAI_Boar::BoneCallback(CBoneInstance *B)
 	B->mTransform.mulB_43(M);
 }
 
-BOOL CAI_Boar::net_Spawn (CSE_Abstract* DC) 
+bool CAI_Boar::net_Spawn (CSE_Abstract* DC) 
 {
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 	
 	if(!PPhysicsShell())//нельзя ставить колбеки, если создан физ шел - у него стоят свои колбеки!!!
 	{
-		CBoneInstance& BI = smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(smart_cast<IKinematics*>(Visual())->LL_BoneID("bip01_head"));
+		CBoneInstance& BI = PKinematics(Visual())->LL_GetBoneInstance(PKinematics(Visual())->LL_BoneID("bip01_head"));
 		BI.set_callback(bctCustom,BoneCallback,this);
 	}
 	
 	_cur_delta		= _target_delta = 0.f;
 	_velocity		= PI;
 	look_at_enemy	= false;
-	return TRUE;
+	return true;
 }
 
 void CAI_Boar::CheckSpecParams(u32 spec_params)

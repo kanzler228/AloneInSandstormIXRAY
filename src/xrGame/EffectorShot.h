@@ -26,13 +26,15 @@ protected:
 	float           m_accumulated_time = 0.0f;
 
 
-	// ��������� �������
+	// Пружинная система
 	float			m_target_angle_vert;
 	float			m_target_angle_horz;
 	float			m_velocity_vert;
 	float			m_velocity_horz;
+	float			m_return_target_vert;      // позиция предпоследнего выстрела (куда возвращаемся)
+	float			m_return_target_horz;
 
-	// ���� ������������� ��������
+	// Флаг использования паттерна
 	bool			m_using_pattern; 
 
 	float			m_delta_vert;
@@ -42,7 +44,7 @@ protected:
 	bool			m_shot_end;
 
 	bool			m_actived;
-
+	bool			m_single_shot = false;
 
 private:
 	CRandom			m_Random;
@@ -61,6 +63,8 @@ public:
 
 	IC	bool	IsActive() { return m_actived; }
 	IC	void	StopShoting() { m_shot_end = true; }
+	IC	bool	IsSingleShot() { return m_single_shot; }
+	void	SetSingleShoot(bool Single) { m_single_shot = Single; };
 
 	void	Update();
 
@@ -92,7 +96,7 @@ public:
 	CCameraShotEffector();
 	virtual			~CCameraShotEffector();
 
-	virtual BOOL	ProcessCam(SCamEffectorInfo& info);
+	virtual bool	ProcessCam(SCamEffectorInfo& info);
 	virtual void	SetActor(CActor* pActor) { m_pActor = pActor; };
 
 	virtual CCameraShotEffector* cast_effector_shot() { return this; }

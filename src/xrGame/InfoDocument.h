@@ -9,15 +9,15 @@
 #include "inventory_item_object.h"
 #include "InfoPortionDefs.h"
 
-class CInfoDocument: public CInventoryItemObject {
+class CInfoDocument final : public CInventoryItemObject {
 private:
     typedef	CInventoryItemObject inherited;
 public:
 	CInfoDocument(void);
 	virtual ~CInfoDocument(void);
 
-	virtual BOOL net_Spawn			(CSE_Abstract* DC);
-	virtual void Load				(LPCSTR section);
+	virtual bool net_Spawn			(CSE_Abstract* DC);
+	virtual void Load				(const char* section);
 	virtual void net_Destroy		();
 	virtual void shedule_Update		(u32 dt);
 	virtual void UpdateCL			();

@@ -2,6 +2,7 @@
 
 #include "UICustomEdit.h"
 #include "UILines.h"
+#include "UIStatic.h"
 
 #include "../../xrEngine/line_edit_control.h"
 #include "../../xrEngine/xr_input.h"
@@ -23,6 +24,7 @@ CUICustomEdit::CUICustomEdit()
 	m_force_update = true;
 	m_last_key_state_time = 0;
 	m_next_focus_capturer = nullptr;
+	m_pPlaceholder = nullptr;
 }	
 
 
@@ -93,6 +95,30 @@ void CUICustomEdit::InitCustomEdit( Fvector2 pos, Fvector2 size )
 void CUICustomEdit::SetPasswordMode( bool mode )
 {
 	TextItemControl()->SetPasswordMode( mode );
+}
+
+void CUICustomEdit::SetPlaceholder( const char* stId, bool blink )
+{
+	if ( !stId || !stId[0] )
+		return;
+	if ( m_pPlaceholder )
+		return;
+	m_pPlaceholder = new CUIStatic();
+	m_pPlaceholder->SetAutoDelete( true );
+	AttachChild( m_pPlaceholder );
+	m_pPlaceholder->SetWndPos( Fvector2().set( 0, 0 ) );
+	m_pPlaceholder->SetWndSize( GetWndSize() );
+	m_pPlaceholder->TextureOff();
+	m_pPlaceholder->SetTextST( stId );
+	m_pPlaceholder->TextItemControl()->SetVTextAlignment( TextItemControl()->GetVTextAlignment() );
+	m_pPlaceholder->TextItemControl()->SetTextAlignment( TextItemControl()->GetTextAlignment() );
+	if ( TextItemControl()->GetFont() )
+		m_pPlaceholder->SetFont( TextItemControl()->GetFont() );
+	u32 color = TextItemControl()->GetTextColor();
+	m_pPlaceholder->SetTextColor( color );
+	if ( blink )
+		m_pPlaceholder->SetColorAnimation( "ui_slow_blinking_alpha", LA_CYCLIC | LA_ONLYALPHA | LA_TEXTCOLOR );
+	m_pPlaceholder->Show( xr_strlen( GetText() ) == 0 );
 }
 
 void CUICustomEdit::OnFocusLost()
@@ -171,6 +197,9 @@ void CUICustomEdit::Update()
 		m_last_key_state_time = Device.dwTimeGlobal;
 	}
 
+	if ( m_pPlaceholder )
+		m_pPlaceholder->Show( xr_strlen( GetText() ) == 0 );
+
 	inherited::Update();
 }
 
@@ -184,10 +213,10 @@ void  CUICustomEdit::Draw()
 	{
 		float ui_width   = GetWidth();
 
-		LPCSTR cursor_str   = ec().str_before_cursor();
+		const char* cursor_str   = ec().str_before_cursor();
 		u32 cursor_str_size = xr_strlen( cursor_str );
 
-		LPCSTR istr			= cursor_str;
+		const char* istr			= cursor_str;
 		float str_length	= font->SizeOf_( istr );
 		UI().ClientToScreenScaledWidth( str_length );
 
@@ -200,7 +229,7 @@ void  CUICustomEdit::Draw()
 			++ix;
 		}
 		istr				= cursor_str + ix;
-		LPCSTR astr			= ec().str_edit() + ix;
+		const char* astr			= ec().str_edit() + ix;
 		u32 str_size		= xr_strlen( ec().str_edit() );
 
 		u32 jx = 1;
@@ -254,6 +283,8 @@ void  CUICustomEdit::Draw()
 void CUICustomEdit::Show( bool status )
 {
 	m_force_update = true;
+	if ( m_pPlaceholder )
+		m_pPlaceholder->Show( status && xr_strlen( GetText() ) == 0 );
 	inherited::Show( status );
 }
 
@@ -262,12 +293,12 @@ void CUICustomEdit::ClearText()
 	ec().set_edit( "" );
 }
 
-void CUICustomEdit::SetText(LPCSTR str)
+void CUICustomEdit::SetText(const char* str)
 {
 	ec().set_edit( str );
 }
 
-LPCSTR CUICustomEdit::GetText() const
+const char* CUICustomEdit::GetText() const
 {
 	return ec().str_edit();
 }

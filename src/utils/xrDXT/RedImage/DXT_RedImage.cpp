@@ -1,10 +1,10 @@
 #include "StdAfx.h"
 
 #ifdef IXR_WINDOWS
-#include "../../Layers/xrRender/ETextureParams.h"
+#include "../../xrEngine/ETextureParams.h"
 #include <RedImage/RedImage.hpp>
 
-int DXTCompressImageRI(LPCSTR out_name, u8* raw_data, u32 w, u32 h, u32 pitch, STextureParams* fmt, u32 depth)
+int DXTCompressImageRI(const char* out_name, u8* raw_data, u32 w, u32 h, u32 pitch, STextureParams* fmt, u32 depth)
 {
     CTimer T;
     T.Start();

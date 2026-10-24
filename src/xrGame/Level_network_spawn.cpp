@@ -37,7 +37,7 @@ void CLevel::cl_Process_Spawn(NET_Packet& P)
 //-------------------------------------------------
 	//force object to be local for server client
 	if (OnServer())		{
-		E->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);
+		E->s_flags.set(M_SPAWN_OBJECT_LOCAL, true);
 	};
 
 	/*
@@ -50,7 +50,7 @@ void CLevel::cl_Process_Spawn(NET_Packet& P)
 	//*/
 };
 
-void CLevel::g_cl_Spawn		(LPCSTR name, u8 rp, u16 flags, Fvector pos)
+void CLevel::g_cl_Spawn		(const char* name, u8 rp, u16 flags, Fvector pos)
 {
 	// Create
 	CSE_Abstract*		E	= F_entity_Create(name);
@@ -70,15 +70,15 @@ void CLevel::g_cl_Spawn		(LPCSTR name, u8 rp, u16 flags, Fvector pos)
 
 	// Send
 	NET_Packet			P;
-	E->Spawn_Write		(P,TRUE);
-	Send				(P,net_flags(TRUE));
+	E->Spawn_Write		(P,true);
+	Send				(P,net_flags(true));
 
 	// Destroy
 	F_entity_Destroy	(E);
 }
 
 #ifdef DEBUG
-	extern Flags32				psAI_Flags;
+	extern Flags64				psAI_Flags;
 	extern float				debug_on_frame_gather_stats_frequency;
 #	include "ai_debug.h"
 #endif // DEBUG
@@ -93,8 +93,8 @@ void CLevel::g_sv_Spawn		(CSE_Abstract* E)
 #endif
 
 	// Optimization for single-player only	- minimize traffic between client and server
-	if	(GameID()	== eGameIDSingle)		psNET_Flags.set	(NETFLAG_MINIMIZEUPDATES,TRUE);
-	else								psNET_Flags.set	(NETFLAG_MINIMIZEUPDATES,FALSE);
+	if	(GameID()	== eGameIDSingle)		psNET_Flags.set	(NETFLAG_MINIMIZEUPDATES,true);
+	else								psNET_Flags.set	(NETFLAG_MINIMIZEUPDATES,false);
 
 	// Client spawn
 //	T.Start		();
@@ -174,7 +174,7 @@ void CLevel::g_sv_Spawn		(CSE_Abstract* E)
 	Game().OnSpawn(O);
 }
 
-CSE_Abstract *CLevel::spawn_item		(LPCSTR section, const Fvector &position, u32 level_vertex_id, u16 parent_id, bool return_item)
+CSE_Abstract *CLevel::spawn_item		(const char* section, const Fvector &position, u32 level_vertex_id, u16 parent_id, bool return_item)
 {
 	CSE_Abstract			*abstract = F_entity_Create(section);
 	R_ASSERT3				(abstract,"Cannot find item with section",section);
@@ -186,12 +186,12 @@ CSE_Abstract *CLevel::spawn_item		(LPCSTR section, const Fvector &position, u32 
 	}
 
 	//оружие спавним с полным магазинои
-	CSE_ALifeItemWeapon* weapon = smart_cast<CSE_ALifeItemWeapon*>(abstract);
+	CSE_ALifeItemWeapon* weapon = abstract->cast_item_weapon();
 	if(weapon)
-		weapon->a_elapsed	= weapon->get_ammo_magsize();
+		weapon->a_elapsed.MagazineElapsed	= weapon->get_ammo_magsize();
 	
 	// Fill
-	abstract->s_name.printf("%s", section);
+	abstract->s_name._set(section);
 	abstract->set_name_replace	(section);
 //.	abstract->s_gameid		= u8(GameID());
 	abstract->o_Position	= position;
@@ -204,8 +204,8 @@ CSE_Abstract *CLevel::spawn_item		(LPCSTR section, const Fvector &position, u32 
 
 	if (!return_item) {
 		NET_Packet				P;
-		abstract->Spawn_Write	(P,TRUE);
-		Send					(P,net_flags(TRUE));
+		abstract->Spawn_Write	(P,true);
+		Send					(P,net_flags(true));
 		F_entity_Destroy		(abstract);
 		return					(0);
 	}
@@ -213,7 +213,7 @@ CSE_Abstract *CLevel::spawn_item		(LPCSTR section, const Fvector &position, u32 
 		return				(abstract);
 }
 
-void CLevel::SpawnItem(LPCSTR section, const Fvector& position, u32 level_vertex_id, u16 parent_id) {
+void CLevel::SpawnItem(const char* section, const Fvector& position, u32 level_vertex_id, u16 parent_id) {
 	spawn_item(section, position, level_vertex_id, parent_id, false);
 }
 

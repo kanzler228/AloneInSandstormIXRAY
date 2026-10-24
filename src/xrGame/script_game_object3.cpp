@@ -19,7 +19,7 @@
 #include "stalker_animation_manager.h"
 #include "Weapon.h"
 #include "Inventory.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "patrol_path_manager.h"
 #include "memory_manager.h"
 #include "visual_memory_manager.h"
@@ -47,6 +47,9 @@
 #include "CustomOutfit.h"
 #include "player_hud.h"
 #include "../xrUI/ui_base.h"
+#include "../xrEngine/string_table.h"
+#include "ActorHelmet.h"
+#include "antigas.h"
 
 namespace MemorySpace {
 	struct CVisibleObject;
@@ -179,7 +182,7 @@ CScriptGameObject* CScriptGameObject::GetAttachedVehicle()
 	return GO->lua_game_object();
 }
 
-u32 CScriptGameObject::PlayHudMotion(LPCSTR M, bool bMixIn, u32 state)
+u32 CScriptGameObject::PlayHudMotion(const char* M, bool bMixIn, u8 state)
 {
 	if (CHudItem* itm = object().cast_hud_item())
 	{
@@ -214,7 +217,27 @@ u16 CScriptGameObject::AmmoBoxSize()
 	return 0;
 }
 
-bool CScriptGameObject::InstallUpgrade(LPCSTR upgrade)
+
+float CScriptGameObject::GetTotalTelepaticProtection()
+{
+	if (CActor* pActor = object().cast_actor())
+	{
+		float result = 0.0f;
+
+		if (PIItem Outfit = pActor->inventory().ItemFromSlot(OUTFIT_SLOT))
+			result += (pSettings->r_float(Outfit->m_section_id, "telepatic_protection") * Outfit->GetCondition());
+
+		if (PIItem Helmet = pActor->inventory().ItemFromSlot(HELMET_SLOT))
+			result += (pSettings->r_float(Helmet->m_section_id, "telepatic_protection") * Helmet->GetCondition());
+
+		return result;
+	}
+
+
+	return 0.0f;
+}
+
+bool CScriptGameObject::InstallUpgrade(const char* upgrade)
 {
 	if (CInventoryItem* item = object().cast_inventory_item())
 	{
@@ -234,7 +257,7 @@ bool CScriptGameObject::InstallUpgrade(LPCSTR upgrade)
 	return false;
 }
 
-bool CScriptGameObject::HasUpgrade(LPCSTR upgrade)
+bool CScriptGameObject::HasUpgrade(const char* upgrade)
 {
 	if (CInventoryItem* item = object().cast_inventory_item())
 	{
@@ -262,7 +285,7 @@ u16 CScriptGameObject::AmmoGetCount()
 	return 0;
 }
 
-void CScriptGameObject::SwitchState(u32 state)
+void CScriptGameObject::SwitchState(u8 state)
 {
 	if (CHudItem* itm = object().cast_hud_item())
 	{
@@ -274,7 +297,7 @@ void CScriptGameObject::SwitchState(u32 state)
 	}
 }
 
-u32 CScriptGameObject::GetState()
+u8 CScriptGameObject::GetState()
 {
 	if (CHudItem* itm = object().cast_hud_item())
 	{
@@ -282,7 +305,7 @@ u32 CScriptGameObject::GetState()
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CGameObject : cannot be cast to CHudItem!");
-	return 65535;
+	return 255;
 }
 
 bool CScriptGameObject::ActorIsJump() const
@@ -330,7 +353,7 @@ const CCoverPoint *CScriptGameObject::safe_cover(const Fvector &position, float 
 
 const xr_vector<MemorySpace::CVisibleObject>& CScriptGameObject::memory_visible_objects() const
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->memory().visual().objects();
 	}
@@ -344,7 +367,7 @@ const xr_vector<MemorySpace::CVisibleObject>& CScriptGameObject::memory_visible_
 
 const xr_vector<MemorySpace::CSoundObject>& CScriptGameObject::memory_sound_objects() const
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->memory().sound().objects();
 	}
@@ -358,7 +381,7 @@ const xr_vector<MemorySpace::CSoundObject>& CScriptGameObject::memory_sound_obje
 
 const xr_vector<MemorySpace::CHitObject>& CScriptGameObject::memory_hit_objects() const
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->memory().hit().objects();
 	}
@@ -372,31 +395,31 @@ const xr_vector<MemorySpace::CHitObject>& CScriptGameObject::memory_hit_objects(
 
 void CScriptGameObject::ChangeTeam(u8 team, u8 squad, u8 group)
 {
-	if (CCustomMonster* custom_monster = object().cast_custom_monster())
+	if (CCreature* custom_monster = object().cast_creature())
 	{
 		custom_monster->ChangeTeam(team, squad, group);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster: cannot access class member ChangeTeam!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature: cannot access class member ChangeTeam!");
 	}
 }
 
 void CScriptGameObject::SetVisualMemoryEnabled(bool enabled)
 {
-	if (CCustomMonster* custom_monster = object().cast_custom_monster())
+	if (CCreature* custom_monster = object().cast_creature())
 	{
 		custom_monster->memory().visual().enable(enabled);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster: cannot access class member SetVisualMemoryEnabled!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature: cannot access class member SetVisualMemoryEnabled!");
 	}
 }
 
 CScriptGameObject *CScriptGameObject::GetEnemy() const
 {
-	if (CCustomMonster* l_tpCustomMonster = object().cast_custom_monster())
+	if (CCreature* l_tpCustomMonster = object().cast_creature())
 	{
 		CEntity* current_enemy = l_tpCustomMonster->GetCurrentEnemy();
 		if (l_tpCustomMonster->g_Alive() && current_enemy != nullptr && !current_enemy->getDestroy())
@@ -411,7 +434,7 @@ CScriptGameObject *CScriptGameObject::GetEnemy() const
 
 CScriptGameObject *CScriptGameObject::GetCorpse() const
 {
-	if (CCustomMonster* l_tpCustomMonster = object().cast_custom_monster())
+	if (CCreature* l_tpCustomMonster = object().cast_creature())
 	{
 		CEntity* current_corpse = l_tpCustomMonster->GetCurrentCorpse();
 		if (l_tpCustomMonster->g_Alive() && current_corpse != nullptr && !current_corpse->getDestroy())
@@ -426,7 +449,7 @@ CScriptGameObject *CScriptGameObject::GetCorpse() const
 
 bool CScriptGameObject::CheckTypeVisibility(const char *section_name)
 {
-	if (CCustomMonster* l_tpCustomMonster = object().cast_custom_monster())
+	if (CCreature* l_tpCustomMonster = object().cast_creature())
 	{
 		return l_tpCustomMonster->CheckTypeVisibility(section_name);
 	}
@@ -568,7 +591,7 @@ CScriptGameObject *CScriptGameObject::GetMedikit() const
 	return 0;
 }
 
-LPCSTR CScriptGameObject::GetPatrolPathName()
+const char* CScriptGameObject::GetPatrolPathName()
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -583,7 +606,7 @@ LPCSTR CScriptGameObject::GetPatrolPathName()
 	return "";
 }
 
-void CScriptGameObject::add_animation(LPCSTR animation, bool hand_usage, bool use_movement_controller)
+void CScriptGameObject::add_animation(const char* animation, bool hand_usage, bool use_movement_controller)
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -609,7 +632,7 @@ void CScriptGameObject::add_animation(LPCSTR animation, bool hand_usage, bool us
 
 }
 
-void CScriptGameObject::add_animation(LPCSTR animation, bool hand_usage, Fvector position, Fvector rotation, bool local_animation)
+void CScriptGameObject::add_animation(const char* animation, bool hand_usage, Fvector position, Fvector rotation, bool local_animation)
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -673,7 +696,7 @@ void CScriptGameObject::set_actor_relation_flags(Flags32 flags)
 	stalker->m_actor_relation_flags = flags;
 }
 
-void CScriptGameObject::set_patrol_path(LPCSTR path_name, const PatrolPathManager::EPatrolStartType patrol_start_type, const PatrolPathManager::EPatrolRouteType patrol_route_type, bool random)
+void CScriptGameObject::set_patrol_path(const char* path_name, const PatrolPathManager::EPatrolStartType patrol_start_type, const PatrolPathManager::EPatrolRouteType patrol_route_type, bool random)
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -814,7 +837,7 @@ void CScriptGameObject::set_movement_selection_type(ESelectionType selection_typ
 	}
 }
 
-CHARACTER_RANK_VALUE CScriptGameObject::GetRank()
+s32 CScriptGameObject::GetRank()
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
@@ -822,7 +845,7 @@ CHARACTER_RANK_VALUE CScriptGameObject::GetRank()
 	}
 
 	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CAI_Stalker : cannot access class member GetRank!");
-	return CHARACTER_RANK_VALUE(0);
+	return s32(0);
 }
 
 void CScriptGameObject::set_desired_position()
@@ -1056,7 +1079,7 @@ void CScriptGameObject::set_sight(SightManager::ESightType sight_type, Fvector* 
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
-		if ((sight_type == SightManager::eSightTypeDirection) && vector3d && (_abs(vector3d->magnitude() - 1.f) > .01f))
+		if ((sight_type == SightManager::eSightTypeDirection) && vector3d && (std::abs(vector3d->magnitude() - 1.f) > .01f))
 		{
 			VERIFY2(false, make_string<const char*>("non-normalized direction passed [%f][%f][%f]", VPUSH(*vector3d)));
 			vector3d->normalize();
@@ -1086,7 +1109,7 @@ void CScriptGameObject::set_sight(SightManager::ESightType sight_type, Fvector& 
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
-		if ((sight_type == SightManager::eSightTypeDirection) && (_abs(vector3d.magnitude() - 1.f) > .01f))
+		if ((sight_type == SightManager::eSightTypeDirection) && (std::abs(vector3d.magnitude() - 1.f) > .01f))
 		{
 			VERIFY2(false, make_string<const char*>("non-normalized direction passed [%f][%f][%f]", VPUSH(vector3d)));
 			vector3d.normalize();
@@ -1104,7 +1127,7 @@ void CScriptGameObject::set_sight(SightManager::ESightType sight_type, Fvector* 
 {
 	if (CAI_Stalker* stalker = object().cast_stalker())
 	{
-		if ((sight_type == SightManager::eSightTypeDirection) && vector3d && (_abs(vector3d->magnitude() - 1.f) > .01f))
+		if ((sight_type == SightManager::eSightTypeDirection) && vector3d && (std::abs(vector3d->magnitude() - 1.f) > .01f))
 		{
 			VERIFY2(false, make_string<const char*>("non-normalized direction passed [%f][%f][%f]", VPUSH(*vector3d)));
 			vector3d->normalize();
@@ -1212,7 +1235,7 @@ CScriptGameObject* CScriptGameObject::GetActiveItem()
 	return 0;
 }
 
-CScriptGameObject* CScriptGameObject::GetObjectByName(LPCSTR caObjectName) const
+CScriptGameObject* CScriptGameObject::GetObjectByName(const char* caObjectName) const
 {
 	if (CInventoryOwner* l_tpInventoryOwner = object().cast_inventory_owner())
 	{
@@ -1256,7 +1279,7 @@ CScriptGameObject* CScriptGameObject::GetObjectByIndex(int iIndex) const
 
 void CScriptGameObject::EnableAnomaly()
 {
-	CCustomZone* zone = object().cast_custom_zone();
+	CAnomalyZone* zone = object().cast_anomaly_zone();
 	THROW(zone);
 
 	zone->ZoneEnable();
@@ -1264,7 +1287,7 @@ void CScriptGameObject::EnableAnomaly()
 
 void CScriptGameObject::DisableAnomaly()
 {
-	CCustomZone* zone = object().cast_custom_zone();
+	CAnomalyZone* zone = object().cast_anomaly_zone();
 	THROW(zone);
 
 	zone->ZoneDisable();
@@ -1272,7 +1295,7 @@ void CScriptGameObject::DisableAnomaly()
 
 float CScriptGameObject::GetAnomalyPower()
 {
-	CCustomZone* zone = object().cast_custom_zone();
+	CAnomalyZone* zone = object().cast_anomaly_zone();
 	THROW(zone);
 
 	return zone->GetMaxPower();
@@ -1280,7 +1303,7 @@ float CScriptGameObject::GetAnomalyPower()
 
 void CScriptGameObject::SetAnomalyPower(float p)
 {
-	CCustomZone* zone = object().cast_custom_zone();
+	CAnomalyZone* zone = object().cast_anomaly_zone();
 	THROW(zone);
 
 	zone->SetMaxPower(p);
@@ -1310,7 +1333,7 @@ bool CScriptGameObject::weapon_unstrapped() const
 
 bool CScriptGameObject::path_completed() const
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		return monster->movement().path_completed();
 	}
@@ -1321,7 +1344,7 @@ bool CScriptGameObject::path_completed() const
 
 void CScriptGameObject::patrol_path_make_inactual()
 {
-	if (CCustomMonster* monster = object().cast_custom_monster())
+	if (CCreature* monster = object().cast_creature())
 	{
 		monster->movement().patrol().make_inactual();
 	}
@@ -1343,7 +1366,7 @@ Fvector	CScriptGameObject::head_orientation() const
 	return Fvector().set(flt_max, flt_max, flt_max);
 }
 
-void CScriptGameObject::info_add(LPCSTR text)
+void CScriptGameObject::info_add(const char* text)
 {
 	if (g_dedicated_server)
 	{
@@ -1360,7 +1383,7 @@ void CScriptGameObject::info_clear()
 	if (g_dedicated_server)
 	{
 		return;
-}
+	}
 
 #ifdef DEBUG
 	DBG().object_info(&object(),this).clear();
@@ -1398,7 +1421,7 @@ void CScriptGameObject::make_object_visible_somewhen(CScriptGameObject* object)
 	}
 }
 
-void CScriptGameObject::sell_condition(CScriptIniFile* ini_file, LPCSTR section)
+void CScriptGameObject::sell_condition(CScriptIniFile* ini_file, const char* section)
 {
 	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
 	{
@@ -1422,7 +1445,7 @@ void CScriptGameObject::sell_condition(float friend_factor, float enemy_factor)
 	}
 }
 
-void CScriptGameObject::buy_condition(CScriptIniFile* ini_file, LPCSTR section)
+void CScriptGameObject::buy_condition(CScriptIniFile* ini_file, const char* section)
 {
 	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
 	{
@@ -1446,7 +1469,7 @@ void CScriptGameObject::buy_condition(float friend_factor, float enemy_factor)
 	}
 }
 
-void CScriptGameObject::show_condition(CScriptIniFile* ini_file, LPCSTR section)
+void CScriptGameObject::show_condition(CScriptIniFile* ini_file, const char* section)
 {
 	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
 	{
@@ -1458,7 +1481,7 @@ void CScriptGameObject::show_condition(CScriptIniFile* ini_file, LPCSTR section)
 	}
 }
 
-void CScriptGameObject::buy_supplies(CScriptIniFile* ini_file, LPCSTR section)
+void CScriptGameObject::buy_supplies(CScriptIniFile* ini_file, const char* section)
 {
 	if (CInventoryOwner* inventory_owner = object().cast_inventory_owner())
 	{
@@ -1482,7 +1505,7 @@ void CScriptGameObject::buy_item_condition_factor(float factor)
 	}
 }
 
-void sell_condition(CScriptIniFile* ini_file, LPCSTR section)
+void sell_condition(CScriptIniFile* ini_file, const char* section)
 {
 	default_trade_parameters().process(CTradeParameters::action_sell(0), *ini_file, section);
 }
@@ -1492,7 +1515,7 @@ void sell_condition(float friend_factor, float enemy_factor)
 	default_trade_parameters().default_factors(CTradeParameters::action_sell(0), CTradeFactors(friend_factor, enemy_factor));
 }
 
-void buy_condition(CScriptIniFile* ini_file, LPCSTR section)
+void buy_condition(CScriptIniFile* ini_file, const char* section)
 {
 	default_trade_parameters().process(CTradeParameters::action_buy(0), *ini_file, section);
 }
@@ -1502,31 +1525,31 @@ void buy_condition(float friend_factor, float enemy_factor)
 	default_trade_parameters().default_factors(CTradeParameters::action_buy(0), CTradeFactors(friend_factor, enemy_factor));
 }
 
-void show_condition(CScriptIniFile* ini_file, LPCSTR section)
+void show_condition(CScriptIniFile* ini_file, const char* section)
 {
 	default_trade_parameters().process(CTradeParameters::action_show(0), *ini_file, section);
 }
 
-LPCSTR CScriptGameObject::sound_prefix() const
+const char* CScriptGameObject::sound_prefix() const
 {
-	if (CCustomMonster* custom_monster = object().cast_custom_monster())
+	if (CCreature* custom_monster = object().cast_creature())
 	{
 		return *custom_monster->sound().sound_prefix();
 	}
 
-	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member sound_prefix!");
+	ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member sound_prefix!");
 	return 0;
 }
 
-void CScriptGameObject::sound_prefix(LPCSTR sound_prefix)
+void CScriptGameObject::sound_prefix(const char* sound_prefix)
 {
-	if (CCustomMonster* custom_monster = object().cast_custom_monster())
+	if (CCreature* custom_monster = object().cast_creature())
 	{
 		custom_monster->sound().sound_prefix(sound_prefix);
 	}
 	else
 	{
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCustomMonster : cannot access class member sound_prefix!");
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "CCreature : cannot access class member sound_prefix!");
 	}
 }
 
@@ -1555,6 +1578,28 @@ float CScriptGameObject::GetArtefactHealthRestoreSpeed()
 	return artefact->GetHealthPower();
 }
 
+bool CScriptGameObject::SetEntityIgnoredByMonstersState(bool flag)
+{
+	if (CEntityAlive* entity = object().cast_entity_alive())
+	{
+		entity->m_bEntityIgnoredByMonsters = flag;
+
+		return true;
+	}
+	
+	return false;
+}
+
+bool CScriptGameObject::GetEntityIgnoredByMonstersState()
+{
+	if (CEntityAlive* entity = object().cast_entity_alive())
+	{
+		return entity->m_bEntityIgnoredByMonsters;
+	}
+
+	return false;
+}
+
 float CScriptGameObject::GetArtefactRadiationRestoreSpeed()
 {
 	CArtefact* artefact = object().cast_artefact();
@@ -1577,6 +1622,30 @@ float CScriptGameObject::GetArtefactThirstRestoreSpeed()
 	THROW(artefact);
 
 	return artefact->GetThirstPower();
+}
+
+float CScriptGameObject::GetArtefactSleepinessRestoreSpeed()
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	return artefact->GetSleepinessPower();
+}
+
+float CScriptGameObject::GetArtefactEquipmentDurabilityModifier()
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	return artefact->GetEquipmentDurabilityModifier();
+}
+
+float CScriptGameObject::GetArtefactInventoryWeightModifier()
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	return artefact->GetInventoryWeightModifier();
 }
 
 float CScriptGameObject::GetArtefactPowerRestoreSpeed()
@@ -1627,6 +1696,30 @@ void CScriptGameObject::SetArtefactThirstRestoreSpeed(float value)
 	artefact->SetThirstPower(value);
 }
 
+void CScriptGameObject::SetArtefactSleepinessRestoreSpeed(float value)
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	artefact->SetSleepinessPower(value);
+}
+
+void CScriptGameObject::SetArtefactEquipmentDurabilityModifier(float value)
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	artefact->SetEquipmentDurabilityModifier(value);
+}
+
+void CScriptGameObject::SetArtefactInventoryWeightModifier(float value)
+{
+	CArtefact* artefact = object().cast_artefact();
+	THROW(artefact);
+
+	artefact->SetInventoryWeightModifier(value);
+}
+
 void CScriptGameObject::SetArtefactPowerRestoreSpeed(float value)
 {
 	CArtefact* artefact = object().cast_artefact();
@@ -1653,19 +1746,19 @@ bool CScriptGameObject::WeaponInGrenadeMode()
 	return false;
 }
 
-void CScriptGameObject::SetBoneVisible(LPCSTR bone_name, bool bVisibility, bool bRecursive)
+void CScriptGameObject::SetBoneVisible(const char* bone_name, bool bVisibility, bool bRecursive)
 {
 	if (IKinematics* k = PKinematics(object().Visual()))
 	{
 		u16 bone_id = k->LL_BoneID(bone_name);
-		if (bone_id != BI_NONE && k->LL_GetBoneVisible(bone_id) != (BOOL)bVisibility)
+		if (bone_id != BI_NONE && k->LL_GetBoneVisible(bone_id) != (bool)bVisibility)
 		{
 			k->LL_SetBoneVisible(bone_id, bVisibility, bRecursive);
 		}
 	}
 }
 
-bool CScriptGameObject::IsBoneVisible(LPCSTR bone_name)
+bool CScriptGameObject::IsBoneVisible(const char* bone_name)
 {
 	if (IKinematics* k = PKinematics(object().Visual()))
 	{
@@ -1675,7 +1768,7 @@ bool CScriptGameObject::IsBoneVisible(LPCSTR bone_name)
 			return false;
 		}
 
-		return k->LL_GetBoneVisible(bone_id) == TRUE ? true : false;
+		return k->LL_GetBoneVisible(bone_id) == true ? true : false;
 	}
 
 	return false;
@@ -1727,7 +1820,7 @@ void CScriptGameObject::ForceSetPosition(Fvector pos, bool bActivate)
 	}
 }								 
 
-LPCSTR CScriptGameObject::bones_protection_sect()
+const char* CScriptGameObject::bones_protection_sect()
 {
 	if (IKinematics* pKinematics = PKinematics(object().Visual()))
 	{
@@ -1748,14 +1841,14 @@ void CScriptGameObject::RemoveDanger(const CDangerObject& dobject)
 	}
 }
 
-void CScriptGameObject::SetSpatialType(u32 sptype)
+void CScriptGameObject::SetSpatialType(u64 sptype)
 {
-	object().SpatialComponent->spatial.type = sptype;
+	object().SpatialComponent->type = (ESPATIAL_TYPE)sptype;
 }
 
-u32 CScriptGameObject::GetSpatialType()
+u64 CScriptGameObject::GetSpatialType()
 {
-	return object().SpatialComponent->spatial.type;
+	return (u64)object().SpatialComponent->type;
 }
 
 u8 CScriptGameObject::GetRestrictionType()
@@ -1809,13 +1902,16 @@ const bool CScriptGameObject::getMechanic() const
 
 void CScriptGameObject::SetHeadRotate(bool value)
 {
-	if (CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object()))
+	if (CInventoryOwner* pInventoryOwner = object().cast_inventory_owner())
+	{
 		pInventoryOwner->SetHeadRotate(value);
+	}
 }
 
-void CScriptGameObject::SetSubIconText(LPCSTR m_custom_text, int m_custom_text_clr_inv, LPCSTR item_custom_text_font, Fvector2 m_custom_text_offset)
+void CScriptGameObject::SetSubIconText(const char* m_custom_text, int m_custom_text_clr_inv, const char* item_custom_text_font, Fvector2 m_custom_text_offset)
 {
-	if (CInventoryItem* iitem = this->object().cast_inventory_item()) {
+	if (CInventoryItem* iitem = this->object().cast_inventory_item())
+	{
 		iitem->m_custom_text = m_custom_text;
 		iitem->m_custom_text_clr_inv = m_custom_text_clr_inv;
 		iitem->m_custom_text_font = UI().Font().GetFont(item_custom_text_font);
@@ -1823,13 +1919,206 @@ void CScriptGameObject::SetSubIconText(LPCSTR m_custom_text, int m_custom_text_c
 	}
 }
 
-void CScriptGameObject::SetSubIcon(bool m_custom_mark, Fvector2 m_custom_mark_offset, Fvector2 m_custom_mark_size, LPCSTR m_custom_mark_texture, int m_custom_mark_clr)
+void CScriptGameObject::SetSubIcon(bool m_custom_mark, Fvector2 m_custom_mark_offset, Fvector2 m_custom_mark_size, const char* m_custom_mark_texture, int m_custom_mark_clr)
 {
-	if (CInventoryItem* iitem = this->object().cast_inventory_item()) {
+	if (CInventoryItem* iitem = this->object().cast_inventory_item())
+	{
 		iitem->m_custom_mark = m_custom_mark;
 		iitem->m_custom_mark_offset = m_custom_mark_offset;
 		iitem->m_custom_mark_size = m_custom_mark_size;
 		iitem->m_custom_mark_texture = m_custom_mark_texture;
 		iitem->m_custom_mark_clr = m_custom_mark_clr;
 	}
+}
+
+
+// FFx0001 ++
+bool CScriptGameObject::IsWorldObjectBoneVisible(const char* boneName)
+{
+	IKinematics* KI = PKinematics(object().Visual());
+	if (!KI) {
+		return false;
+	}
+
+	u16 boneId = KI->LL_BoneID(boneName);
+	if (boneId == BI_NONE) {
+		return false;
+	}
+
+	return KI->LL_GetBoneVisible(boneId);
+}
+
+// FFx0001 ++
+bool CScriptGameObject::IsHudObjectBoneVisible(const char* boneName)
+{
+	CHudItem* HI = object().cast_hud_item();
+	if (!HI || !HI->HudItemData()) {
+		return false;
+	}
+
+	IKinematics* KI = HI->HudItemData()->m_model;
+	if (!KI)
+	{
+		return false;
+	}
+
+	u16 boneId = KI->LL_BoneID(boneName);
+	if (boneId == BI_NONE)
+	{
+		return false;
+	}
+
+	return KI->LL_GetBoneVisible(boneId);
+}
+
+//FFx0001 ++
+bool CScriptGameObject::SetHudObjectBoneVisibility(const char* boneName, bool bVisibility)
+{
+	CHudItem* HI = object().cast_hud_item();
+	if (!HI || !HI->HudItemData()) {
+		return false;
+	}
+
+	IKinematics* KI = HI->HudItemData()->m_model;
+	if (!KI)
+	{
+		return false;
+	}
+
+	u16 boneId = KI->LL_BoneID(boneName);
+	if (boneId == BI_NONE)
+	{
+		return false;
+	}
+
+	if ((bool)KI->LL_GetBoneVisible(boneId) != bVisibility)
+	{
+		KI->CalculateBones(true);
+		KI->LL_SetBoneVisible(boneId, bVisibility, true);
+		KI->CalculateBones(true);
+		return true;
+	}
+	
+	return false;
+}
+
+// FFx0001 ++
+bool CScriptGameObject::SetWorldObjectBoneVisibility(const char* boneName, bool bVisibility)
+{
+	IKinematics* KI = PKinematics(object().Visual());
+	if (!KI)
+	{
+		return false;
+	}
+
+	u16 boneId = KI->LL_BoneID(boneName);
+	if (boneId == BI_NONE)
+	{
+		return false;
+	}
+
+	if ((bool)KI->LL_GetBoneVisible(boneId) != bVisibility)
+	{
+		KI->CalculateBones(true);
+		KI->LL_SetBoneVisible(boneId, bVisibility, true);
+		KI->CalculateBones(true);
+		
+		return true;
+	}
+	
+	return false;
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorSleepiness(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorSleepiness(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorSatiety(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorSatiety(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorThirst(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorThirst(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorHealth(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorHealth(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorPower(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorPower(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorRadiation(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorRadiation(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorPsyHealth(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorPsyHealth(value);
+	}
+}
+
+// FFx0001 ++
+void CScriptGameObject::SetActorMorale(float value)
+{
+	if (CActor* obj = g_actor)
+	{
+		obj->SetActorMorale(value);
+	}
+}
+
+// FFx0001 ++
+bool CScriptGameObject::InstallAntigasFilter(CScriptGameObject* antigas_filter_lua_game_object)
+{
+	if (IAntigas* antigas = smart_cast<IAntigas*>(object().cast_inventory_item()))
+	{
+		return antigas->InstallFilter(antigas_filter_lua_game_object->cast_InventoryItem());
+	}
+
+	return false;
+}
+
+// FFx0001 ++
+bool CScriptGameObject::UnInstallAntigasFilter()
+{
+	if (IAntigas* antigas = smart_cast<IAntigas*>(object().cast_inventory_item()))
+	{
+		return antigas->UninstallFilter();
+	}
+
+	return false;
 }

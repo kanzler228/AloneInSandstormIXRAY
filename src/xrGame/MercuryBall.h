@@ -7,7 +7,7 @@
 #pragma once
 #include "Artefact.h"
 
-class CMercuryBall : public CArtefact 
+class CMercuryBall final : public CArtefact 
 {
 private:
 	typedef CArtefact inherited;
@@ -15,7 +15,7 @@ public:
 	CMercuryBall(void);
 	virtual ~CMercuryBall(void);
 
-	virtual void Load				(LPCSTR section);
+	virtual void Load				(const char* section);
 protected:
 	virtual void	UpdateCLChild	();
 
@@ -51,6 +51,6 @@ public:
 	virtual void OnH_B_Independent(bool just_before_destroy);
 
 	
-	virtual BOOL			net_Spawn			(CSE_Abstract* DC);
+	virtual bool			net_Spawn			(CSE_Abstract* DC);
 };
 */

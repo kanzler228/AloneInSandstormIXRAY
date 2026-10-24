@@ -11,12 +11,13 @@
 
 class CUIStaticItem;
 #include "ui_defs.h"
+#include "../../Include/xrRender/SVGTypes.h"
 
 struct TEX_INFO{
 	shared_str	file;
 	Frect		rect;
-	LPCSTR		get_file_name	()	{return *file;}
-	Frect		get_rect		()	{return rect;}
+	const char*		get_file_name	() const	{return *file;}
+	Frect		get_rect		() const	{return rect;}
 };
 
 struct sh_pair{
@@ -34,18 +35,23 @@ struct sh_pair{
 class UI_API CUITextureMaster{
 public:
 
-	static void ParseShTexInfo			(LPCSTR xml_file);
+	static void ParseShTexInfo			(const char* xml_file);
+	static void ParseShTexInfoLegacy	(const char* xml_file); // for SoC
 	static void FreeTexInfo				();
 	static void FreeCachedShaders		();
 
 	static bool		InitTexture			(const shared_str& texture_name, CUIStaticItem* tc, const shared_str& shader_name ="hud\\default", bool warn_about_missing_tex = true);
+	static bool InitTexture(const shared_str& svg_texture_name, CUIStaticItem* tc, float fWidgetWidth, float fWidgetHeight, SVGTintRGBA svgTint = {});
 	static bool		InitTexture			(const shared_str& texture_name, const shared_str& shader_name, ui_shader& out_shader, Frect& out_rect, bool warn_about_missing_tex = true);
 	static float	GetTextureHeight	(const shared_str&  texture_name);
 	static float	GetTextureWidth		(const shared_str&  texture_name);
 	static Frect	GetTextureRect		(const shared_str&  texture_name);
+	static const char*	GetTextureFileName	(const char* texture_name);
 	static void		GetTextureShader	(const shared_str&  texture_name, ui_shader& sh);
 	static TEX_INFO	FindItem			(const shared_str&  texture_name);
 	static bool		ItemExist			(const shared_str&	texture_name);
+	static ui_shader CreateTextureShader	(const shared_str& texture_name, const shared_str& shader_name);
+
 protected:
 	IC	static bool IsSh				(const shared_str& texture_name);
 

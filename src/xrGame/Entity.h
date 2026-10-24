@@ -1,26 +1,23 @@
 #pragma once
-
-
 #include "PhysicsShellHolder.h"
 #include "damage_manager.h"
 #include "EntityCondition.h"
+
 // refs
-class	ENGINE_API CCameraBase;
-class	ENGINE_API C3DSound;
-class	ENGINE_API CMotionDef;
-class	ENGINE_API IKinematics;
-class	ENGINE_API CBoneInstance;
-class	CWeaponList;
-class   CPHMovementControl;
-class	CHudItem;
+class ENGINE_API CCameraBase;
+class ENGINE_API CMotionDef;
+class IKinematics;
+class CBoneInstance;
+class CWeaponList;
+class CPHMovementControl;
+class CHudItem;
 class CActor;
 class CAI_Stalker;
 class CEntityAlive;
 class CInventoryOwner;
 
-class CEntity : 
-		public CPhysicsShellHolder,
-		public CDamageManager
+class CEntity :
+	public CPhysicsShellHolder
 {
 	friend class CEntityCondition;
 private:
@@ -71,23 +68,20 @@ public:
 public:
 
 	// Core events
-	virtual void			Load				(LPCSTR section);
+	virtual void			Load				(const char* section);
 	virtual void			reinit				();
-	virtual void			reload				(LPCSTR section);
-	virtual BOOL			net_Spawn			(CSE_Abstract* DC);
+	virtual void			reload				(const char* section);
+	virtual bool			net_Spawn			(CSE_Abstract* DC);
 	virtual void			net_Destroy			();
 	
 	virtual void			shedule_Update		(u32 dt);
-
-	bool					IsFocused			()const;
-	bool					IsMyCamera			()const;
 
 //	virtual float			g_Health			()const	{ return GetfHealth();}
 /*	virtual*/ IC float			GetMaxHealth		()const	{ return m_entity_condition->max_health();	}
 /*	virtual*/ IC void			SetMaxHealth		(float v)	{ m_entity_condition->max_health()=v;}
 
-	/*virtual*/ IC BOOL		g_Alive				()const	{ return GetfHealth()>0; }
-	virtual BOOL			g_State				(SEntityState&) const	{return FALSE;}
+	/*virtual*/ IC bool		g_Alive				()const	{ return GetfHealth()>0; }
+	virtual bool			g_State				(SEntityState&) const	{return false;}
 	
 			bool			AlreadyDie			()			{return  0!=GetLevelDeathTime()?true:false;}
 			ALife::_TIME_ID	GetGameDeathTime	()const		{return m_game_death_time;}
@@ -114,7 +108,6 @@ public:
 	// Events
 	virtual void			OnEvent				( NET_Packet& P, u16 type		);
 
-	virtual BOOL			IsVisibleForHUD		()	{return g_Alive();	}
 	virtual void			g_fireParams		(const CHudItem*, Fvector &, Fvector &){}; 
 	virtual bool			g_stateFire			() {return true;}
 	//time of entity death
@@ -129,7 +122,6 @@ private:
 
 public:
 	IC		u16				killer_id				() const {return m_killer_id;};
-	virtual	bool			use_simplified_visual	() const {return false;};
 
 public:
 	virtual	void			on_before_change_team	();

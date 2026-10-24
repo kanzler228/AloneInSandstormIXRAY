@@ -184,7 +184,7 @@ public:
     IC void				AppendValue		(PropValue* value)
     {
     	if (!values.empty()&&!value->Equal(values.front()))
-        	m_Flags.set	(flMixed,TRUE);
+        	m_Flags.set	(flMixed,true);
     	values.push_back(value);
     }
     IC xr_string		GetDrawText		()
@@ -198,13 +198,13 @@ public:
     }
 	IC void				CheckMixed		()
     {
-		m_Flags.set		(flMixed,FALSE);
+		m_Flags.set		(flMixed,false);
         if (values.size()>1){
             PropValueIt F	= values.begin();
         	PropValueIt it	= F; ++it;
 	    	for (; values.end() != it; ++it){
     	    	if (!(*it)->Equal(*F)){
-                	m_Flags.set(flMixed,TRUE);
+                	m_Flags.set(flMixed,true);
                     break;
                 }
             }
@@ -228,7 +228,7 @@ public:
     IC bool 			ApplyValue		(const T2& val)
     {
     	bool bChanged	= false;
-        m_Flags.set		(flMixed,FALSE);
+        m_Flags.set		(flMixed,false);
     	for (PropValueIt it=values.begin(); values.end() != it; ++it){
         	T1* CV		= smart_cast<T1*>(*it); VERIFY(CV);
         	if (CV->ApplyValue(val)){
@@ -237,8 +237,8 @@ public:
             }
             if (!CV->Equal(values.front()))
             {
-                m_Flags.set(flMixed, TRUE);
-                m_Flags.set(flIgnoreMixed, FALSE);
+                m_Flags.set(flMixed, true);
+                m_Flags.set(flIgnoreMixed, false);
             }
         }
         return bChanged;
@@ -249,9 +249,9 @@ public:
 #ifdef __BORLANDC__    
 	IC TElTreeItem*		Item			(){return (TElTreeItem*)item;}
 #endif
-	IC LPCSTR			Key				(){return key.c_str();}
-    IC void				Enable			(BOOL val){m_Flags.set(flDisabled,!val);}
-    IC BOOL				Enabled			(){return !m_Flags.is(flDisabled);}
+	IC const char*			Key				(){return key.c_str();}
+    IC void				Enable			(bool val){m_Flags.set(flDisabled,!val);}
+    IC bool				Enabled			(){return !m_Flags.is(flDisabled);}
 	IC void				OnChange		()
     {
     	for (PropValueIt it=values.begin(); values.end() != it; ++it)
@@ -405,7 +405,7 @@ public:
     {
         return (0==xr_strcmp(value,((CTextValue*)val)->value));
     }
-    bool				ApplyValue		(LPCSTR val)
+    bool				ApplyValue		(const char* val)
     {
         if (0!=xr_strcmp(value,val)){
             xr_strcpy	(value,xr_strlen(val)+1,val);
@@ -430,7 +430,7 @@ public:
     //TOnDrawThumbnail	OnDrawThumbnailEvent;
     void*				m_FillParam;
 // utils
-    void				AppendChooseItem	(LPCSTR name, LPCSTR hint)
+    void				AppendChooseItem	(const char* name, const char* hint)
     {
 #ifdef _EDITOR
         VERIFY(m_Items); 
@@ -438,7 +438,7 @@ public:
 #endif
 }
 public:
-						ChooseValue			(shared_str* val, u32 cid, LPCSTR path, void* param, u32 sub_item_count, u32 choose_flags):RTextValue(val),m_ChooseID(cid),m_StartPath(path),subitem(sub_item_count),m_Items(0),m_FillParam(param),OnChooseFillEvent(0),/*OnDrawThumbnailEvent(0),*/m_ChooseFlags(choose_flags){}
+						ChooseValue			(shared_str* val, u32 cid, const char* path, void* param, u32 sub_item_count, u32 choose_flags):RTextValue(val),m_ChooseID(cid),m_StartPath(path),subitem(sub_item_count),m_Items(0),m_FillParam(param),OnChooseFillEvent(0),/*OnDrawThumbnailEvent(0),*/m_ChooseFlags(choose_flags){}
 };
 
 class MultiChooseValue:
@@ -446,6 +446,9 @@ class MultiChooseValue:
 {
 
 public:
+    using DnDCallback = void(const char*);
+    std::function<DnDCallback> DropCallback;
+
     xr_vector<ChooseValue*> Values;
 
     MultiChooseValue() = default;
@@ -484,7 +487,7 @@ public:
     virtual xr_string GetDrawText(TOnDrawTextEvent OnDrawText) { return ""; };
 };
 
-using BOOLValue = CustomValue<BOOL>;
+using BOOLValue = CustomValue<int>;
 using BoolValue = CustomValue<bool>;
 //------------------------------------------------------------------------------
 
@@ -602,7 +605,7 @@ public:
     };
     Flags32				m_Flags;
 public:
-						FlagValueCustom	(u32 mask, LPCSTR c0, LPCSTR c1)
+						FlagValueCustom	(u32 mask, const char* c0, const char* c1)
     {
         caption[0]		= c0;
         caption[1]		= c1;
@@ -621,7 +624,7 @@ public:
 public:
     FLAG_TYPE			mask;
 public:
-						FlagValue		(T* val, FLAG_TYPE _mask, LPCSTR c0, LPCSTR c1, u32 flags):CustomValue<T>(val),FlagValueCustom(flags,c0,c1),mask(_mask){}
+						FlagValue		(T* val, FLAG_TYPE _mask, const char* c0, const char* c1, u32 flags):CustomValue<T>(val),FlagValueCustom(flags,c0,c1),mask(_mask){}
     virtual xr_string	GetDrawText		(TOnDrawTextEvent OnDrawText)
     {	
         xr_string		draw_val;
@@ -725,7 +728,7 @@ public:
 	virtual bool		Equal			(PropValue* val)
     {
         if (items!=((RListValue*)val)->items){
-        	m_Owner->m_Flags.set(PropItem::flDisabled,TRUE); 
+        	m_Owner->m_Flags.set(PropItem::flDisabled,true); 
         	return false;
         }
         return RTextValue::Equal(val);
@@ -740,7 +743,7 @@ public:
 	virtual bool		Equal			(PropValue* val)
     {
         if (items!=((CListValue*)val)->items){
-        	m_Owner->m_Flags.set(PropItem::flDisabled,TRUE); 
+        	m_Owner->m_Flags.set(PropItem::flDisabled,true); 
         	return false;
         }
         return CTextValue::Equal(val);

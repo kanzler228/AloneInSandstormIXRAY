@@ -63,7 +63,7 @@ bool UITeamState::SortingLessFunction(CUIWindow* left, CUIWindow* right)
 	return false;
 }
 
-void UITeamState::Init(CUIXml& uiXml, LPCSTR teamNodeName, int index)
+void UITeamState::Init(CUIXml& uiXml, const char* teamNodeName, int index)
 {
 	VERIFY(teamNodeName);
 	mainUiXml = &uiXml;	//warning !
@@ -282,7 +282,7 @@ s32 UITeamState::GetSummaryFrags() const
 		game_PlayerState*	ps = i->second;
 		if (!ps)
 			continue;
-		game_cl_mp* tempGame = smart_cast<game_cl_mp*>(&Game());
+		game_cl_mp* tempGame = Game().cast_game_cl_mp();
 		R_ASSERT(tempGame);
 		if (static_cast<ETeam>(tempGame->ModifyTeam(ps->team)) == myTeam)
 			sum = sum + ps->m_iRivalKills;

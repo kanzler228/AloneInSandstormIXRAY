@@ -10,11 +10,23 @@
 #include "patrol_path_storage.h"
 #include "patrol_path.h"
 #include "patrol_point.h"
-#include "levelgamedef.h"
+#include "LevelGameDef.h"
+#include "ai_space.h"
+#include "level_graph.h"
+#include "game_graph.h"
 
 CPatrolPathStorage::~CPatrolPathStorage		()
 {
 	delete_data					(m_registry);
+}
+
+void CPatrolPathStorage::unload()
+{
+	for (auto& [key, value] : m_registry)
+	{
+		xr_delete(value);
+	}
+	m_registry.clear();
 }
 
 void CPatrolPathStorage::load_raw			(const ILevelGraph *level_graph, const IGameLevelCrossTable *cross, const IGameGraph *game_graph, IReader &stream)
@@ -59,7 +71,7 @@ void CPatrolPathStorage::load				(IReader &stream)
 	u32							size = chunk->r_u32();
 	chunk->close				();
 
-	m_registry.clear			();
+	unload();
 
 	PATROL_REGISTRY::value_type	pair;
 

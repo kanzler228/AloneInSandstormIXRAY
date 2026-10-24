@@ -1,4 +1,6 @@
-#include "stdafx.h"
+#include "StdAfx.h"
+
+#include "ParticlesObject.h"
 #include "poltergeist.h"
 #include "../../../../xrServerEntities/xrMessages.h"
 #include "../../../ai_object_location.h"
@@ -10,15 +12,15 @@
 #include "../../../ActorEffector.h"
 #include "../ai_monster_effector.h"
 
-CPolterFlame::CPolterFlame(CPoltergeist *polter) : inherited (polter)
+CFlamePoltergeist::CFlamePoltergeist(CPoltergeist *polter) : inherited (polter)
 {
 }
 
-CPolterFlame::~CPolterFlame()
+CFlamePoltergeist::~CFlamePoltergeist()
 {
 }
 
-void CPolterFlame::load(LPCSTR section) 
+void CFlamePoltergeist::load(const char* section) 
 {
 	inherited::load(section);
 
@@ -52,7 +54,7 @@ void CPolterFlame::load(LPCSTR section)
 
 	
 	// load scan effector
-	LPCSTR ppi_section = pSettings->r_string(section, "flame_scan_effector_section");
+	const char* ppi_section = pSettings->r_string(section, "flame_scan_effector_section");
 	m_scan_effector_info.duality.h			= pSettings->r_float(ppi_section,"duality_h");
 	m_scan_effector_info.duality.v			= pSettings->r_float(ppi_section,"duality_v");
 	m_scan_effector_info.gray				= pSettings->r_float(ppi_section,"gray");
@@ -80,7 +82,7 @@ void CPolterFlame::load(LPCSTR section)
 	m_time_flame_started	= 0;
 }
 
-void CPolterFlame::create_flame(const CObject *target_object)
+void CFlamePoltergeist::create_flame(const CObject *target_object)
 {
 	Fvector position;
 	if (!get_valid_flame_position(target_object, position)) return;
@@ -91,7 +93,7 @@ void CPolterFlame::create_flame(const CObject *target_object)
 	element->target_object			= target_object;
 	element->time_started			= time();
 	element->sound.clone			(m_sound, st_Effect,SOUND_TYPE_WORLD);
-	element->sound.play_at_pos		(m_object,element->position);
+	element->sound.play_at_pos		(poltergeist,element->position);
 	element->particles_object		= 0;
 	element->time_last_hit			= 0;
 
@@ -105,7 +107,7 @@ void CPolterFlame::create_flame(const CObject *target_object)
 	m_time_flame_started			= time();
 }
 
-void CPolterFlame::select_state(SFlameElement *elem, EFlameState state)
+void CFlamePoltergeist::select_state(SFlameElement *elem, EFlameState state)
 {
 	elem->state			= state;
 	elem->time_started	= time();
@@ -113,31 +115,31 @@ void CPolterFlame::select_state(SFlameElement *elem, EFlameState state)
 	switch(elem->state) {
 	case ePrepare:	
 		// start prepare particles
-		m_object->PlayParticles(m_particles_prepare,elem->position,elem->target_dir,TRUE);
+		poltergeist->PlayParticles(m_particles_prepare,elem->position,elem->target_dir,true);
 		break;
 	case eFire:		
 		// start fire particles
-		elem->particles_object = m_object->PlayParticles(m_particles_fire,elem->position,elem->target_dir,FALSE);
+		elem->particles_object = poltergeist->PlayParticles(m_particles_fire,elem->position,elem->target_dir,false);
 		break;
 	case eStop:		
 		// stop fire particles
 		if (elem->particles_object) Particles::Details::Destroy(elem->particles_object);
 		
 		// start finish particles
-		m_object->PlayParticles(m_particles_stop,elem->position,elem->target_dir,TRUE);
+		poltergeist->PlayParticles(m_particles_stop,elem->position,elem->target_dir,true);
 
 		break;
 	}
 }
 
 struct remove_predicate {
-	bool	operator() (CPolterFlame::SFlameElement *element)	{
+	bool	operator() (CFlamePoltergeist::SFlameElement *element)	{
 		return (!element);
 	}
 };
 
 
-void CPolterFlame::update_schedule()
+void CFlamePoltergeist::update_schedule()
 {
 	inherited::update_schedule();
 
@@ -167,8 +169,8 @@ void CPolterFlame::update_schedule()
 							NET_Packet			P;
 							SHit				HS;
 							HS.GenHeader		(GE_HIT, elem->target_object->ID());	//					u_EventGen		(P,GE_HIT, element->target_object->ID());
-							HS.whoID			= (m_object->ID());						//					P.w_u16			(ID());
-							HS.weaponID			= (m_object->ID());						//					P.w_u16			(ID());
+							HS.whoID			= (poltergeist->ID());						//					P.w_u16			(ID());
+							HS.weaponID			= (poltergeist->ID());						//					P.w_u16			(ID());
 							HS.dir				= (elem->target_dir);					//					P.w_dir			(element->target_dir);
 							HS.power			= (hit_value);							//					P.w_float		(m_flame_hit_value);
 							HS.boneID			= (BI_NONE);							//					P.w_s16			(BI_NONE);
@@ -177,7 +179,7 @@ void CPolterFlame::update_schedule()
 							HS.hit_type			= (ALife::eHitTypeBurn);				//					P.w_u16			(u16(ALife::eHitTypeBurn));
 
 							HS.Write_Packet			(P);
-							m_object->u_EventSend	(P);
+							poltergeist->u_EventSend	(P);
 
 							elem->time_last_hit	= time();
 						}
@@ -203,18 +205,18 @@ void CPolterFlame::update_schedule()
 		m_flames.end()
 	);
 	
-	bool const detected	=	m_object->get_current_detection_level() >= m_object->get_detection_success_level();
+	bool const detected	=	poltergeist->get_current_detection_level() >= poltergeist->get_detection_success_level();
 
 	CEntityAlive const* enemy	=	Actor();
 	// check if we can create another flame
-	if ( m_object->g_Alive() && 
+	if ( poltergeist->g_Alive() && 
 		 enemy && 
 		 m_flames.size() < m_count &&
-		 !m_object->get_actor_ignore() && 
+		 !poltergeist->get_actor_ignore() && 
 		 detected ) {
 		// check aura radius and accessibility
-		float dist = enemy->Position().distance_to(m_object->Position());
-		if ((dist < m_pmt_aura_radius) && m_object->control().path_builder().accessible(enemy->Position())) {
+		float dist = enemy->Position().distance_to(poltergeist->Position());
+		if ((dist < m_pmt_aura_radius) && poltergeist->control().path_builder().accessible(enemy->Position())) {
 			// check timing
 			if (m_time_flame_started + m_delay < time()) {
 				create_flame(enemy);
@@ -223,7 +225,7 @@ void CPolterFlame::update_schedule()
 	}
 }
 
-void CPolterFlame::on_destroy()
+void CFlamePoltergeist::on_destroy()
 {
 	inherited::on_destroy();
 
@@ -232,7 +234,7 @@ void CPolterFlame::on_destroy()
 
 	// Пройти по всем объектам и проверить на хит врага
 	for ( ;I != E; ++I) {
-		if ((*I)->sound._feedback()) (*I)->sound.stop();
+		if ((*I)->sound.is_playing()) (*I)->sound.stop();
 		if ((*I)->particles_object) Particles::Details::Destroy((*I)->particles_object);
 
 		xr_delete((*I));
@@ -240,22 +242,25 @@ void CPolterFlame::on_destroy()
 	
 	m_flames.clear();
 
-	if (m_scan_sound._feedback()) m_scan_sound.stop();
+	if (m_scan_sound.is_playing()) m_scan_sound.stop();
 }
 
-void CPolterFlame::on_die()
+void CFlamePoltergeist::on_die()
 {
 	inherited::on_die();
-	if (m_scan_sound._feedback()) m_scan_sound.stop();
+	if (m_scan_sound.is_playing()) m_scan_sound.stop();
 }
 
-
+void CFlamePoltergeist::UpdateCL()
+{
+}
 
 #define FIND_POINT_ATTEMPT_COUNT	5
 
-bool CPolterFlame::get_valid_flame_position(const CObject *target_object, Fvector &res_pos)
+bool CFlamePoltergeist::get_valid_flame_position(const CObject *target_object, Fvector &res_pos)
 {
-	const CGameObject *Obj = smart_cast<const CGameObject *>(target_object);
+	CObject* cast_target = const_cast<CObject*>(target_object);
+	const CGameObject *Obj = cast_target != nullptr ? cast_target->cast_game_object() : nullptr;
 	if (!Obj) return (false);
 
 	Fvector dir;

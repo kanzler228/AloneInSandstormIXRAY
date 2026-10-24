@@ -18,20 +18,26 @@ void CLevel::PrepareToSaveDemo		()
 	R_ASSERT(!m_DemoPlay);
 	string_path demo_name = "";
 	string_path demo_path;
-	SYSTEMTIME Time;
-	GetLocalTime		(&Time);
-	xr_sprintf			(demo_name, "xray_%02d-%02d-%02d_%02d-%02d-%02d.demo",
-		Time.wMonth,
-		Time.wDay,
-		Time.wYear,
-		Time.wHour,
-		Time.wMinute,
-		Time.wSecond
+	
+	auto now = std::chrono::system_clock::now();
+	auto time = std::chrono::system_clock::to_time_t(now);
+	auto local = *std::localtime(&time);
+
+	xr_sprintf
+	(
+		demo_name, "xray_%02d-%02d-%02d_%02d-%02d-%02d.demo",
+    	local.tm_mon + 1,
+    	local.tm_mday,
+    	local.tm_year + 1900,
+    	local.tm_hour,
+    	local.tm_min,
+    	local.tm_sec
 	);
+
 	Msg					("Demo would be stored in - %s", demo_name);
 	FS.update_path      (demo_path, "$logs$", demo_name);
 	m_writer			= FS.w_open(demo_path);
-	m_DemoSave			= TRUE;
+	m_DemoSave			= true;
 }
 
 bool CLevel::PrepareToPlayDemo		(shared_str const & file_name)
@@ -48,7 +54,7 @@ bool CLevel::PrepareToPlayDemo		(shared_str const & file_name)
 		Msg("ERROR: bad demo file...");
 		return false;
 	}
-	m_DemoPlay	= TRUE;
+	m_DemoPlay	= true;
 	return true;
 }
 
@@ -66,7 +72,7 @@ void CLevel::StartPlayDemo()
 	R_ASSERT(IsDemoPlay() && !m_DemoPlayStarted);
 
 	m_current_spectator	= nullptr;
-	m_DemoPlayStarted	= TRUE;
+	m_DemoPlayStarted	= true;
 	m_StartGlobalTime	= Device.dwTimeGlobal;
 	SetDemoPlaySpeed	(1.0f);
 	m_starting_spawns_pos	= 0;
@@ -107,8 +113,8 @@ void CLevel::RestartPlayDemo()
 	}
 	R_ASSERT(m_reader);
 	
-	m_DemoPlayStarted	= TRUE;
-	m_DemoPlayStoped	= FALSE;
+	m_DemoPlayStarted	= true;
+	m_DemoPlayStoped	= false;
 
 	m_StartGlobalTime	= Device.dwTimeGlobal - m_starting_spawns_dtime;
 	m_reader->seek		(m_starting_spawns_pos);
@@ -124,8 +130,8 @@ void CLevel::StopPlayDemo()
 	{
 		//FS.r_close			(m_reader);
 		//m_reader			= nullptr;
-		m_DemoPlayStarted	= FALSE;
-		m_DemoPlayStoped	= TRUE;
+		m_DemoPlayStarted	= false;
+		m_DemoPlayStoped	= true;
 	}
 	Msg("! ------------- Demo Stoped ------------");
 }
@@ -135,7 +141,7 @@ void CLevel::StartSaveDemo(shared_str const & server_options)
 	R_ASSERT(IsDemoSave() && !m_DemoSaveStarted);
 
 	SaveDemoHeader		(server_options);
-	m_DemoSaveStarted	= TRUE;
+	m_DemoSaveStarted	= true;
 }
 
 void CLevel::SaveDemoHeader(shared_str const & server_options)
@@ -152,7 +158,7 @@ void CLevel::SaveDemoHeader(shared_str const & server_options)
 
 void CLevel::SaveDemoInfo()
 {
-	game_cl_mp* tmp_game = smart_cast<game_cl_mp*>(&Game());
+	game_cl_mp* tmp_game = Game().cast_game_cl_mp();
 	if (!tmp_game)
 		return;
 	
@@ -237,8 +243,8 @@ void CLevel::SpawnDemoSpectator()
 {
 	R_ASSERT(Server && Server->game);
 	m_current_spectator = nullptr;
-	game_sv_mp*	tmp_sv_game		= smart_cast<game_sv_mp*>(Server->game);
-	game_cl_mp*	mp_cl_game		= smart_cast<game_cl_mp*>(Level().game);
+	game_sv_mp*	tmp_sv_game		= Game().cast_game_sv_mp();
+	game_cl_mp*	mp_cl_game		= Game().cast_game_cl_mp();
 
 	CSE_Spectator* specentity = smart_cast<CSE_Spectator*>(
 		tmp_sv_game->spawn_begin("spectator"));
@@ -324,7 +330,7 @@ void CLevel::SetDemoPlayPos(float const pos)
 		time_shift		+= tmp_hdr.m_time_global_delta;
 	}
 	m_StartGlobalTime	-= time_shift;
-	m_rewind			= TRUE;
+	m_rewind			= true;
 	m_reader->seek		(old_file_pos);
 }*/
 

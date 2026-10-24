@@ -8,12 +8,16 @@
 #include "../xrLC_Light/face_smoth_flags.h"
 
 #include "../../xrCore/Collision/xrCDB.h"
-#include "../xrForms/xrThread.h"
+#include "../xrForms/CompilersUI.h"
 
-const	float	aht_max_edge	= c_SS_maxsize/2.5f;	// 2.0f;			// 2 m
+#ifdef LCCUDA_BUILD
+#	include "../xrLC_Light/CUDA/CUDARayCast.h"
+#endif
+
+const float	aht_max_edge = c_SS_maxsize / 2.5f;	// 2.0f;			// 2 m
  
 
-bool	is_CCW	(int _1, int _2)
+constexpr bool is_CCW(int _1, int _2)
 {
 	if (0==_1 && 1==_2)	return true;
 	if (1==_1 && 2==_2) return true;
@@ -41,89 +45,90 @@ int		callback_edge_longest	( const Face* F)
 	return	max_id;
 }
 
-xrCriticalSection csA;
-int ThreadWorkID_Adaptive = 0;
-
-class CPrecalcBaseHemiThread: 
-public CThread
+void CBuild::xrPhase_AdaptiveHT_tessalte()
 {
- 	CDB::COLLIDER	DB;
-	
-public:
-	CPrecalcBaseHemiThread(u32 ID ): CThread(ID)
-	{
-	}
-virtual	void Execute()
-	{
-		DB.ray_options	(0);
-		while (true)
-		{
-			csA.Enter();
-			int ID = ThreadWorkID_Adaptive;
-			if (ID >= lc_global_data()->g_vertices().size())
-			{
-				csA.Leave();
-				break;
-			}
-			ThreadWorkID_Adaptive++;
-
-			Progress(float(ThreadWorkID_Adaptive) / float( lc_global_data()->g_vertices().size() ) );
-			csA.Leave();
-
-			base_color_c		vC;
-		 
-			vecVertex			&verts = lc_global_data()->g_vertices();
- 			Vertex*		V		= verts[ID];
-			
- 			V->normalFromAdj	();
-			LightPoint			(&DB, lc_global_data()->RCAST_Model(), vC, V->P, V->N, pBuild->L_static(), LP_dont_rgb+LP_dont_sun,0);
-			vC.mul				(0.5f);
-			V->C._set			(vC);
-		}
-	}
-};
-
-CThreadManager	precalc_base_hemi;
-#define MAX_THREADS CPU::ID.n_threads - 2
-
-void CBuild::xrPhase_AdaptiveHT	()
-{
-	CDB::COLLIDER	DB;
-	DB.ray_options	(0);
-
-	if (!lc_global_data()->GetSkipTesselate())
+ 	if (gCompilerMode.LC_Tess)
 	{
 		Status("Tesselating...");
-		for (u32 fit=0; fit<lc_global_data()->g_faces().size(); fit++)	{		// clear split flag from all faces + calculate normals
-			lc_global_data()->g_faces()[fit]->flags.bSplitted		= false;
-			lc_global_data()->g_faces()[fit]->flags.bLocked			= true;
-			lc_global_data()->g_faces()[fit]->CalcNormal			();
+		// clear split flag from all faces + calculate normals
+		for (u32 fit = 0; fit < lc_global_data()->g_faces().size(); fit++)
+		{
+			lc_global_data()->g_faces()[fit]->flags.bSplitted = false;
+			lc_global_data()->g_faces()[fit]->flags.bLocked = true;
+			lc_global_data()->g_faces()[fit]->CalcNormal();
 		}
-		u_Tesselate		(callback_edge_longest,0,0);		// tesselate
+		u_Tesselate(callback_edge_longest, 0, 0);		// tesselate
 	}
+}
 
-	// Tesselate + calculate
-	Status			("Building RayTrace Model...");
+void CBuild::xrPhase_AdaptiveHT_calculate()
+{
+	UpdateCurrentPhase("AdaptiveHT");
+
+	// Build model
+	if (!gCompilerMode.CUDA)
 	{
- 		Light_prepare();
- 		// Build model
-  		BuildRapid					(FALSE);
-		EmbreeMain.AttachGeometrys	(false);
+		// Prepare
+		Status("AdaptiveHT : base hemisphere ...");
+		
+		static xr_atomic_u32 ThreadWorkID_Adaptive = 0;
+
+		ThreadWorkID_Adaptive = 0;
+ 		xr_std_parallel_for([]()
+		{
+  			while (true)
+			{
+ 				u32 taskID = ThreadWorkID_Adaptive.fetch_add(1);
+				if (taskID >= lc_global_data()->g_vertices().size())	break;
+ 
+				base_color_c		vC;
+				vecVertex& verts = lc_global_data()->g_vertices();
+				Vertex* V = verts[taskID];
+
+				V->normalFromAdj();
+				LightPoint(EmbreeMain, vC, V->P, V->N, pBuild->L_static(), LP_dont_rgb + LP_dont_sun, 0);
+				vC.mul(0.5f);
+				V->C._set(vC);
+			}
+		}, gCompilerMode.ThreadsPerWork);
+
+
+		//////////////////////////////////////////////////////////////////////////
+		Status("AdaptiveHT : Gathering lighting information...");
+		u_SmoothVertColors(5);
  	}
+#ifdef LCCUDA_BUILD
+	else
+	{
+		clMsg("Start Processing AdaptiveHT : MEMORY: %u mb", GetHeapMemory() / 1024 / 1024);
 
-	// Prepare
-	Status("AdaptiveHT : base hemisphere ...");
-	ThreadWorkID_Adaptive = 0;
-	for (u32 thID = 0; thID < MAX_THREADS; thID++)
-		precalc_base_hemi.start(new CPrecalcBaseHemiThread(thID));
-	precalc_base_hemi.wait();
+		GPUTaskinSystem.RestartALL();
+		GPUTaskinSystem.ColorsMapType = eCommon;
+		GPUTaskinSystem.current_flags = LP_dont_rgb + LP_dont_sun;
+		 
+		for (size_t VertexID = 0; VertexID < lc_global_data()->g_vertices().size(); VertexID++)
+		{
+			// 1: VertexID, 2: SampleID
+			auto& V = lc_global_data()->g_vertices()[VertexID];
+			V->normalFromAdj();
+			GPUTaskinSystem.LightPointPacked_add_task(GPUTaskinSystem.MakeKey(VertexID, 0), nullptr, V->P, V->N, 0);
+		
+			AditionalData("Vertex : %u / %u", VertexID, lc_global_data()->g_vertices().size());
+		}
 
- 	//////////////////////////////////////////////////////////////////////////
-	Status("AdaptiveHT : Gathering lighting information...");
-	u_SmoothVertColors	(5);
+		GPUTaskinSystem.LightPointPacked_run_tasks();
 
-	if (lc_global_data()->GetIsIntelUse())
-		EmbreeMain.IntelEmbereUNLOAD();
+		for (auto& TASK : GPUTaskinSystem.task_colors)
+		{
+			u32 U   = GPUTaskinSystem.GetU(TASK.first);
+			auto& C = TASK.second;
+			C.mul(0.5f);
+			lc_global_data()->g_vertices()[U]->C._set(C);
+		}
+
+		GPUTaskinSystem.RestartALL();
+ 	}
+#endif
 }
 
 void CollectProblematicFaces(const Face &F, int max_id, xr_vector<Face*> & reult, Vertex** V1, Vertex** V2 )
@@ -332,85 +337,59 @@ void CBuild::u_Tesselate(tesscb_estimator* cb_E, tesscb_face* cb_F, tesscb_verte
 
 void CBuild::u_SmoothVertColors(int count)
 {
-	// for (int iteration=0; iteration<count; ++iteration)
-	// {
-	// 	// Gather
-	// 	xr_vector<base_color>	colors;
-	// 	colors.resize			(lc_global_data()->g_vertices().size());
-	// 	for (u32 it=0; it<lc_global_data()->g_vertices().size(); ++it)
-	// 	{
-	// 		// Circle
-	// 		xr_vector<Vertex*>	circle_vec;
-	// 		Vertex*		V		= lc_global_data()->g_vertices()[it];
-	// 
-	// 		for (u32 fit=0; fit<V->m_adjacents.size(); ++fit)
-	// 		{
-	// 			Face*	F		= V->m_adjacents[fit];
-	// 			circle_vec.push_back(F->v[0]);
-	// 			circle_vec.push_back(F->v[1]);
-	// 			circle_vec.push_back(F->v[2]);
-	// 		}
-	// 		std::sort				(circle_vec.begin(),circle_vec.end());
-	// 		circle_vec.erase		(std::unique(circle_vec.begin(),circle_vec.end()),circle_vec.end());
-	// 
-	// 		// Average
-	// 		base_color_c		avg,tmp;
-	// 		for (u32 cit=0; cit<circle_vec.size(); ++cit)
-	// 		{
-	// 			circle_vec[cit]->C._get	(tmp);
-	// 			avg.add					(tmp);
-	// 		}
-	// 		avg.scale			(circle_vec.size());
-	// 		colors[it]._set		(avg);
-	// 	}
-	// 
-	// 	// Transfer
-	// 	for (u32 it=0; it<lc_global_data()->g_vertices().size(); ++it)
-	// 		lc_global_data()->g_vertices()[it]->C	= colors[it];
-	// }
+ 	// Concurency CODE
+	static xr_vector<base_color> colors;
+	colors.resize(lc_global_data()->g_vertices().size());
 
-	// Concurency CODE
 	for (int iteration = 0; iteration < count; ++iteration)
 	{
 		Progress(float(iteration / count));
 
 		// Gather
-		xr_vector<base_color>	colors;
+ 		static xr_atomic_u32 ThreadTaskID = 0;
+		ThreadTaskID = 0;
 		colors.resize(lc_global_data()->g_vertices().size());
 
-			xr_parallel_for(size_t(0), size_t(lc_global_data()->g_vertices().size()), [&](size_t IDX)
+		xr_std_parallel_for([]()
+		{
+			while (true)
 			{
+				// Circle
+				xr_vector<Vertex*> circle_vec;
+				u32 IDX = ThreadTaskID.fetch_add(1);
+				if (IDX >= lc_global_data()->g_vertices().size()) break;
+ 
+				Vertex* V = lc_global_data()->g_vertices()[IDX];
+ 				for (u32 fit = 0; fit < V->m_adjacents.size(); ++fit)
 				{
-					// Circle
-					xr_vector<Vertex*>	circle_vec;
-					Vertex* V = lc_global_data()->g_vertices()[IDX];
-
-					for (u32 fit = 0; fit < V->m_adjacents.size(); ++fit)
-					{
-						Face* F = V->m_adjacents[fit];
-						circle_vec.push_back(F->v[0]);
-						circle_vec.push_back(F->v[1]);
-						circle_vec.push_back(F->v[2]);
-					}
-					std::sort(circle_vec.begin(), circle_vec.end());
-					circle_vec.erase(std::unique(circle_vec.begin(), circle_vec.end()), circle_vec.end());
-
-					// Average
-					base_color_c		avg, tmp;
-					for (u32 cit = 0; cit < circle_vec.size(); ++cit)
-					{
-						circle_vec[cit]->C._get(tmp);
-						avg.add(tmp);
-					}
-					avg.scale(circle_vec.size());
-
-					colors[IDX]._set(avg);
+					Face* F = V->m_adjacents[fit];
+					circle_vec.push_back(F->v[0]);
+					circle_vec.push_back(F->v[1]);
+					circle_vec.push_back(F->v[2]);
 				}
+				std::sort(circle_vec.begin(), circle_vec.end());
+				circle_vec.erase(std::unique(circle_vec.begin(), circle_vec.end()), circle_vec.end());
 
-			});
+				// Average
+				base_color_c avg, tmp;
+				for (u32 cit = 0; cit < circle_vec.size(); ++cit)
+				{
+					circle_vec[cit]->C._get(tmp);
+					avg.add(tmp);
+				}
+				avg.scale(circle_vec.size());
+
+				colors[IDX]._set(avg);
+			}
+  		}, gCompilerMode.ThreadsPerWork);
 
 		// Transfer
 		for (u32 it = 0; it < lc_global_data()->g_vertices().size(); ++it)
 			lc_global_data()->g_vertices()[it]->C = colors[it];
+
+		colors.clear();
 	}
+
+	xr_vector<base_color>().swap(colors);
+	  
 }

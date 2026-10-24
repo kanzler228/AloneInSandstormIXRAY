@@ -35,6 +35,58 @@ bool CUIDialogWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 	return false;
 }
 
+bool CUIDialogWnd::OnGamepadKeyAction(int key, EUIMessages gamepad_action)
+{
+	if (!IR_process()) 
+		return false;
+
+	if (inherited::OnGamepadKeyAction(key, gamepad_action))
+		return true;
+
+	return false;
+}
+
+bool CUIDialogWnd::OnGamepadStickAction(int key, Fvector2 value, EUIMessages gamepad_action)
+{
+	if (!IR_process()) 
+		return false;
+
+	if (inherited::OnGamepadStickAction(key, value, gamepad_action))
+		return true;
+
+	return false;
+}
+
+bool CUIDialogWnd::OnGyroscopeAction(Fvector3 value)
+{
+	if (!IR_process())
+	{
+		return false;
+	}
+
+	if (inherited::OnGyroscopeAction(value))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool CUIDialogWnd::OnTouchpadAction(Fvector2 value)
+{
+	if (!IR_process())
+	{
+		return false;
+	}
+
+	if (inherited::OnTouchpadAction(value))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 bool CUIDialogWnd::IR_process()
 {
 	if (!IsEnabled() || GetHolder() == nullptr)
@@ -51,7 +103,7 @@ bool CUIDialogWnd::IR_process()
 
 UI_API CDialogHolder* CurrentDialogHolder()
 {
-	if (g_pGamePersistent->m_pMainMenu->IsActive())
+	if (g_pGamePersistent->m_pMainMenu && g_pGamePersistent->m_pMainMenu->IsActive())
 		return g_pGamePersistent->m_pMainMenu->GetDialogHolder();
 
 	return g_pGameCustom->GetDialogHolder();

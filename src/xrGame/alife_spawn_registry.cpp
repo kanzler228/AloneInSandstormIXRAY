@@ -17,9 +17,10 @@
 #pragma warning(push)
 #pragma warning(disable:4995)
 #include <malloc.h>
+#include <Actor.h>
 #pragma warning(pop)
 
-CALifeSpawnRegistry::CALifeSpawnRegistry	(LPCSTR section)
+CALifeSpawnRegistry::CALifeSpawnRegistry	(const char* section)
 {
 	m_spawn_name				= "";
 	seed						(u32(CPU::QPC() & 0xffffffff));
@@ -31,6 +32,7 @@ CALifeSpawnRegistry::CALifeSpawnRegistry	(LPCSTR section)
 CALifeSpawnRegistry::~CALifeSpawnRegistry	()
 {
 	if(!Device.IsEditorMode())xr_delete(m_game_graph);
+	m_spawns.clear();
 	m_chunk->close				();
 	FS.r_close					(m_file);
 }
@@ -52,7 +54,7 @@ void CALifeSpawnRegistry::save				(IWriter &memory_stream)
 	memory_stream.close_chunk	();
 }
 
-void CALifeSpawnRegistry::load				(IReader &file_stream, LPCSTR game_name)
+void CALifeSpawnRegistry::load				(IReader &file_stream, const char* game_name)
 {
 	R_ASSERT					(FS.exist(game_name));
 
@@ -88,7 +90,7 @@ void CALifeSpawnRegistry::load				(IReader &file_stream, LPCSTR game_name)
 	chunk0->close				();
 }
 
-void CALifeSpawnRegistry::load				(LPCSTR spawn_name)
+void CALifeSpawnRegistry::load				(const char* spawn_name)
 {
 	Msg							("* Loading spawn registry...");
 	m_spawn_name				= spawn_name;
@@ -199,7 +201,7 @@ void CALifeSpawnRegistry::load				(IReader &file_stream, xrGUID *save_guid)
 	if (!m_chunk)
 	{
 		string_path file_name;
-		FS.update_path(file_name, "$game_data$", GRAPH_NAME);
+		FS.update_path(file_name, _game_data_, GRAPH_NAME);
 		m_chunk = FS.r_open(file_name);
 	}
 	R_ASSERT2					(m_chunk,"Spawn version mismatch - REBUILD SPAWN!");
@@ -214,9 +216,26 @@ void CALifeSpawnRegistry::load				(IReader &file_stream, xrGUID *save_guid)
 
 	build_root_spawns			();
 
+    load_spawn_position_from_smart();
+
 	Msg							("* %d spawn points are successfully loaded",m_spawns.vertex_count());
 }
 
+void CALifeSpawnRegistry::load_spawn_position_from_smart()
+{
+    SPAWN_GRAPH::vertex_iterator I = m_spawns.vertices().begin();
+    SPAWN_GRAPH::vertex_iterator E = m_spawns.vertices().end();
+    for (; I != E; ++I)
+    {
+        CSE_ALifeSmartZone* smart = (*I).second->data()->object().cast_smart_zone();
+        if (smart && g_start_position_smart != nullptr && g_start_position_smart.c_str() != nullptr && xr_strcmp(g_start_position_smart.c_str(), smart->name_replace()) == 0)
+        {
+            g_start_game_vertex_id = smart->m_tGraphID;
+            g_start_position = smart->o_Position;
+            Msg("# Start position smart name: %s", g_start_position_smart.c_str());
+        }
+    }
+}
 void CALifeSpawnRegistry::save_updates		(IWriter &stream)
 {
 	SPAWN_GRAPH::vertex_iterator			I = m_spawns.vertices().begin();

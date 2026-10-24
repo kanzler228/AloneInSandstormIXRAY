@@ -87,7 +87,7 @@ class CControlJump : public CControl_ComCustom<SControlJumpData> {
 	u32				m_last_time_added_impulse;
 
 public:
-	virtual void	load					(LPCSTR section);
+	virtual void	load					(const char* section);
 	virtual void	reinit					();
 	virtual bool	check_start_conditions	();
 	virtual void	activate				();
@@ -145,5 +145,5 @@ private:
 
 IC bool CControlJump::is_flag(SControlJumpData::EFlags flag) 
 {
-	return (m_data.flags.is(flag) == TRUE);
+	return (m_data.flags.is(flag) == true);
 }

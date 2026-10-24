@@ -6,11 +6,11 @@
 //	Description : Miscellanious routines for monsters
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "ai_monsters_misc.h"
 #include "../ai_space.h"
-#include "../CustomMonster.h"
+#include "../Creature.h"
 #include "../ef_storage.h"
 #include "../seniority_hierarchy_holder.h"
 #include "../team_hierarchy_holder.h"
@@ -104,7 +104,7 @@ u32 dwfChooseAction(u32 dwActionRefreshRate, float fMinProbability0, float fMinP
 		}
 	}
 
-	const CCustomMonster					*monster = tpEntity ? tpEntity->cast_custom_monster() : NULL;
+	const CCreature					*monster = tpEntity ? tpEntity->cast_creature() : NULL;
 	VERIFY									(monster);
 	const CAI_Stalker						*stalker = tpEntity ? tpEntity->cast_stalker() : NULL;
 	const xr_vector<const CEntityAlive*>	&VisibleEnemies = monster->memory().enemy().objects();
@@ -114,7 +114,7 @@ u32 dwfChooseAction(u32 dwActionRefreshRate, float fMinProbability0, float fMinP
 	{
 		for (CEntity* entity : Group.members())
 		{
-			if (entity && entity->g_Alive() && ((entity->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) == STYPE_VISIBLEFORAI))
+			if (entity && entity->g_Alive() && (entity->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) != ESPATIAL_TYPE::NONE)
 				Members.push_back(entity);
 		}
 	}
@@ -122,7 +122,7 @@ u32 dwfChooseAction(u32 dwActionRefreshRate, float fMinProbability0, float fMinP
 	{
 		for (CEntity* entity : Group.members())
 		{
-			if (entity && entity->m_entity_condition && entity->g_Alive() && ((entity->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) == STYPE_VISIBLEFORAI))
+			if (entity && entity->m_entity_condition && entity->g_Alive() && (entity->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) != ESPATIAL_TYPE::NONE)
 			{
 				if (tpEntity->Position().distance_to(entity->Position()) < fGroupDistance)
 				{
@@ -191,30 +191,32 @@ u32 dwfChooseAction(u32 dwActionRefreshRate, float fMinProbability0, float fMinP
 				}
 }
 
-void CAniVector::Load(IKinematicsAnimated *tpKinematics, LPCSTR caBaseName)
+void CAniVector::Load(IKinematicsAnimated* tpKinematics, const char* caBaseName)
 {
-	A.clear		();
+	A.clear();
 	string256	S1, S2;
 	MotionID	tpMotionDef;
-	for (int i=0; ; ++i)
-		if (!!(tpMotionDef = tpKinematics->ID_Cycle_Safe(xr_strconcat(S1,caBaseName,_itoa(i,S2,10))))) {
+	for (int i = 0; ; ++i)
+	{
+		if (!!(tpMotionDef = tpKinematics->ID_Cycle_Safe(xr_strconcat(S1, caBaseName, _itoa(i, S2, 10)))))
+		{
 			A.push_back(tpMotionDef);
 #ifdef DEBUG
 			if (psAI_Flags.test(aiAnimation))
-				Msg		("* Loaded animation %s",S1);
+				Msg("* Loaded animation %s", S1);
 #endif
 		}
-		else
-			if (!!(tpMotionDef = tpKinematics->ID_FX_Safe(xr_strconcat(S1,caBaseName,_itoa(i,S2,10))))) {
+		else if (!!(tpMotionDef = tpKinematics->ID_FX_Safe(xr_strconcat(S1, caBaseName, _itoa(i, S2, 10)))))
+		{
 				A.push_back(tpMotionDef);
 #ifdef DEBUG
-			if (psAI_Flags.test(aiAnimation))
-				Msg		("* Loaded animation fx %s",S1);
+				if (psAI_Flags.test(aiAnimation))
+					Msg("* Loaded animation fx %s", S1);
 #endif
-			}
-			else
-				if (i<10)
-					continue;
-				else
-					break;
+		}
+		else if (i < 10)
+			continue;
+		else
+			break;
+	}
 }

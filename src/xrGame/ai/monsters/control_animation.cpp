@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_animation.h"
 #include "basemonster/base_monster.h"
 #include "control_manager.h"
@@ -13,7 +13,7 @@ void CControlAnimation::reinit()
 {
 	inherited::reinit			();
 
-	m_skeleton_animated			= smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	m_skeleton_animated			= m_object->Visual()->dcast_PKinematicsAnimated();
 
 	m_anim_events.clear			();
 
@@ -109,7 +109,7 @@ void CControlAnimation::play_part(SAnimationPart &part, PlayCallback callback)
 	//Msg				("%6d Playing animation : %s , %s , Object %s",Device.dwTimeGlobal, K->LL_MotionDefName_dbg(part.motion).first,K->LL_MotionDefName_dbg(part.motion).second, *(m_object->cName()));
 #endif
 	
-	part.blend			= m_skeleton_animated->LL_PlayCycle(bone_or_part,part.get_motion(), TRUE, callback, this);
+	part.blend			= m_skeleton_animated->LL_PlayCycle(bone_or_part,part.get_motion(), true, callback, this);
 	
 	
 ///////////////////////////////////////////////////////////////////////////////
@@ -219,7 +219,7 @@ void CControlAnimation::restart(SAnimationPart &part, PlayCallback callback)
 	float time_saved		= part.blend->timeCurrent;
 	
 	// start
-	part.blend				= m_skeleton_animated->LL_PlayCycle(bone_or_part,part.get_motion(), TRUE, callback, this);
+	part.blend				= m_skeleton_animated->LL_PlayCycle(bone_or_part,part.get_motion(), true, callback, this);
 
 	// restore
 	part.blend->timeCurrent = time_saved;
@@ -227,7 +227,7 @@ void CControlAnimation::restart(SAnimationPart &part, PlayCallback callback)
 
 void CControlAnimation::restart()
 {
-	m_skeleton_animated			= smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	m_skeleton_animated			= m_object->Visual()->dcast_PKinematicsAnimated();
 
 	if (m_data.global.blend)	restart(m_data.global,global_animation_end_callback);
 	if (m_data.legs.blend)		restart(m_data.legs,legs_animation_end_callback);

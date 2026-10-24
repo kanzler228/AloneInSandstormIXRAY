@@ -11,10 +11,7 @@
 #include "alife_switch_manager.h"
 #include "alife_surge_manager.h"
 #include "alife_storage_manager.h"
-
-namespace RestrictionSpace {
-	enum ERestrictorTypes;
-}
+#include "../xrEngine/AI/restrictor_types.h"
 
 class CALifeUpdateManager :
 	public CALifeSwitchManager,
@@ -37,12 +34,12 @@ public:
 
 protected:
 			void		new_game_for_editor		();
-			void		new_game				(LPCSTR	save_name);
+			void		new_game				(const char*	save_name);
 			void		init_ef_storage			() const;
-	virtual	void		reload					(LPCSTR section);
+	virtual	void		reload					(const char* section);
 
 public:
-						CALifeUpdateManager		(xrServer *server, LPCSTR section);
+						CALifeUpdateManager		(xrServer *server, const char* section);
 	virtual 			~CALifeUpdateManager	();
 	virtual	shared_str	shedule_Name			() const		{ return shared_str("alife_simulator"); };
 	virtual float		shedule_Scale			();
@@ -50,21 +47,19 @@ public:
 	virtual bool		shedule_Needed			()				{return true;};
 			void		update_switch			();
 			void		update_scheduled		(bool init_ef = true);
-			void		load					(LPCSTR game_name = 0, bool no_assert = false, bool new_only = false);
-			bool		load_game				(LPCSTR game_name, bool no_assert = false);
+			void		load					(const char* game_name = 0, bool no_assert = false, bool new_only = false);
+			bool		load_game				(const char* game_name, bool no_assert = false);
 			void		load_from_editor		();
-	IC		float		update_monster_factor	() const;
+	IC		float		update_monster_factor	() const { return m_update_monster_factor; }
 			bool		change_level			(NET_Packet	&net_packet);
 			void		set_process_time		(int microseconds);
 			void		objects_per_update		(const u32 &objects_per_update);
 			void		set_switch_online		(ALife::_OBJECT_ID id, bool value);
 			void		set_switch_offline		(ALife::_OBJECT_ID id, bool value);
 			void		set_interactive			(ALife::_OBJECT_ID id, bool value);
-			void		jump_to_level			(LPCSTR level_name) const;
+			void		jump_to_level			(const char* level_name) const;
 			void		teleport_object			(ALife::_OBJECT_ID id, GameGraph::_GRAPH_ID game_vertex_id, u32 level_vertex_id, const Fvector &position);
 			void		add_restriction			(ALife::_OBJECT_ID id, ALife::_OBJECT_ID restriction_id, const RestrictionSpace::ERestrictorTypes &restriction_type);
 			void		remove_restriction		(ALife::_OBJECT_ID id, ALife::_OBJECT_ID restriction_id, const RestrictionSpace::ERestrictorTypes &restriction_type);
 			void		remove_all_restrictions	(ALife::_OBJECT_ID id, const RestrictionSpace::ERestrictorTypes &restriction_type);
 };
-
-#include "alife_update_manager_inline.h"

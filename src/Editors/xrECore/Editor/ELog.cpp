@@ -20,7 +20,7 @@ namespace details
 	static constexpr SDL_MessageBoxButtonData btnSkip	= { 0, mrSkip, "Skip All" };
 };
 
-void  ELogCallback(LPCSTR txt)
+void  ELogCallback(const char* txt)
 {
 	if (0 == txt[0])
 		return;
@@ -119,7 +119,7 @@ inline TMsgDlgButtons MessageDlg(const char*text, TMsgDlgType mt, int btn)
 		nullptr,												/* .window */
 		Title,													/* .title */
 		text,													/* .message */
-		ButtonsList.size(),	/* .numbuttons */
+		(int)ButtonsList.size(),	/* .numbuttons */
 		ButtonsList.data(),										/* .buttons */
 		nullptr													/* .colorScheme */
 	};
@@ -129,7 +129,7 @@ inline TMsgDlgButtons MessageDlg(const char*text, TMsgDlgType mt, int btn)
 	return (TMsgDlgButtons)buttonid;
 }
 
-int CLog::DlgMsg (TMsgDlgType mt, int btn, LPCSTR _Format, ...)
+int CLog::DlgMsg (TMsgDlgType mt, int btn, const char* _Format, ...)
 {
     in_use = true;
 	char buf[4096];
@@ -164,7 +164,7 @@ void CLog::Close()
 }
 
 
-int CLog::DlgMsg (TMsgDlgType mt, LPCSTR _Format, ...)
+int CLog::DlgMsg (TMsgDlgType mt, const char* _Format, ...)
 {
     in_use = true;
 	char buf[4096];
@@ -195,7 +195,13 @@ int CLog::DlgMsg (TMsgDlgType mt, LPCSTR _Format, ...)
     return res;
 }
 
-void CLog::Msg(TMsgDlgType mt, LPCSTR _Format, ...)
+bool CLog::IsVisible() const
+{
+	extern bool bAllowLogCommands;
+	return bAllowLogCommands;
+}
+
+void CLog::Msg(TMsgDlgType mt, const char* _Format, ...)
 {
 	char buf[4096];
 	va_list l;

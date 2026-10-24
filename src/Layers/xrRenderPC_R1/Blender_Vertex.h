@@ -9,9 +9,9 @@
 class CBlender_Vertex : public IBlender  
 {
 public:
-	virtual		LPCSTR		getComment()	{ return "LEVEL: diffuse*base";	}
-	virtual		BOOL		canBeDetailed()	{ return TRUE;	}
-	virtual		BOOL		canBeLMAPped()	{ return FALSE; }
+	virtual		const char*		getComment()	{ return "LEVEL: diffuse*base";	}
+	virtual		bool		canBeDetailed()	{ return true;	}
+	virtual		bool		canBeLMAPped()	{ return false; }
 
 	virtual		void		Save			(IWriter&  fs);
 	virtual		void		Load			(IReader&	fs, u16 version);

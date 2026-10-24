@@ -8,7 +8,7 @@
 XRNETSERVER_API ClientID BroadcastCID(0xffffffff);
 XRNETSERVER_API int psNET_ServerUpdate = 30; // FPS
 XRNETSERVER_API int psNET_ServerPending = 3;
-XRNETSERVER_API BOOL psNET_direct_connect = FALSE;
+XRNETSERVER_API bool psNET_direct_connect = false;
 
 // -----------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ static	INetLog* pSvNetLog = nullptr;
 
 // -----------------------------------------------------------------------------
 
-BaseServer::BaseServer(CTimer* timer, BOOL	Dedicated)
+BaseServer::BaseServer(CTimer* timer, bool	Dedicated)
 	: m_bDedicated(Dedicated)
 {
 	SV_Client = nullptr;
@@ -41,7 +41,7 @@ BaseServer::~BaseServer()
 	BannedAddresses.clear();
 
 	SV_Client = nullptr;
-	psNET_direct_connect = FALSE;
+	psNET_direct_connect = false;
 
 	xr_delete(pSvNetLog);
 }
@@ -62,7 +62,7 @@ IClient* BaseServer::ID_to_client(ClientID ID, bool ScanAll)
 
 #pragma region connect / disconnect
 
-void BaseServer::ParseConnectionOptions(LPCSTR options, ServerConnectionOptions& out)
+void BaseServer::ParseConnectionOptions(const char* options, ServerConnectionOptions& out)
 {
 	// SESSION NAME	
 	xr_strcpy(out.session_name, options); //sertanly we can use game_descr structure for determinig level_name,
@@ -122,13 +122,13 @@ bool BaseServer::CreateConnection(GameDescriptionData& game_descr, ServerConnect
 }
 
 
-BaseServer::EConnect BaseServer::Connect(LPCSTR options, GameDescriptionData & game_descr)
+BaseServer::EConnect BaseServer::Connect(const char* options, GameDescriptionData & game_descr)
 {
 	connect_options = options;
-	psNET_direct_connect = FALSE;
+	psNET_direct_connect = false;
 
 	if (strstr(options, "/single"))
-		psNET_direct_connect = TRUE;
+		psNET_direct_connect = true;
 
 
 	// Parse options
@@ -248,7 +248,7 @@ void BaseServer::Print_Banned_Addreses()
 
 #pragma region banned list
 
-LPCSTR BaseServer::GetBannedListName()
+const char* BaseServer::GetBannedListName()
 {
 	return "banned_list_ip.ltx";
 }
@@ -258,7 +258,7 @@ void BaseServer::BannedList_Save()
 	string_path					temp;
 	FS.update_path(temp, "$app_data_root$", GetBannedListName());
 
-	CInifile					ini(temp, FALSE, FALSE, TRUE);
+	CInifile					ini(temp, false, false, true);
 
 	for (u32 it = 0; it < BannedAddresses.size(); it++)
 	{
@@ -272,16 +272,12 @@ void BaseServer::BannedList_Load()
 	string_path					temp;
 	FS.update_path(temp, "$app_data_root$", GetBannedListName());
 
-	CInifile					ini(temp);
-
-	auto it = ini.sections().begin();
-	auto it_e = ini.sections().end();
-
-	for (; it != it_e; ++it)
+	CInifile ini(temp);
+	CInifile::Root& sections = ini.sections();
+	for (CInifile::Sect& sect : sections)
 	{
-		const shared_str& sect_name = (*it)->Name;
 		IBannedClient* Cl = new IBannedClient();
-		Cl->Load(ini, sect_name);
+		Cl->Load(ini, sect.Name);
 		BannedAddresses.push_back(Cl);
 	}
 }
@@ -353,7 +349,7 @@ void	BaseServer::ClearStatistic()
 
 #pragma region disconnect
 
-bool BaseServer::DisconnectAddress(const ip_address & Address, LPCSTR reason)
+bool BaseServer::DisconnectAddress(const ip_address & Address, const char* reason)
 {
 	u32 players_count = net_players.ClientsCount();
 	buffer_vector<IClient*>	PlayersToDisconnect(
@@ -521,7 +517,7 @@ void BaseServer::_Recieve(const void* data, u32 data_size, u32 param)
 			pSvNetLog = new INetLog("logs\\net_sv_log.log", TimeGlobal(device_timer));
 
 		if (pSvNetLog)
-			pSvNetLog->LogPacket(TimeGlobal(device_timer), &packet, TRUE);
+			pSvNetLog->LogPacket(TimeGlobal(device_timer), &packet, true);
 	}*/
 }
 

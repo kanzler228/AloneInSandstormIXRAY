@@ -14,7 +14,12 @@ void UIWorldPropertiesFrom::Draw()
 	{
 		if (ImGui::Begin("World Properties", &bOpen))
 		{
-			LTools->GetWorldProperties()->Draw();
+			if (XRay::ImGui::BeginDarkChild("WorldPropertiesBorder"))
+			{
+				LTools->GetWorldProperties()->Draw();
+
+				XRay::ImGui::EndDarkChild();
+			}
 		}
 		ImGui::End();
 	}

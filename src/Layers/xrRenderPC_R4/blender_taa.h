@@ -3,9 +3,9 @@
 class CBlender_taa : public IBlender  
 {
 public:
-	virtual		LPCSTR		getComment()	{ return "INTERNAL: temporal slop";	}
-	virtual		BOOL		canBeDetailed()	{ return FALSE;	}
-	virtual		BOOL		canBeLMAPped()	{ return FALSE;	}
+	virtual		const char*		getComment()	{ return "INTERNAL: temporal slop";	}
+	virtual		bool		canBeDetailed()	{ return false;	}
+	virtual		bool		canBeLMAPped()	{ return false;	}
 
 	virtual		void		Compile			(CBlender_Compile& C);
 

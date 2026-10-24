@@ -35,6 +35,7 @@
 #include "ui/UIGameTutorial.h"
 #include "../xrEngine/string_table.h"
 #include "ui/UIInventoryUtilities.h"
+#include "space_restrictor.h"
 #include "alife_object_registry.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "ActorCondition.h"
@@ -47,11 +48,18 @@
 #include "ai_object_location.h"
 #include "inventory_upgrade_manager.h"
 #include "ActorHelmet.h"
+#include "DynamicWallmarkZone.h"
+#include "InventoryVolumeSystem.h"
+#include "ui/UIDragDropListEx.h"
 #include "PickupManager.h"
 #include "UIActorMenu.h"
 #include "../xrServerEntities/restriction_space.h"
 #include "../xrEngine/GameMtlLib.h"
+#include "../xrEngine/Rain.h"
+#include "../xrEngine/thunderbolt.h"
 #include "material_manager.h"
+#include "../xrUI/Widgets/UIActionRepeaters.h"
+#include "ElectronicsProblemsManager.h"
 
 using namespace luabind;
 
@@ -124,7 +132,7 @@ void UnLockActor_script() {
 	Level().UnLockActor();
 }
 
-LPCSTR command_line	()
+const char* command_line	()
 {
 	return		(Core.Params);
 }
@@ -146,6 +154,38 @@ float get_compass_direction()
 	return compass_angle;
 }
 
+bool actor_in_restrictor(LPCSTR name)
+{
+	if (!name || !*name)
+	{
+		return false;
+	}
+
+	CActor* actor = Level().CurrentViewEntity() ? Level().CurrentViewEntity()->cast_actor() : nullptr;
+	if (!actor)
+	{
+		return false;
+	}
+
+	CObject* object = Level().Objects.FindObjectByName(name);
+	if (!object || object->getDestroy())
+	{
+		return false;
+	}
+
+	CGameObject* gameObject = object->cast_game_object();
+	CSpaceRestrictor* restrictor = gameObject ? gameObject->cast_restrictor() : nullptr;
+	if (!restrictor)
+	{
+		return false;
+	}
+
+	Fsphere probe;
+	probe.P = actor->Position();
+	probe.R = EPS_L;
+	return restrictor->inside(probe);
+}
+
 #ifdef DEBUG
 void check_object(CScriptGameObject* object)
 {
@@ -153,7 +193,6 @@ void check_object(CScriptGameObject* object)
 		Msg("check_object %s", object->Name());
 	}
 	catch (...) {
-		object = object;
 	}
 }
 
@@ -176,7 +215,7 @@ CScriptGameObject* tpfGetActor()
 	}
 }
 
-CScriptGameObject* get_object_by_name(LPCSTR caObjectName)
+CScriptGameObject* get_object_by_name(const char* caObjectName)
 {
 	static bool first_time = true;
 	if (first_time)
@@ -200,7 +239,8 @@ CScriptGameObject* get_object_by_name(LPCSTR caObjectName)
 
 CScriptGameObject *get_object_by_id(u16 id)
 {
-	CGameObject* pGameObject = smart_cast<CGameObject*>(Level().Objects.net_Find(id));
+	CObject* finded_object = Level().Objects.net_Find(id);
+	CGameObject* pGameObject = finded_object != nullptr ? finded_object->cast_game_object() : nullptr;
 	if (!pGameObject)
 	{
 		//g_pScriptEngine->print_stack();
@@ -210,12 +250,12 @@ CScriptGameObject *get_object_by_id(u16 id)
 	return pGameObject->lua_game_object();
 }
 
-LPCSTR get_past_wdesc()
+const char* get_past_wdesc()
 {
 	return			(g_pGamePersistent->Environment().Current[0] ? g_pGamePersistent->Environment().Current[0]->m_identifier.c_str() : "null");
 }
 
-LPCSTR get_next_wdesc()
+const char* get_next_wdesc()
 {
 	return			(g_pGamePersistent->Environment().Current[1] ? g_pGamePersistent->Environment().Current[1]->m_identifier.c_str() : "null");
 }
@@ -232,41 +272,35 @@ float get_next_wdesc_execution_time()
 
 float get_weather_game_time()
 {
-	return			(&g_pGamePersistent->Environment() ? g_pGamePersistent->Environment().GetGameTime() : -1.f);
+	return (g_pGamePersistent->Environment().GetGameTime());
 }
 
-void set_past_wdesc(LPCSTR WeatherSection)
+void set_past_wdesc(const char* WeatherSection)
 {
-	if (&g_pGamePersistent->Environment())
-	{
-		g_pGamePersistent->Environment().SetEnvDesc(WeatherSection, g_pGamePersistent->Environment().Current[0]);
-	}
+	g_pGamePersistent->Environment().SetEnvDesc(WeatherSection, g_pGamePersistent->Environment().Current[0]);
 }
 
-void set_next_wdesc(LPCSTR WeatherSection)
+void set_next_wdesc(const char* WeatherSection)
 {
-	if (&g_pGamePersistent->Environment())
-	{
-		g_pGamePersistent->Environment().SetEnvDesc(WeatherSection, g_pGamePersistent->Environment().Current[1]);
-	}
+	g_pGamePersistent->Environment().SetEnvDesc(WeatherSection, g_pGamePersistent->Environment().Current[1]);
 }
 
-LPCSTR get_weather	()
+const char* get_weather	()
 {
 	return			(*g_pGamePersistent->Environment().GetWeather());
 }
 
-void set_weather	(LPCSTR weather_name, bool forced)
+void set_weather	(const char* weather_name, bool forced)
 {
 		g_pGamePersistent->Environment().SetWeather(weather_name,forced);
 }
 
-bool set_weather_fx	(LPCSTR weather_name)
+bool set_weather_fx	(const char* weather_name)
 {
 		return		(g_pGamePersistent->Environment().SetWeatherFX(weather_name));
 }
 
-bool start_weather_fx_from_time	(LPCSTR weather_name, float time)
+bool start_weather_fx_from_time	(const char* weather_name, float time)
 {
 	return		(g_pGamePersistent->Environment().StartWeatherFXFromTime(weather_name, time));
 }
@@ -311,7 +345,8 @@ float get_global_time_factor() { return (Device.time_factor()); }
 void set_game_difficulty(ESingleGameDifficulty dif)
 {
 	g_SingleGameDifficulty		= dif;
-	game_cl_Single* game		= smart_cast<game_cl_Single*>(Level().game); VERIFY(game);
+	game_cl_Single* game		= Game().cast_game_cl_single();
+	VERIFY(game);
 	game->OnDifficultyChanged	();
 }
 ESingleGameDifficulty get_game_difficulty()
@@ -342,7 +377,7 @@ u32 get_time_minutes()
 
 void change_game_time(u32 days, u32 hours, u32 mins)
 {
-	game_sv_Single	*tpGame = smart_cast<game_sv_Single *>(Level().Server->game);
+	game_sv_Single* tpGame = Level().Server->game != nullptr ? Level().Server->game->cast_game_sv_single() : nullptr;
 	if(tpGame && ai().get_alife())
 	{
 		u32 value		= days*86400+hours*3600+mins*60;
@@ -403,7 +438,7 @@ Fvector vertex_position(u32 level_vertex_id)
 	return			(ai().level_graph().vertex_position(level_vertex_id));
 }
 
-void map_add_object_spot(u16 id, LPCSTR spot_type, LPCSTR text)
+void map_add_object_spot(u16 id, const char* spot_type, const char* text)
 {
 	CMapLocation* ml = Level().MapManager().AddMapLocation(spot_type,id);
 	if ( xr_strlen(text) )
@@ -412,7 +447,7 @@ void map_add_object_spot(u16 id, LPCSTR spot_type, LPCSTR text)
 	}
 }
 
-void map_add_object_spot_ser(u16 id, LPCSTR spot_type, LPCSTR text)
+void map_add_object_spot_ser(u16 id, const char* spot_type, const char* text)
 {
 	CMapLocation* ml = Level().MapManager().AddMapLocation(spot_type,id);
 
@@ -422,19 +457,19 @@ void map_add_object_spot_ser(u16 id, LPCSTR spot_type, LPCSTR text)
 	ml->SetSerializable(true);
 }
 
-void map_change_spot_hint(u16 id, LPCSTR spot_type, LPCSTR text)
+void map_change_spot_hint(u16 id, const char* spot_type, const char* text)
 {
 	CMapLocation* ml	= Level().MapManager().GetMapLocation(spot_type, id);
 	if(!ml)				return;
 	ml->SetHint			(text);
 }
 
-void map_remove_object_spot(u16 id, LPCSTR spot_type)
+void map_remove_object_spot(u16 id, const char* spot_type)
 {
 	Level().MapManager().RemoveMapLocation(spot_type, id);
 }
 
-u16 map_has_object_spot(u16 id, LPCSTR spot_type)
+u16 map_has_object_spot(u16 id, const char* spot_type)
 {
 	return Level().MapManager().HasMapLocation(spot_type, id);
 }
@@ -444,17 +479,17 @@ CMapManager* get_map_manager()
 	return &Level().MapManager();
 }
 
-bool patrol_path_exists(LPCSTR patrol_path)
+bool patrol_path_exists(const char* patrol_path)
 {
 	return		(!!ai().patrol_paths().path(patrol_path,true));
 }
 
-LPCSTR get_name()
+const char* get_name()
 {
 	return		(*Level().name());
 }
 
-void prefetch_sound	(LPCSTR name)
+void prefetch_sound	(const char* name)
 {
 	Level().PrefetchSound(name);
 }
@@ -497,7 +532,7 @@ void hide_indicators()
 		CurrentGameUI()->ShowGameIndicators(false);
 		CurrentGameUI()->ShowCrosshair(false);
 	}
-	psActorFlags.set(AF_DISABLE_CONDITION_TEST, TRUE);
+	psActorFlags.set(AF_DISABLE_CONDITION_TEST, true);
 }
 
 void hide_indicators_safe()
@@ -509,7 +544,7 @@ void hide_indicators_safe()
 
 		CurrentGameUI()->OnExternalHideIndicators();
 	}
-	psActorFlags.set(AF_DISABLE_CONDITION_TEST, TRUE);
+	psActorFlags.set(AF_DISABLE_CONDITION_TEST, true);
 }
 
 void show_indicators()
@@ -519,7 +554,7 @@ void show_indicators()
 		CurrentGameUI()->ShowGameIndicators(true);
 		CurrentGameUI()->ShowCrosshair(true);
 	}
-	psActorFlags.set(AF_DISABLE_CONDITION_TEST, FALSE);
+	psActorFlags.set(AF_DISABLE_CONDITION_TEST, false);
 }
 
 void show_weapon(bool b)
@@ -548,7 +583,7 @@ void remove_call(const luabind::functor<bool> &condition,const luabind::functor<
 	Level().ph_commander_scripts().remove_call(&c,&a);
 }
 
-void add_call(const luabind::object &lua_object, LPCSTR condition,LPCSTR action)
+void add_call(const luabind::object &lua_object, const char* condition,const char* action)
 {
 //	try{	
 //		CPHScriptObjectCondition	*c=new CPHScriptObjectCondition(lua_object,condition);
@@ -565,7 +600,7 @@ void add_call(const luabind::object &lua_object, LPCSTR condition,LPCSTR action)
 //	}
 }
 
-void remove_call(const luabind::object &lua_object, LPCSTR condition,LPCSTR action)
+void remove_call(const luabind::object &lua_object, const char* condition,const char* action)
 {
 	CPHScriptObjectCondition	c(lua_object,condition);
 	CPHScriptObjectAction		a(lua_object,action);
@@ -606,19 +641,41 @@ CEnvDescriptor *current_environment(CEnvironment *self_)
 {
 	return		(self_->CurrentEnv);
 }
+
 extern bool g_bDisableAllInput;
+extern bool g_bDisableMouseMove;
+
 void disable_input()
 {
 	g_bDisableAllInput = true;
+	g_bDisableMouseMove = true;
 #ifdef DEBUG
 	Msg("input disabled");
 #endif // #ifdef DEBUG
 }
+
 void enable_input()
 {
 	g_bDisableAllInput = false;
+	g_bDisableMouseMove = false;
 #ifdef DEBUG
 	Msg("input enabled");
+#endif // #ifdef DEBUG
+}
+
+void disable_mouse_move()
+{
+	g_bDisableMouseMove = true;
+#ifdef DEBUG
+	Msg("mouse move disabled");
+#endif // #ifdef DEBUG
+}
+
+void enable_mouse_move()
+{
+	g_bDisableMouseMove = false;
+#ifdef DEBUG
+	Msg("mouse move enabled");
 #endif // #ifdef DEBUG
 }
 
@@ -632,33 +689,33 @@ Fbox get_bounding_volume()
 	return Level().ObjectSpace.GetBoundingVolume();
 }
 
-void iterate_sounds					(LPCSTR prefix, u32 max_count, const CScriptCallbackEx<void> &callback)
+void iterate_sounds					(const char* prefix, u32 max_count, const CScriptCallbackEx<void> &callback)
 {
 	for (int j=0, N = _GetItemCount(prefix); j<N; ++j) {
 		string_path					fn, s;
 		LPSTR						S = (LPSTR)&s;
 		_GetItem					(prefix,j,s);
-		if (FS.exist(fn,"$game_sounds$",S,".ogg"))
+		if (FS.exist(fn,_game_sounds_,S,".ogg"))
 			callback				(prefix);
 
 		for (u32 i=0; i<max_count; ++i)
 		{
 			string_path					name;
 			xr_sprintf					(name,"%s%d",S,i);
-			if (FS.exist(fn,"$game_sounds$",name,".ogg"))
+			if (FS.exist(fn,_game_sounds_,name,".ogg"))
 				callback			(name);
 		}
 	}
 }
 
-void iterate_sounds1				(LPCSTR prefix, u32 max_count, luabind::functor<void> functor)
+void iterate_sounds1				(const char* prefix, u32 max_count, luabind::functor<void> functor)
 {
 	CScriptCallbackEx<void>		temp;
 	temp.set					(functor);
 	iterate_sounds				(prefix,max_count,temp);
 }
 
-void iterate_sounds2				(LPCSTR prefix, u32 max_count, luabind::object object, luabind::functor<void> functor)
+void iterate_sounds2				(const char* prefix, u32 max_count, luabind::object object, luabind::functor<void> functor)
 {
 	CScriptCallbackEx<void>		temp;
 	temp.set					(functor,object);
@@ -666,7 +723,7 @@ void iterate_sounds2				(LPCSTR prefix, u32 max_count, luabind::object object, l
 }
 
 #include "ActorEffector.h"
-float add_cam_effector(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func)
+float add_cam_effector(const char* fn, int id, bool cyclic, const char* cb_func)
 {
 	CAnimatorCamEffectorScriptCB* e		= new CAnimatorCamEffectorScriptCB(cb_func);
 	e->SetType					((ECamEffectorType)id);
@@ -676,7 +733,7 @@ float add_cam_effector(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func)
 	return						e->GetAnimatorLength();
 }
 
-float add_cam_effector_without_fov(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func)
+float add_cam_effector_without_fov(const char* fn, int id, bool cyclic, const char* cb_func)
 {
 	CAnimatorCamEffectorScriptCB* e = new CAnimatorCamEffectorScriptCB(cb_func);
 	e->m_bAbsolutePositioning = true;
@@ -687,7 +744,7 @@ float add_cam_effector_without_fov(LPCSTR fn, int id, bool cyclic, LPCSTR cb_fun
 	return						e->GetAnimatorLength();
 }
 
-float add_cam_effector2(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func, float cam_fov)
+float add_cam_effector2(const char* fn, int id, bool cyclic, const char* cb_func, float cam_fov)
 {
 	CAnimatorCamEffectorScriptCB* e		= new CAnimatorCamEffectorScriptCB(cb_func);
 	e->m_bAbsolutePositioning	= true;
@@ -714,26 +771,53 @@ void set_snd_volume(float v)
 	psSoundVFactor = v;
 	clamp(psSoundVFactor,0.0f,1.0f);
 }
+
+float get_rain_volume()
+{
+	CEffect_Rain* rain = g_pGamePersistent->pEnvironment->eff_Rain;
+	return rain ? rain->GetRainVolume() : 0.0f;
+}
+
+bool is_inventory_volume_enabled()
+{
+	return CInventoryVolumeSystem::Get().IsEnabled();
+}
+
+void set_inventory_volume_enabled(bool enabled)
+{
+	CInventoryVolumeSystem::Get().SetScriptEnabled(enabled);
+}
+
+bool is_inventory_grid_disabled()
+{
+	return IsInventoryGridDisabled();
+}
+
+void set_inventory_grid_disabled(bool disabled)
+{
+	SetInventoryGridDisabledScript(disabled);
+}
 #include "actor_statistic_mgr.h"
-void add_actor_points(LPCSTR sect, LPCSTR detail_key, int cnt, int pts)
+void add_actor_points(const char* sect, const char* detail_key, int cnt, int pts)
 {
 	return Actor()->StatisticMgr().AddPoints(sect, detail_key, cnt, pts);
 }
 
-void add_actor_points_str(LPCSTR sect, LPCSTR detail_key, LPCSTR str_value)
+void add_actor_points_str(const char* sect, const char* detail_key, const char* str_value)
 {
 	return Actor()->StatisticMgr().AddPoints(sect, detail_key, str_value);
 }
 
-int get_actor_points(LPCSTR sect)
+int get_actor_points(const char* sect)
 {
 	return Actor()->StatisticMgr().GetSectionPoints(sect);
 }
-
-
+extern int get_actor_ranking();
+extern void add_human_to_top_list(u16 id);
+extern void remove_human_from_top_list(u16 id);
 
 #include "ActorEffector.h"
-void add_complex_effector(LPCSTR section, int id)
+void add_complex_effector(const char* section, int id)
 {
 	AddEffector(Actor(),id, section);
 }
@@ -744,7 +828,7 @@ void remove_complex_effector(int id)
 }
 
 #include "PostprocessAnimator.h"
-void add_pp_effector(LPCSTR fn, int id, bool cyclic)
+void add_pp_effector(const char* fn, int id, bool cyclic)
 {
 	CPostprocessAnimator* pp		= new CPostprocessAnimator(id, cyclic);
 	pp->Load						(fn);
@@ -753,14 +837,26 @@ void add_pp_effector(LPCSTR fn, int id, bool cyclic)
 
 void remove_pp_effector(int id)
 {
-	CPostprocessAnimator*	pp	= smart_cast<CPostprocessAnimator*>(Actor()->Cameras().GetPPEffector((EEffectorPPType)id));
+	if (Actor() == nullptr)
+	{
+		return;
+	}
 
-	if(pp) pp->Stop(1.0f);
+	CPostprocessAnimator* pp = smart_cast<CPostprocessAnimator*>(Actor()->Cameras().GetPPEffector((EEffectorPPType)id));
 
+	if (pp)
+	{
+		pp->Stop(1.0f);
+	}
 }
 
 void set_pp_effector_factor(int id, float f, float f_sp)
 {
+	if (Actor() == nullptr)
+	{
+		return;
+	}
+
 	CPostprocessAnimator*	pp	= smart_cast<CPostprocessAnimator*>(Actor()->Cameras().GetPPEffector((EEffectorPPType)id));
 
 	if(pp) pp->SetDesiredFactor(f,f_sp);
@@ -768,6 +864,11 @@ void set_pp_effector_factor(int id, float f, float f_sp)
 
 void set_pp_effector_factor2(int id, float f)
 {
+	if (Actor() == nullptr)
+	{
+		return;
+	}
+
 	CPostprocessAnimator*	pp	= smart_cast<CPostprocessAnimator*>(Actor()->Cameras().GetPPEffector((EEffectorPPType)id));
 
 	if(pp) pp->SetCurrentFactor(f);
@@ -775,7 +876,7 @@ void set_pp_effector_factor2(int id, float f)
 
 #include "relation_registry.h"
 
-int g_community_goodwill(LPCSTR _community, int _entity_id)
+int g_community_goodwill(const char* _community, int _entity_id)
  {
 	 CHARACTER_COMMUNITY c;
 	 c.set					(_community);
@@ -783,21 +884,21 @@ int g_community_goodwill(LPCSTR _community, int _entity_id)
  	return RELATION_REGISTRY().GetCommunityGoodwill(c.index(), u16(_entity_id));
  }
 
-void g_set_community_goodwill(LPCSTR _community, int _entity_id, int val)
+void g_set_community_goodwill(const char* _community, int _entity_id, int val)
 {
 	CHARACTER_COMMUNITY	c;
 	c.set					(_community);
 	RELATION_REGISTRY().SetCommunityGoodwill(c.index(), u16(_entity_id), val);
 }
 
-void g_change_community_goodwill(LPCSTR _community, int _entity_id, int val)
+void g_change_community_goodwill(const char* _community, int _entity_id, int val)
 {
 	CHARACTER_COMMUNITY	c;
 	c.set					(_community);
 	RELATION_REGISTRY().ChangeCommunityGoodwill(c.index(), u16(_entity_id), val);
 }
 
-int g_get_community_relation( LPCSTR comm_from, LPCSTR comm_to )
+int g_get_community_relation( const char* comm_from, const char* comm_to )
 {
 	CHARACTER_COMMUNITY	community_from;
 	community_from.set( comm_from );
@@ -807,7 +908,7 @@ int g_get_community_relation( LPCSTR comm_from, LPCSTR comm_to )
 	return RELATION_REGISTRY().GetCommunityRelation( community_from.index(), community_to.index() );
 }
 
-void g_set_community_relation( LPCSTR comm_from, LPCSTR comm_to, int value )
+void g_set_community_relation( const char* comm_from, const char* comm_to, int value )
 {
 	CHARACTER_COMMUNITY	community_from;
 	community_from.set( comm_from );
@@ -819,7 +920,7 @@ void g_set_community_relation( LPCSTR comm_from, LPCSTR comm_to, int value )
 
 int g_get_general_goodwill_between ( u16 from, u16 to)
 {
-	CHARACTER_GOODWILL presonal_goodwill		= RELATION_REGISTRY().GetGoodwill(from, to); VERIFY(presonal_goodwill != NO_GOODWILL);
+	s32 presonal_goodwill		= RELATION_REGISTRY().GetGoodwill(from, to); VERIFY(presonal_goodwill != -type_max(s32));
 
 	CSE_ALifeTraderAbstract* from_obj	= smart_cast<CSE_ALifeTraderAbstract*>(ai().alife().objects().object(from));
 	CSE_ALifeTraderAbstract* to_obj		= smart_cast<CSE_ALifeTraderAbstract*>(ai().alife().objects().object(to));
@@ -828,8 +929,8 @@ int g_get_general_goodwill_between ( u16 from, u16 to)
 		ai().script_engine().script_log		(ScriptStorage::eLuaMessageTypeError,"RELATION_REGISTRY::get_general_goodwill_between  : cannot convert obj to CSE_ALifeTraderAbstract!");
 		return (0);
 	}	
-	CHARACTER_GOODWILL community_to_obj_goodwill		= RELATION_REGISTRY().GetCommunityGoodwill	(from_obj->Community(), to					);
-	CHARACTER_GOODWILL community_to_community_goodwill	= RELATION_REGISTRY().GetCommunityRelation	(from_obj->Community(), to_obj->Community()	);
+	s32 community_to_obj_goodwill		= RELATION_REGISTRY().GetCommunityGoodwill	(from_obj->Community(), to					);
+	s32 community_to_community_goodwill	= RELATION_REGISTRY().GetCommunityRelation	(from_obj->Community(), to_obj->Community()	);
 	
 	return presonal_goodwill + community_to_obj_goodwill + community_to_community_goodwill;
 }
@@ -847,7 +948,7 @@ u32 render_get_dx_level()
 CUISequencer* g_tutorial = nullptr;
 CUISequencer* g_tutorial2 = nullptr;
 
-void start_tutorial(LPCSTR name)
+void start_tutorial(const char* name)
 {
 	if (load_screen_renderer.IsActive()) {
 		return;
@@ -871,16 +972,21 @@ void stop_tutorial()
 		g_tutorial->Stop();	
 }
 
-LPCSTR tutorial_name()
+const char* tutorial_name()
 {
 	if (g_tutorial)
 		return g_tutorial->m_name;
 	return "invalid";
 }
 
-LPCSTR translate_string(LPCSTR str)
+const char* translate_string(const char* str)
 {
-	return *g_pStringTable->translate(str);
+	return *g_pStringTable->ParseStringFromScript(str);
+}
+
+const char* current_language()
+{
+	return g_pStringTable->LangName().c_str();
 }
 
 bool has_active_tutotial()
@@ -932,7 +1038,7 @@ void u_event_send(NET_Packet& P)
 }
 
 //can spawn entities like bolts, phantoms, ammo, etc. which normally crash when using alife():create()
-void spawn_section(LPCSTR sSection, Fvector3 vPosition, u32 LevelVertexID, u16 ParentID, bool bReturnItem = false)
+void spawn_section(const char* sSection, Fvector3 vPosition, u32 LevelVertexID, u16 ParentID, bool bReturnItem = false)
 {
 	Level().spawn_item(sSection, vPosition, LevelVertexID, ParentID, bReturnItem);
 }
@@ -980,21 +1086,6 @@ u8 get_active_cam()
 	return 255;
 }
 
-void LevelPressAction(EGameActions cmd)
-{
-	Level().IR_OnKeyboardPress(cmd);
-}
-
-void LevelReleaseAction(EGameActions cmd)
-{
-	Level().IR_OnKeyboardRelease(cmd);
-}
-
-void LevelHoldAction(EGameActions cmd)
-{
-	Level().IR_OnKeyboardHold(cmd);
-}
-
 bool valid_vertex(u32 level_vertex_id)
 {
 	return ai().level_graph().valid_vertex_id(level_vertex_id);
@@ -1018,7 +1109,7 @@ CScriptGameObject* get_view_entity_script()
 
 void set_view_entity_script(CScriptGameObject* go)
 {
-	if (CObject* o = &go->object() != nullptr ? go->object().dcast_CObject() : nullptr)
+	if (CObject* o = go->object().dcast_CObject())
 	{
 		Level().SetViewEntity(o);
 	}
@@ -1036,11 +1127,10 @@ void set_active_cam(u8 mode)
 
 namespace level_nearest
 {
-	xr_vector<CObject*> ObjectList;
+	xr_vector<ISpatialShared> ObjectList;
 	void Set(float Radius, const Fvector& Pos)
 	{
-		ObjectList.clear();
-		g_pGameLevel->ObjectSpace.GetNearest(ObjectList, Pos, Radius, nullptr);
+		g_SpatialSpace->q_sphere(ObjectList, 0, ESPATIAL_TYPE::COLLIDEABLE, Pos, Radius);
 	}
 
 	u32 Size()
@@ -1054,18 +1144,28 @@ namespace level_nearest
 		{
 			return 0;
 		}
+		ISpatialShared& SS = ObjectList[Idx];
+		if(!SS.get())
+		{
+			return 0;
+		}
+		CObject* O = SS->dcast_CObject();
+		if(!O || O->getDestroy() || !O->cast_game_object())
+		{
+			return 0;
+		}
 
-		CGameObject* pObj = ObjectList[Idx]->cast_game_object();
+		CGameObject* pObj = O->cast_game_object();
 		return pObj->lua_game_object();
 	}
 }
 
-void patrol_path_add(LPCSTR patrol_path, CPatrolPath* path)
+void patrol_path_add(const char* patrol_path, CPatrolPath* path)
 {
 	ai().patrol_paths_raw().add_path(shared_str(patrol_path), path);
 }
 
-void patrol_path_remove(LPCSTR patrol_path)
+void patrol_path_remove(const char* patrol_path)
 {
 	ai().patrol_paths_raw().remove_path(shared_str(patrol_path));
 }
@@ -1112,6 +1212,25 @@ void RefreshNames()
 			}
 		}
 	}
+}
+
+void switch_wallmark(CScriptGameObject* object, bool isOn)
+{
+	if (OnClient()) {
+		return;
+	}
+	if (!object)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "switch_wallmark: dynamic wallmark object is NULL!");
+		return;
+	}
+	auto DW = smart_cast<CDynamicWallmarkZone*>(&object->object());
+	if (!DW)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "switch_wallmark: dynamic wallmark object [%s] is not a CDynamicWallmarkZone!", object->object().Name());
+		return;
+	}
+	DW->SwitchWallmark(isOn);
 }
 
 bool IsUIShown()
@@ -1168,14 +1287,19 @@ bool IndicatorsShown()
 
 bool InventoryShown()
 {
-	return CurrentGameUI()->ActorMenu().IsShown();
+	if (!CurrentGameUI())
+	{
+		return false;
+	}
+
+	return !!CurrentGameUI()->GetActiveInventoryWindow();
 }
 
 bool ElectronicsBreak()
 {
-	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	if (CElectronicsProblemsManager* electronics_manager = Level().GetElectronicsProblemsManager())
 	{
-		return actor->ElectronicsProblemsInc();
+		return electronics_manager->ElectronicsProblemsInc();
 	}
 
 	return false;
@@ -1193,14 +1317,19 @@ bool IsPickupMode()
 
 bool IsActorBurned()
 {
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		return actor->IsActorBurning();
+	}
+
 	return false;
 }
 
 bool IsElectronicsRestore()
 {
-	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	if (CElectronicsProblemsManager* electronics_manager = Level().GetElectronicsProblemsManager())
 	{
-		return actor->ElectronicsProblemsDec();
+		return electronics_manager->ElectronicsProblemsDec();
 	}
 
 	return false;
@@ -1208,9 +1337,9 @@ bool IsElectronicsRestore()
 
 bool ElectronicsReset()
 {
-	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	if (CElectronicsProblemsManager* electronics_manager = Level().GetElectronicsProblemsManager())
 	{
-		actor->ResetElectronicsProblems();
+		electronics_manager->ResetElectronicsProblems();
 		return true;
 	}
 
@@ -1219,9 +1348,9 @@ bool ElectronicsReset()
 
 bool IsElectronicsApply()
 {
-	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	if (CElectronicsProblemsManager* electronics_manager = Level().GetElectronicsProblemsManager())
 	{
-		return actor->ElectronicsProblemsImmediateApply();
+		return electronics_manager->ElectronicsProblemsImmediateApply();
 	}
 
 	return false;
@@ -1285,13 +1414,13 @@ int get_g_actor_id()
 void send_script_event_to_client(u32 cleintId, NET_Packet& P)
 {
 	R_ASSERT2(OnServer(), "Avaliable only on server");
-	Level().Server->SendTo(ClientID(cleintId), P, net_flags(TRUE, TRUE));
+	Level().Server->SendTo(ClientID(cleintId), P, net_flags(true, true));
 }
 
 void send_script_event_broadcast(NET_Packet& P)
 {
 	R_ASSERT2(OnServer(), "Avaliable only on server");
-	Level().Server->SendBroadcast(BroadcastCID, P, net_flags(TRUE, TRUE));
+	Level().Server->SendBroadcast(BroadcastCID, P, net_flags(true, true));
 }
 
 ScriptEvent* get_front_server_event()
@@ -1320,7 +1449,7 @@ u32 get_size_server_events()
 
 void send_script_event_to_server(NET_Packet& P)
 {
-	Level().Send(P, net_flags(TRUE, TRUE));
+	Level().Send(P, net_flags(true, true));
 }
 
 NET_Packet* get_last_client_event()
@@ -1399,7 +1528,7 @@ void jump_level(const Fvector& m_position, u32 m_level_vertex_id, GameGraph::_GR
 	p.w(&m_level_vertex_id, sizeof(m_level_vertex_id));
 	p.w_vec3(m_position);
 	p.w_vec3(m_angles);
-	Level().Send(p, net_flags(TRUE));
+	Level().Send(p, net_flags(true));
 }
 
 void CallGameOver()
@@ -1419,13 +1548,13 @@ float get_fog_distance()
 	return 400.0f;
 }
 
-void spawn_anomaly(LPCSTR str, int level_vertex_id, const Fvector& position, float rad)
+void spawn_anomaly(const char* str, int level_vertex_id, const Fvector& position, float rad)
 {
 	VERIFY(!physics_world()->Processing());
 	string128 tmp;
 	VERIFY3(3 == _GetItemCount(str), "Bad record format in artefact_spawn_zones", str);
 	float zone_radius = (float)atof(_GetItem(str, 1, tmp));
-	LPCSTR zone_sect = _GetItem(str, 0, tmp);
+	const char* zone_sect = _GetItem(str, 0, tmp);
 
 	CSE_Abstract* object = Level().spawn_item(zone_sect,
 		position,
@@ -1444,8 +1573,8 @@ void spawn_anomaly(LPCSTR str, int level_vertex_id, const Fvector& position, flo
 	AlifeZone->m_space_restrictor_type = RestrictionSpace::eRestrictorTypeNone;
 
 	NET_Packet					P;
-	object->Spawn_Write(P, TRUE);
-	Level().Send(P, net_flags(TRUE));
+	object->Spawn_Write(P, true);
+	Level().Send(P, net_flags(true));
 	F_entity_Destroy(object);
 }
 
@@ -1454,7 +1583,7 @@ void set_time_factor_single(float value) // FNAS
 	Level().SetGameTimeFactor(value);
 }
 
-LPCSTR GetActorMaterialPairName()
+const char* GetActorMaterialPairName()
 {
 	u16 mtl_idx = Actor() ? Actor()->material().last_material_idx() : GAMEMTL_NONE_IDX;
 	if (mtl_idx != GAMEMTL_NONE_IDX)
@@ -1468,6 +1597,225 @@ LPCSTR GetActorMaterialPairName()
 	}
 }
 
+
+std::unordered_map<shared_str, xr_vector<shared_str>> m_named_stash;
+
+void SetNamedStashStringVector(const char* name, luabind::object const& table)
+{
+	VERIFY(table.type() == LUA_TTABLE);
+
+	xr_vector<shared_str>& runtime_vector = m_named_stash[name];
+	runtime_vector.clear();
+
+	luabind::object::iterator I = table.begin();
+	luabind::object::iterator E = table.end();
+
+	for (; I != E; ++I)
+	{
+		luabind::object t_value = *I;
+		if (t_value.type() != LUA_TSTRING)
+		{
+			VERIFY(t_value.type() != LUA_TNIL);
+			continue;
+		}
+
+		shared_str t_strng_value = luabind::object_cast<const char*>(t_value);
+		runtime_vector.push_back(t_strng_value);
+	}
+}
+
+bool IsExistsNamedStashStringVector(const char* name)
+{
+	return m_named_stash.find(name) != m_named_stash.end();
+}
+
+luabind::object GetNamedStashStringVector(const char* name)
+{
+	luabind::object vector_to_lua = luabind::newtable(ai().script_engine().lua());
+
+	if (IsExistsNamedStashStringVector(name))
+	{
+		xr_vector<shared_str>& runtime_vector = m_named_stash[name];
+		size_t cnt = runtime_vector.size();
+
+		for (size_t i = 0; i < cnt; i++)
+		{
+			string128 tmp;
+			vector_to_lua[i + 1] = runtime_vector[i].c_str();
+		}
+	}
+
+	return vector_to_lua;
+}
+
+void RemoveNamedStashStringVector(const char* name)
+{
+	if (IsExistsNamedStashStringVector(name))
+	{
+		xr_vector<shared_str>& runtime_vector = m_named_stash[name];
+		runtime_vector.clear();
+	}
+}
+
+void RemoveAllNamedStashStringVectors()
+{
+	m_named_stash.clear();
+}
+
+const xr_vector<CScriptGameObject*>& GetOnlineGameObjectsBySphereSpatial(const Fvector& _center, const float _radius, luabind::object const& eSpatialTypes)
+{
+	u64 mask = 0;
+
+	VERIFY(eSpatialTypes.type() == LUA_TTABLE);
+
+	luabind::object::iterator I = eSpatialTypes.begin();
+	luabind::object::iterator E = eSpatialTypes.end();
+
+	for (; I != E; ++I)
+	{
+		luabind::object  tValue = *I;
+		if (tValue.type() == LUA_TNIL || tValue.type() != LUA_TNUMBER)
+		{
+			continue;
+		}
+
+		if (mask == 0)
+		{
+			mask = luabind::object_cast<u64>(tValue);
+		}
+		else
+		{
+			mask |= luabind::object_cast<u64>(tValue);
+		}
+	}
+
+	static xr_vector<CScriptGameObject*> m_objects;
+	m_objects.clear();
+
+	static xr_vector<ISpatialShared> R;
+	R.clear();
+	R.reserve(64);
+
+	g_SpatialSpace->q_sphere(R, 0, ESPATIAL_TYPE(mask), _center, _radius);
+
+	m_objects.reserve(R.size());
+
+	for (ISpatialShared& spatial : R)
+	{
+		if (!spatial.get())
+		{
+			continue;
+		}
+
+		if (CObject* obj = spatial->dcast_CObject())
+		{
+			if (obj->getDestroy() || !obj->cast_game_object())
+			{
+				continue;
+			}
+
+			if (CScriptGameObject* luaobj = obj->cast_game_object()->lua_game_object())
+			{
+				m_objects.push_back(luaobj);
+			}
+		}
+	}
+
+	return m_objects;
+}
+
+const xr_vector<CScriptGameObject*>& GetOnlineGameObjectsByObbBoxSpatial(const Fvector& _center, const Fvector box_halfsize, const Fvector box_direction, luabind::object const& eSpatialTypes)
+{
+	u64 mask = 0;
+
+	VERIFY(eSpatialTypes.type() == LUA_TTABLE);
+
+	luabind::object::iterator I = eSpatialTypes.begin();
+	luabind::object::iterator E = eSpatialTypes.end();
+
+	for (; I != E; ++I)
+	{
+		luabind::object  tValue = *I;
+		if (tValue.type() == LUA_TNIL || tValue.type() != LUA_TNUMBER)
+		{
+			continue;
+		}
+
+		if (mask == 0)
+		{
+			mask = luabind::object_cast<u64>(tValue);
+		}
+		else 
+		{
+			mask |= luabind::object_cast<u64>(tValue);
+		}
+	}
+
+	static xr_vector<CScriptGameObject*> m_objects;
+	m_objects.clear();
+
+	static xr_vector<ISpatialShared> R;
+	R.clear();
+	R.reserve(64);
+	
+	Fobb obb;
+	obb.identity();
+	obb.m_translate = _center;
+	obb.m_halfsize = box_halfsize;
+	obb.m_rotate.k = box_direction;
+	Fvector::generate_orthonormal_basis_normalized(obb.m_rotate.k, obb.m_rotate.j, obb.m_rotate.i);
+
+	g_SpatialSpace->q_obb(R, 0, ESPATIAL_TYPE(mask), obb);
+	
+
+	m_objects.reserve(R.size());
+
+	for(ISpatialShared& spatial :R)
+	{
+		if (!spatial.get())
+		{
+			continue;
+		}
+
+		if (CObject* obj = spatial->dcast_CObject())
+		{
+			if (obj->getDestroy() || !obj->cast_game_object())
+			{
+				continue;
+			}
+
+			if (CScriptGameObject* luaobj = obj->cast_game_object()->lua_game_object())
+			{
+				m_objects.push_back(luaobj);
+			}
+		}
+	}
+
+	return m_objects;
+}
+
+void ws_element_set_text(u16 id, const char* section, const char* text)
+{
+	if (CGameObject* obj = smart_cast<CGameObject*>(Level().Objects.net_Find(id)))
+	{
+		Level().WorldSpaceUIManager->ElementSetText(obj, section, text);
+	}
+}
+
+void ws_element_show(u16 id, const char* section, bool show = true)
+{
+	if (CGameObject* obj = smart_cast<CGameObject*>(Level().Objects.net_Find(id)))
+	{
+		Level().WorldSpaceUIManager->ElementShow(obj, section, show);
+	}
+}
+
+extern int g_keypress_on_start;
+static bool isUsedKeypressOnStart()
+{
+	return g_keypress_on_start == 1;
+}
+
 #pragma optimize("s",on)
 void CLevel::script_register(lua_State *L)
 {
@@ -1478,8 +1826,88 @@ void CLevel::script_register(lua_State *L)
 	class_<CEnvironment>("CEnvironment")
 		.def("current",							current_environment);
 
+	module(L)
+	[
+		class_<CFFxRandom>("FFxRandom")
+			.def(constructor<>())
+			.def(constructor<u32, u32>())
+			.def("is_counter_valid", &CFFxRandom::is_counter_valid)
+			.def("get_seed", &CFFxRandom::get_seed)
+			.def("get_counter", &CFFxRandom::get_counter)
+			.def("set_state", &CFFxRandom::set_state)
+			.def("next_int", &CFFxRandom::next_int)
+			.def("next_int_range", &CFFxRandom::next_int_range)
+			.def("next_float", &CFFxRandom::next_float)
+			.def("next_float_range", &CFFxRandom::next_float_range)
+			.def("next_bool", &CFFxRandom::next_bool)
+			.def("next_bool_probability", &CFFxRandom::next_bool_probability)
+	];
+
+	module(L, "splash_screen")
+	[
+		def("is_used_key_press_on_start_game", isUsedKeypressOnStart)
+	],
 	module(L,"level")
 	[
+		class_<enum_exporter<ESPATIAL_TYPE>>("e_spatial_type")
+			.enum_("e_spatial_types")
+			[
+				value("NONE", u64(ESPATIAL_TYPE::NONE)),
+				value("INVALIDSECTOR", u64(ESPATIAL_TYPE::INVALIDSECTOR)),
+				value("RENDERABLE", u64(ESPATIAL_TYPE::RENDERABLE)),
+				value("LIGHTSOURCE", u64(ESPATIAL_TYPE::LIGHTSOURCE)),
+				value("LIGHTSOURCEHEMI", u64(ESPATIAL_TYPE::LIGHTSOURCEHEMI)),
+				value("PHYSIC", u64(ESPATIAL_TYPE::PHYSIC)),
+				value("SHAPE", u64(ESPATIAL_TYPE::SHAPE)),
+				value("PARTICLE", u64(ESPATIAL_TYPE::PARTICLE)),
+				value("COLLIDEABLE", u64(ESPATIAL_TYPE::COLLIDEABLE)),
+				value("VISIBLEFORAI", u64(ESPATIAL_TYPE::VISIBLEFORAI)),
+				value("REACTTOSOUND", u64(ESPATIAL_TYPE::REACTTOSOUND)),
+				value("OBSTACLE", u64(ESPATIAL_TYPE::OBSTACLE)),
+				value("RENDERABLESHADOW", u64(ESPATIAL_TYPE::RENDERABLESHADOW)),
+				value("LADDER", u64(ESPATIAL_TYPE::LADDER)),
+				value("ACTOR", u64(ESPATIAL_TYPE::ACTOR)),
+				value("ACTOR_DEAD", u64(ESPATIAL_TYPE::ACTOR_DEAD)),
+				value("ACTOR_ALIVE", u64(ESPATIAL_TYPE::ACTOR_ALIVE)),
+				value("AI", u64(ESPATIAL_TYPE::AI)),
+				value("AI_DEAD", u64(ESPATIAL_TYPE::AI_DEAD)),
+				value("AI_ALIVE", u64(ESPATIAL_TYPE::AI_ALIVE)),
+				value("STALKER", u64(ESPATIAL_TYPE::STALKER)),
+				value("STALKER_WOUNDED", u64(ESPATIAL_TYPE::STALKER_WOUNDED)),
+				value("STALKER_DEAD", u64(ESPATIAL_TYPE::STALKER_DEAD)),
+				value("STALKER_ALIVE", u64(ESPATIAL_TYPE::STALKER_ALIVE)),
+				value("MONSTER", u64(ESPATIAL_TYPE::MONSTER)),
+				value("MONSTER_DEAD", u64(ESPATIAL_TYPE::MONSTER_DEAD)),
+				value("MONSTER_ALIVE", u64(ESPATIAL_TYPE::MONSTER_ALIVE)),
+				value("CROW", u64(ESPATIAL_TYPE::CROW)),
+				value("CROW_DEAD", u64(ESPATIAL_TYPE::CROW_DEAD)),
+				value("CROW_ALIVE", u64(ESPATIAL_TYPE::CROW_ALIVE)),
+				value("ITEM", u64(ESPATIAL_TYPE::ITEM)),
+				value("WEAPON", u64(ESPATIAL_TYPE::WEAPON)),
+				value("MISSILE", u64(ESPATIAL_TYPE::MISSILE)),
+				value("ROCKET", u64(ESPATIAL_TYPE::ROCKET)),
+				value("ARTEFACT", u64(ESPATIAL_TYPE::ARTEFACT)),
+				value("ANOMALY_DETECTOR", u64(ESPATIAL_TYPE::ANOMALY_DETECTOR)),
+				value("CAR", u64(ESPATIAL_TYPE::CAR)),
+				value("HELI", u64(ESPATIAL_TYPE::HELI)),
+				value("PHYSIC_OBJECT", u64(ESPATIAL_TYPE::PHYSIC_OBJECT)),
+				value("PHYSIC_SHELL_HOLDER", u64(ESPATIAL_TYPE::PHYSIC_SHELL_HOLDER)),
+				value("PHYSIC_OBJECT_DESTR", u64(ESPATIAL_TYPE::PHYSIC_OBJECT_DESTR)),
+				value("PHYSIC_OBJECT_BRKBL", u64(ESPATIAL_TYPE::PHYSIC_OBJECT_BRKBL)),
+				value("PHYSIC_MOVEMENT", u64(ESPATIAL_TYPE::PHYSIC_MOVEMENT)),
+				value("INV_BOX", u64(ESPATIAL_TYPE::INV_BOX)),
+				value("AI_DOOR", u64(ESPATIAL_TYPE::AI_DOOR)),
+				value("LIGHT_LAMP", u64(ESPATIAL_TYPE::LIGHT_LAMP)),
+				value("LEVEL_CHANGER", u64(ESPATIAL_TYPE::LEVEL_CHANGER)),
+				value("SPACE_RESTRICTOR", u64(ESPATIAL_TYPE::SPACE_RESTRICTOR)),
+				value("ANOMALY_ZONE", u64(ESPATIAL_TYPE::ANOMALY_ZONE)),
+				value("SIM_FACTION", u64(ESPATIAL_TYPE::SIM_FACTION)),
+				value("SMART_TERRAIN", u64(ESPATIAL_TYPE::SMART_TERRAIN)),
+				value("CAMP_ZONE", u64(ESPATIAL_TYPE::CAMP_ZONE)),
+				value("SMART_COVER", u64(ESPATIAL_TYPE::SMART_COVER)),
+				value("ANOMAL_ZONE_LOGIC", u64(ESPATIAL_TYPE::ANOMAL_ZONE_LOGIC))
+			],
+
 		// obsolete\deprecated
 		def("object_by_id",						get_object_by_id),
 #ifdef DEBUG
@@ -1488,6 +1916,16 @@ void CLevel::script_register(lua_State *L)
 		def("check_object",						check_object),
 #endif
 		def("set_time_factor_single", set_time_factor_single), // FNAS
+		
+		def("search_online_objects_by_sphere", &GetOnlineGameObjectsBySphereSpatial, return_stl_iterator),
+		def("search_online_objects_by_obb_box", &GetOnlineGameObjectsByObbBoxSpatial, return_stl_iterator),
+
+		def("is_exists_named_stash_string_vector", &IsExistsNamedStashStringVector),
+		def("get_named_stash_string_vector", &GetNamedStashStringVector),
+		def("set_named_stash_string_vector", &SetNamedStashStringVector),
+		def("remove_named_stash_string_vector", &RemoveNamedStashStringVector),
+		def("remove_all_named_stash_string_vectors", &RemoveAllNamedStashStringVectors),
+
 		def("get_weather",						get_weather),
 		def("set_weather",						set_weather),
 		def("set_weather_fx",					set_weather_fx),
@@ -1498,6 +1936,12 @@ void CLevel::script_register(lua_State *L)
 		def("get_next_wdesc_execution_time", get_next_wdesc_execution_time),
 		def("get_past_weather", get_past_wdesc),
 		def("get_next_weather", get_next_wdesc),
+		def("enable_rain", +[](bool Value) 
+			{
+				g_pGamePersistent->Environment().eff_Rain->Enable(false);
+				g_pGamePersistent->Environment().eff_Thunderbolt->Enable(false);
+			}
+		),
 
 		def("get_fog_distance",					get_fog_distance),
 		def("GetActorMaterialPairName",			GetActorMaterialPairName),
@@ -1554,14 +1998,16 @@ void CLevel::script_register(lua_State *L)
 		def("show_weapon",						show_weapon),
 		def("add_call",							((void (*) (const luabind::functor<bool> &,const luabind::functor<void> &)) &add_call)),
 		def("add_call",							((void (*) (const luabind::object &,const luabind::functor<bool> &,const luabind::functor<void> &)) &add_call)),
-		def("add_call",							((void (*) (const luabind::object &, LPCSTR, LPCSTR)) &add_call)),
+		def("add_call",							((void (*) (const luabind::object &, const char*, const char*)) &add_call)),
 		def("remove_call",						((void (*) (const luabind::functor<bool> &,const luabind::functor<void> &)) &remove_call)),
 		def("remove_call",						((void (*) (const luabind::object &,const luabind::functor<bool> &,const luabind::functor<void> &)) &remove_call)),
-		def("remove_call",						((void (*) (const luabind::object &, LPCSTR, LPCSTR)) &remove_call)),
+		def("remove_call",						((void (*) (const luabind::object &, const char*, const char*)) &remove_call)),
 		def("remove_calls_for_object",			remove_calls_for_object),
 		def("present",							is_level_present),
 		def("disable_input",					disable_input),
 		def("enable_input",						enable_input),
+		def("disable_mouse_move",				disable_mouse_move),
+		def("enable_mouse_move",				enable_mouse_move),
 		def("spawn_phantom",					spawn_phantom),
 
 		def("get_bounding_volume",				get_bounding_volume),
@@ -1571,6 +2017,11 @@ void CLevel::script_register(lua_State *L)
 		def("physics_world",					&physics_world_scripted),
 		def("get_snd_volume",					&get_snd_volume),
 		def("set_snd_volume",					&set_snd_volume),
+		def("get_rain_volume",					&get_rain_volume),
+		def("is_inventory_volume_enabled",		&is_inventory_volume_enabled),
+		def("set_inventory_volume_enabled",		&set_inventory_volume_enabled),
+		def("is_inventory_grid_disabled",		&is_inventory_grid_disabled),
+		def("set_inventory_grid_disabled",		&set_inventory_grid_disabled),
 		def("add_cam_effector",					&add_cam_effector),
 		def("add_cam_effector2",				&add_cam_effector2),
 		def("add_cam_effector2",				&add_cam_effector_without_fov),
@@ -1580,6 +2031,7 @@ void CLevel::script_register(lua_State *L)
 		def("set_pp_effector_factor",			&set_pp_effector_factor2),
 		def("remove_pp_effector",				&remove_pp_effector),
 		def("get_compass_direction",			&get_compass_direction),
+		def("actor_in_restrictor",				&actor_in_restrictor),
 
 		def("add_complex_effector",				&add_complex_effector),
 		def("remove_complex_effector",			&remove_complex_effector),
@@ -1609,9 +2061,6 @@ void CLevel::script_register(lua_State *L)
 		def("send", &g_send2), //allow the ability to send netpacket to level
 		def("get_target_obj", &g_get_target_obj), //intentionally named to what is in xray extensions
 		def("get_target_dist", &g_get_target_dist),
-		def("press_action", &LevelPressAction),
-		def("release_action", &LevelReleaseAction),
-		def("hold_action", &LevelHoldAction),
 		def("get_target_element", &g_get_target_element), //Can get bone cursor is targetting
 		def("get_view_entity", &get_view_entity_script),
 		def("set_view_entity", &set_view_entity_script),
@@ -1635,10 +2084,16 @@ void CLevel::script_register(lua_State *L)
 		def("valid_saved_game_int", &ValidSavedGameInt),
 		def("is_tactical_hud", &IsTacticalHud),
 
+		// Dynamic wallmarks switch
+		def("switch_wallmark", &switch_wallmark),
+
 		// new for fmp
 		def("get_object_by_client", &get_object_by_client),
 		def("get_local_player_id", &get_local_player_id),
-		def("get_g_actor_id", &get_g_actor_id)
+		def("get_g_actor_id", &get_g_actor_id),
+
+		def("ws_element_set_text", &ws_element_set_text),
+		def("ws_element_show", &ws_element_show)
 	],
 	
 	module(L,"nearest")
@@ -1657,8 +2112,12 @@ void CLevel::script_register(lua_State *L)
 	[
 		def("add_points", &add_actor_points),
 		def("add_points_str", &add_actor_points_str),
-		def("get_points", &get_actor_points)
+		def("get_points", &get_actor_points),
+		def("add_to_ranking", &add_human_to_top_list),
+		def("remove_from_ranking", &remove_human_from_top_list),
+		def("get_actor_ranking", &get_actor_ranking)
 	];
+
 	module(L)
 	[
 	   class_<CRayPick>("ray_pick")
@@ -1703,7 +2162,8 @@ void CLevel::script_register(lua_State *L)
 		def("IsDedicated",						&is_dedicated),
 		def("OnClient",							&OnClient),
 		def("OnServer",							&OnServer),
-		def("EngineBuildId", &get_build_id)
+		def("EngineBuildId",					&get_build_id),
+		def("action_repeaters",					&ActionRepeaters)
 	];
 
 	module(L,"relation_registry")
@@ -1733,9 +2193,6 @@ void CLevel::script_register(lua_State *L)
 		def("pop_front_server_event", &pop_front_server_event),
 		def("get_size_server_events", &get_size_server_events)
 	];
-
-	luabind::object script_events = luabind::get_globals(L)["script_events"];
-	script_events["M_SCRIPT_EVENT"] = M_SCRIPT_EVENT;
 
 	module(L,"game")
 	[
@@ -1787,6 +2244,7 @@ void CLevel::script_register(lua_State *L)
 			def("has_active_tutorial",	&has_active_tutotial),
 			def("active_tutorial_name", &tutorial_name),
 			def("translate_string",		&translate_string),
+			def("current_language",		&current_language),
 			def("reload_language", &ReloadLanguage),
 			def("world2ui", &World2Ui),
 			def("jump_level", &jump_level)

@@ -39,8 +39,8 @@ private:
 		Fmatrix					m_rotation;
 	}; // struct bone_parameters_base
 
-	struct bone_parameters : bone_parameters_base {
-		Fmatrix					m_rotation;
+	struct bone_parameters : bone_parameters_base
+	{
 		float					m_factor;
 	}; // struct bone_parameters
 
@@ -75,9 +75,9 @@ private:
 
 public:
 					CSightManager						(CAI_Stalker *object);
-	virtual	void	Load								(LPCSTR section);
+	virtual	void	Load								(const char* section);
 	virtual	void	reinit								();
-	virtual	void	reload								(LPCSTR section);
+	virtual	void	reload								(const char* section);
 			void	remove_links						(CObject *object);
 			void	Exec_Look							(float dt);
 			void	SetPointLookAngles					(const Fvector &tPosition, float &yaw, float &pitch, Fvector const& look_position, const CGameObject *object = 0);

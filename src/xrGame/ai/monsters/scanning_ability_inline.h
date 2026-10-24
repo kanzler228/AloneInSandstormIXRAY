@@ -1,5 +1,5 @@
 #pragma once
-
+#include "CharacterPhysicsSupport.h"
 #include "ai_monster_effector.h"
 #include "Actor.h"
 
@@ -17,7 +17,7 @@ void CScanningAbilityAbstract::on_destroy()
 }
 
 TEMPLATE_SPECIALIZATION
-void CScanningAbilityAbstract::load(LPCSTR section)
+void CScanningAbilityAbstract::load(const char* section)
 {
 	::Sound->create(sound_scan,	pSettings->r_string(section,"scan_sound"), st_Effect,SOUND_TYPE_WORLD);
 
@@ -30,7 +30,7 @@ void CScanningAbilityAbstract::load(LPCSTR section)
 	VERIFY					(!fis_zero(scan_trace_time_freq));
 
 	// load scan effector
-	LPCSTR ppi_section = pSettings->r_string(section, "scan_effector_section");
+	const char* ppi_section = pSettings->r_string(section, "scan_effector_section");
 	m_effector_info.duality.h			= pSettings->r_float(ppi_section,"duality_h");
 	m_effector_info.duality.v			= pSettings->r_float(ppi_section,"duality_v");
 	m_effector_info.gray				= pSettings->r_float(ppi_section,"gray");
@@ -64,7 +64,7 @@ TEMPLATE_SPECIALIZATION
 void CScanningAbilityAbstract::schedule_update()
 {
 	// check if we end scanning
-	if (m_this_scan && !sound_scan._feedback()) {
+	if (m_this_scan && !sound_scan.is_playing()) {
 		object->can_scan = true;
 		m_this_scan		 = false;
 	}
@@ -72,7 +72,9 @@ void CScanningAbilityAbstract::schedule_update()
 	if (state == eStateDisabled) return;
 	if (!object->g_Alive()) return;
 
-	CActor *scan_obj	= smart_cast<CActor *>(Level().CurrentEntity());
+	CObject* current_entity = Level().CurrentEntity();
+
+	CActor *scan_obj	= current_entity != nullptr ? current_entity->cast_actor() : nullptr;
 	if (!scan_obj)		return;
 
 	// проверка на активность
@@ -93,7 +95,7 @@ void CScanningAbilityAbstract::schedule_update()
 				scan_value		+= vel;
 			}
 			
-			if (sound_scan._feedback()) sound_scan.set_position(scan_obj->Position());
+			if (sound_scan.is_playing()) sound_scan.set_position(scan_obj->Position());
 			else {
 				if (object->can_scan) {
 					// играть звук
@@ -125,7 +127,7 @@ void CScanningAbilityAbstract::frame_update(u32 dt)
 
 	if (scan_value < 0) scan_value = 0.f;
 	else if (scan_value > 0) {
-		scan_value -= decrease_value * float(dt) / 1000;
+		scan_value -= decrease_value * Device.fTimeDelta;
 	}
 }
 
@@ -133,7 +135,7 @@ void CScanningAbilityAbstract::frame_update(u32 dt)
 TEMPLATE_SPECIALIZATION
 float CScanningAbilityAbstract::get_velocity(CObject *obj)
 {
-	CActor *actor = smart_cast<CActor *>(obj);
+	CActor* actor = obj->cast_actor();
 	return (actor->character_physics_support()->movement()->GetVelocityActual()); 
 }
 

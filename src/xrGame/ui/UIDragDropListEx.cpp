@@ -1,18 +1,104 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIDragDropListEx.h"
 #include "../../xrUI/Widgets/UIScrollBar.h"
 #include "object_broker.h"
 #include "UICellItem.h"
+#include "UIInventoryInvalidation.h"
 #include "../../xrUI/UICursor.h"
 #include "../Inventory.h"
-
+#include "../../xrUI/Widgets/UIFrameWindow.h"
+#include "../../xrEngine/xr_input.h"
+#include "../../xrCore/EngineExternal.h"
 
 CUIDragItem* CUIDragDropListEx::m_drag_item = nullptr;
 
 namespace
 {
-// Horizontal UV span for one cell when inventory grid is disabled (must match GetTexUVLT sliding room).
 constexpr float kInventoryCellUSpanGridDisabled = 0.23f;
+
+s8 s_inventoryGridDisabledOverride = -1;
+
+xr_vector<CUIDragItem*> s_pendingDragItemDestroy;
+
+void QueuePendingDragItemDestroy(CUIDragItem* dragItem)
+{
+	if (dragItem == nullptr)
+	{
+		return;
+	}
+
+	dragItem->UnregisterDeviceSequences();
+	s_pendingDragItemDestroy.push_back(dragItem);
+}
+}
+
+bool IsInventoryGridDisabled()
+{
+	if (s_inventoryGridDisabledOverride >= 0)
+	{
+		return s_inventoryGridDisabledOverride != 0;
+	}
+
+	return EngineExternal()[EEngineExternalUI::DisableInventoryGrid];
+}
+
+void SetInventoryGridDisabledScript(bool disabled)
+{
+	s_inventoryGridDisabledOverride = disabled ? s8(1) : s8(0);
+}
+
+void CUIDragDropListEx::FlushPendingDragItemDestroy()
+{
+	if (s_pendingDragItemDestroy.empty())
+	{
+		return;
+	}
+
+	xr_vector<CUIDragItem*> pending;
+	pending.swap(s_pendingDragItemDestroy);
+
+	for (CUIDragItem* item : pending)
+	{
+		xr_delete(item);
+	}
+}
+
+void CUIDragDropListEx::BumpContentGeneration()
+{
+	++m_contentGeneration;
+	if (m_contentGeneration == 0)
+	{
+		m_contentGeneration = 1;
+	}
+}
+
+void CUIDragDropListEx::EndDragSession()
+{
+	if (m_drag_item == nullptr)
+	{
+		FlushPendingDragItemDestroy();
+		return;
+	}
+
+	CUICellItem* parentItem = m_drag_item->ParentItem();
+	CUIDragDropListEx* owner = parentItem != nullptr ? parentItem->OwnerList() : nullptr;
+	if (owner == nullptr)
+	{
+		owner = m_drag_item->BackList();
+	}
+
+	if (owner != nullptr)
+	{
+		owner->DestroyDragItem();
+	}
+	else
+	{
+		CUIDragItem* dragItem = m_drag_item;
+		m_drag_item = nullptr;
+		QueuePendingDragItemDestroy(dragItem);
+	}
+
+	FlushPendingDragItemDestroy();
 }
 
 void CUICell::Clear()
@@ -30,6 +116,10 @@ CUIDragDropListEx::CUIDragDropListEx()
 	m_vScrollBar->SetAutoDelete	(true);
 	m_selected_item				= nullptr;
 	m_bConditionProgBarVisible	= false;
+
+	m_selectorFrame				= new CUIFrameWindow();
+	m_selectorFrame->SetVisible(false);
+	AttachChild					(m_selectorFrame);
 
 	SetCellSize					(Ivector2().set(50,50));
 	SetCellsCapacity			(Ivector2().set(0,0));
@@ -55,9 +145,12 @@ CUIDragDropListEx::CUIDragDropListEx()
 
 CUIDragDropListEx::~CUIDragDropListEx()
 {
-	DestroyDragItem		();
+	DestroyDragItem();
+	FlushPendingDragItemDestroy();
 
 	delete_data					(m_container);
+
+	xr_delete					(m_selectorFrame);
 }
 
 void CUIDragDropListEx::SetAutoGrow(bool b)						
@@ -110,6 +203,59 @@ bool CUIDragDropListEx::GetVirtualCells()
 	return !!m_flags.test(flVirtualCells);
 }
 
+void CUIDragDropListEx::UpdateSelector()
+{
+	if (!HasCells())
+	{
+		return;
+	}
+
+	m_container->ValidateSelector();
+	m_selected_item = m_container->GetCellAt(m_container->GetSelectorArea().lt).m_item;
+
+	// Check if selector is visible
+	const Irect& selectorArea = m_container->GetSelectorArea();
+	const int selAreaW = selectorArea.width();
+	const int selAreaH = selectorArea.height();
+	const Ivector2& cellSize = CellSize();
+	const Ivector2& cellSpacing = CellsSpacing();
+	const Ivector2& capacity = m_container->CellsCapacity();
+
+	Frect wndRect = { 0, 0, GetWndSize().x, GetWndSize().y };
+	wndRect.grow(1, 1);
+
+	Frect selectorBare;
+	selectorBare.x1 = selectorArea.x1 * (cellSize.x + cellSpacing.x);
+	selectorBare.y1 = selectorArea.y1 * (cellSize.y + cellSpacing.y);
+	selectorBare.x2 = selectorBare.x1 + selAreaW * cellSize.x + (selAreaW - 1) * cellSpacing.x;
+	selectorBare.y2 = selectorBare.y1 + selAreaH * cellSize.y + (selAreaH - 1) * cellSpacing.y;
+
+	Frect selector = selectorBare;
+	selector.add(m_container->GetWndPos().x, m_container->GetWndPos().y);
+
+	// If not fully visible, need to autoscroll
+	if (!(wndRect.in(selector.lt) && wndRect.in(selector.rb)))
+	{
+		if (selector.y1 > 0) // Scroll down
+			m_vScrollBar->SetScrollPos(selectorBare.y2 - GetWndSize().y); 
+		else
+			m_vScrollBar->SetScrollPos(selectorBare.y1); // Scroll up
+
+		m_container->SetWndPos(Fvector2().set(m_container->GetWndPos().x, float(-m_vScrollBar->GetScrollPos())));
+	}
+
+	// Update frame size and position
+	m_selectorFrame->SetWidth(selectorBare.width());
+	m_selectorFrame->SetHeight(selectorBare.height());
+
+	Fvector2 cellPos = { 
+		(float)selectorArea.x1 * (float)cellSize.x + (float)selectorArea.x1 * (float)cellSpacing.x, 
+		selector.y1 
+	};
+	m_selectorFrame->SetWndPos(cellPos);
+
+}
+
 void CUIDragDropListEx::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 {
 	CUIWndCallback::OnEvent(pWnd, msg, pData);
@@ -130,6 +276,7 @@ void CUIDragDropListEx::OnScrollV(CUIWindow* w, void* pData)
 
 void CUIDragDropListEx::CreateDragItem(CUICellItem* itm)
 {
+	FlushPendingDragItemDestroy();
 	R_ASSERT							(!m_drag_item);
 	m_drag_item							= itm->CreateDragItem();
 
@@ -141,13 +288,23 @@ void CUIDragDropListEx::CreateDragItem(CUICellItem* itm)
 
 void CUIDragDropListEx::DestroyDragItem()
 {
-	if(m_selected_item && m_drag_item && m_drag_item->ParentItem()==m_selected_item)
+	CUIDragItem* dragItem = m_drag_item;
+	if (dragItem == nullptr)
 	{
-		VERIFY(GetParent()->GetMouseCapturer()==m_drag_item);
-		GetParent()->SetCapture				(nullptr, false);
-
-		delete_data							(m_drag_item);
+		return;
 	}
+
+	m_drag_item = nullptr;
+
+	if (CUIWindow* parent = GetParent())
+	{
+		if (parent->GetMouseCapturer() == dragItem)
+		{
+			parent->SetCapture(nullptr, false);
+		}
+	}
+
+	QueuePendingDragItemDestroy(dragItem);
 }
 
 Fvector2 CUIDragDropListEx::GetDragItemPosition()
@@ -303,11 +460,39 @@ void CUIDragDropListEx::GetClientArea(Frect& r)
 // FFx0001
 void CUIDragDropListEx::ClearAll(bool bDestroy, xr_vector<u16> IgnoredItemsIds)
 {
-	DestroyDragItem			();
+	if (bDestroy)
+	{
+		UIInventoryInvalidation::BeginListContentReset(*this);
+	}
+	else
+	{
+		// Compact / soft clear: keep cell widgets and menu selection unless drag is active
+		DestroyDragItem();
+		ClearSelectedItem();
+	}
+
+	FlushPendingDragItemDestroy();
 	m_container->ClearAll	(bDestroy, IgnoredItemsIds); // FFx0001
 	m_selected_item			= nullptr;
+
+	// IgnoredItemsIds survivors keep widgets; restamp owner token after generation bump
+	const u32 count = ItemsCount();
+	for (u32 i = 0; i < count; ++i)
+	{
+		CUICellItem* itm = GetItemIdx(i);
+		itm->SetOwnerList(this);
+		const u32 childCount = itm->ChildsCount();
+		for (u32 j = 0; j < childCount; ++j)
+		{
+			itm->Child(j)->SetOwnerList(this);
+		}
+	}
+
 	m_container->SetWndPos	(Fvector2().set(0,0));
-	ResetCellsCapacity		();
+	if (count == 0)
+	{
+		ResetCellsCapacity();
+	}
 }
 
 void CUIDragDropListEx::Compact()
@@ -325,6 +510,7 @@ void CUIDragDropListEx::Compact()
 
 void CUIDragDropListEx::Draw()
 {
+	FlushPendingDragItemDestroy();
 	inherited::Draw				();
 
 	if(0 && bDebug){
@@ -341,6 +527,7 @@ void CUIDragDropListEx::Draw()
 
 void CUIDragDropListEx::Update()
 {
+	FlushPendingDragItemDestroy();
 	inherited::Update			();
 
 	if( m_drag_item ){
@@ -354,6 +541,7 @@ void CUIDragDropListEx::Update()
 			if( this==m_drag_item->BackList() )
 				m_drag_item->SetBackList(nullptr);
 	}
+	m_selectorFrame->SetVisible(m_selector_shown && pInput->GetControllerMode());
 }
 
 void CUIDragDropListEx::ReinitScroll()
@@ -403,6 +591,11 @@ bool CUIDragDropListEx::OnMouseAction(float x, float y, EUIMessages mouse_action
 	return b;
 }
 
+bool CUIDragDropListEx::HasCells() const
+{
+	return m_container->HasCells();
+}
+
 const Ivector2& CUIDragDropListEx::CellsCapacity()
 {
 	return m_container->CellsCapacity();
@@ -411,6 +604,12 @@ const Ivector2& CUIDragDropListEx::CellsCapacity()
 void CUIDragDropListEx::SetCellsCapacity(const Ivector2 c)
 {
 	m_container->SetCellsCapacity(c);
+
+	// Autohide selector if we are empty now
+	if (!m_container->HasCells())
+	{
+		m_selector_shown = false;
+	}
 }
 
 const Ivector2& CUIDragDropListEx::CellSize()
@@ -470,7 +669,14 @@ void CUIDragDropListEx::SetItem(CUICellItem* itm, Ivector2 cell_pos) // start at
 
 	m_container->PlaceItemAtPos	(itm, cell_pos);
 
-	itm->SetWindowName			("cell_item");
+    const PIItem iitem = static_cast<PIItem>(itm->m_pData);
+    itm->SetScaleFactor(iitem->m_3d_static_scale);
+    Fvector fRot = iitem->m_3d_static_rotate;
+    if (GetVerticalPlacement())
+        fRot.x += deg2rad(90.f);
+    itm->SetXYZ(fRot);
+
+    itm->SetWindowName			("cell_item");
 	Register					(itm);
 	itm->SetOwnerList			(this);
 }
@@ -484,6 +690,9 @@ bool CUIDragDropListEx::CanSetItem(CUICellItem* itm){
 
 CUICellItem* CUIDragDropListEx::RemoveItem(CUICellItem* itm, bool force_root)
 {
+	if (pInput->GetControllerMode() && itm == m_selected_item && itm->ChildsCount() == 0)
+		DeselectSelected();
+
 	CUICellItem* i				= m_container->RemoveItem		(itm, force_root);
 	i->SetOwnerList				((CUIDragDropListEx*)nullptr);
 	return						i;
@@ -552,11 +761,83 @@ CUICell& CUIDragDropListEx::GetCellAt(const Ivector2& pos)
 {
 	return m_container->GetCellAt(pos);
 };
+
+bool CUIDragDropListEx::MoveSelector(eUIDirection4 dir)
+{
+	R_ASSERT(HasCells());
+
+	bool bResult = m_container->MoveSelector(dir);
+	UpdateSelector();
+	return bResult;
+}
+
+bool CUIDragDropListEx::MoveSelectorToItem(CUICellItem* pItem)
+{
+	R_ASSERT(HasCells());
+
+	if (!pItem || !m_container->IsChild(pItem))
+		return false;
+
+	Irect newSelector;
+	const Ivector2& itemSize = pItem->GetGridSize();
+	newSelector.lt = m_container->GetItemPos(pItem);
+	newSelector.x2 = newSelector.x1 + itemSize.x;
+	newSelector.y2 = newSelector.y1 + itemSize.y;
+
+	m_container->TrySetSelector(newSelector);
+	return true;
+}
+
+void CUIDragDropListEx::InitSelector(const char* texture_name)
+{
+	m_selectorFrame->InitTexture(texture_name, false);
+}
+
+void CUIDragDropListEx::SetControllerFocusIn(Irect selector)
+{
+	if (m_container->HasCells())
+	{
+		m_container->TrySetSelector(selector);
+		UpdateSelector();
+		m_selector_shown = true;
+	}
+	else
+	{
+		m_selector_shown = false;
+	}
+}
+void CUIDragDropListEx::SetControllerFocusOut()
+{
+	DeselectSelected();
+	m_selector_shown = false;
+}
+
+
+void CUIDragDropListEx::DeselectSelected()
+{
+	if (m_selected_item)
+	{
+		if (m_f_item_focus_lost)
+			m_f_item_focus_lost(m_selected_item);
+		m_selected_item = nullptr;
+	}
+}
+
+CUICellItem* CUIDragDropListEx::GetItemAtPos(Fvector2 abs_pos)
+{
+	Ivector2 cell = PickCell(abs_pos);
+	if (m_container->ValidCell(cell))
+	{
+		return m_container->GetCellAt(cell).m_item;
+	}
+	return nullptr;
+}
+
 // =================================================================================================
 
 CUICellContainer::CUICellContainer(CUIDragDropListEx* parent)
 	: m_pParentDragDropList(parent)
-	, m_isInventoryGridDisabled(EngineExternal()[EEngineExternalUI::DisableInventoryGrid])
+	, m_isInventoryGridDisabled(IsInventoryGridDisabled())
 {
 	if (m_isInventoryGridDisabled)
 	{
@@ -566,8 +847,12 @@ CUICellContainer::CUICellContainer(CUIDragDropListEx* parent)
 	{
 		hShader->create("hud\\fog_of_war", "ui\\ui_grid");
 	}
-//	hShader_selected->create	( "hud\\fog_of_war", "ui_grid_selected" );
 	m_cellSpacing.set			( 0, 0 );
+
+	m_selectorArea.left = 0;
+	m_selectorArea.top = 0;
+	m_selectorArea.right = 1;
+	m_selectorArea.bottom = 1;
 }
 
 CUICellContainer::~CUICellContainer()
@@ -577,20 +862,36 @@ CUICellContainer::~CUICellContainer()
 bool CUICellContainer::AddSimilar(CUICellItem* itm)
 {
 	if (!m_pParentDragDropList->IsGrouping())
+		return false;
+
+	const PIItem iitem = static_cast<PIItem>(itm->m_pData);
+	if (iitem && iitem->m_pInventory && iitem->m_pInventory->ItemFromSlot(iitem->BaseSlot()) == iitem)
+	{
+		const bool allowSlottedGrenadeStack =
+			(iitem->BaseSlot() == GRENADE_SLOT) && (iitem->cast_grenade() != nullptr);
+		if (!allowSlottedGrenadeStack)
+			return false;
+	}
+
+	if (!iitem || !iitem->CanStack())
+		return false;
+
+	CUICellItem* i = FindSimilar(itm);
+	if (i == nullptr || i == itm || itm->ChildsCount() > 0)
+		return false;
+
+	const PIItem iitem_parent = static_cast<PIItem>(i->m_pData);
+	if (!iitem_parent)
+		return false;
+	if (iitem->BaseSlot() != GRENADE_SLOT && iitem->CurrSlot() != iitem_parent->CurrSlot())
 	{
 		return false;
 	}
 
-	CUICellItem* i = FindSimilar(itm);
-	R_ASSERT(i != itm);
-	R_ASSERT(0 == itm->ChildsCount());
-	if (i != nullptr)
-	{
-		i->PushChild(itm);
-		itm->SetOwnerList(m_pParentDragDropList);
-	}
+	i->PushChild(itm);
+	itm->SetOwnerList(m_pParentDragDropList);
 
-	return (i != nullptr);
+	return true;
 }
 
 CUICellItem* CUICellContainer::FindSimilar(CUICellItem* itm)
@@ -805,6 +1106,7 @@ void CUICellContainer::GetTexUVLT(Fvector2& uv, u32 col, u32 row, u8 select_mode
 
 void CUICellContainer::SetCellsCapacity(const Ivector2& c)
 {
+	R_ASSERT(c.x >= 0 && c.y >= 0);
 	m_cellsCapacity				= c;
 	m_cells.resize				(c.x*c.y);
 	ReinitSize					();
@@ -868,6 +1170,11 @@ void CUICellContainer::ReinitSize()
 
 	SetWndSize							(Fvector2().set(sz.x,sz.y));
 	m_pParentDragDropList->ReinitScroll	();
+
+	if (HasCells())
+	{
+		ResetSelector();
+	}
 }
 
 void CUICellContainer::Grow()
@@ -887,6 +1194,8 @@ bool CUICellContainer::ValidCell(const Ivector2& pos) const
 // FFx0001 add support ignore items by ids
 void CUICellContainer::ClearAll(bool bDestroy, xr_vector<u16> IgnoredItemsIds)
 {
+	m_selectorArea = { 0,0,1,1 };
+
 	bool DeepSearch = false;
 	size_t cnt = IgnoredItemsIds.size();
 
@@ -961,19 +1270,14 @@ void CUICellContainer::ClearAll(bool bDestroy, xr_vector<u16> IgnoredItemsIds)
 
 				if (bDestroy)
 				{
-					// During bulk UI list cleanup item game objects may already be invalid.
-					// Prevent CUICellItem destructor from dereferencing m_pData callbacks.
-					ci->m_b_destroy_childs = false;
-					ci->m_pData = nullptr;
+					UIInventoryInvalidation::PrepareCellForDestroy(ci);
 					delete_data(ci);
 				}
 			}
 
 			if (bDestroy)
 			{
-				// Same safety as for child cells: do not touch stale inventory object.
-				wc->m_b_destroy_childs = false;
-				wc->m_pData = nullptr;
+				UIInventoryInvalidation::PrepareCellForDestroy(wc);
 				delete_data(wc);
 			}
 		}
@@ -999,6 +1303,20 @@ Ivector2 CUICellContainer::PickCell(const Fvector2& abs_pos)
 
 void CUICellContainer::Draw()
 {
+	const bool gridDisabled = IsInventoryGridDisabled();
+	if (gridDisabled != m_isInventoryGridDisabled)
+	{
+		m_isInventoryGridDisabled = gridDisabled;
+		if (m_isInventoryGridDisabled)
+		{
+			hShader->create("hud\\fog_of_war", "ui\\ui_grid_alt");
+		}
+		else
+		{
+			hShader->create("hud\\fog_of_war", "ui\\ui_grid");
+		}
+	}
+
 	Frect clientArea;
 	m_pParentDragDropList->GetClientArea(clientArea);
 
@@ -1126,6 +1444,170 @@ void CUICellContainer::clear_select_armament()
 		if ( cell.m_item )
 		{
 			cell.m_item->m_select_armament = false;
+		}
+	}
+}
+
+void CUICellContainer::ResetSelector()
+{
+	R_ASSERT(m_cells.size() > 0 && m_cellsCapacity.x > 0 && m_cellsCapacity.y > 0);
+
+	CUICell& ui_cell = GetCellAt({ 0, 0 });
+	if (!ui_cell.m_item)
+	{
+		m_selectorArea = {0,0,1,1};
+	}
+	else
+	{
+		const Ivector2 itemSize = ui_cell.m_item->GetGridSize();
+		m_selectorArea = { 0,0,itemSize.x,itemSize.y };
+	}
+}
+
+
+void CUICellContainer::TrySetSelector(const Irect& selector)
+{
+	R_ASSERT(m_cells.size() > 0 && m_cellsCapacity.x > 0 && m_cellsCapacity.y > 0);
+
+	m_selectorArea = selector;
+	ValidateSelector();
+}
+
+// Return true if selector has been moved
+bool CUICellContainer::MoveSelector(eUIDirection4 dir)
+{
+	R_ASSERT(m_cells.size() > 0 && m_cellsCapacity.x > 0 && m_cellsCapacity.y > 0);
+
+	Ivector2 selectorPos = m_selectorArea.lt;
+	CUICell& ui_cell = GetCellAt(selectorPos);
+
+	int newX = m_selectorArea.x1;
+	int newY = m_selectorArea.y1;
+
+	if (m_selectorArea.width() > 1 && dir == eUIDirection4_Right)
+		newX += m_selectorArea.width() - 1;
+
+	if (m_selectorArea.height() > 1 && dir == eUIDirection4_Down)
+		newY += m_selectorArea.height() - 1;
+
+	switch (dir)
+	{
+	case eUIDirection4_Down: 
+		newY += 1;
+		break;
+	case eUIDirection4_Up:
+		newY += -1;
+		break;
+	case eUIDirection4_Left:
+		newX += -1;
+		break;
+	case eUIDirection4_Right:
+		newX += 1;
+		break;
+	}
+
+	if (newX < 0)
+		newX = 0;
+	else if (newX >= m_cellsCapacity.x)
+		newX = m_cellsCapacity.x - 1;
+
+	if (newY < 0)
+		newY = 0;
+	else if (newY >= m_cellsCapacity.y)
+		newY = m_cellsCapacity.y - 1;
+
+
+	CUICell& ui_cell_new = GetCellAt({ newX, newY });
+	if (ui_cell.m_item == ui_cell_new.m_item && ui_cell.m_item != NULL)
+		return false;
+
+	Irect oldSelectorArea = m_selectorArea;
+
+	if (ui_cell_new.Empty())
+	{
+		m_selectorArea.x1 = newX;
+		m_selectorArea.y1 = newY;
+		m_selectorArea.x2 = m_selectorArea.x1 + 1;
+		m_selectorArea.y2 = m_selectorArea.y1 + 1;
+	}
+	else
+	{
+		// Check object in this cell and how much cells it occupies
+		m_selectorArea.lt = GetItemPos(ui_cell_new.m_item);
+		const Ivector2 itemSize = ui_cell_new.m_item->GetGridSize();
+		m_selectorArea.x2 = m_selectorArea.x1 + itemSize.x;
+		m_selectorArea.y2 = m_selectorArea.y1 + itemSize.y;
+	}
+
+	return !oldSelectorArea.cmp(m_selectorArea);
+}
+
+void CUICellContainer::ValidateSelector()
+{
+	// Check selector is still inside of the bounds (width, height)
+	if (m_selectorArea.x1 >= m_cellsCapacity.x)
+		m_selectorArea.x1 = m_cellsCapacity.x-1;
+
+	if (m_selectorArea.y1 >= m_cellsCapacity.y)
+		m_selectorArea.y1 = m_cellsCapacity.y-1;
+
+	if (m_selectorArea.x2 > m_cellsCapacity.x)
+		m_selectorArea.x2 = m_cellsCapacity.x;
+
+	if (m_selectorArea.y2 > m_cellsCapacity.y)
+		m_selectorArea.y2 = m_cellsCapacity.y;
+
+	R_ASSERT(m_selectorArea.valide());
+
+	// Check that all cells have the same item in them
+	bool bAllTheSame = true;
+	Ivector2 pos = { m_selectorArea.x1, m_selectorArea.y1 };
+	CUICellItem* pFirstCellItem = GetCellAt(pos).m_item;
+	for (; pos.x < m_selectorArea.x2 && bAllTheSame; ++pos.x)
+	{
+		for (; pos.y < m_selectorArea.y2; ++pos.y)
+		{
+			R_ASSERT(ValidCell(pos));
+			CUICell& c = m_cells[m_cellsCapacity.x * pos.y + pos.x];
+			if (c.m_item != pFirstCellItem)
+			{
+				bAllTheSame = false;
+				break;
+			}
+		}
+	}
+
+	if (!bAllTheSame)
+	{
+		if (pFirstCellItem == nullptr)
+		{
+			m_selectorArea = { m_selectorArea.x1, m_selectorArea.y1, m_selectorArea.x1 + 1, m_selectorArea.y1 + 1 };
+		}
+		else
+		{
+			m_selectorArea.lt = GetItemPos(pFirstCellItem);
+			const Ivector2 itemSize = pFirstCellItem->GetGridSize();
+			m_selectorArea.x2 = m_selectorArea.x1 + itemSize.x;
+			m_selectorArea.y2 = m_selectorArea.y1 + itemSize.y;
+		}
+	}
+	else
+	{
+		if (pFirstCellItem)
+		{
+			// Wrap selector around this object
+			Ivector2 itemPos = GetItemPos(pFirstCellItem);
+			Ivector2 itemSize = pFirstCellItem->GetGridSize();
+			m_selectorArea.lt = itemPos;
+			m_selectorArea.x2 = m_selectorArea.x1 + itemSize.x;
+			m_selectorArea.y2 = m_selectorArea.y1 + itemSize.y;
+		}
+		else
+		{
+			// All the same but empty - shrink to 1 cell
+			// this might be a feature (dont shrink)
+			if (m_selectorArea.width() > 1 || m_selectorArea.height() > 1)
+				m_selectorArea = { m_selectorArea.x1, m_selectorArea.y1, m_selectorArea.x1 + 1, m_selectorArea.y1 + 1 };
 		}
 	}
 }

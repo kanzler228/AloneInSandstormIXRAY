@@ -6,7 +6,7 @@
 //	Description : Visibility and look for all the biting monsters
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "base_monster.h"
 #include "../../../Actor.h"
@@ -138,7 +138,7 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 
 					if (device != nullptr)
 					{
-						device->SetDropManual(TRUE);
+						device->SetDropManual(true);
 						need_kick_animator = true;
 					}
 				}
@@ -148,7 +148,7 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 				need_kick_animator = true;
 			}
 
-			if (need_kick_animator && !Actor()->HudAnimator()->IsActive())
+			if (need_kick_animator && !Actor()->HudAnimator()->IsAnyAnimatorActive())
 			{
 				auto GetAngleCos = [&](const Fvector& v1, const Fvector& v2)
 				{
@@ -166,14 +166,14 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 				{
 					if (front_kick_animator.size() > 0)
 					{
-						Actor()->HudAnimator()->StartAnimator(front_kick_animator);
+						Actor()->HudAnimator()->ItemAnimator()->StartAnimator(front_kick_animator);
 					}
 				}
 				else
 				{
 					if (back_kick_animator.size() > 0)
 					{
-						Actor()->HudAnimator()->StartAnimator(back_kick_animator);
+						Actor()->HudAnimator()->ItemAnimator()->StartAnimator(back_kick_animator);
 					}
 				}
 			}
@@ -192,8 +192,8 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 			float d = -h1 + hd.getH	();
 			s->wnd()->SetHeading	(d);
 			Fvector2 wnd_pos = s->wnd()->GetWndPos();
-			wnd_pos.y	+= 400.0f*_cos(d);
-			wnd_pos.x	+= 500.0f*_sin(d);
+			wnd_pos.y	+= 400.0f*std::cos(d);
+			wnd_pos.x	+= 500.0f*std::sin(d);
 			s->wnd()->SetWndPos(wnd_pos);
 			
 			float time_to_lock		= fDamage * MAX_LOCK_TIME;
@@ -267,17 +267,17 @@ void CBaseMonster::HitEntity(const CEntity *pEntity, float fDamage, float impuls
 }
 
 
-BOOL  CBaseMonster::feel_vision_isRelevant(CObject* O)
+bool  CBaseMonster::feel_vision_isRelevant(CObject* O)
 {
-	if(!O || O->getDestroy())		return FALSE;
-	if (!g_Alive())					return FALSE;
-	if (!O->cast_entity())			return FALSE;
+	if(!O || O->getDestroy())		return false;
+	if (!g_Alive())					return false;
+	if (!O->cast_entity())			return false;
 	
-	if ((O->SpatialComponent->spatial.type & STYPE_VISIBLEFORAI) != STYPE_VISIBLEFORAI) 
-		return FALSE;
+	if ((O->SpatialComponent->type & ESPATIAL_TYPE::VISIBLEFORAI) == ESPATIAL_TYPE::NONE)
+		return false;
 	
 	// если спит, то ничего не видит
-	if (m_bSleep) return FALSE;
+	if (m_bSleep) return false;
 	
 	// если не враг - не видит
 	CEntityAlive* entity = O->cast_entity_alive();
@@ -288,11 +288,11 @@ BOOL  CBaseMonster::feel_vision_isRelevant(CObject* O)
 			// если видит друга - проверить наличие у него врагов
 			CBaseMonster *monster = entity->cast_base_monster();
 			if (monster && !m_skip_transfer_enemy) EnemyMan.transfer_enemy(monster);
-			return FALSE;
+			return false;
 		}
 	}
 
-	return TRUE;
+	return true;
 }
 
 void CBaseMonster::HitSignal(float amount, Fvector& vLocalDir, CObject* who, s16 element)
@@ -325,18 +325,18 @@ void CBaseMonster::HitSignal(float amount, Fvector& vLocalDir, CObject* who, s16
 		lua_game_object(), 
 		amount,
 		vLocalDir,
-		smart_cast<const CGameObject*>(who)->lua_game_object(),
+		who->cast_game_object()->lua_game_object(),
 		element
 	);
 
 	// если нейтрал - добавить как врага
-	CEntityAlive	*obj = smart_cast<CEntityAlive*>(who);
+	CEntityAlive	*obj = who->cast_entity_alive();
 	if (obj && (tfGetRelationType(obj) == ALife::eRelationTypeNeutral)) EnemyMan.add_enemy(obj);
 }
 
 void CBaseMonster::SetAttackEffector() 
 {
-	CActor *pA = smart_cast<CActor *>(Level().CurrentEntity());
+	CActor *pA = Level().CurrentEntity() != nullptr ? Level().CurrentEntity()->cast_actor() : nullptr;
 	if (pA) {
 		Actor()->Cameras().AddCamEffector(new CMonsterEffectorHit(db().m_attack_effector.ce_time,db().m_attack_effector.ce_amplitude,db().m_attack_effector.ce_period_number,db().m_attack_effector.ce_power));
 		Actor()->Cameras().AddPPEffector(new CMonsterEffector(db().m_attack_effector.ppi, db().m_attack_effector.time, db().m_attack_effector.time_attack, db().m_attack_effector.time_release));
@@ -369,7 +369,7 @@ void CBaseMonster::Hit_Wound(CObject *object, float value, const Fvector &dir, f
 	HS.weaponID			= (ID());															//	P.w_u16		(ID());
 	HS.dir				= (dir);															//	P.w_dir		(dir);
 	HS.power			= (value);															//	P.w_float	(value);
-	HS.boneID			= (smart_cast<IKinematics*>(object->Visual())->LL_GetBoneRoot());	//	P.w_s16		(smart_cast<IKinematics*>(object->Visual())->LL_GetBoneRoot());
+	HS.boneID			= (PKinematics(object->Visual())->LL_GetBoneRoot());	//	P.w_s16		(smart_cast<IKinematics*>(object->Visual())->LL_GetBoneRoot());
 	HS.p_in_bone_space	= (Fvector().set(0.f,0.f,0.f));										//	P.w_vec3	(Fvector().set(0.f,0.f,0.f));
 	HS.impulse			= (impulse);														//	P.w_float	(impulse);
 	HS.hit_type			= (ALife::eHitTypeWound);											//	P.w_u16		(u16(ALife::eHitTypeWound));
@@ -391,7 +391,7 @@ void CBaseMonster::critical_wounded_state_start()
 {
 	VERIFY	(m_critical_wound_type != u32(-1));
 
-	LPCSTR anim = 0;
+	const char* anim = 0;
 	switch (m_critical_wound_type)	{
 	case critical_wound_type_head:
 		anim = m_critical_wound_anim_head;

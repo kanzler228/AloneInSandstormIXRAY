@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "base_monster.h"
 
 #include "../../../ai_object_location.h"
@@ -24,9 +24,9 @@ void CBaseMonster::net_Save(NET_Packet& P)
 	m_pPhysics_support->in_NetSave(P);
 }
 
-BOOL CBaseMonster::net_SaveRelevant	()
+bool CBaseMonster::net_SaveRelevant	()
 {
-	return (inherited::net_SaveRelevant() || BOOL(PPhysicsShell() != nullptr));
+	return (inherited::net_SaveRelevant() || bool(PPhysicsShell() != nullptr));
 }
 
 void CBaseMonster::SyncRead(NET_Packet& Packet)
@@ -85,7 +85,7 @@ void CBaseMonster::SyncRead(NET_Packet& Packet)
 	SPHNetState	State = {};
 
 	MotionID motion;
-	IKinematicsAnimated* ik_anim_obj = smart_cast<IKinematicsAnimated*>(Visual());
+	IKinematicsAnimated* ik_anim_obj = Visual()->dcast_PKinematicsAnimated();
 	if (u_last_motion_idx != u_motion_idx || u_last_motion_slot != u_motion_slot)
 	{
 		u_last_motion_idx = u_motion_idx;
@@ -97,15 +97,15 @@ void CBaseMonster::SyncRead(NET_Packet& Packet)
 		{
 			CStepManager::on_animation_start
 			(
-				motion, ik_anim_obj->LL_PlayCycle(ik_anim_obj->LL_GetMotionDef(motion)->bone_or_part, motion, TRUE,
+				motion, ik_anim_obj->LL_PlayCycle(ik_anim_obj->LL_GetMotionDef(motion)->bone_or_part, motion, true,
 				ik_anim_obj->LL_GetMotionDef(motion)->Accrue(), ik_anim_obj->LL_GetMotionDef(motion)->Falloff(),
-				ik_anim_obj->LL_GetMotionDef(motion)->Speed(), FALSE, 0, 0, 0)
+				ik_anim_obj->LL_GetMotionDef(motion)->Speed(), false, 0, 0, 0)
 			);
 		}
 	}
 	
-	setVisible(TRUE);
-	setEnabled(TRUE);
+	setVisible(true);
+	setEnabled(true);
 
 	Flags8 flags;
 	flags.zero();
@@ -242,7 +242,7 @@ void CBaseMonster::net_Import(NET_Packet& P)
 
 	if(NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp)) {
 		NET.push_back(N);
-		NET_WasInterpolating = TRUE;
+		NET_WasInterpolating = true;
 	}
 
 	float f1 = 0;
@@ -257,8 +257,8 @@ void CBaseMonster::net_Import(NET_Packet& P)
 		P.r(&f1, sizeof(f1));
 	}
 
-	setVisible(TRUE);
-	setEnabled(TRUE);
+	setVisible(true);
+	setEnabled(true);
 }
 
 void CBaseMonster::net_Export_Sounds(NET_Packet& P) {
@@ -455,10 +455,8 @@ void CBaseMonster::PH_A_CrPr() {
 	CalculateInterpolationParams();
 }
 
-void CBaseMonster::CalculateInterpolationParams() {
-	CPHSynchronize* pSyncObj = NULL;
-	pSyncObj = PHGetSyncItem(0);
-
+void CBaseMonster::CalculateInterpolationParams() 
+{
 	monster_interpolation::InterpData* pIStart = &IStart;
 	monster_interpolation::InterpData* pIEnd = &IEnd;
 
@@ -579,7 +577,8 @@ void CBaseMonster::make_Interpolation() {
 			pSyncObj->set_State(PredictedState);
 			VERIFY2(_valid(renderable.xform), *cName());
 		}
-		else {
+		else
+		{
 			float factor = 0.0f;
 
 			if(m_dwIEndTime != m_dwIStartTime)
@@ -591,13 +590,6 @@ void CBaseMonster::make_Interpolation() {
 			NewPos.lerp(IStart.Pos, IEnd.Pos, factor);
 
 			VERIFY2(_valid(renderable.xform), *cName());
-
-			//movement().m_body.current.pitch = angle_lerp(IStart.o_torso.pitch, IEnd.o_torso.pitch, factor);
-			//movement().m_body.current.roll = angle_lerp(IStart.o_torso.roll, IEnd.o_torso.roll, factor);
-			//movement().m_body.current.yaw = angle_lerp(IStart.o_torso.yaw, IEnd.o_torso.yaw, factor);
-
-			float& yaw = movement().m_body.current.yaw;
-			float& pitch = movement().m_body.current.pitch;
 
 			float f_yaw = angle_lerp(IStart.o_torso.yaw, IEnd.o_torso.yaw, factor);
 			float f_pitch = angle_lerp(IStart.o_torso.pitch, IEnd.o_torso.pitch, factor);

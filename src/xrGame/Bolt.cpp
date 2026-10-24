@@ -3,15 +3,6 @@
 #include "../xrPhysics/PhysicsShell.h"
 #include "../xrEngine/xr_level_controller.h"
 
-CBolt::CBolt(void) 
-{
-	m_thrower_id = u16(-1);
-}
-
-CBolt::~CBolt(void) 
-{
-}
-
 void CBolt::OnH_A_Chield() 
 {
 	inherited::OnH_A_Chield();
@@ -66,4 +57,13 @@ void CBolt::SetInitiator(u16 id)
 u16	CBolt::Initiator()
 {
 	return m_thrower_id;
+}
+
+void CBolt::FastThrow()
+{
+	m_constpower = true;
+	m_throw = false;
+
+	setup_throw_params(true);
+	Throw();
 }

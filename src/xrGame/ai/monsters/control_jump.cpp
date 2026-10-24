@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "control_jump.h"
 #include "basemonster/base_monster.h"
 #include "control_manager.h"
@@ -33,7 +33,7 @@ void CControlJump::reinit()
 }
 
 
-void CControlJump::load(LPCSTR section)
+void CControlJump::load(const char* section)
 {
 	m_delay_after_jump				= pSettings->r_u32	(section,"jump_delay");
 	m_jump_factor					= pSettings->r_float(section,"jump_factor");
@@ -396,8 +396,8 @@ void CControlJump::stop()
 // Get target point in world space
 Fvector CControlJump::get_target(CObject *obj)
 {
-	u16 bone_id			= smart_cast<IKinematics*>(obj->Visual())->LL_GetBoneRoot			();
-	CBoneInstance &bone = smart_cast<IKinematics*>(obj->Visual())->LL_GetBoneInstance		(bone_id);
+	u16 bone_id			= PKinematics(obj->Visual())->LL_GetBoneRoot			();
+	CBoneInstance &bone = PKinematics(obj->Visual())->LL_GetBoneInstance		(bone_id);
 
 	Fmatrix	global_transform;
 	global_transform.mul	(obj->XFORM(),bone.mTransform);
@@ -526,7 +526,7 @@ void CControlJump::hit_test()
 	} 
 
 	if (m_object_hitted) 
-		m_object->HitEntityInJump(smart_cast<CEntity*>(m_data.target_object));
+		m_object->HitEntityInJump(m_data.target_object != nullptr ? m_data.target_object->cast_entity() : nullptr);
 }
 
 bool CControlJump::can_jump(CObject *target)
@@ -616,7 +616,7 @@ bool CControlJump::can_jump(Fvector const& target, bool const aggressive_jump)
 	float dist = source_position.distance_to(target_position);
 
 	// in aggressive mode we can jump from distance >= 1
-	const float test_min_distance = aggressive_jump ? _min(1.f, m_min_distance) : m_min_distance;
+	const float test_min_distance = aggressive_jump ? std::min(1.f, m_min_distance) : m_min_distance;
 	if ( (dist < test_min_distance) || (dist > m_max_distance) ) 
 		return						false;
 
@@ -632,7 +632,7 @@ bool CControlJump::can_jump(Fvector const& target, bool const aggressive_jump)
 		return						false;
 	
 	// check if target on the same floor etc
-	if (_abs(target_position.y-source_position.y) > m_max_height) 
+	if (std::abs(target_position.y-source_position.y) > m_max_height)
 		return						false;
 
 	// проверка prepare

@@ -9,8 +9,8 @@ void CRenderTarget::phase_fxaa(u32 pass) {
     float ddw = 1.0f / _w;
     float ddh = 1.0f / _h;
 
-    RCache.set_CullMode(CULL_NONE);
-    RCache.set_Stencil(FALSE);
+    GRHI->StateManager->SetCullMode(ERHI_CULLMODE::NONE);
+    RCache.set_Stencil(false);
 
     FVF::V* pv = (FVF::V*)RCache.Vertex.Lock(4, g_fxaa->vb_stride, Offset);
     pv->set(ddw - 0.5f, ddh + _h - 0.5f, 0.0f, 0.0f, 1.0f);
@@ -25,5 +25,5 @@ void CRenderTarget::phase_fxaa(u32 pass) {
 
     RCache.set_Element(s_fxaa->E[pass]);
     RCache.set_Geometry(g_fxaa);
-    RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+    RCache.Render(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST, Offset, 0, 4, 0, 2);
 }

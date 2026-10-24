@@ -15,7 +15,7 @@
 #include "inventory_upgrade_group.h"
 #include "inventory_upgrade_property.h"
 
-extern int g_upgrades_log = 0;
+int g_upgrades_log = 0;
 
 using namespace inventory::upgrade;
 
@@ -140,28 +140,29 @@ Property* Manager::add_property(shared_str const& property_id)
 // -------------------------------------------------------------------------------------------
 void Manager::load_all_inventory()
 {
-	for (const auto& section : pSettings->sections())
+	CInifile::Root& sections = pSettings->sections();
+	for (CInifile::Sect& section : sections)
 	{
-		if (!pSettings->line_exist(section->Name, "upgrades") || !pSettings->r_string(section->Name, "upgrades"))
+		shared_str& sect_name = section.Name;
+		if (!pSettings->line_exist(sect_name, "upgrades") || !pSettings->r_string(sect_name, "upgrades"))
 		{
 			continue;
 		}
 
-		if (!pSettings->line_exist(section->Name, "upgrade_scheme") || !pSettings->r_string(section->Name, "upgrade_scheme"))
+		if (!pSettings->line_exist(sect_name, "upgrade_scheme") || !pSettings->r_string(sect_name, "upgrade_scheme"))
 		{
 			continue;
 		}
 
-		add_root(section->Name);
+		add_root(sect_name);
 	}
 }
 
 void Manager::load_all_properties()
 {
-	LPCSTR properties_section = "upgrades_properties";
-
-	VERIFY2(pSettings->section_exist(properties_section), make_string<const char*>("Section [%s] does not exist !", properties_section));
-	VERIFY2(pSettings->line_count(properties_section), make_string<const char*>("Section [%s] is empty !", properties_section));
+	const char* properties_section = "upgrades_properties";
+	if (!pSettings->section_exist(properties_section))
+		return;
 
 	CInifile::Sect& inv_section = pSettings->r_section(properties_section);
 
@@ -333,7 +334,7 @@ void Manager::init_install(CInventoryItem& item)
 	if (pSettings->line_exist(item.m_section_id, "installed_upgrades"))
 	{
 		// installed_upgrades by default
-		LPCSTR installed_upgrades_str = pSettings->r_string(item.m_section_id, "installed_upgrades");
+		const char* installed_upgrades_str = pSettings->r_string(item.m_section_id, "installed_upgrades");
 		if (installed_upgrades_str)
 		{
 			string512 temp = {};
@@ -348,7 +349,7 @@ void Manager::init_install(CInventoryItem& item)
 	}
 }
 
-LPCSTR Manager::get_item_scheme(CInventoryItem& item)
+const char* Manager::get_item_scheme(CInventoryItem& item)
 {
 	Root* root_p = get_root(item.m_section_id);
 	if (!root_p)
@@ -359,7 +360,7 @@ LPCSTR Manager::get_item_scheme(CInventoryItem& item)
 	return root_p->scheme();
 }
 
-LPCSTR Manager::get_upgrade_by_index(CInventoryItem& item, Ivector2 const& index)
+const char* Manager::get_upgrade_by_index(CInventoryItem& item, Ivector2 const& index)
 {
 	Upgrade* upgrade = nullptr;
 
@@ -379,7 +380,7 @@ LPCSTR Manager::get_upgrade_by_index(CInventoryItem& item, Ivector2 const& index
 
 // -------------------------------------------------------------------------------------------------
 
-bool Manager::compute_range(LPCSTR parameter, float& low, float& high)
+bool Manager::compute_range(const char* parameter, float& low, float& high)
 {
 	low = flt_max;
 	high = flt_min;
@@ -397,7 +398,7 @@ bool Manager::compute_range(LPCSTR parameter, float& low, float& high)
 	return (low != flt_max) && (high != flt_min);
 }
 
-void Manager::compute_range_section(LPCSTR section, LPCSTR parameter, float& low, float& high)
+void Manager::compute_range_section(const char* section, const char* parameter, float& low, float& high)
 {
 	if (!pSettings->line_exist(section, parameter) || !*pSettings->r_string(section, parameter))
 	{
@@ -423,7 +424,7 @@ void Manager::highlight_hierarchy(CInventoryItem& item, shared_str const& upgrad
 	Root* root_p = get_root(item.m_section_id);
 	if (root_p)
 	{
-		root_p->highlight_hierarchy(upgrade_id);
+		root_p->highlight_hierarchy(upgrade_id, item.m_legacy_upgrade_mode);
 	}
 }
 

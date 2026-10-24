@@ -2,9 +2,7 @@
 #include "cdkey_ban_list.h"
 #include "object_broker.h"
 
-cdkey_ban_list::cdkey_ban_list()
-{
-}
+cdkey_ban_list::cdkey_ban_list() = default;
 cdkey_ban_list::~cdkey_ban_list()
 {
 	save();
@@ -18,16 +16,16 @@ void cdkey_ban_list::load()
 	FS.update_path			(banlist_file, "$app_data_root$", "banned_list.ltx");
 	CInifile		bl_ini	(banlist_file);
 	CInifile::Root& banlist = bl_ini.sections();
-	for (CInifile::Root::iterator i = banlist.begin(),
-		ie = banlist.end(); i != ie; ++i)
+	for (CInifile::Sect& sect : banlist)
 	{
+		shared_str& sect_name = sect.Name;
 		banned_client* tmp_client = new banned_client();
-		if (tmp_client->load(&bl_ini, (*i)->Name))
+		if (tmp_client->load(&bl_ini, sect_name))
 		{
 			m_ban_list.push_back(tmp_client);
 		} else
 		{
-			Msg("! ERROR: load [%s] ban item section", (*i)->Name.size() > 0 ? (*i)->Name.c_str() : "");
+			Msg("! ERROR: load [%s] ban item section", sect_name.size() > 0 ? sect_name.c_str() : "");
 			xr_delete(tmp_client);
 		}
 	}
@@ -37,7 +35,7 @@ void cdkey_ban_list::save()
 {
 	string_path		banlist_file;
 	FS.update_path	(banlist_file, "$app_data_root$", "banned_list.ltx");
-	CInifile		bl_ini(banlist_file, FALSE, FALSE, TRUE);
+	CInifile		bl_ini(banlist_file, false, false, true);
 	string64		tmp_sect_name;
 	u32				index = 0;
 	
@@ -214,7 +212,7 @@ cdkey_ban_list::banned_client::banned_client()
 	ban_end_time	= 0;
 }
 
-time_t get_time_from_string(LPCSTR str_time)
+time_t get_time_from_string(const char* str_time)
 {
 	tm	tmp_time;
 	int res_t	= sscanf(
@@ -252,7 +250,7 @@ bool cdkey_ban_list::banned_client::load(CInifile* ini, shared_str const & name_
 		return false;
 	}
 	client_hexstr_digest = ini->r_string(name_sect, CLIENT_HEX_DIGEST_KEY);
-	LPCSTR tmp_string = ini->r_string(name_sect, CLIENT_BAN_END_TIME_KEY);
+	const char* tmp_string = ini->r_string(name_sect, CLIENT_BAN_END_TIME_KEY);
 	
 	ban_end_time = get_time_from_string(tmp_string);
 	if (ban_end_time == 0)

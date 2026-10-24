@@ -9,7 +9,7 @@
 #include "map_location.h"
 #include "UIGameCustom.h"
 
-void				game_cl_mp::AddMessageMenu			(LPCSTR	menu_section, LPCSTR snd_path, LPCSTR team_prefix)
+void				game_cl_mp::AddMessageMenu			(const char*	menu_section, const char* snd_path, const char* team_prefix)
 {
 	if (!menu_section) return;
 	if (!pSettings->section_exist(menu_section)) return;
@@ -41,7 +41,7 @@ void				game_cl_mp::AddMessageMenu			(LPCSTR	menu_section, LPCSTR snd_path, LPCS
 		{
 			string_path FileName_Voice, FileName_Radio, fn;
 			xr_sprintf(FileName_Voice, "%s%s%d\\voice_%s%d", snd_path, team_prefix, 1, SoundName, s);
-			if (!FS.exist(fn,"$game_sounds$",FileName_Voice,".ogg")) break;
+			if (!FS.exist(fn,_game_sounds_,FileName_Voice,".ogg")) break;
 			
 			pNewMessage->aVariants.push_back(TEAMSOUND());
 			TEAMSOUND*	pNewTeamSound = &(pNewMessage->aVariants.back());
@@ -51,7 +51,7 @@ void				game_cl_mp::AddMessageMenu			(LPCSTR	menu_section, LPCSTR snd_path, LPCS
 
 				xr_sprintf(FileName_Voice, "%s%s%d\\voice_%s%d", snd_path, team_prefix, t, SoundName, s);
 				xr_sprintf(FileName_Radio, "%s%s%d\\radio_%s%d", snd_path, team_prefix, t, SoundName, s);
-				if (FS.exist(fn,"$game_sounds$",FileName_Voice,".ogg") && FS.exist(fn,"$game_sounds$",FileName_Radio,".ogg"))
+				if (FS.exist(fn,_game_sounds_,FileName_Voice,".ogg") && FS.exist(fn,_game_sounds_,FileName_Radio,".ogg"))
 				{
 					pNewTeamSound->push_back(cl_Message_Sound());
 					cl_Message_Sound* pMsgSound = &(pNewTeamSound->back());
@@ -69,7 +69,7 @@ void				game_cl_mp::AddMessageMenu			(LPCSTR	menu_section, LPCSTR snd_path, LPCS
 	//-----------------------------------------------
 };
 
-void				game_cl_mp::LoadMessagesMenu		(LPCSTR menus_section)
+void				game_cl_mp::LoadMessagesMenu		(const char* menus_section)
 {
 	if (!menus_section) return;
 	if (!pSettings->section_exist(menus_section)) return;
@@ -102,8 +102,8 @@ void		game_cl_mp::DestroyMessagesMenus	()
 				for (u32 t=0; t<pVar->size(); t++)
 				{
 					cl_Message_Sound* pTeamVar = &((*pVar)[t]);
-					if (pTeamVar->mSound_Radio._feedback()) pTeamVar->mSound_Radio.stop();
-					if (pTeamVar->mSound_Voice._feedback()) pTeamVar->mSound_Voice.stop();
+					if (pTeamVar->mSound_Radio.is_playing()) pTeamVar->mSound_Radio.stop();
+					if (pTeamVar->mSound_Voice.is_playing()) pTeamVar->mSound_Voice.stop();
 					pTeamVar->mSound_Radio.destroy();
 					pTeamVar->mSound_Voice.destroy();
 				}

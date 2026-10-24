@@ -19,7 +19,7 @@ void WeaponUsageStatistic::SaveDataLtx(CInifile& ini)
 
 void WeaponUsageStatistic::WriteLtx(CInifile& ini)
 {
-	LPCSTR sect = "wpn_usage";
+	const char* sect = "wpn_usage";
 
 	ini.w_u32(sect, "dwTotalPlayersAliveTime_0_sec",m_dwTotalPlayersAliveTime[0]/1000);
 	ini.w_u32(sect, "dwTotalPlayersAliveTime_1_sec",m_dwTotalPlayersAliveTime[1]/1000);
@@ -65,7 +65,6 @@ void WeaponUsageStatistic::SaveData()
 	if (aPlayersStatistic.empty()) return;
 
 	string64		GameType;
-	SYSTEMTIME		Time;	
 	switch ( GameID() )
 	{
 	case eGameIDDeathmatch:				xr_sprintf(GameType, "dm"); break;
@@ -76,9 +75,21 @@ void WeaponUsageStatistic::SaveData()
 		return;
 		break;
 	};
-	GetLocalTime(&Time);	
-	xr_sprintf(mFileName, "(%s)_(%s)_%02d.%02d.%02d_%02d.%02d.%02d.wus", *(Level().name()), GameType, Time.wMonth, Time.wDay, Time.wYear, Time.wHour, Time.wMinute, Time.wSecond);
 
+	auto now = std::chrono::system_clock::now();
+	auto time = std::chrono::system_clock::to_time_t(now);
+	auto local = *std::localtime(&time);
+
+	xr_sprintf(mFileName, "(%s)_(%s)_%02d.%02d.%02d_%02d.%02d.%02d.wus",
+	    Level().name().c_str(),
+	    GameType,
+	    local.tm_mon + 1,     
+	    local.tm_mday,        
+	    local.tm_year + 1900, 
+	    local.tm_hour,        
+	    local.tm_min,         
+	    local.tm_sec          
+	);
 
 	//---------------------------------------------------------
 	FS.update_path			(mFileName,"$logs$",mFileName);
@@ -114,7 +125,7 @@ void WeaponUsageStatistic::Write(FILE* pFile)
 	}
 }
 
-void Player_Statistic::WriteLtx(CInifile& ini, LPCSTR sect)
+void Player_Statistic::WriteLtx(CInifile& ini, const char* sect)
 {
 	ini.w_string(sect, "name", PName.c_str());
 	ini.w_string(sect, "player_unique_digest", PDigest.c_str());
@@ -174,7 +185,7 @@ void Player_Statistic::Write(FILE* pFile)
 	}
 };
 
-void Weapon_Statistic::WriteLtx(CInifile& ini, LPCSTR sect)
+void Weapon_Statistic::WriteLtx(CInifile& ini, const char* sect)
 {
 	ini.w_string(sect,"wpn_name",WName.c_str());
 
@@ -288,7 +299,7 @@ void Weapon_Statistic::add_hit(HitData const & hit)
 	m_Hits.push_back(hit);
 }
 
-void HitData::WriteLtx(CInifile& ini, LPCSTR sect, LPCSTR prefix)
+void HitData::WriteLtx(CInifile& ini, const char* sect, const char* prefix)
 {
 	string512		buff;
 	

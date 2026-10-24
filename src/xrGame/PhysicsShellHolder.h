@@ -14,14 +14,12 @@ class IDamageSource;
 class CPHSkeleton;
 class CCharacterPhysicsSupport;
 class ICollisionDamageInfo;
-class CIKLimbsController;
+class TIKLimbsController;
 
-
-
-class CPhysicsShellHolder:  public CGameObject,
-							public CParticlesPlayer,
-							public IObjectPhysicsCollision,
-							public IPhysicsShellHolder
+class CPhysicsShellHolder:
+	public CGameObject,
+	public IObjectPhysicsCollision,
+	public IPhysicsShellHolder
 	
 {
 	bool				b_sheduled;
@@ -67,14 +65,11 @@ public:
 
 	virtual CPhysicsShellHolder* cast_physics_shell_holder() { return this; }
 	virtual CPhysicItem* cast_physics_item() { return nullptr; }
-	virtual CParticlesPlayer* cast_particles_player() { return this; }
 	virtual CGameObject* cast_game_object() { return this; }
 	virtual IDamageSource* cast_IDamageSource() { return nullptr; }
 
-	virtual CPHSoundPlayer* ph_sound_player() { return nullptr; }
 	virtual	CCharacterPhysicsSupport* character_physics_support() { return nullptr; }
 	virtual	const CCharacterPhysicsSupport* character_physics_support() const { return nullptr; }
-	virtual	CIKLimbsController* character_ik_controller() { return nullptr; }
 	virtual ICollisionHitCallback* get_collision_hit_callback() { return nullptr; }
 
 	virtual void set_collision_hit_callback(ICollisionHitCallback* cc) {}
@@ -83,7 +78,7 @@ public:
 
 	virtual void			PHGetLinearVell		(Fvector& velocity);
 	virtual void			PHSetLinearVell		(Fvector& velocity);
-	virtual void			PHSetMaterial		(LPCSTR m);
+	virtual void			PHSetMaterial		(const char* m);
 	virtual void			PHSetMaterial		(u16 m);
 			void			PHSaveState			(NET_Packet &P);
 			void			PHLoadState			(IReader &P);
@@ -103,7 +98,7 @@ public:
 	virtual void			deactivate_physics_shell ();
 
 	virtual void			net_Destroy			();
-	virtual BOOL			net_Spawn			(CSE_Abstract*	DC);
+	virtual bool			net_Spawn			(CSE_Abstract*	DC);
 	virtual void			save				(NET_Packet &output_packet);
 	virtual void			load				(IReader &input_packet);
 			void			init				();
@@ -118,36 +113,30 @@ protected:
 public:
 	virtual bool			register_schedule	() const;
 
-public:
-	virtual	void					_BCL					on_physics_disable					();
 private://IPhysicsShellHolder
 	virtual	Fmatrix&				_BCL					ObjectXFORM							()						;
 	virtual	Fvector&				_BCL					ObjectPosition						()						;
-	virtual	LPCSTR					_BCL					ObjectName							()		const			;
-	virtual	LPCSTR					_BCL					ObjectNameVisual					()		const			;
-	virtual	LPCSTR					_BCL					ObjectNameSect						()		const			;
+	virtual	const char*					_BCL					ObjectName							()		const			;
+	virtual	const char*					_BCL					ObjectNameVisual					()		const			;
+	virtual	const char*					_BCL					ObjectNameSect						()		const			;
 	virtual	bool					_BCL					ObjectGetDestroy					()		const			;
 	virtual ICollisionHitCallback*	_BCL 					ObjectGetCollisionHitCallback		()						;
 	virtual	u16						_BCL					ObjectID							()		const			;
 	virtual	ICollisionForm*			_BCL					ObjectCollisionModel				()						;
-	//virtual	IRenderVisual*			_BCL					ObjectVisual						()						;
 	virtual	IKinematics*			_BCL					ObjectKinematics					()						;
 	virtual IDamageSource*			_BCL					ObjectCastIDamageSource				()						;
 	virtual	void					_BCL					ObjectProcessingDeactivate			()						;
 	virtual	void					_BCL					ObjectProcessingActivate			()						;				
 	virtual	void					_BCL					ObjectSpatialMove					()						;
 	virtual	CPhysicsShell*&			_BCL					ObjectPPhysicsShell					()						;
-//	virtual	void						enable_notificate					()						;
 	virtual bool					_BCL					has_parent_object					()						;
-//	virtual	void						on_physics_disable					()						;
 	virtual	IPHCapture*				_BCL					PHCapture							()						;
 	virtual	bool					_BCL					IsInventoryItem						()						;
 	virtual	bool					_BCL					IsActor								()						;
 	virtual bool					_BCL					IsStalker							()						;
-	//virtual	void						SetWeaponHideState					( u16 State, bool bSet )=0;
-	virtual	void					_BCL					HideAllWeapons						( bool v )				;//(SetWeaponHideState(INV_STATE_BLOCK_ALL,true))
+	virtual	void					_BCL					HideAllWeapons						( bool v )				;
 	virtual	void					_BCL					MovementCollisionEnable				( bool enable )			;
-	virtual CPHSoundPlayer*			_BCL					ObjectPhSoundPlayer					()  					{return ph_sound_player();}
+	virtual CPHSoundPlayer*			_BCL					ObjectPhSoundPlayer					()  					{return inherited::ph_sound_player();}
 	virtual	ICollisionDamageReceiver* _BCL				ObjectPhCollisionDamageReceiver		()						;
 	virtual	void					_BCL					BonceDamagerCallback				(float &damage_factor)	;
 #ifdef	DEBUG

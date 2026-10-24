@@ -21,13 +21,13 @@ struct CComparer {
 		}
 
 		template <>
-		IC	static bool compare<true>(const T &_1, const T &_2, const P &p)
+		IC bool compare<true>(const T &_1, const T &_2, const P &p)
 		{
 			return			(CComparer::compare(*_1,*_2,p));
 		}
 	};
 
-	IC	static bool compare(LPCSTR _1, LPCSTR _2, const P &p)
+	IC	static bool compare(const char* _1, const char* _2, const P &p)
 	{
 		return						(p(_1,_2));
 	}
@@ -53,13 +53,13 @@ struct CComparer {
 	}
 
 	template <typename T, int size>
-	IC	static bool compare(const svector<T,size> &_1, const svector<T,size> &_2, const P &p)
+	IC	static bool compare(const FixedVector<T,size> &_1, const FixedVector<T,size> &_2, const P &p)
 	{
 		if (_1.size() != _2.size())
 			return					(p());
 		
-		typename svector<T,size>::const_iterator	I = _1.begin(), J = _2.begin();
-		typename svector<T,size>::const_iterator	E = _1.end();
+		typename FixedVector<T,size>::const_iterator	I = _1.begin(), J = _2.begin();
+		typename FixedVector<T,size>::const_iterator	E = _1.end();
 		for ( ; I != E; ++I, ++J)
 			if (!compare(*I,*J,p))
 				return				(false);
@@ -144,11 +144,11 @@ struct CComparer {
 		template <bool a>
 		IC	static bool compare(const T &_1, const T &_2, const P &p)
 		{
-			return(CHelper<T>::compare<std::is_pointer<T>::value>(_1,_2,p));
+			return(CHelper<T>::template compare<std::is_pointer<T>::value>(_1,_2,p));
 		}
 
 		template <>
-		IC	static bool compare<true>(const T &first, const T &second, const P &p)
+		IC bool compare<true>(const T &first, const T &second, const P &p)
 		{
 			return(CHelper3::compare(first, second, p));
 		}
@@ -157,18 +157,18 @@ struct CComparer {
 	template <typename T>
 	IC	static bool compare(const T &_1, const T &_2, const P &p)
 	{
-		return						(CHelper4<T>::compare<object_type_traits::is_stl_container<T>::value>(_1,_2,p));
+		return						(CHelper4<T>::template compare<object_type_traits::is_stl_container<T>::value>(_1,_2,p));
 	}
 };
 
 template <typename P>
-IC	bool compare(LPCSTR p0, LPSTR p1, const P &p)
+IC	bool compare(const char* p0, LPSTR p1, const P &p)
 {
 	return			(p(p0,p1));
 }
 
 template <typename P>
-IC	bool compare(LPSTR p0, LPCSTR p1, const P &p)
+IC	bool compare(LPSTR p0, const char* p1, const P &p)
 {
 	return			(p(p0,p1));
 }
@@ -186,10 +186,10 @@ namespace object_comparer {
 			template <typename T>
 			IC	bool operator() (const T &_1, const T &_2)	const	{return(P<T>()		(_1,_2));}
 			IC	bool operator() ()							const	{return(P<bool>()	(false,true));}
-			IC	bool operator() (LPCSTR _1, LPCSTR _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
+			IC	bool operator() (const char* _1, const char* _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
 			IC	bool operator() (LPSTR _1, LPSTR _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
-			IC	bool operator() (LPCSTR _1, LPSTR _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
-			IC	bool operator() (LPSTR _1, LPCSTR _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
+			IC	bool operator() (const char* _1, LPSTR _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
+			IC	bool operator() (LPSTR _1, const char* _2)		const	{return(P<int>()	(xr_strcmp(_1,_2),0));}
 		};
 	};
 };

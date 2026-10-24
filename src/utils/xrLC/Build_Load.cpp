@@ -1,17 +1,12 @@
 #include "StdAfx.h"
 #include "ELight_def.h"
 
-
-
 #include "Build.h"
 
 #include "../xrLC_Light/xrLC_GlobalData.h"
 #include "../xrLC_Light/xrFace.h"
-
-
 #include "../xrLC_Light/xrMU_Model.h"
 #include "../xrLC_Light/xrMU_Model_Reference.h"
-
 
 extern u32	version;
 template <class T>
@@ -28,27 +23,34 @@ void transfer(const char *name, xr_vector<T> &dest, IReader& F, u32 chunk)
 	if (O)		O->close	();
 }
 
-extern u32*		Surface_Load	(char* name, u32& w, u32& h);
-extern void		Surface_Init	();
-
 struct R_Control
 {
 	string64				name;
 	xr_vector<u32>			data;
 };
+
 struct R_Layer
 {
 	R_Control				control;
 	xr_vector<R_Light>		lights;
 };
 
+inline bool Surface_Detect(string_path& F, LPSTR N)
+{
+	FS.update_path(F, "$game_textures$", xr_strconcat(F, N, ".dds"));
+	FILE* file = fopen(F, "rb");
+	if (file)
+	{
+		fclose(file);
+		return true;
+	}
 
+	return false;
+}
 
 void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 {
 	IReader&	fs	= const_cast<IReader&>(_in_FS);
-	// HANDLE		hLargeHeap	= HeapCreate(0,64*1024*1024,0);
-	// clMsg		("* <LargeHeap> handle: %X",hLargeHeap);
 
 	u32				i			= 0;
 
@@ -61,6 +63,7 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 	string_path				sh_name;
 	FS.update_path			(sh_name,"$game_data$","shaders_xrlc.xr");
 	shaders().Load			(sh_name);
+
 
 	//*******
 
@@ -95,37 +98,32 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 		R_ASSERT				(F);
 		u32 f_count			=	F->length()/sizeof(b_face);
 		lc_global_data()->g_faces().reserve			(f_count);
+
 		for (i=0; i<f_count; i++)
 		{
-			try 
+			Face*	_F			= lc_global_data()->create_face();
+			
+			b_face	B;
+			F->r				(&B,sizeof(B));
+			R_ASSERT			(B.dwMaterialGame<65536);
+
+			_F->dwMaterial		= u16(B.dwMaterial);
+			_F->dwMaterialGame	= B.dwMaterialGame;
+
+			// Vertices and adjacement info
+			for (u32 it=0; it<3; ++it)
 			{
-				Face*	_F			= lc_global_data()->create_face();
-				b_face	B;
-				F->r				(&B,sizeof(B));
-				R_ASSERT			(B.dwMaterialGame<65536);
-
-				_F->dwMaterial		= u16(B.dwMaterial);
-				_F->dwMaterialGame	= B.dwMaterialGame;
-
-				// Vertices and adjacement info
-				for (u32 it=0; it<3; ++it)
-				{
-					int id			= B.v[it];
- 					R_ASSERT		(id<(int)lc_global_data()->g_vertices().size());
-					_F->SetVertex	(it,lc_global_data()->g_vertices()[id]);
-				}
-
-				// transfer TC
-				Fvector2				uv1,uv2,uv3;
-				uv1.set				(B.t[0].x,B.t[0].y);
-				uv2.set				(B.t[1].x,B.t[1].y);
-				uv3.set				(B.t[2].x,B.t[2].y);
-				_F->AddChannel		( uv1, uv2, uv3 );
-			} catch (...)
-			{
-				err_save	();
-				Debug.fatal	(DEBUG_INFO,"* ERROR: Can't process face #%d",i);
+				int id			= B.v[it];
+ 				R_ASSERT		(id<(int)lc_global_data()->g_vertices().size());
+				_F->SetVertex	(it, lc_global_data()->g_vertices()[id]);
 			}
+
+			// transfer TC
+			Fvector2				uv1,uv2,uv3;
+			uv1.set				(B.t[0].x,B.t[0].y);
+			uv2.set				(B.t[1].x,B.t[1].y);
+			uv3.set				(B.t[2].x,B.t[2].y);
+			_F->AddChannel		( uv1, uv2, uv3 );
 		}
 		Progress			(p_total+=p_cost);
 		clMsg				("* %16s: %d","faces",lc_global_data()->g_faces().size());
@@ -139,29 +137,30 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 			
 			u32* sm_groups			= NULL;
 			u32 sm_count			=	F->length()/sizeof(u32);
-
+		
 			R_ASSERT				( sm_count == lc_global_data()->g_faces().size() );
 			sm_groups				= xr_alloc<u32>(sm_count);
 			F->r					(sm_groups, F->length());
 			F->close				();
-
+		
 			for(u32 idx=0; idx<sm_count; ++idx)
 				lc_global_data()->g_faces()[idx]->sm_group = sm_groups[idx];
-
+		
 			xr_free					(sm_groups);
 		}
 		
 		if (InvalideFaces())	
 		{
-			err_save		();
-			if (lc_global_data()->GetSkipInvalid()) {
+			// err_save		();
+			if (gCompilerMode.LC_SkipInvalidFaces) 
+			{
 				clMsg("* Total %d invalid faces. Do something.", InvalideFaces());
 			} else {
 				Debug.fatal(DEBUG_INFO, "* FATAL: %d invalid faces. Compilation aborted", InvalideFaces());
 			}
 		}
 	}
-
+	 
 	//*******
 	Status	("Models and References");
 	F = fs.open_chunk		(EB_MU_models);
@@ -174,6 +173,7 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 		}
 		F->close				();
 	}
+	
 	F = fs.open_chunk		(EB_MU_refs);
 	if (F)
 	{
@@ -184,6 +184,7 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 		}		
 		F->close				();
 	}
+
 
 	//*******
 	Status	("Other transfer...");
@@ -239,7 +240,7 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 				// split energy/color
 				float			_e		=	(L.diffuse.r+L.diffuse.g+L.diffuse.b)/3.f;
 				Fvector			_c		=	{L.diffuse.r,L.diffuse.g,L.diffuse.b};
-				if (_abs(_e)>EPS_S)		_c.div	(_e);
+				if (std::abs(_e)>EPS_S)		_c.div	(_e);
 				else					{ _c.set(0,0,0); _e=0; }
 
 				// generic properties
@@ -295,34 +296,23 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 	// process textures
 	Status			("Processing textures...");
 	{
-		Surface_Init		();
 		F = fs.open_chunk	(EB_Textures);
-#ifdef _M_X64
-		u32 tex_count = F->length() / sizeof(b_texture64);
-#else
-		u32 tex_count = F->length() / sizeof(b_texture);
-#endif
+		u32 tex_count = F->length() / sizeof(b_texture_real);
 		bool is_thm_missing = false;
 		bool is_tga_missing = false;
 
 		for (u32 t=0; t<tex_count; t++)
 		{
-			Progress		(float(t)/float(tex_count));
-#ifdef _M_X64
-			b_texture64	TEX;
+			Progress(float(t)/float(tex_count));
+
+			b_texture_real TEX;
 			F->r(&TEX, sizeof(TEX));
 			b_BuildTexture	BT;
 
 			// ptr should be copied separately
-			CopyMemory(&BT, &TEX, sizeof(TEX) - 4);	
-			BT.pSurface = (u32*)TEX.pSurface;
-#else
-			b_texture TEX;
-			F->r(&TEX, sizeof(TEX));
+			CopyMemory(&BT, &TEX, sizeof(TEX) - 4);
+			BT.pSurface.Clear();
 
-			b_BuildTexture BT;
-			CopyMemory(&BT, &TEX, sizeof(TEX));
-#endif
 			// load thumbnail
 			LPSTR N			= BT.name;
 			if (strchr(N,'.')) *(strchr(N,'.')) = 0;
@@ -333,11 +323,9 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 				// HACK for merged lod textures
 				BT.dwWidth		= 1024;
 				BT.dwHeight		= 1024;
-				BT.bHasAlpha	= TRUE;
-				BT.SetHasSurface(FALSE);
-				BT.pSurface		= 0;
-
-			} 
+				BT.bHasAlpha	= true;
+				BT.SetHasSurface(false);
+ 			} 
 			else 
 			{
 				string_path			th_name;
@@ -350,16 +338,14 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
  					is_thm_missing = true;
 					BT.dwWidth = 1024;
 					BT.dwHeight = 1024;
-					BT.bHasAlpha = FALSE;
-					BT.SetHasSurface(FALSE);
-					BT.pSurface = 0;
+					BT.bHasAlpha = false;
+					BT.SetHasSurface(false);
  				}
 				else
 				{
 					// version
 					u32 version = 0;
 					R_ASSERT2(THM->r_chunk(THM_CHUNK_VERSION, &version), th_name);
-					// if( version!=THM_CURRENT_VERSION )	FATAL	("Unsupported version of THM file.");
 
 					// analyze thumbnail information
 					R_ASSERT2(THM->find_chunk(THM_CHUNK_TEXTUREPARAM), th_name);
@@ -371,8 +357,8 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 					BT.THM.mip_filter = THM->r_u32();
 					BT.THM.width = THM->r_u32();
 					BT.THM.height = THM->r_u32();
-					BOOL			bLOD = FALSE;
-					if (N[0] == 'l' && N[1] == 'o' && N[2] == 'd' && N[3] == '\\') bLOD = TRUE;
+					bool			bLOD = false;
+					if (N[0] == 'l' && N[1] == 'o' && N[2] == 'd' && N[3] == '\\') bLOD = true;
 
 					// load surface if it has an alpha channel or has "implicit lighting" flag
 					BT.dwWidth = BT.THM.width;
@@ -380,30 +366,32 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 					BT.bHasAlpha = BT.THM.HasAlphaChannel();
 					if (!bLOD)
 					{
-						if (BT.bHasAlpha || BT.THM.flags.test(STextureParams::flImplicitLighted) || g_build_options.b_radiosity)
+						if (BT.bHasAlpha || BT.THM.flags.test(STextureParams::flImplicitLighted)  )
 						{
 							clMsg("- loading: %s W[%u] H[%u]", N, BT.dwWidth, BT.dwHeight);
-							u32			w = 0, h = 0;
-							BT.pSurface = Surface_Load(N, w, h);
-							BT.SetHasSurface(TRUE);
+							BT.SetHasSurface(true);
 
-							if (!BT.pSurface) {
+							string_path OutName;
+							if (!Surface_Detect(OutName, N) || !BT.pSurface.LoadFromFile(OutName))
+							{
 								clMsg("! cannot find dds texture: %s", N);
 								is_tga_missing = true;
+
+								BT.SetHasSurface(false);
+								textures().push_back(BT);
 								continue;
 							}
 
-							if ((w != BT.dwWidth) || (h != BT.dwHeight))
+							BT.pSurface.ClearMipLevels();
+							BT.pSurface.Convert(RedImageTool::RedTexturePixelFormat::R8G8B8A8);
+							BT.pSurface.SwapRB();
+
+							if ((BT.pSurface.GetWidth() != BT.dwWidth) || (BT.pSurface.GetHeight() != BT.dwHeight))
 							{
-								Msg("- THM doesn't correspond to the texture: %dx%d -> %dx%d", BT.dwWidth, BT.dwHeight, w, h);
-								BT.dwWidth = BT.THM.width = w;
-								BT.dwHeight = BT.THM.height = h;
+								Msg("! THM doesn't correspond to the texture: %dx%d -> %dx%d", BT.dwWidth, BT.dwHeight, BT.pSurface.GetWidth(), BT.pSurface.GetHeight());
+								BT.dwWidth = BT.THM.width = BT.pSurface.GetWidth();
+								BT.dwHeight = BT.THM.height = BT.pSurface.GetHeight();
 							}
-							BT.Vflip();
-						}
-						else 
-						{
-							// Free surface memory
 						}
 					}
 				}
@@ -413,7 +401,7 @@ void CBuild::Load	(const b_params& Params, const IReader& _in_FS)
 			textures().push_back	(BT);
 		}
 
-		if (!lc_global_data()->GetSkipTHM())
+		if (!gCompilerMode.SkipTHM)
 		{
 			R_ASSERT2(!is_thm_missing, "Some of required thm's are missing. See log for details.");
 			R_ASSERT2(!is_tga_missing, "Some of required tga_textures are missing. See log for details.");

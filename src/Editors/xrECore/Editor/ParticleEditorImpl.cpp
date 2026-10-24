@@ -5,6 +5,7 @@
 #include "../../Layers/xrRender/PSLibrary.h"
 #include "../../Layers/xrRender/ParticleEffect.h"
 #include "../../Layers/xrRender/ParticleGroup.h"
+#include "../../Layers/xrRender/ParticleAnimCurve.h"
 
 #include "ParticleEffectActions.h"
 #include "../xrEProps/FolderLib.h"
@@ -12,20 +13,20 @@
 
 ECORE_API xr_token2* actions_token = nullptr;
 
-BOOL PS::CPEDef::Equal(const CPEDef* pe)
+bool PS::CPEDef::Equal(const CPEDef* pe)
 {
-    if (!m_Flags.equal(pe->m_Flags)) 						return FALSE;
-    if (!m_ShaderName.equal(pe->m_ShaderName)) 				return FALSE;
-    if (!m_TextureName.equal(pe->m_TextureName))			return FALSE;
-    if (0!=memcmp(&m_Frame,&pe->m_Frame,sizeof(m_Frame))) 	return FALSE;
-	if (!fsimilar(m_fTimeLimit,pe->m_fTimeLimit))			return FALSE;
-    if (m_MaxParticles!=pe->m_MaxParticles)					return FALSE;
-    if (m_Actions.size()!=pe->m_Actions.size())				return FALSE;
-    if (!m_VelocityScale.similar(pe->m_VelocityScale))		return FALSE;
-	if (!fsimilar(m_fCollideOneMinusFriction,pe->m_fCollideOneMinusFriction))	return FALSE;
-    if (!fsimilar(m_fCollideResilience,pe->m_fCollideResilience))				return FALSE;
-    if (!fsimilar(m_fCollideSqrCutoff,pe->m_fCollideSqrCutoff))					return FALSE;
-    return TRUE;
+    if (!m_Flags.equal(pe->m_Flags)) 						return false;
+    if (!m_ShaderName.equal(pe->m_ShaderName)) 				return false;
+    if (!m_TextureName.equal(pe->m_TextureName))			return false;
+    if (0!=memcmp(&m_Frame,&pe->m_Frame,sizeof(m_Frame))) 	return false;
+	if (!fsimilar(m_fTimeLimit,pe->m_fTimeLimit))			return false;
+    if (m_MaxParticles!=pe->m_MaxParticles)					return false;
+    if (m_Actions.size()!=pe->m_Actions.size())				return false;
+    if (!m_VelocityScale.similar(pe->m_VelocityScale))		return false;
+	if (!fsimilar(m_fCollideOneMinusFriction,pe->m_fCollideOneMinusFriction))	return false;
+    if (!fsimilar(m_fCollideResilience,pe->m_fCollideResilience))				return false;
+    if (!fsimilar(m_fCollideSqrCutoff,pe->m_fCollideSqrCutoff))					return false;
+    return true;
 }
 
 void PS::CPEDef::Copy(const CPEDef& src)
@@ -48,11 +49,12 @@ void PS::CPEDef::Copy(const CPEDef& src)
         PAPI::PActionEnum type 	= src.m_EActionList[k]->type;
         m_EActionList[k]		= pCreateEAction(type);
         *m_EActionList[k]		= *src.m_EActionList[k];
+    	m_EActionList[k]->parent = this;
     }
 	Compile				(m_EActionList);
 }
 
-void  PS::CPEDef::FindActionByName(LPCSTR new_name, bool& res)
+void  PS::CPEDef::FindActionByName(const char* new_name, bool& res)
 {
 	res 				= false;
 	for (EPAVecIt s_it=m_EActionList.begin(); s_it!=m_EActionList.end(); s_it++)
@@ -106,6 +108,7 @@ void  PS::CPEDef::OnDrawUI()
                             }
                         }
                         A->actionName = pref.c_str();
+                    	A->parent = this;
                         m_EActionList.push_back(A);
                         ExecCommand(COMMAND_UPDATE_PROPERTIES);
 
@@ -126,7 +129,7 @@ void  PS::CPEDef::OnActionsClick(ButtonValue* B, bool& bDataModified, bool& bSaf
         case 0:
         {
             m_EditChoose = true;
-            UIChooseForm::SelectItem(smCustom, 1, 0, TOnChooseFillItems(this, &PS::CPEDef::FillActionList));
+            UIChooseForm::SelectItem(smCustom, 1, nullptr, TOnChooseFillItems(this, &PS::CPEDef::FillActionList));
         }
         break;
     }
@@ -179,10 +182,10 @@ bool PS::CPEDef::OnAfterActionNameEdit(PropValue* sender, shared_str& edit_val)
     return 					!found;
 }
 
-void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
+void PS::CPEDef::FillProp(const char* pref, ::PropItemVec& items, void* owner)
 {
 	ButtonValue* B;
-    PropValue* P = 0;
+    PropValue* P = nullptr;
 
 	B=PHelper().CreateButton				(items,PrepareKey(pref,"Control"),"Play(F5),Stop(F6),Stop...(F7)",ButtonValue::flFirstOnly);
     B->OnBtnClickEvent.bind					(this,&PS::CPEDef::OnControlClick);
@@ -197,12 +200,18 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
     P=PHelper().CreateFlag32(items,PrepareKey				(pref,"Time Limit"),		  			&m_Flags, dfTimeLimit);
     P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     if (m_Flags.is(dfTimeLimit))
-	    PHelper().CreateFloat	(items,PrepareKey			(pref,"Time Limit\\Value (sec)"),		&m_fTimeLimit,  0, 10000.f);
+    {
+	    P = PHelper().CreateButton(items, PrepareKey(pref,"Time Limit\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnTimeLimitClicked));
+    	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
+    	PHelper().CreateFloat	(items,PrepareKey			(pref,"Time Limit\\Value (sec)"),		&m_fTimeLimit,  0, 10000.f);
+    }
 	// sprite
     P=PHelper().CreateFlag32(items,PrepareKey				(pref,"Sprite"),		 	   			&m_Flags, dfSprite);
     P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     if (m_Flags.is(dfSprite)){
-	    P=PHelper().CreateChoose(items,PrepareKey			(pref,"Sprite\\Texture"), 	   			&m_TextureName, smTexture, 0,0, 2);
+	    P=PHelper().CreateButton(items, PrepareKey(pref,"Sprite\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnSpriteClicked));
+    	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
+    	P=PHelper().CreateChoose(items,PrepareKey			(pref,"Sprite\\Texture"), 	   			&m_TextureName, smTexture, nullptr,nullptr, 2);
         P->OnChangeEvent.bind	(this,&PS::CPEDef::OnShaderChange);
 	    P=PHelper().CreateChoose(items,PrepareKey			(pref,"Sprite\\Shader"), 	   			&m_ShaderName,	smEShader);
         P->OnChangeEvent.bind	(this,&PS::CPEDef::OnShaderChange);
@@ -210,11 +219,17 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
         P=PHelper().CreateFlag32(items,PrepareKey			(pref,"Sprite\\Culling"),			 	&m_Flags, dfCulling);
         P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
         if (m_Flags.is(CPEDef::dfCulling))
+        {
+	        P = PHelper().CreateButton(items, PrepareKey(pref,"Sprite\\Culling\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnSpriteCullingClicked));
+        	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
         	PHelper().CreateFlag32(items,PrepareKey			(pref,"Sprite\\Culling\\CCW"),			&m_Flags, dfCullCCW);
+        }
         P=PHelper().CreateFlag32(items,PrepareKey			(pref,"Sprite\\Frame"),		 		 	&m_Flags, dfFramed);
         P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
         if (m_Flags.is(dfFramed)){
-            PHelper().CreateFlag32(items,PrepareKey		(pref,"Sprite\\Frame\\Random Init"), 	&m_Flags, dfRandomFrame);
+        	P = PHelper().CreateButton(items, PrepareKey(pref,"Sprite\\Frame\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnSpriteFrameClicked));
+        	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
+        	PHelper().CreateFlag32(items,PrepareKey		(pref,"Sprite\\Frame\\Random Init"), 	&m_Flags, dfRandomFrame);
             PHelper().CreateS32	(items,PrepareKey			(pref,"Sprite\\Frame\\Count"),			&m_Frame.m_iFrameCount, 1,256);
             P=PHelper().CreateFloat(items,PrepareKey		(pref,"Sprite\\Frame\\Size U (0..1)"),	&m_Frame.m_fTexSize.x, EPS_S,1.f,0.001f,8);
             P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFrameResize);
@@ -223,7 +238,9 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
             P=PHelper().CreateFlag32(items,PrepareKey		(pref,"Sprite\\Animated"),				&m_Flags, dfAnimated);
             P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
             if (m_Flags.is(dfAnimated)){
-                PHelper().CreateFlag32(items,PrepareKey	(pref,"Sprite\\Animated\\Random Playback"),	&m_Flags, dfRandomPlayback);
+                P = PHelper().CreateButton(items, PrepareKey(pref,"Sprite\\Animated\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnSpriteAnimatedClicked));
+            	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
+            	PHelper().CreateFlag32(items,PrepareKey	(pref,"Sprite\\Animated\\Random Playback"),	&m_Flags, dfRandomPlayback);
 		    	PHelper().CreateFloat(items,PrepareKey		(pref,"Sprite\\Animated\\Speed"),		&m_Frame.m_fSpeed, 0.f,1000.f);
             }
         }
@@ -232,7 +249,9 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
     P=PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Align To Path"), 					&m_Flags, dfAlignToPath);
     P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     if (m_Flags.is(dfAlignToPath)){
-	    PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Align To Path\\Face Align"), 		&m_Flags, dfFaceAlign);
+	    P = PHelper().CreateButton(items, PrepareKey(pref,"Movement\\Align To Path\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnMovementAlignClicked));
+    	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
+    	PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Align To Path\\Face Align"), 		&m_Flags, dfFaceAlign);
 	    PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Align To Path\\Default World Align"), &m_Flags, dfWorldAlign);
     	PHelper().CreateAngle3(items,PrepareKey	(pref,"Movement\\Align To Path\\Default Rotate"),	&m_APDefaultRotation);
     }
@@ -240,12 +259,18 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
     P=PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Velocity Scale"),					&m_Flags, dfVelocityScale);
     P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     if (m_Flags.is(dfVelocityScale))
+    {
+	    P = PHelper().CreateButton(items, PrepareKey(pref,"Movement\\Velocity Scale\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnMovementVelocityClicked));
+    	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     	PHelper().CreateVector(items,PrepareKey	(pref,"Movement\\Velocity Scale\\Value"),			&m_VelocityScale, -1000.f, 1000.f);
+    }
 	// collision
     P=PHelper().CreateFlag32(items,PrepareKey	(pref,"Movement\\Collision"),						&m_Flags, dfCollision);
     P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
-    FloatValue*	V 			= 0;
+    FloatValue*	V 			= nullptr;
     if (m_Flags.is(dfCollision)){
+    	P = PHelper().CreateButton(items, PrepareKey(pref,"Movement\\Collision\\Control"), "Disable", 0, xr_make_delegate(this, &PS::CPEDef::OnMovementCollisionClicked));
+    	P->OnChangeEvent.bind	(this,&PS::CPEDef::OnFlagChange);
     	PHelper().CreateFlag32(items,PrepareKey(pref,"Movement\\Collision\\Collide With Dynamic"),	&m_Flags, dfCollisionDyn);
     	PHelper().CreateFlag32(items,PrepareKey(pref,"Movement\\Collision\\Destroy On Contact"),	&m_Flags, dfCollisionDel);
 	    V=PHelper().CreateFloat	(items,PrepareKey	(pref,"Movement\\Collision\\Friction"),			&m_fCollideOneMinusFriction,0.f, 1.f);
@@ -253,7 +278,7 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
         V->OnAfterEditEvent.bind	(this,&PS::CPEDef::CollisionFrictionOnAfterEdit);
         V->Owner()->OnDrawTextEvent.bind(this,&PS::CPEDef::CollisionFrictionOnDraw);
 	    PHelper().CreateFloat		(items,PrepareKey	(pref,"Movement\\Collision\\Resilence"), 	&m_fCollideResilience, 		0.f, 1.f);
-	    V=PHelper().CreateFloat		(items,PrepareKey	(pref,"Movement\\Collision\\Cutoff"),	 	&m_fCollideSqrCutoff, 		0.f, P_MAXFLOAT);
+	    V=PHelper().CreateFloat		(items,PrepareKey	(pref,"Movement\\Collision\\Cutoff"),	 	&m_fCollideSqrCutoff, 		0.f, flt_max);
         V->OnBeforeEditEvent.bind	(this,&PS::CPEDef::CollisionCutoffOnBeforeEdit);
         V->OnAfterEditEvent.bind	(this,&PS::CPEDef::CollisionCutoffOnAfterEdit);
         V->Owner()->OnDrawTextEvent.bind(this,&PS::CPEDef::CollisionCutoffOnDraw);
@@ -268,7 +293,7 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
         sprintf(buffer, "%s (%s)", *(*s_it)->actionType, *(*s_it)->actionName);
     	shared_str a_pref		= PrepareKey(pref,"Actions", buffer);
 
-        ButtonValue* B			= PHelper().CreateButton(items,a_pref,"Up,Down,Remove",ButtonValue::flFirstOnly); B->tag = (s_it-m_EActionList.begin());
+        ButtonValue* B			= PHelper().CreateButton(items,PrepareKey(a_pref.c_str(), "Controls"),"Up,Down,Remove",ButtonValue::flFirstOnly); B->tag = (s_it-m_EActionList.begin());
         B->Owner()->prop_color	= clr;
         B->OnBtnClickEvent.bind	(this,&PS::CPEDef::OnActionEditClick);
 
@@ -279,6 +304,55 @@ void PS::CPEDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
     	(*s_it)->FillProp	(items,a_pref.c_str(),clr);
     }
 }
+
+void PS::CPEDef::OnSpriteFrameClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfFramed, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnSpriteAnimatedClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfAnimated, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnTimeLimitClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfTimeLimit, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnSpriteClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfSprite, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnSpriteCullingClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfCulling, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnMovementAlignClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfAlignToPath, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnMovementVelocityClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfVelocityScale, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
+void PS::CPEDef::OnMovementCollisionClicked(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	m_Flags.set(dfCollision, false);
+    ExecCommand(COMMAND_UPDATE_PROPERTIES);
+}
+
 bool PS::CPEDef::Validate(bool bMsg)
 {
     bool have_kill_old  = false;
@@ -316,33 +390,98 @@ void  PS::CPEDef::OnActionEditClick(ButtonValue* B, bool& bDataModified, bool& b
 	bDataModified = false;
 	int idx = B->tag;
 	switch (B->btn_num) {
-	case 0:		    // up
-		if (idx > 0) {
-			EParticleAction* E = m_EActionList[idx - 1];
-			m_EActionList[idx - 1] = m_EActionList[idx];
-			m_EActionList[idx] = E;
-			ExecCommand(COMMAND_UPDATE_PROPERTIES);
-			bDataModified = true;
+	case 0:
+		{
+			// up
+			bDataModified = MoveUpAction(idx);
+			break;
 		}
-		break;
-	case 1:		    // down
-		if (idx < (int(m_EActionList.size()) - 1)) {
-			EParticleAction* E = m_EActionList[idx + 1];
-			m_EActionList[idx + 1] = m_EActionList[idx];
-			m_EActionList[idx] = E;
-			ExecCommand(COMMAND_UPDATE_PROPERTIES);
-			bDataModified = true;
+	case 1:
+		{
+			// down
+			bDataModified = MoveDownAction(idx);
+			break;
 		}
-		bDataModified = true;
-		break;
 	case 2:
-		if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Remove action?") == mrYes) {
-			Tools->RemoveAction(idx);
-			ExecCommand(COMMAND_UPDATE_PROPERTIES);
-			bDataModified = true;
+		{
+			// remove
+			bDataModified = RemoveAction(idx);
+			break;
 		}
-		break;
 	}
+}
+
+bool PS::CPEDef::RemoveAction(int idx)
+{
+	if (ELog.DlgMsg(mtConfirmation, mbYes | mbNo, "Remove action?") == mrYes) {
+		Tools->RemoveAction(idx);
+		ExecCommand(COMMAND_UPDATE_PROPERTIES);
+		return true;
+	}
+	return false;
+}
+
+bool PS::CPEDef::RemoveAction(EParticleAction* action)
+{
+	for (int i = 0; i < m_EActionList.size(); i++)
+	{
+		if (m_EActionList[i] == action)
+		{
+			return RemoveAction(i);
+		}
+	}
+	R_ASSERT(false);
+	return false;
+}
+
+bool PS::CPEDef::MoveUpAction(int idx)
+{
+	if (idx > 0) {
+		EParticleAction* E = m_EActionList[idx - 1];
+		m_EActionList[idx - 1] = m_EActionList[idx];
+		m_EActionList[idx] = E;
+		ExecCommand(COMMAND_UPDATE_PROPERTIES);
+		return true;
+	}
+	return false;
+}
+
+bool PS::CPEDef::MoveUpAction(EParticleAction* action)
+{
+	for (int i = 0; i < m_EActionList.size(); i++)
+	{
+		if (m_EActionList[i] == action)
+		{
+			return MoveUpAction(i);
+		}
+	}
+	R_ASSERT(false);
+	return false;
+}
+
+bool PS::CPEDef::MoveDownAction(int idx)
+{
+	if (idx < (int(m_EActionList.size()) - 1)) {
+		EParticleAction* E = m_EActionList[idx + 1];
+		m_EActionList[idx + 1] = m_EActionList[idx];
+		m_EActionList[idx] = E;
+		ExecCommand(COMMAND_UPDATE_PROPERTIES);
+		return true;
+	}
+	return false;
+}
+
+bool PS::CPEDef::MoveDownAction(EParticleAction* action)
+{
+	for (int i = 0; i < m_EActionList.size(); i++)
+	{
+		if (m_EActionList[i] == action)
+		{
+			return MoveDownAction(i);
+		}
+	}
+	R_ASSERT(false);
+	return false;
 }
 
 ECORE_API xr_string _item_to_select_after_edit;
@@ -376,24 +515,100 @@ bool PS::CPEDef::NameOnAfterEdit(PropValue* sender, shared_str& edit_val)
 }
 
 
-BOOL PS::CPGDef::SEffect::Equal(const SEffect& src)
+bool PS::CPGDef::SEffect::Equal(const SEffect& src)
 {
-	if (!m_Flags.equal(src.m_Flags))	return FALSE;
-    if (!m_EffectName.equal(src.m_EffectName)) return FALSE;
-	if (!fsimilar(m_Time0,src.m_Time0))	return FALSE;
-	if (!fsimilar(m_Time1,src.m_Time1))	return FALSE;
-	return TRUE;
+	if (!m_Flags.equal(src.m_Flags))	return false;
+    if (!m_EffectName.equal(src.m_EffectName)) return false;
+	if (!fsimilar(m_Time0,src.m_Time0))	return false;
+	if (!fsimilar(m_Time1,src.m_Time1))	return false;
+	return true;
 }
 
-BOOL PS::CPGDef::Equal(const CPGDef* pg)
+void PS::CPGDef::SEffect::FillProp(const char* pref, PropItemVec& items, u32 clr)
 {
-	if (!m_Flags.equal(pg->m_Flags))				return FALSE;
-	if (!fsimilar(m_fTimeLimit,pg->m_fTimeLimit))	return FALSE;
-    if (m_Effects.size()!=pg->m_Effects.size())		return FALSE;
+	PropValue* V;
+    V=PHelper().CreateChoose(items,PrepareKey(pref,"Name"),&m_EffectName,smPE);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    V=PHelper().CreateFloat	(items,PrepareKey(pref,"Start Time (s)"),&m_Time0,		0.f,1000.f);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    V=PHelper().CreateFloat	(items,PrepareKey(pref,"End Time (s)"),	&m_Time1,		0.f,1000.f);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    V=PHelper().CreateFlag32(items,PrepareKey(pref,"Deferred Stop"),&m_Flags,	SEffect::flDefferedStop);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    V=PHelper().CreateFlag32(items,PrepareKey(pref,"Enabled"),									&m_Flags, 	SEffect::flEnabled);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    V=PHelper().CreateFlag32(items,PrepareKey(pref,"Children\\On Birth"),						&m_Flags,	SEffect::flOnBirthChild);
+    V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    if (m_Flags.is(SEffect::flOnBirthChild)){
+	    V=PHelper().CreateChoose(items,PrepareKey(pref,"Children\\On Birth\\Effect Name"),			&m_OnBirthChildName,smPE);
+        V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+	    V->Owner()->prop_color	= clr;
+    }
+    V=PHelper().CreateFlag32(items,PrepareKey(pref,"Children\\On Play"),						&m_Flags,	SEffect::flOnPlayChild);
+    V->OnChangeEvent.bind		(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color		= clr;
+    if (m_Flags.is(SEffect::flOnPlayChild)){
+	    V=PHelper().CreateChoose	(items,PrepareKey(pref,"Children\\On Play\\Effect Name"),			&m_OnPlayChildName,smPE);
+        V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+	    V->Owner()->prop_color	= clr;
+        V=PHelper().CreateFlag32(items,PrepareKey(pref,"Children\\On Play\\Play After Stop"),		&m_Flags,	SEffect::flOnPlayChildRewind);
+        V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);
+        V->Owner()->prop_color	= clr;
+    }
+    V=PHelper().CreateFlag32(items,PrepareKey(pref,"Children\\On Dead"),						&m_Flags,	SEffect::flOnDeadChild);
+    V->OnChangeEvent.bind		(parent,&PS::CPGDef::OnParamsChange);
+    V->Owner()->prop_color	= clr;
+    if (m_Flags.is(SEffect::flOnDeadChild)){
+	    V=PHelper().CreateChoose	(items,PrepareKey(pref,"Children\\On Dead\\Effect Name"),			&m_OnDeadChildName,smPE);
+        V->OnChangeEvent.bind	(parent,&PS::CPGDef::OnParamsChange);    
+	    V->Owner()->prop_color	= clr;
+    }
+}
+
+void PS::CPGDef::SEffect::FillPropInit(PropItemVec& items, const char* pref)
+{
+	u32 clr					= m_Flags.is(CPGDef::SEffect::flEnabled)? 0xFF000000 :0xFFC0C0C0;
+	xr_string nm;
+	nm.resize(64);
+	auto Index = parent->FindEffect(this);
+	sprintf(nm.data(), "Effect #%d", Index + 1);
+
+	auto FullPref = PrepareKey(pref,nm.c_str());
+	auto B=PHelper().CreateButton(items,PrepareKey(FullPref.c_str(),"Controls"),"Preview,Select,Remove",ButtonValue::flFirstOnly);
+	B->tag = Index;
+	B->OnBtnClickEvent.bind	(parent,&PS::CPGDef::OnEffectEditClick);
+	B->Owner()->prop_color	= clr;
+
+	FillProp(FullPref.c_str(), items, clr);
+}
+
+bool PS::CPGDef::Equal(const CPGDef* pg)
+{
+	if (!m_Flags.equal(pg->m_Flags))				return false;
+	if (!fsimilar(m_fTimeLimit,pg->m_fTimeLimit))	return false;
+    if (m_Effects.size()!=pg->m_Effects.size())		return false;
     EffectIt s_it=m_Effects.begin(); 
     for (EffectIt d_it=m_Effects.begin(); d_it!=m_Effects.end(); s_it++,d_it++)
-    	if (!(*s_it)->Equal(**d_it)) return FALSE;
-	return TRUE;
+    	if (!(*s_it)->Equal(**d_it)) return false;
+	return true;
+}
+int PS::CPGDef::FindEffect(SEffect* effect)
+{
+	for (int i = 0; i < m_Effects.size(); i++)
+	{
+		if (m_Effects[i] == effect)
+		{
+			return i;
+		}
+	}
+	R_ASSERT(false);
+	return -1;
 }
 
 bool PS::CPGDef::Validate(bool bMsg)
@@ -434,7 +649,8 @@ void  PS::CPGDef::OnEffectsEditClick(ButtonValue* B, bool& bDataModified, bool& 
     switch (B->btn_num){
     case 0:
         m_Effects.push_back(new SEffect());
-        m_Effects.back()->m_Flags.set(CPGDef::SEffect::flEnabled,FALSE);
+        m_Effects.back()->m_Flags.set(CPGDef::SEffect::flEnabled,false);
+    	m_Effects.back()->parent = this;
         ExecCommand		(COMMAND_UPDATE_PROPERTIES);
         OnParamsChange	(B);
         bDataModified	= true;
@@ -461,39 +677,68 @@ void  PS::CPGDef::OnControlClick(ButtonValue* B, bool& bDataModified, bool& bSaf
 void  PS::CPGDef::OnEffectEditClick(ButtonValue* B, bool& bDataModified, bool& bSafe)
 {
     switch (B->btn_num){
-    case 0:		    	
-    	Tools->PlayCurrent	(B->tag);    
-		bDataModified	= false;
+    case 0:
+	    {
+		    Tools->PlayCurrent	(B->tag);    
+    		bDataModified	= false;
+	    }
     break;
-    case 1:{
-    	CPGDef::SEffect* eff = *(m_Effects.begin()+B->tag); VERIFY(eff);
-		Tools->SelectEffect(*eff->m_EffectName);
-		bDataModified	= false;
-        bSafe			= true;
-    }break;
-    case 2:        
-        if (ELog.DlgMsg(mtConfirmation, mbYes| mbNo,"Remove effect?") == mrYes){
-        	SEffect* eff	= *(m_Effects.begin()+B->tag);
-        	xr_delete		(eff);
-            m_Effects.erase	(m_Effects.begin()+B->tag);
-            ExecCommand		(COMMAND_UPDATE_PROPERTIES);
-            OnParamsChange	(B);
-            bDataModified	= true;
-            bSafe			= true;
-        }else{
+    case 1:
+    	{
+    		CPGDef::SEffect* eff = *(m_Effects.begin()+B->tag); VERIFY(eff);
+			Tools->SelectEffect(*eff->m_EffectName);
 			bDataModified	= false;
-        }
-    break;
+			bSafe			= true;
+    		break;
+		}
+    case 2:
+	    {
+		    bDataModified = RemoveEffect(B->tag, bSafe);
+    		break;
+	    }
     }
+}
+
+bool PS::CPGDef::RemoveEffect(int idx, bool& safe)
+{
+	if (ELog.DlgMsg(mtConfirmation, mbYes| mbNo,"Remove effect?") == mrYes){
+		SEffect* eff	= *(m_Effects.begin()+idx);
+		xr_delete		(eff);
+		m_Effects.erase	(m_Effects.begin()+idx);
+		ExecCommand		(COMMAND_UPDATE_PROPERTIES);
+		OnParamsChangeInternal();
+		safe = true;
+		return true;
+	}
+	return false;
+}
+
+bool PS::CPGDef::RemoveEffect(SEffect* effect)
+{
+	bool dummy;
+	for (int i = 0; i < m_Effects.size(); i++)
+	{
+		if (m_Effects[i] == effect)
+		{
+			return RemoveEffect(i, dummy);
+		}
+	}
+	R_ASSERT(false);
+	return false;
 }
 
 void PS::CPGDef::OnParamsChange(PropValue* sender)
 {
-    Tools->SetCurrentPG(0);
-    Tools->SetCurrentPG(this);
+	OnParamsChangeInternal();
 }
 
-void PS::CPGDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
+void PS::CPGDef::OnParamsChangeInternal()
+{
+	//Tools->SetCurrentPG(0);
+	//Tools->SetCurrentPG(this);
+}
+
+void PS::CPGDef::FillProp(const char* pref, PropItemVec& items, void* owner)
 {                                   
     ButtonValue* B;
 	B=PHelper().CreateButton	(items,PrepareKey(pref,"Control"),"Play,Stop,Stop...",ButtonValue::flFirstOnly);
@@ -512,52 +757,13 @@ void PS::CPGDef::FillProp(LPCSTR pref, ::PropItemVec& items, void* owner)
         xr_string nm;
         nm.resize(64);
         sprintf(nm.data(), "Effect #%d", i + 1);
-        
-        B=PHelper().CreateButton(items,PrepareKey(pref,nm.c_str()),"Preview,Select,Remove",ButtonValue::flFirstOnly); B->tag = it-m_Effects.begin();
+
+    	auto FullPref = PrepareKey(pref,nm.c_str());
+        B=PHelper().CreateButton(items,PrepareKey(FullPref.c_str(),"Controls"),"Preview,Select,Remove",ButtonValue::flFirstOnly); B->tag = it-m_Effects.begin();
         B->OnBtnClickEvent.bind	(this,&PS::CPGDef::OnEffectEditClick);
         B->Owner()->prop_color	= clr;
-        V=PHelper().CreateChoose(items,PrepareKey(pref,nm.c_str(),"Name"),&(*it)->m_EffectName,smPE);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        V=PHelper().CreateFloat	(items,PrepareKey(pref,nm.c_str(),"Start Time (s)"),&(*it)->m_Time0,		0.f,1000.f);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        V=PHelper().CreateFloat	(items,PrepareKey(pref,nm.c_str(),"End Time (s)"),	&(*it)->m_Time1,		0.f,1000.f);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Deferred Stop"),&(*it)->m_Flags,	SEffect::flDefferedStop);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Enabled"),									&(*it)->m_Flags, 	SEffect::flEnabled);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Children\\On Birth"),						&(*it)->m_Flags,	SEffect::flOnBirthChild);
-        V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        if ((*it)->m_Flags.is(SEffect::flOnBirthChild)){
-	        V=PHelper().CreateChoose(items,PrepareKey(pref,nm.c_str(),"Children\\On Birth\\Effect Name"),			&(*it)->m_OnBirthChildName,smPE);
-    	    V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-	        V->Owner()->prop_color	= clr;
-        }
-        V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Children\\On Play"),						&(*it)->m_Flags,	SEffect::flOnPlayChild);
-        V->OnChangeEvent.bind		(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color		= clr;
-        if ((*it)->m_Flags.is(SEffect::flOnPlayChild)){
-	        V=PHelper().CreateChoose	(items,PrepareKey(pref,nm.c_str(),"Children\\On Play\\Effect Name"),			&(*it)->m_OnPlayChildName,smPE);
-    	    V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-	        V->Owner()->prop_color	= clr;
-            V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Children\\On Play\\Play After Stop"),		&(*it)->m_Flags,	SEffect::flOnPlayChildRewind);
-            V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);
-            V->Owner()->prop_color	= clr;
-        }
-        V=PHelper().CreateFlag32(items,PrepareKey(pref,nm.c_str(),"Children\\On Dead"),						&(*it)->m_Flags,	SEffect::flOnDeadChild);
-        V->OnChangeEvent.bind		(this,&PS::CPGDef::OnParamsChange);
-        V->Owner()->prop_color	= clr;
-        if ((*it)->m_Flags.is(SEffect::flOnDeadChild)){
-	        V=PHelper().CreateChoose	(items,PrepareKey(pref,nm.c_str(),"Children\\On Dead\\Effect Name"),			&(*it)->m_OnDeadChildName,smPE);
-    	    V->OnChangeEvent.bind	(this,&PS::CPGDef::OnParamsChange);    
-	        V->Owner()->prop_color	= clr;
-        }
+
+    	(*it)->FillProp(FullPref.c_str(), items, clr);
     }
 }
 
@@ -577,8 +783,10 @@ void PS::CPEDef::Render(const Fmatrix& parent)
 PS::CPEDef* CPSLibrary::AppendPED(PS::CPEDef* src)
 {
     m_PEDs.push_back(new PS::CPEDef());
-    if (src) 
-        m_PEDs.back()->Copy(*src);
+    if (src)
+    {
+	    m_PEDs.back()->Copy(*src);
+    }
 
     return m_PEDs.back();
 }
@@ -586,8 +794,21 @@ PS::CPEDef* CPSLibrary::AppendPED(PS::CPEDef* src)
 PS::CPGDef* CPSLibrary::AppendPGD(PS::CPGDef* src)
 {
     m_PGDs.push_back(new PS::CPGDef());
-    if (src) m_PGDs.back()->Clone(src);
+    if (src)
+    {
+	    m_PGDs.back()->Clone(src);
+    }
     return m_PGDs.back();
+}
+
+PS::CPACDef* CPSLibrary::AppendPACD(PS::CPACDef* src)
+{
+	m_PACDs.push_back(new PS::CPACDef());
+	if (src)
+	{
+		m_PACDs.back()->Clone(src);
+	}
+	return m_PACDs.back();
 }
 
 
@@ -606,7 +827,7 @@ bool CPSLibrary::Save()
 bool CPSLibrary::Save2()
 {
     string_path fn;
-    SPBItem* pb = UI->ProgressStart(m_PEDs.size() + m_PGDs.size(), "Saving particles...");
+    SPBItem* pb = UI->ProgressStart(m_PEDs.size() + m_PGDs.size() + m_PACDs.size(), "Saving particles...");
 
     for (PS::PEDIt it = m_PEDs.begin(); it != m_PEDs.end(); ++it)
     {
@@ -621,7 +842,7 @@ bool CPSLibrary::Save2()
 
         FS.file_delete(fn);
 
-        CInifile ini(fn, FALSE, FALSE, FALSE);
+        CInifile ini(fn, false, false, false);
         pe->Save2(ini);
         ini.save_as(fn);
     }
@@ -639,10 +860,30 @@ bool CPSLibrary::Save2()
 
         FS.file_delete(fn);
 
-        CInifile ini(fn, FALSE, FALSE, FALSE);
+        CInifile ini(fn, false, false, false);
         pg->Save2(ini);
         ini.save_as(fn);
     }
+
+	for (auto elem : m_PACDs)
+	{
+		pb->Inc();
+
+		if (!elem->Validate(false))
+		{
+			continue;
+		}
+
+		FS.update_path(fn, "$game_particles$", elem->getName());
+		strcat(fn, ".pac");
+
+		FS.file_delete(fn);
+
+		CInifile ini(fn, false, false, false);
+		elem->Save2(ini);
+		ini.save_as(fn);
+	}
+	
     UI->ProgressEnd(pb);
     return true;
 }
@@ -651,30 +892,39 @@ bool CPSLibrary::Save(const char* nm)
 {
     CMemoryWriter F;
 
-    F.open_chunk(PS_CHUNK_VERSION);
-    F.w_u16(PS_VERSION);
+    F.open_chunk(PS::Chunks::VERSION);
+    F.w_enum(PS::Version::Latest);
     F.close_chunk();
 
-    F.open_chunk(PS_CHUNK_SECONDGEN);
+    F.open_chunk(PS::Chunks::EXTENDED_PE);
     u32 chunk_id = 0;
-    for (PS::PEDIt it = m_PEDs.begin(); it != m_PEDs.end(); ++it, ++chunk_id)
+    for (auto elem : m_PEDs)
     {
-        F.open_chunk(chunk_id);
-        (*it)->Save(F);
+        F.open_chunk(chunk_id++);
+        elem->Save(F);
         F.close_chunk();
     }
     F.close_chunk();
 
-
-    F.open_chunk(PS_CHUNK_THIRDGEN);
+    F.open_chunk(PS::Chunks::EXTENDED_PG);
     chunk_id = 0;
-    for (PS::PGDIt g_it = m_PGDs.begin(); g_it != m_PGDs.end(); ++g_it, ++chunk_id)
+    for (auto elem : m_PGDs)
     {
-        F.open_chunk(chunk_id);
-        (*g_it)->Save(F);
+        F.open_chunk(chunk_id++);
+        elem->Save(F);
         F.close_chunk();
     }
     F.close_chunk();
+
+	F.open_chunk(PS::Chunks::EXTENDED_PAC);
+    chunk_id = 0;
+	for (auto elem : m_PACDs)
+	{
+		F.open_chunk(chunk_id++);
+		elem->Save(F);
+		F.close_chunk();
+	}
+	F.close_chunk();
 
     return F.save_to(nm);
 }

@@ -12,10 +12,10 @@ bool CScenePhysics::Simulating()
 	return !!physics_world();
 }
 
-BOOL  GetStaticCformData(const Fmatrix& parent, CEditableMesh* mesh, CEditableObject* object, Fvector* verts, int& vert_cnt, int& vert_it, CDB::TRI* faces, int& face_cnt, int& face_it, CSceneObject* obj);
+bool  GetStaticCformData(const Fmatrix& parent, CEditableMesh* mesh, CEditableObject* object, Fvector* verts, int& vert_cnt, int& vert_it, CDB::TRI* faces, int& face_cnt, int& face_it, CSceneObject* obj);
 
 template<class ObjectClass>
-BOOL GetStaticCformData(ObjectClass* obj, mesh_build_data& data, bool b_selected_only)
+bool GetStaticCformData(ObjectClass* obj, mesh_build_data& data, bool b_selected_only)
 {
 	Fmatrix T = obj->_Transform();
 	CEditableObject* O = obj->GetReference();
@@ -29,15 +29,15 @@ BOOL GetStaticCformData(ObjectClass* obj, mesh_build_data& data, bool b_selected
 		}
 
 		if (!::GetStaticCformData(T, *M, O, data.l_verts, data.l_vert_cnt, data.l_vert_it, data.l_faces, data.l_face_cnt, data.l_face_it, SurfaceOwner))
-			return FALSE;
+			return false;
 	}
 
-	return FALSE;
+	return false;
 }
 
-BOOL GetStaticCformData(ObjectList& lst, mesh_build_data& data, bool b_selected_only)
+bool GetStaticCformData(ObjectList& lst, mesh_build_data& data, bool b_selected_only)
 {
-	BOOL bResult = TRUE;
+	bool bResult = true;
 
 	for (ObjectIt _F = lst.begin(); _F != lst.end(); _F++)
 	{
@@ -166,21 +166,18 @@ bool CScenePhysics::CreateObjectSpace(bool b_selected_only)
 	}
 
 	CDB::Collector CL;
-
+	CL.reserve(build_data.l_face_cnt);
 	for (u32 i = 0; i < build_data.l_face_cnt; ++i)
 	{
 		CDB::TRI& F = build_data.l_faces[i];
 		CL.add_face_D(build_data.l_verts[F.verts[0]], build_data.l_verts[F.verts[1]], build_data.l_verts[F.verts[2]], i);
 	}
 
-	hdrCFORM H;
-	H.vertcount = CL.getVS();
-	H.facecount = CL.getTS();
-	H.version = CFORM_CURRENT_VERSION;
-	GetBox(H.aabb, CL.getV(), CL.getVS());
+	XRay::CForm::CFormatVanilla CForm;
+	CForm.AddStaticGeom(CL.getVSpan(), CL.getTSpan());
 
 	VERIFY(!m_object_space);
-	m_object_space = mesh_create_object_space(CL.getV(), CL.getT(), H, 0);
+	m_object_space = mesh_create_object_space(CForm, nullptr);
 
 	xr_free(build_data.l_faces);
 	xr_free(build_data.l_verts);
@@ -209,22 +206,18 @@ void  CScenePhysics::DestroyWorld()
 
 void CScenePhysics::GenerateCForm(CObjectSpace* To, CDB::build_callback cb)
 {
-
 	bool bResult = true;
 
 	mesh_build_data build_data;
 
-
 	SceneToolsMapPairIt t_it = Scene->FirstTool();
 	SceneToolsMapPairIt t_end = Scene->LastTool();
+
 	for (; t_it != t_end; ++t_it)
 	{
 		ESceneToolBase* mt = t_it->second;
 		if (mt)
 			mt->GetStaticDesc(build_data.l_vert_cnt, build_data.l_face_cnt, false, true);
-
-		// if (!mt->ExportStatic(this,b_selected_only))
-			// {bResult = FALSE; break;}
 	}
 
 	build_data.l_faces = xr_alloc<CDB::TRI>(build_data.l_face_cnt);
@@ -242,19 +235,14 @@ void CScenePhysics::GenerateCForm(CObjectSpace* To, CDB::build_callback cb)
 			}
 	}
 	VERIFY(!m_object_space);
-	hdrCFORM H;
-	H.vertcount = build_data.l_vert_it;
-	H.facecount = build_data.l_face_it;
-	H.version = CFORM_CURRENT_VERSION;
-	GetBox(H.aabb, build_data.l_verts, build_data.l_vert_it);
-	VERIFY(!m_object_space);
-	To->Create(build_data.l_verts, build_data.l_faces, H, cb, nullptr, false);
+	XRay::CForm::CFormatVanilla CForm;
+	CForm.AddStaticGeom({build_data.l_verts, (size_t)build_data.l_vert_it}, {build_data.l_faces, (size_t)build_data.l_face_it});
+	To->Create(CForm, cb, nullptr, false);
 
 	xr_free(build_data.l_faces);
 	xr_free(build_data.l_verts);
 
 	b_update_level_collision = false;
-
 }
 
 void  CScenePhysics::CreateWorld()

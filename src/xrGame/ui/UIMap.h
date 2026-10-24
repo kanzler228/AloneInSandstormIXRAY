@@ -30,7 +30,7 @@ public:
 
 	virtual void	SetActivePoint					(const Fvector &vNewPoint);
 	
-	void			Initialize						(shared_str name, LPCSTR sh_name);
+	void			Initialize						(shared_str name, const char* sh_name);
 	virtual Fvector2 ConvertRealToLocal				(const Fvector2& src, bool for_drawing);// meters->pixels (relatively own left-top pos)
 	Fvector2		ConvertLocalToReal				(const Fvector2& src, Frect const& bound_rect);
 	Fvector2		ConvertRealToLocalNoTransform	(const Fvector2& src, Frect const& bound_rect);// meters->pixels (relatively own left-top pos)
@@ -62,12 +62,12 @@ public:
 	virtual CUIStatic* ui_cast_static() { return this; }
 
 protected:
-	virtual void	Init_internal					(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name);
+	virtual void	Init_internal					(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name);
 	virtual void	UpdateSpots						() {};
 };
 
 
-class CUIGlobalMap: public CUICustomMap
+class CUIGlobalMap final : public CUICustomMap
 {
 	typedef  CUICustomMap inherited;
 
@@ -98,23 +98,32 @@ public:
 	virtual void	Update					();
 	void			Initialize				();
 protected:
-	virtual void	Init_internal			(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name);
+	virtual void	Init_internal			(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name);
 };
 
-class CUILevelMap: public CUICustomMap
+class CUILevelMap final :
+	public CUICustomMap
 {
 	typedef  CUICustomMap inherited;
 
 	CUIMapWnd*					m_mapWnd;
-	bool						legacySpotScaling;
-	Frect						m_GlobalRect;			// virtual map size (meters)
-								CUILevelMap			(const CUILevelMap &obj) {}
+	enum SpotScaleMode 
+	{
+		eScalingDefault,
+		eScalingCS,
+		eScalingSoC
+	};
+	SpotScaleMode				SpotScaling;
+	Frect						m_GlobalRect;
 
-			CUILevelMap			&operator=			(const CUILevelMap &obj) {}
 public:
-								CUILevelMap			(CUIMapWnd*);
-	virtual						~CUILevelMap		();
-	const Frect&				GlobalRect			() const								{return m_GlobalRect;}
+	CUILevelMap(CUIMapWnd*);
+	virtual ~CUILevelMap();
+
+	CUILevelMap(const CUILevelMap& obj) = delete;
+	CUILevelMap& operator= (const CUILevelMap& obj) = delete;
+
+	const Frect&				GlobalRect			() const {return m_GlobalRect;}
 	virtual void				Draw				();
 	virtual void				Show				(bool status);
 	virtual void				Update				();
@@ -128,10 +137,10 @@ public:
 
 protected:
 	virtual void				UpdateSpots			();
-	virtual void				Init_internal		(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name);
+	virtual void				Init_internal		(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name);
 };
 
-class CUIMiniMap: public CUICustomMap
+class CUIMiniMap final : public CUICustomMap
 {
 	typedef  CUICustomMap inherited;
 
@@ -144,5 +153,5 @@ public:
 	virtual bool				IsRectVisible		(Frect r);
 protected:
 	virtual void				UpdateSpots			();
-	virtual void				Init_internal		(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name);
+	virtual void				Init_internal		(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name);
 };

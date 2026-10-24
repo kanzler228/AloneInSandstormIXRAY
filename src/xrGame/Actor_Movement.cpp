@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 
 #include "Actor.h"
+#include "InventoryVolumeSystem.h"
 #include "Inventory.h"
 #include "Weapon.h"
 #include "../xrEngine/CameraBase.h"
@@ -8,6 +9,7 @@
 
 #include "Level.h"
 #include "UIGameCustom.h"
+#include "ui/UITalkWnd.h"
 #include "ActorCondition.h"
 #include "game_cl_base.h"
 #include "WeaponMagazined.h"
@@ -17,6 +19,8 @@
 #include "Artefact.h"
 #include "CustomOutfit.h"
 #include "ActorBackpack.h"
+#include "../xrEngine/xr_input.h"
+#include "../xrScripts/script_callback_ex.h"
 
 #ifdef DEBUG
 #include "PHDebug.h"
@@ -74,12 +78,17 @@ void CActor::g_cl_ValidateMState(float dt, u32 mstate_wf)
 		PlayRainStep(!!HUDview());
 		PlayExoStep(!!HUDview());
 
-		m_bJumpKeyPressed	=	TRUE;
+		m_bJumpKeyPressed	=	true;
 		m_fJumpTime			=	s_fJumpTime;
 		mstate_real			&=~	(mcFall|mcJump);
+
+		callback(GameObject::eOnActorJumpEnd)(
+			character_physics_support()->movement()->gcontact_Power,
+			Position()
+		);
 	}
 	if ((mstate_wf&mcJump)==0)	
-		m_bJumpKeyPressed	=	FALSE;
+		m_bJumpKeyPressed	=	false;
 
 	// Зажало-ли меня/уперся - не двигаюсь
 	if (((character_physics_support()->movement()->GetVelocityActual()<0.2f)&&(!(mstate_real&(mcFall|mcJump)))) || character_physics_support()->movement()->bSleep) 
@@ -176,10 +185,21 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 		}
 	}
 	// update player accel
-	if (mstate_wf&mcFwd)		vControlAccel.z +=  1;
-	if (mstate_wf&mcBack)		vControlAccel.z += -1;
-	if (mstate_wf&mcLStrafe)	vControlAccel.x += -1;
-	if (mstate_wf&mcRStrafe)	vControlAccel.x +=  1;
+	if (mstate_wf & mcFwd)
+	{
+		vControlAccel.z += mstate_wf & mcSprint ? 1.0f : leftStickThreshold.y;
+	}
+	if (mstate_wf & mcBack) vControlAccel.z += leftStickThreshold.y;
+	if (mstate_wf & mcRStrafe) vControlAccel.x += leftStickThreshold.x;
+	if (mstate_wf & mcLStrafe) vControlAccel.x += leftStickThreshold.x;
+
+	if (pInput->GetControllerMode() && mstate_wf & mcAccel)
+	{
+		vControlAccel.x *= 2.0f;
+		vControlAccel.z *= 2.0f;
+	}
+
+	vControlAccel.normalize_safe();
 
 	CPHMovementControl::EEnvironment curr_env = character_physics_support()->movement()->Environment();
 	if(curr_env==CPHMovementControl::peOnGround || curr_env==CPHMovementControl::peAtWall)
@@ -210,8 +230,13 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 		if (CanJump() && (mstate_wf & mcJump))
 		{
 			mstate_real			|=	mcJump;
-			m_bJumpKeyPressed	=	TRUE;
-			Jump				= m_fJumpSpeed;
+			m_bJumpKeyPressed	=	true;
+			const float jump_modifier = GetArtefactJumpHeightModifier();
+			Jump = m_fJumpSpeed * (1.0f + jump_modifier);
+			if (Jump < 0.0f)
+			{
+				Jump = 0.0f;
+			}
 			m_fJumpTime			= s_fJumpTime;
 
 			PlayRainStep(!!HUDview());
@@ -220,6 +245,8 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 			//уменьшить силу игрока из-за выполненого прыжка
 			if (!GodMode())
 				conditions().ConditionJump(inventory().TotalWeight() / MaxCarryWeight());
+
+			callback(GameObject::eOnActorJumpBegin)(Position());
 		}
 
 		// mask input into "real" state
@@ -246,15 +273,17 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 		mstate_real &= (~move);
 		mstate_real |= (mstate_wf & move);
 
-		if(mstate_wf&mcSprint)
-			mstate_real|=mcSprint;
+		if (mstate_wf & mcSprint && CanSprint())
+		{
+			mstate_real |= mcSprint;
+		}
 		else
-			mstate_real&=~mcSprint;
-		if (!(mstate_real & (mcFwd | mcLStrafe | mcRStrafe)) ||
-			(mstate_real & mcFwd && mstate_real & mcBack) ||
-			(mstate_real & mcLStrafe && mstate_real & mcRStrafe) ||
-			mstate_real & (mcCrouch | mcClimb) ||
-			!isActorAccelerated(mstate_wf, IsZoomAimingMode())) {
+		{
+			mstate_real &= ~mcSprint;
+		}
+
+		if (!(mstate_real & (mcFwd | mcLStrafe | mcRStrafe)) || (mstate_real & mcFwd && mstate_real & mcBack) || (mstate_real & mcLStrafe && mstate_real & mcRStrafe) || mstate_real & (mcCrouch | mcClimb) || !isActorAccelerated(mstate_wf, IsZoomAimingMode()))
+		{
 			mstate_real &= ~mcSprint;
 			mstate_wishful &= ~mcSprint;
 		}
@@ -262,17 +291,23 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 		// check player move state
 		if(mstate_real&mcAnyMove)
 		{
-			BOOL	bAccelerated		= isActorAccelerated(mstate_real, IsZoomAimingMode())&&CanAccelerate();
+			bool	bAccelerated		= isActorAccelerated(mstate_real, IsZoomAimingMode())&&CanAccelerate();
 
 			// correct "mstate_real" if opposite keys pressed
-			if (_abs(vControlAccel.z)<EPS)	mstate_real &= ~(mcFwd + mcBack + mcSprint);
-			if (_abs(vControlAccel.x)<EPS)	mstate_real &= ~(mcLStrafe+mcRStrafe);
+			if (std::abs(vControlAccel.z)<EPS)	mstate_real &= ~(mcFwd + mcBack + mcSprint);
+			if (std::abs(vControlAccel.x)<EPS)	mstate_real &= ~(mcLStrafe+mcRStrafe);
 
 			// normalize and analyze crouch and run
 			float	scale			= vControlAccel.magnitude();
 			if(scale>EPS)	
 			{	
-				scale = m_fWalkAccel / scale;
+				const float speed_modifier = GetArtefactMovementSpeedModifier();
+				float walkAccel = m_fWalkAccel * (1.0f + speed_modifier);
+				if (walkAccel < 0.0f)
+				{
+					walkAccel = 0.0f;
+				}
+				scale = walkAccel / scale;
 
 				if (bAccelerated)
 					if (mstate_real&mcBack)
@@ -295,6 +330,11 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 						scale *= m_fRun_StrafeFactor;
 					else
 						scale *= m_fWalk_StrafeFactor;
+				}
+
+				if (ControlledTimeRemains > 0 || SuicideNow || PlanningSuicide || IsControllerPreparing() || DeathActionStarted)
+				{
+					scale *= ControlledActorSpeedKoef;
 				}
 
 				vControlAccel.mul			(scale);
@@ -534,7 +574,7 @@ bool CActor::g_LadderOrient()
 {
 	Fvector leader_norm;
 	character_physics_support()->movement()->GroundNormal(leader_norm);
-	if(_abs(leader_norm.y)>M_SQRT1_2) return false;
+	if(std::abs(leader_norm.y)>M_SQRT1_2) return false;
 	//leader_norm.y=0.f;
 	float mag=leader_norm.magnitude();
 	if(mag<EPS_L) return false;
@@ -545,25 +585,7 @@ bool CActor::g_LadderOrient()
 	M.j.set(0.f,1.f,0.f);
 	generate_orthonormal_basis1(M.k,M.j,M.i);
 	M.i.invert();
-	//M.j.invert();
 
-
-	//Fquaternion q1,q2,q3;
-	//q1.set(XFORM());
-	//q2.set(M);
-	//q3.slerp(q1,q2,dt);
-	//Fvector angles1,angles2,angles3;
-	//XFORM().getHPB(angles1.x,angles1.y,angles1.z);
-	//M.getHPB(angles2.x,angles2.y,angles2.z);
-	////angle_lerp(angles3.x,angles1.x,angles2.x,dt);
-	////angle_lerp(angles3.y,angles1.y,angles2.y,dt);
-	////angle_lerp(angles3.z,angles1.z,angles2.z,dt);
-
-	//angles3.lerp(angles1,angles2,dt);
-	////angle_lerp(angles3.y,angles1.y,angles2.y,dt);
-	////angle_lerp(angles3.z,angles1.z,angles2.z,dt);
-	//angle_lerp(angles3.x,angles1.x,angles2.x,dt);
-	//XFORM().setHPB(angles3.x,angles3.y,angles3.z);
 	Fvector position;
 	position.set(Position());
 	//XFORM().rotation(q3);
@@ -601,8 +623,10 @@ void CActor::g_cl_Orientate	(u32 mstate_rl, float dt)
 		r_torso.pitch	=	unaffected_r_torso.pitch + dangle.x;
 	}
 	
-	if (eacLookAt == cam_active && inventory().GetActiveSlot() == NO_ACTIVE_SLOT)
-		r_torso.pitch = 0;
+	if (inventory().GetActiveSlot() == NO_ACTIVE_SLOT || IsSafemode())
+	{
+		r_torso.pitch = 0.0f;
+	}
 
 	// если есть движение - выровнять модель по камере
 	if(mstate_rl & mcAnyMove || (g_player_hud && g_player_hud->m_legs_model)) {
@@ -611,12 +635,12 @@ void CActor::g_cl_Orientate	(u32 mstate_rl, float dt)
 	} else {
 		// if camera rotated more than 45 degrees - align model with it
 		float ty = angle_normalize(r_torso.yaw);
-		if (_abs(r_model_yaw-ty)>PI_DIV_4)	{
+		if (std::abs(r_model_yaw-ty)>PI_DIV_4)	{
 			r_model_yaw_dest = ty;
 			// 
 			mstate_real	|= mcTurn;
 		}
-		if (_abs(r_model_yaw-r_model_yaw_dest)<EPS_L){
+		if (std::abs(r_model_yaw-r_model_yaw_dest)<EPS_L){
 			mstate_real	&=~mcTurn;
 		}
 		if (mstate_rl&mcTurn){
@@ -670,29 +694,31 @@ bool CActor::CanAccelerate()
 
 bool CActor::CanRun()
 {
+	if (CInventoryVolumeSystem::Get().GetPenalty(*this).blockSprint)
+	{
+		return false;
+	}
+
 	const static bool isSprintWhileOverweightDisabled = EngineExternal()[EEngineExternalGame::DisableSprintWhileOverweight];
 	bool can_run = !IsZoomAimingMode() && !(mstate_real & mcLookout);
 	if (isSprintWhileOverweightDisabled)
 	{
-		can_run = !IsZoomAimingMode() && !(mstate_real & mcLookout) && (inventory().TotalWeight() < (MaxWalkWeight() - 10.0f));
+		can_run ^= inventory().TotalWeight() < (MaxWalkWeight() - 10.0f);
 	}
 	return can_run;
 }
 
 bool CActor::CanSprint()
 {
-	bool is_animator = (HudAnimator() && (HudAnimator()->IsActive() && HudAnimator()->CanSprint() || !HudAnimator()->IsActive()) || !HudAnimator());
-	bool can_Sprint = CanAccelerate() && !conditions().IsCantSprint() && Game().PlayerCanSprint(this) && CanRun() && !(mstate_real & mcLStrafe || mstate_real & mcRStrafe) && InventoryAllowSprint() && !bBlockSprint && is_animator;
+	bool is_animator = (HudAnimator() != nullptr && (HudAnimator()->IsAnyAnimatorActive() && HudAnimator()->CanSprint() || !HudAnimator()->IsAnyAnimatorActive()) || HudAnimator() == nullptr);
+	bool can_Sprint = CanAccelerate() && !conditions().IsCantSprint() && Game().PlayerCanSprint(this) && (abs(leftStickThreshold.x) <= 0.5f) && leftStickThreshold.y >= 0.f && CanRun() && InventoryAllowSprint() && !bBlockSprint && is_animator;
 
 	return can_Sprint && (m_block_sprint_counter<=0);
 }
 
 bool CActor::CanJump()
 {
-	bool can_Jump = 
-		!character_physics_support()->movement()->PHCapture() &&((mstate_real&mcJump)==0) && (m_fJumpTime<=0.f) 
-		&& !m_bJumpKeyPressed &&!IsZoomAimingMode();
-
+	bool can_Jump = !character_physics_support()->movement()->PHCapture() && ((mstate_real & mcJump) == 0) && (m_fJumpTime <= 0.0f) && !m_bJumpKeyPressed && !IsControllerPreparing() && !PlanningSuicide && !SuicideNow;
 	return can_Jump;
 }
 
@@ -702,7 +728,7 @@ bool CActor::CanMove()
 	{
 		if(mstate_wishful&mcAnyMove)
 		{
-			CurrentGameUI()->AddCustomStatic("cant_walk", true);
+			CurrentGameUI()->AddCustomStatic("cant_walk", true, 3.0f);
 		}
 		return false;
 	}else
@@ -710,16 +736,18 @@ bool CActor::CanMove()
 	{
 		if(mstate_wishful&mcAnyMove)
 		{
-			CurrentGameUI()->AddCustomStatic("cant_walk_weight", true);
+			CurrentGameUI()->AddCustomStatic("cant_walk_weight", true, 3.0f);
 		}
 		return false;
 	
 	}
 
-	if(IsTalking())
+	if (IsTalking())
+	{
 		return false;
-	else
-		return true;
+	}
+
+	return true;
 }
 
 void CActor::StopAnyMove()

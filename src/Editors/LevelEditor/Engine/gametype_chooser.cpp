@@ -32,7 +32,7 @@ bool GameTypeChooser::LoadStream(IReader& F)
     return true;
 }
 
-bool GameTypeChooser::LoadLTX(CInifile& ini, LPCSTR sect_name, bool bOldFormat)
+bool GameTypeChooser::LoadLTX(CInifile& ini, const char* sect_name, bool bOldFormat)
 {
     if(bOldFormat/*version==0x0014*/)
     {
@@ -44,19 +44,19 @@ bool GameTypeChooser::LoadLTX(CInifile& ini, LPCSTR sect_name, bool bOldFormat)
                 m_GameType.one();
                 break;
             case rpgtGameDeathmatch:
-                m_GameType.set(eGameIDDeathmatch,TRUE);
+                m_GameType.set(eGameIDDeathmatch,true);
                 break;
             case rpgtGameTeamDeathmatch:
-                m_GameType.set(eGameIDTeamDeathmatch,TRUE);
+                m_GameType.set(eGameIDTeamDeathmatch,true);
                 break;
             case rpgtGameArtefactHunt:
-                m_GameType.set(eGameIDArtefactHunt,TRUE);
+                m_GameType.set(eGameIDArtefactHunt,true);
                 break;
             case rpgtGameCaptureTheArtefact:
-                m_GameType.set(eGameIDCaptureTheArtefact,TRUE);
+                m_GameType.set(eGameIDCaptureTheArtefact,true);
                 break;
             case rpgtFreeMp:
-                m_GameType.set(eGameIDFreeMP, TRUE);
+                m_GameType.set(eGameIDFreeMP, true);
                 break;
         }
     }else
@@ -69,11 +69,11 @@ void GameTypeChooser::SaveStream(IWriter& F)
    F.w_u16 	(m_GameType.get());
 }
 
-void GameTypeChooser::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void GameTypeChooser::SaveLTX(CInifile& ini, const char* sect_name)
 {
   ini.w_u16(sect_name, "game_type", m_GameType.get());
 }
-void  GameTypeChooser::FillProp(LPCSTR pref, PropItemVec& items)
+void  GameTypeChooser::FillProp(const char* pref, PropItemVec& items)
 {
 	PHelper().CreateGameType(items, PrepareKey(pref, "Game Type"), this);
 

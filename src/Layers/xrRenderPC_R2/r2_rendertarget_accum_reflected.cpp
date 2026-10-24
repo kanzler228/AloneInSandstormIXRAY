@@ -9,7 +9,7 @@ void CRenderTarget::accum_reflected		(light* L)
 	// *****************************	Mask by stencil		*************************************
 	ref_shader		shader		= s_accum_reflected;
 
-	BOOL	bIntersect			= FALSE; //enable_scissor(L);
+	bool	bIntersect			= false; //enable_scissor(L);
 	RCache.set_xform_world		(L->m_xform			);
 	RCache.set_xform_view		(Device.mView		);
 	RCache.set_xform_project	(Device.mProject	);
@@ -18,10 +18,8 @@ void CRenderTarget::accum_reflected		(light* L)
 
 	// *****************************	Minimize overdraw	*************************************
 	// Select shader (front or back-faces), *** back, if intersect near plane
-	RCache.set_ColorWriteEnable				();
-	if (bIntersect)	RCache.set_CullMode		(CULL_CW);		// back
-	else			RCache.set_CullMode		(CULL_CCW);		// front
-
+	RCache.set_ColorWriteEnable();
+	GRHI->StateManager->SetCullMode(bIntersect ? ERHI_CULLMODE::FRONT : ERHI_CULLMODE::BACK);
 	// 2D texgen (texture adjustment matrix)
 	Fmatrix			m_Texgen;
 	{
@@ -57,18 +55,9 @@ void CRenderTarget::accum_reflected		(light* L)
 		RCache.set_c				("direction",		L_dir.x,L_dir.y,L_dir.z,0);
 		RCache.set_c				("m_texgen",		m_Texgen);
 
-		RCache.set_Stencil			(TRUE,D3DCMP_LESSEQUAL,0x01,0xff,0x00,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP);
+		RCache.set_Stencil			(true,D3DCMP_LESSEQUAL,0x01,0xff,0x00,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP,D3DSTENCILOP_KEEP);
 		draw_volume					(L);
 	}
 
-	// blend-copy
-	if (!RImplementation.o.fp16_blend)	{
-		u_setrt						(rt_Accumulator,nullptr,nullptr,RDepth);
-		RCache.set_Element			(s_accum_mask->E[SE_MASK_ACCUM_VOL]	);
-		RCache.set_c				("m_texgen",		m_Texgen);
-		draw_volume					(L);
-	}
-
-	// 
 	u_DBT_disable	();
 }

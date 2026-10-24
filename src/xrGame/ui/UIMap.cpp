@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "../Level.h"
 #include "../map_location.h"
 #include "../map_manager.h"
@@ -6,6 +6,7 @@
 #include "UIMap.h"
 #include "UIMapWnd.h"
 #include "../../xrEngine/xr_input.h"		//remove me !!!
+#include "../HudPdaAnimator.h"
 
 const u32			activeLocalMapColor			= 0xffffffff;//0xffc80000;
 const u32			inactiveLocalMapColor		= 0xffffffff;//0xff438cd1;
@@ -20,31 +21,40 @@ CUICustomMap::CUICustomMap ()
 	SetPointerDistance		(0.0f);
 }
 
-void CUICustomMap::Initialize(shared_str name, LPCSTR sh_name)
+void CUICustomMap::Initialize(shared_str name, const char* sh_name)
 {
-	CInifile* levelIni	= nullptr;
-	if(name==g_pGameLevel->name())
+	CInifile* levelIni = nullptr;
+	if (name == g_pGameLevel->name())
+	{
 		levelIni = g_pGameLevel->pLevel;
+	}
 	else
 	{
 		string_path					map_cfg_fn;
 		string_path					fname;
-		xr_strconcat(fname,name.c_str(), "\\level.ltx");
-		FS.update_path				(map_cfg_fn, "$game_levels$", fname);
-		levelIni					= new CInifile(map_cfg_fn);
+		xr_strconcat(fname, name.c_str(), "\\level.ltx");
+		FS.update_path(map_cfg_fn, _game_levels_, fname);
+		levelIni = new CInifile(map_cfg_fn);
 	}
 
-	if(levelIni->section_exist("level_map"))
+	if (levelIni->section_exist("level_map") && levelIni->line_exist("level_map", "bound_rect")) // Step 1: Try to read from level.ltx (CS/CoP)
 	{
-		Init_internal	(name, *levelIni, "level_map", sh_name);
-	}else
-	{
-		Msg("! default LevelMap used for level[%s]",name.c_str());
-		Init_internal	(name, *pGameIni, "def_map", sh_name);
-		m_name			= name;
+		Init_internal(name, *levelIni, "level_map", sh_name);
 	}
-	if(levelIni != g_pGameLevel->pLevel)
+	else if (pGameIni->section_exist(name)) // Step 2: If level_map not exists in level.ltx, try to read from game.ltx instead (SoC)
+	{
+		Init_internal(name, *pGameIni, name.c_str(), sh_name);
+	}
+	else
+	{
+		Msg("! Not found minimap texture in %s level", *name);
+//		m_UIStaticItem.CreateShader("");
+	}
+
+	if (levelIni != g_pGameLevel->pLevel)
+	{
 		xr_delete(levelIni);
+	}
 }
 
 CUICustomMap::~CUICustomMap()
@@ -67,19 +77,30 @@ void CUICustomMap::Draw()
 }
 
 
-void CUICustomMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name)
+void CUICustomMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name)
 {
 	m_name					= name;
 	Fvector4				tmp;
+	const char* tex;
 
-	m_texture				= pLtx.r_string(sect_name,"texture");
+	if( pLtx.line_exist(sect_name,"texture") )
+	{
+		tex			= pLtx.r_string(sect_name,"texture");
+		tmp		= pLtx.r_fvector4(sect_name,"bound_rect");
+	}
+	else
+	{
+		Msg("! default LevelMap used for level[%s], config[%s]", name.c_str(), pLtx.fname());
+		tex = "ui\\ui_nomap2";
+		tmp.set(-10000.0f,-10000.0f,10000.0f,10000.0f);
+	}
+	m_texture				= tex;
 	m_shader_name			= sh_name;
-	tmp						= pLtx.r_fvector4(sect_name,"bound_rect");
 	
 	if(!Heading())
 	{
-		tmp.x					*= UI().get_current_kx();
-		tmp.z					*= UI().get_current_kx();
+		tmp.x					*= CHudPdaAnimator::GetPDAScreen_kx();
+		tmp.z					*= CHudPdaAnimator::GetPDAScreen_kx();
 	}
 
 	m_BoundRect_.set		(tmp.x, tmp.y, tmp.z, tmp.w);
@@ -95,8 +116,8 @@ void CUICustomMap::Init_internal(const shared_str& name, CInifile& pLtx, const s
 
 void rotation_(float x, float y, const float angle, float& x_, float& y_, float kx)
 {
-	float _sc 		= _cos(angle);
-	float _sn 		= _sin(angle);
+	float _sc 		= std::cos(angle);
+	float _sn 		= std::sin(angle);
 	x_				= x*_sc+y*_sn;
 	y_				= y*_sc-x*_sn;
 	x_				*= kx;
@@ -117,10 +138,10 @@ Fvector2 CUICustomMap::ConvertRealToLocal  (const Fvector2& src, bool for_drawin
 	if( !Heading() )
 	{
 		Frect bound_rect	= BoundRect();
-		bound_rect.x1		/= UI().get_current_kx();
-		bound_rect.x2		/= UI().get_current_kx();
+		bound_rect.x1		/= CHudPdaAnimator::GetPDAScreen_kx();
+		bound_rect.x2		/= CHudPdaAnimator::GetPDAScreen_kx();
 		res					= ConvertRealToLocalNoTransform(src, bound_rect);
-		res.x				*= UI().get_current_kx();
+		res.x				*= CHudPdaAnimator::GetPDAScreen_kx();
 	}else
 	{
 		Fvector2 heading_pivot = GetStaticItem()->GetHeadingPivot();
@@ -151,7 +172,7 @@ bool CUICustomMap::GetPointerTo(const Fvector2& src, float item_radius, Fvector2
 	GetAbsoluteRect(map_rect_abs);
 
 	Frect		rect;
-	BOOL res = rect.intersection(clip_rect_abs, map_rect_abs);
+	bool res = rect.intersection(clip_rect_abs, map_rect_abs);
 	if(!res) return false;
 	
 	rect = clip_rect_abs;
@@ -215,7 +236,7 @@ void CUICustomMap::SetActivePoint(const Fvector &vNewPoint)
 	Fvector2 pos;
 	pos.set(vNewPoint.x,vNewPoint.z);
 	Frect bound = BoundRect();
-	if( FALSE==bound.in(pos) )return;
+	if( false==bound.in(pos) )return;
 
 	Fvector2	pos_on_map		= ConvertRealToLocalNoTransform(pos, BoundRect());
 	Frect		map_abs_rect;
@@ -260,7 +281,7 @@ void	CUICustomMap::SendMessage			(CUIWindow* pWnd, s16 msg, void* pData)
 bool CUIGlobalMap::OnMouseAction	(float x, float y, EUIMessages mouse_action)
 {
 	if(inherited::OnMouseAction(x,y,mouse_action)) return true;
-	if(mouse_action==WINDOW_MOUSE_MOVE && (FALSE==pInput->iGetAsyncBtnState(0)))
+	if(mouse_action==WINDOW_MOUSE_MOVE && (!pInput->LeftMouseButtonPressed()))
 	{
 		if( MapWnd() )
 		{
@@ -289,7 +310,7 @@ void CUIGlobalMap::Initialize()
 	Init_internal("global_map", *pGameIni, "global_map", "hud\\default");
 }
 
-void CUIGlobalMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name)
+void CUIGlobalMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name)
 {
 	inherited::Init_internal(name, pLtx, sect_name, sh_name);
 //	Fvector2 size = CUIStatic::GetWndSize();
@@ -379,7 +400,7 @@ float CUIGlobalMap::CalcOpenRect(const Fvector2& center_point, Frect& map_desire
 
 CUILevelMap::CUILevelMap(CUIMapWnd* p)
 {
-	legacySpotScaling		= false;
+	SpotScaling			= eScalingDefault;
 	m_mapWnd			= p;
 	Show				(false);
 }
@@ -401,7 +422,7 @@ void CUILevelMap::Draw()
 				if(sp->m_bScale)
 				{
 					Fvector2 sz			= sp->m_originSize;
-					if (!legacySpotScaling)
+					if (SpotScaling == eScalingDefault)
 					{
 						float k				= gmz;
 
@@ -414,7 +435,7 @@ void CUILevelMap::Draw()
 						sz.mul				(k);
 						sp->SetWndSize		(sz);
 					}
-					else
+					else if (SpotScaling == eScalingCS)
 					{
 						if (gmz > sp->m_scale_bounds.x && gmz < sp->m_scale_bounds.y)
 						{
@@ -427,8 +448,13 @@ void CUILevelMap::Draw()
 							sp->SetWndSize(sz);
 						}
 					}
+					else
+					{
+						sz.mul(gmz);
+						sp->SetWndSize(sz);
+					}
 				}
-				else if(sp->m_scale_bounds.x > 0.0f)
+				else if(SpotScaling == eScalingDefault && sp->m_scale_bounds.x > 0.0f)
 					sp->SetVisible		(sp->m_scale_bounds.x<gmz);
 			}
 
@@ -437,23 +463,25 @@ void CUILevelMap::Draw()
 	inherited::Draw();
 }
 
-void CUILevelMap::Init_internal	(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name)
+void CUILevelMap::Init_internal	(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name)
 {
 	inherited::Init_internal(name, pLtx, sect_name, sh_name);
 	Fvector4 tmp			= pGameIni->r_fvector4(MapName(),"global_rect");
 
-	tmp.x					*= UI().get_current_kx();
-	tmp.z					*= UI().get_current_kx();
+	tmp.x					*= CHudPdaAnimator::GetPDAScreen_kx();
+	tmp.z					*= CHudPdaAnimator::GetPDAScreen_kx();
 	m_GlobalRect.set		(tmp.x, tmp.y, tmp.z, tmp.w);
 
 	if (EngineExternal().ClearSkyMode())
-		legacySpotScaling = true;
+		SpotScaling = eScalingCS;
+	else if (EngineExternal().ShadowOfChernobylMode())
+		SpotScaling = eScalingSoC;
 
 #ifdef DEBUG
 	float kw = m_GlobalRect.width	()	/	BoundRect().width	();
 	float kh = m_GlobalRect.height	()	/	BoundRect().height	();
 
-	if(FALSE==fsimilar(kw,kh,EPS_L))
+	if(false==fsimilar(kw,kh,EPS_L))
 	{
 		Msg(" --incorrect global rect definition for map [%s]  kw=%f kh=%f",*MapName(),kw,kh);
 		Msg(" --try x2=%f or  y2=%f",m_GlobalRect.x1+kh*BoundRect().width(), m_GlobalRect.y1+kw*BoundRect().height());
@@ -472,7 +500,7 @@ void CUILevelMap::UpdateSpots()
 	Frect				_r;
 	GetAbsoluteRect		(_r);
 
-	if( FALSE==MapWnd()->ActiveMapRect().intersected(_r)) return;
+	if( false==MapWnd()->ActiveMapRect().intersected(_r)) return;
 
 	Locations& ls		= Level().MapManager().Locations();
 	Locations_it it		= ls.begin();
@@ -519,10 +547,10 @@ void CUILevelMap::Update()
 
 	inherited::Update				();
 
-	if(m_bCursorOverWindow)
+	if (m_bCursorOverWindow && MapWnd()->m_zoom_state == CUIMapWnd::zoom_idle)
 	{
 		VERIFY(m_dwFocusReceiveTime>=0);
-		if( Device.dwTimeContinual>(m_dwFocusReceiveTime+500) )
+		if( Device.dwTimeContinual > (m_dwFocusReceiveTime + 500) )
 		{
 			if(fsimilar(MapWnd()->GlobalMap()->GetCurrentZoom().x, MapWnd()->GlobalMap()->GetMinZoom(),EPS_L ))
 				MapWnd()->ShowHintStr(this, MapName().c_str());
@@ -537,7 +565,52 @@ bool CUILevelMap::OnMouseAction(float x, float y, EUIMessages mouse_action)
 	if (inherited::OnMouseAction(x,y,mouse_action))	return true;
 	if (MapWnd()->GlobalMap()->Locked())		return true;
 
-	if (mouse_action == WINDOW_LBUTTON_DB_CLICK)
+	if (MapWnd()->IsPersonalSpotPlacement())
+	{
+		if (MapWnd()->IsPersonalSpotRmbMode())
+		{
+			if (mouse_action == WINDOW_RBUTTON_UP)
+			{
+				Fvector RealPosition;
+				if (MapWnd()->ConvertCursorPosToMap(&RealPosition, this))
+				{
+					CMapLocation* under = MapWnd()->UnderSpot(RealPosition, this);
+					if (under == nullptr)
+					{
+						MapWnd()->CreateSpotWindow(RealPosition, MapName());
+					}
+					MapWnd()->SetPersonalSpotPlacement(false);
+					return true;
+				}
+			}
+			else if (mouse_action == WINDOW_LBUTTON_DB_CLICK)
+			{
+				MapWnd()->SetPersonalSpotPlacement(false);
+				return true;
+			}
+		}
+		else if (mouse_action == WINDOW_LBUTTON_UP)
+		{
+			Fvector RealPosition;
+			if (MapWnd()->ConvertCursorPosToMap(&RealPosition, this))
+			{
+				CMapLocation* under = MapWnd()->UnderSpot(RealPosition, this);
+				if (under == nullptr)
+				{
+					MapWnd()->CreateSpotWindow(RealPosition, MapName());
+				}
+				MapWnd()->SetPersonalSpotPlacement(false);
+				return true;
+			}
+		}
+		else if (mouse_action == WINDOW_LBUTTON_DB_CLICK)
+		{
+			MapWnd()->SetPersonalSpotPlacement(false);
+			return false;
+		}
+	}
+
+	if (!MapWnd()->IsPersonalSpotRmbMode() && mouse_action == WINDOW_LBUTTON_DB_CLICK)
 	{
 		Fvector RealPosition;
 
@@ -558,7 +631,7 @@ bool CUILevelMap::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		}
 	}
 
-	if(mouse_action==WINDOW_MOUSE_MOVE && (FALSE==pInput->iGetAsyncBtnState(0)) )
+	if(mouse_action==WINDOW_MOUSE_MOVE && (!pInput->LeftMouseButtonPressed()) )
 	{
 		if( MapWnd() )
 		{
@@ -604,10 +677,9 @@ CUIMiniMap::CUIMiniMap()
 CUIMiniMap::~CUIMiniMap()
 {}
 
-void CUIMiniMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name)
+void CUIMiniMap::Init_internal(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, const char* sh_name)
 {
 	inherited::Init_internal	(name, pLtx, sect_name, sh_name);
-	CUIStatic::SetTextureColor	(0x7fffffff);
 }
 
 void CUIMiniMap::UpdateSpots()
@@ -659,11 +731,11 @@ void  CUIMiniMap::Draw()
 	
 	for(u32 idx=0; idx<segments_count;++idx)
 	{
-		float cosPT			= _cos(segment_ang*idx + angle);
-		float sinPT			= _sin(segment_ang*idx + angle);
+		float cosPT			= std::cos(segment_ang*idx + angle);
+		float sinPT			= std::sin(segment_ang*idx + angle);
 
-		float cosTX			= _cos(segment_ang*idx);
-		float sinTX			= _sin(segment_ang*idx);
+		float cosTX			= std::cos(segment_ang*idx);
+		float sinTX			= std::sin(segment_ang*idx);
 
 		S[idx].pt.set		(pt_radius*cosPT*kx,		-pt_radius*sinPT);
 		S[idx].uv.set		(tt_radius*cosTX,			-tt_radius*sinTX*k_tt_height);
@@ -703,8 +775,8 @@ bool CUIMiniMap::GetPointerTo(const Fvector2& src, float item_radius, Fvector2& 
 	heading				= -direction.getH();
 
 	float kx			= UI().get_current_kx();
-	float cosPT			= _cos(heading);
-	float sinPT			= _sin(heading);
+	float cosPT			= std::cos(heading);
+	float sinPT			= std::sin(heading);
 	pos.set				(-map_radius*sinPT*kx,		-map_radius*cosPT);
 	pos.add				(clip_center);
 

@@ -1,24 +1,26 @@
 #pragma once
 #include "../../xrUI/Widgets/UIWindow.h"
 #include "../../xrUI/Widgets/UIWndCallback.h"
-#include "../../xrCore/associative_vector.h"
+#include "../../xrCore/Containers/associative_vector.h"
 #include "../GameTaskDefs.h"
+#include "../GameTask.h"
 #include "../../xrUI/Widgets/UICheckButton.h"
-
+#include "PdaConstants.h"
+#include "UISecondTaskWnd.h"
+class CPdaUiSounds;
 class CUIMapWnd;
 class CUIStatic;
-class CGameTask;
 class CUIXml;
 class CUITaskItem;
 class CUI3tButton;
 class CUIFrameLineWnd;
 class CUIFrameWindow;
 class CUICheckButton;
-class UITaskListWnd;
 class UIMapLegend;
 class UIHint;
+class CUIGamepadLegend;
 
-class CUITaskWnd			:	public CUIWindow, 
+class CUITaskWnd final		:	public CUIWindow, 
 								public CUIWndCallback
 {
 private:
@@ -31,11 +33,11 @@ private:
 	CUIStatic*				m_right_bottom_background;
 	CUIFrameLineWnd*		m_task_split;
 
-	CUIMapWnd*				m_pMapWnd;
 	CUITaskItem*			m_pStoryLineTaskItem;
 	CUITaskItem*			m_pSecondaryTaskItem;
 
 	CUI3tButton*			m_BtnTaskListWnd;
+	STaskWndFeatures		m_features;
 	CUIStatic*				m_second_task_index;
 	CUIStatic*				m_devider;
 	u32						m_actual_frame;
@@ -43,14 +45,36 @@ private:
 	CUI3tButton*			m_btn_focus;
 	CUI3tButton*			m_btn_focus2;
 
-	CUICheckButton*			m_cbTreasures;
-	CUICheckButton*			m_cbQuestNpcs;
-	CUICheckButton*			m_cbSecondaryTasks;
-	CUICheckButton*			m_cbPrimaryObjects;
+	enum MAP_MARKS_FILTER
+	{
+		MAP_MARKS_FILTER_TREASURES = 0,
+		MAP_MARKS_FILTER_PRIMARY_OBJECTS,
+		MAP_MARKS_FILTER_SECONDARY_TASKS,
+		MAP_MARKS_FILTER_NPCS,
+		MAP_MARKS_FILTER_PERSONAL_SPOTS,
+
+		MAP_MARKS_FILTER_MAX
+	};
+
+	enum class ETaskScopeMode : u8
+	{
+		Story = 0,
+		Side,
+		Failed
+	};
+	
+	CUICheckButton*			m_cbFilters[MAP_MARKS_FILTER_MAX];
+	int						m_currentFilterIndex = 0;
 	bool					m_bTreasuresEnabled;
 	bool					m_bQuestNpcsEnabled;
 	bool					m_bSecondaryTasksEnabled;
 	bool					m_bPrimaryObjectsEnabled;
+	bool					m_bPersonalSpotsEnabled;
+
+	ETaskScopeMode			m_taskScopeMode = ETaskScopeMode::Story;
+	CUI3tButton*			m_btnScopeStory = nullptr;
+	CUI3tButton*			m_btnScopeSide = nullptr;
+	CUI3tButton*			m_btnScopeFailed = nullptr;
 
 	UITaskListWnd*			m_task_wnd;
 	bool					m_task_wnd_show;
@@ -58,6 +82,8 @@ private:
 
 public:
 	UIHint*					hint_wnd;
+	CUIMapWnd*				m_pMapWnd;
+	CUIGamepadLegend*		m_gamepad_legend = nullptr;
 
 public:
 								CUITaskWnd				();
@@ -69,6 +95,9 @@ public:
 			void				DrawHint				();
 	virtual void				Show					(bool status);
 	virtual void				Reset					();
+	virtual bool				OnMouseAction			(float x, float y, EUIMessages mouse_action);
+	virtual bool				OnGamepadKeyAction		(int id, EUIMessages gamepad_action);
+	virtual bool				OnGamepadKeyHold		(int id);
 
 			void				ReloadTaskInfo			();
 			void				ShowMapLegend			(bool status);
@@ -81,32 +110,37 @@ public:
 			void TreasuresEnabled(bool enable)
 			{
 				m_bTreasuresEnabled = enable;
-				if (m_cbTreasures)
-					m_cbTreasures->SetCheck(enable);
+				if (m_cbFilters[MAP_MARKS_FILTER_TREASURES])
+					m_cbFilters[MAP_MARKS_FILTER_TREASURES]->SetCheck(enable);
 			};
 			void QuestNpcsEnabled(bool enable)
 			{
 				m_bQuestNpcsEnabled = enable;
-				if (m_cbQuestNpcs)
-					m_cbQuestNpcs->SetCheck(enable);
+				if (m_cbFilters[MAP_MARKS_FILTER_NPCS])
+					m_cbFilters[MAP_MARKS_FILTER_NPCS]->SetCheck(enable);
 			};
-			void SecondaryTasksEnabled(bool enable)
-			{
-				m_bSecondaryTasksEnabled = enable;
-				if (m_cbSecondaryTasks)
-					m_cbSecondaryTasks->SetCheck(enable);
-			};
+			void SecondaryTasksEnabled(bool enable);
+			void ApplySecondaryTasksMapFilter(bool enable);
 			void PrimaryObjectsEnabled(bool enable)
 			{
 				m_bPrimaryObjectsEnabled = enable;
-				if (m_cbPrimaryObjects)
-					m_cbPrimaryObjects->SetCheck(enable);
+				if (m_cbFilters[MAP_MARKS_FILTER_PRIMARY_OBJECTS])
+					m_cbFilters[MAP_MARKS_FILTER_PRIMARY_OBJECTS]->SetCheck(enable);
 			};
 
 			void				Show_TaskListWnd		(bool status);
+			void				SetUiSounds				(CPdaUiSounds* uiSounds) { m_pUiSounds = uiSounds; }
+			void				FocusPrimaryTaskOnMap	();
 
 			virtual CUIWindow* ui_cast_window() { return this; }
 
+protected:
+	CPdaUiSounds*				m_pUiSounds = nullptr;
+	// Controller
+	bool						SwitchToNextFilter		(bool loop);
+	bool						SwitchToPrevFilter		(bool loop);
+	void						UpdateFilterHighlight	();
+	void						UpdateGamepadLegend		();
 private:
 	void						TaskSetTargetMap		(CGameTask* task);
 	void						TaskShowMapSpot			(CGameTask* task, bool show);
@@ -121,9 +155,21 @@ private:
 	void 				OnShowPrimaryObjects	(CUIWindow*, void*);
 	void 				OnShowSecondaryTasks	(CUIWindow*, void*);
 	void 				OnShowQuestNpcs			(CUIWindow*, void*);
+	void 				OnShowPersonalSpots		(CUIWindow*, void*);
+
+	void				OnTaskScopeStory		(CUIWindow*, void*);
+	void				OnTaskScopeSide			(CUIWindow*, void*);
+	void				OnTaskScopeFailed		(CUIWindow*, void*);
+
+	void				ResolveTaskRows			(CGameTask*& outPrimary, CGameTask*& outSecondary) const;
+	void				InitStorylineWidgets		(CUIXml& xml);
+	void				InitStorylineFocusButton	(CUIXml& xml);
+	CUITaskItem*		StorylineHintItem			() const;
+	void				OnTaskListFilterChanged		(ETaskListFilter mode);
+	bool				CanUseTaskMapSpot			(CGameTask* task, bool forShow) const;
 };
 
-class CUITaskItem : public CUIWindow
+class CUITaskItem final : public CUIWindow
 {
 private:
 	typedef CUIWindow			inherited;
@@ -141,7 +187,7 @@ public:
 	virtual bool				OnMouseAction					(float x, float y, EUIMessages mouse_action);
 	virtual void				SendMessage				(CUIWindow* pWnd, s16 msg, void* pData);
 
-	void						Init					(CUIXml& uiXml, LPCSTR path);
+	void						Init					(CUIXml& uiXml, const char* path);
 	void						InitTask				(CGameTask* task);
 	CGameTask*					OwnerTask				()							{return m_owner;}
 

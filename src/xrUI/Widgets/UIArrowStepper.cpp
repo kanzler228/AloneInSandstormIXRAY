@@ -7,7 +7,7 @@
 //	Description : Element for step-by-step value adjustment using arrows or direct clicks
 ////////////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "stdafx.h"
 
 #include "UIArrowStepper.h"
 #include "UI3tButton.h"
@@ -74,12 +74,9 @@ void CUIArrowStepper::InitArrowStepper(Fvector2 pos, Fvector2 size)
 	CUIXml xml_doc;
 	xml_doc.Load					(CONFIG_PATH, UI_PATH, "backend\\arrowstepper.xml");
 
-	LPCSTR nodevalue_track			= xml_doc.Read("track_texture_name", 0, "ui_inGame2_opt_slider_bar");
-	LPCSTR left_btn_texture_name	= xml_doc.Read("left_btn_texture_name", 0, "ui_date_bt_left");
-	LPCSTR right_btn_texture_name	= xml_doc.Read("right_btn_texture_name", 0, "ui_date_bt_right");
-
-	float							item_height;
-	float							item_width;
+	const char* nodevalue_track			= xml_doc.Read("track_texture_name", 0, "ui_inGame2_opt_slider_bar");
+	const char* left_btn_texture_name	= xml_doc.Read("left_btn_texture_name", 0, "ui_date_bt_left");
+	const char* right_btn_texture_name	= xml_doc.Read("right_btn_texture_name", 0, "ui_date_bt_right");
 
 	Fvector2 TrySize				= size;
 	float ib_pos					= xml_doc.ReadFlt("ib_pos", 0, 30.0f);
@@ -157,22 +154,22 @@ void CUIArrowStepper::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 	}
 }
 
-// Форматирование текущего значения
+// вЂРѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ С‚РµРєСѓС‰РµРіРѕ Р·РЅР°С‡РµРЅРёв‚¬
 static std::string FormatFloatWithStep(float value, int num_of_signs)
 {
-	// Вычисляем множитель на основе количества знаков после запятой
+	// В¬С‹С‡РёСЃР»в‚¬РµРј РјРЅРѕР¶РёС‚РµР»СЊ РЅР° РѕСЃРЅРѕРІРµ РєРѕР»РёС‡РµСЃС‚РІР° Р·РЅР°РєРѕРІ РїРѕСЃР»Рµ Р·Р°Рїв‚¬С‚РѕР№
 	float multiplier = std::pow(10.0f, num_of_signs);
 
-	// Округляем значение с учетом заданной точности
+	// СњРєСЂСѓРіР»в‚¬РµРј Р·РЅР°С‡РµРЅРёРµ СЃ СѓС‡РµС‚РѕРј Р·Р°РґР°РЅРЅРѕР№ С‚РѕС‡РЅРѕСЃС‚Рё
 	float rounded_value = std::round(value * multiplier) / multiplier;
 
-	// Проверяем, является ли округлённое значение целым
+	// С•СЂРѕРІРµСЂв‚¬РµРј, в‚¬РІР»в‚¬РµС‚СЃв‚¬ Р»Рё РѕРєСЂСѓРіР»Р„РЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ С†РµР»С‹Рј
 	if (std::fabs(std::floor(rounded_value) - rounded_value) < 0.00001f)
 	{
-		return std::to_string(static_cast<int>(rounded_value)); // Преобразуем в строку как целое число
+		return std::to_string(static_cast<int>(rounded_value)); // С•СЂРµРѕР±СЂР°Р·СѓРµРј РІ СЃС‚СЂРѕРєСѓ РєР°Рє С†РµР»РѕРµ С‡РёСЃР»Рѕ
 	}
 
-	// Если дробная часть есть, форматируем с указанной точностью
+	// в‰€СЃР»Рё РґСЂРѕР±РЅР°в‚¬ С‡Р°СЃС‚СЊ РµСЃС‚СЊ, С„РѕСЂРјР°С‚РёСЂСѓРµРј СЃ СѓРєР°Р·Р°РЅРЅРѕР№ С‚РѕС‡РЅРѕСЃС‚СЊСЋ
 	std::ostringstream oss;
 	oss << std::fixed << std::setprecision(num_of_signs) << rounded_value;
 	return oss.str();
@@ -184,8 +181,10 @@ void CUIArrowStepper::Update()
 
 	if (m_b_mouse_capturer)
 	{
-		if (!pInput->iGetAsyncBtnState(0))
+		if (!pInput->LeftMouseButtonPressed())
+		{
 			m_b_mouse_capturer = false;
+		}
 	}
 }
 
@@ -205,12 +204,12 @@ void CUIArrowStepper::UpdateText()
 		case eStepperModeToken:
 		{
 			xr_token* tok = GetOptToken();
-			LPCSTR cur_val = get_token_name(tok, m_i_val - 1);
-			out_str = *CStringTable().translate(cur_val);
+			const char* cur_val = get_token_name(tok, m_i_val - 1);
+			out_str = g_pStringTable->translate(cur_val);
 		}break;
 		case eStepperModeBool:
 		{
-			out_str = m_i_val == m_i_min ? *CStringTable().translate("st_track_opt_off") : *CStringTable().translate("st_track_opt_on");
+			out_str = m_i_val == m_i_min ? g_pStringTable->translate("st_track_opt_off").c_str() : g_pStringTable->translate("st_track_opt_on").c_str();
 		}break;
 	}
 	m_TextVal->SetText(out_str.c_str());
@@ -221,7 +220,7 @@ void CUIArrowStepper::SetCurrentOptValue()
 	CUIOptionsItem::SetCurrentOptValue();
 	if (IsTokenMode())
 	{
-		LPCSTR val = GetOptStringValue();
+		const char* val = GetOptStringValue();
 		for (xr_token* tok = GetOptToken(); tok->name; ++tok)
 		{
 			if (stricmp(tok->name, val) == 0)
@@ -272,7 +271,7 @@ void CUIArrowStepper::SaveOptValue()
 		if (strcmp("not_an_option", GetEntry()))
 		{
 			xr_token* tok = GetOptToken();
-			LPCSTR cur_val = get_token_name(tok, m_i_val - 1);
+			const char* cur_val = get_token_name(tok, m_i_val - 1);
 			SaveOptStringValue(cur_val);
 		}
 	}
@@ -357,7 +356,7 @@ void CUIArrowStepper::SetTokenValues(xr_token* tokens)
 		m_i_max = count;
 	}
 
-	LPCSTR current_value = GetOptStringValue();
+	const char* current_value = GetOptStringValue();
 	m_i_val = m_i_min;
 
 	if (!GetInvert())
@@ -388,7 +387,7 @@ void CUIArrowStepper::SetTokenValues(xr_token* tokens)
 	VERIFY(m_mode == eStepperModeToken);
 }
 
-void CUIArrowStepper::OnMessage(LPCSTR message)
+void CUIArrowStepper::OnMessage(const char* message)
 {
 	if (0 == xr_strcmp(message, "set_default_value"))
 	{

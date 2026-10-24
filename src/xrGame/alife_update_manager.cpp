@@ -20,7 +20,6 @@
 #include "graph_engine.h"
 #include "../xrEngine/x_ray.h"
 #include "restriction_space.h"
-#include "mt_config.h"
 #include "../xrEngine/string_table.h"
 
 using namespace ALife;
@@ -54,7 +53,7 @@ public:
 	}
 };
 
-CALifeUpdateManager::CALifeUpdateManager	(xrServer *server, LPCSTR section) :
+CALifeUpdateManager::CALifeUpdateManager	(xrServer *server, const char* section) :
 	CALifeSwitchManager		(server,section),
 	CALifeSurgeManager		(server,section),
 	CALifeStorageManager	(server,section),
@@ -143,7 +142,7 @@ void CALifeUpdateManager::shedule_Update(u32 dt)
 	if (!initialized())
 		return;
 
-	if (!m_first_time && g_mt_config.test(mtALife))
+	if (!m_first_time)
 	{
 		Device.seqParallel.push_back(xr_delegate<void()>(this, &CALifeUpdateManager::update));
 		return;
@@ -231,7 +230,7 @@ bool CALifeUpdateManager::change_level	(NET_Packet &net_packet)
 
 	string256						autosave_name;
 	xr_strconcat(autosave_name,Core.UserName," - ", g_pStringTable->translate("autosave").c_str());
-	LPCSTR							temp0 = strstr(**m_server_command_line,"/");
+	const char*							temp0 = strstr(**m_server_command_line,"/");
 	VERIFY							(temp0);
 	string256						temp;
 	*m_server_command_line			= xr_strconcat(temp,autosave_name,temp0);
@@ -256,8 +255,11 @@ bool CALifeUpdateManager::change_level	(NET_Packet &net_packet)
 }
 
 #include "../xrEngine/IGame_Persistent.h"
-void CALifeUpdateManager::new_game			(LPCSTR save_name)
+#include "Actor.h"
+
+void CALifeUpdateManager::new_game			(const char* save_name)
 {
+	CActor::ResetDeathStatCarryOver();
 	g_pGamePersistent->SetLoadStageTitle("st_creating_new_game");
 	g_pGamePersistent->LoadTitle		();
 	Msg									("* Creating new game...");
@@ -279,20 +281,22 @@ void CALifeUpdateManager::new_game			(LPCSTR save_name)
 	for ( ; I != E; ++I)
 		(*I).second->on_register		();
 
-#ifdef DEBUG
-	save								(save_name);
-#endif // #ifdef DEBUG
-
 	Msg									("* New game is successfully created!");
 
 	luabind::functor<void> funct;
 	if (ai().script_engine().functor("alife_storage_manager.CALifeStorageManager_new_game", funct))
 	{
-		funct((LPCSTR)save_name);
+		funct((const char*)save_name);
+	}
+
+	static bool saveOnNewGame = EngineExternal()[EEngineExternalGame::EnableSaveOnNewGame];
+	if (saveOnNewGame)
+	{
+		save(save_name);
 	}
 }
 
-void CALifeUpdateManager::load			(LPCSTR game_name, bool no_assert, bool new_only)
+void CALifeUpdateManager::load			(const char* game_name, bool no_assert, bool new_only)
 {
 	PROF_EVENT("Load Alife Simulator");
 	g_pGamePersistent->SetLoadStageTitle("st_loading_alife_simulator");
@@ -320,14 +324,14 @@ void CALifeUpdateManager::load			(LPCSTR game_name, bool no_assert, bool new_onl
 	g_pGamePersistent->LoadTitle		(true, g_pGameLevel->name());
 }
 
-void CALifeUpdateManager::reload		(LPCSTR section)
+void CALifeUpdateManager::reload		(const char* section)
 {
 	CALifeSimulatorBase::reload			(section);
 	set_process_time					((int)m_max_process_time);
 	objects_per_update					(m_objects_per_update);
 }
 
-bool CALifeUpdateManager::load_game		(LPCSTR game_name, bool no_assert)
+bool CALifeUpdateManager::load_game		(const char* game_name, bool no_assert)
 {
 	{
 		string_path				temp,file_name;
@@ -381,7 +385,7 @@ void CALifeUpdateManager::set_interactive		(ALife::_OBJECT_ID id, bool value)
 	}
 }
 
-void CALifeUpdateManager::jump_to_level			(LPCSTR level_name) const
+void CALifeUpdateManager::jump_to_level			(const char* level_name) const
 {
 	const IGameGraph::SLevel			&level = ai().game_graph().header().level(level_name);
 	u32 dest = u32(-1);
@@ -417,7 +421,7 @@ void CALifeUpdateManager::jump_to_level			(LPCSTR level_name) const
 	Fvector								level_point = ai().game_graph().vertex(dest)->level_point();
 	net_packet.w						(&level_point,sizeof(level_point));
 	net_packet.w_vec3					(Fvector().set(0.f,0.f,0.f));
-	Level().Send						(net_packet,net_flags(TRUE));
+	Level().Send						(net_packet,net_flags(true));
 }
 
 void CALifeUpdateManager::teleport_object	(ALife::_OBJECT_ID id, GameGraph::_GRAPH_ID game_vertex_id, u32 level_vertex_id, const Fvector &position)

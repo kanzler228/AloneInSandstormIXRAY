@@ -31,6 +31,7 @@ bool CInventoryItem::has_upgrade_group(const shared_str& upgrade_group_id)
 			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -74,7 +75,7 @@ bool CInventoryItem::get_upgrades_str(string2048& res) const
 			continue;
 		}
 
-		LPCSTR upgr_section = upgr->section();
+		const char* upgr_section = upgr->section();
 		if (prop_count > 0)
 		{
 			xr_strcat(res, sizeof(res), ", ");
@@ -149,26 +150,26 @@ void CInventoryItem::net_Spawn_install_upgrades(Upgrades_type saved_upgrades) //
 	}
 }
 
-bool CInventoryItem::install_upgrade(LPCSTR section)
+bool CInventoryItem::install_upgrade(const char* section)
 {
 	return install_upgrade_impl(section, false);
 }
 
-bool CInventoryItem::verify_upgrade(LPCSTR section)
+bool CInventoryItem::verify_upgrade(const char* section)
 {
 	return install_upgrade_impl(section, true);
 }
 
-bool CInventoryItem::install_upgrade_impl(LPCSTR section, bool test)
+bool CInventoryItem::install_upgrade_impl(const char* section, bool test)
 {
-	bool result = process_if_exists(section, "cost", &CInifile::r_u32, m_cost, test);
-	result |= process_if_exists(section, "inv_weight", &CInifile::r_float, m_weight, test);
+	bool result = process_if_exists(section, "cost", m_cost, test);
+	result |= process_if_exists(section, "inv_weight", m_weight, test);
 
 	bool result2 = false;
 	if (BaseSlot() != NO_ACTIVE_SLOT)
 	{
-		BOOL value = m_flags.test(FRuckDefault);
-		result2 = process_if_exists_set(section, "default_to_ruck", &CInifile::r_bool, value, test);
+		bool value = m_flags.test(FRuckDefault);
+		result2 = process_if_exists_set(section, "default_to_ruck", value, test);
 		if (result2 && !test)
 		{
 			m_flags.set(FRuckDefault, value);
@@ -176,24 +177,26 @@ bool CInventoryItem::install_upgrade_impl(LPCSTR section, bool test)
 		result |= result2;
 
 		value = m_flags.test(FAllowSprint);
-		result2 = process_if_exists_set(section, "sprint_allowed", &CInifile::r_bool, value, test);
+		result2 = process_if_exists_set(section, "sprint_allowed", value, test);
+
 		if (result2 && !test)
 		{
 			m_flags.set(FAllowSprint, value);
 		}
+
 		result |= result2;
 
-		result |= process_if_exists(section, "control_inertion_factor", &CInifile::r_float, m_fControlInertionFactor, test);
+		result |= process_if_exists(section, "control_inertion_factor", m_fControlInertionFactor, test);
 	}
 
-	LPCSTR str;
-	result2 = process_if_exists_set(section, "immunities_sect", &CInifile::r_string, str, test);
+	const char* str;
+	result2 = process_if_exists_set(section, "immunities_sect", str, test);
 	if (result2 && !test)
 	{
 		CHitImmunity::LoadImmunities(str, pSettings);
 	}
 
-	result2 = process_if_exists_set(section, "immunities_sect_add", &CInifile::r_string, str, test);
+	result2 = process_if_exists_set(section, "immunities_sect_add", str, test);
 	if (result2 && !test)
 	{
 		CHitImmunity::AddImmunities(str, pSettings);
@@ -210,6 +213,10 @@ void CInventoryItem::pre_install_upgrade()
 		{
 			wm->UnloadMagazine();
 			wm->UnloadChamber();
+
+			wm->m_bHaveShell = false;
+			wm->m_bNeedPumpState = false;
+
 			if (CWeaponMagazinedWGrenade* wg = cast_weapon_magazined_w_grenade())
 			{
 				if (wg->IsGrenadeLauncherAttached())
@@ -221,8 +228,7 @@ void CInventoryItem::pre_install_upgrade()
 			}
 		}
 
-		CWeapon* weapon = cast_weapon();
-		if (weapon)
+		if (CWeapon* weapon = cast_weapon())
 		{
 			if (weapon->ScopeAttachable() && weapon->IsScopeAttached())
 			{
@@ -247,8 +253,7 @@ void CInventoryItem::pre_install_upgrade()
 
 		NET_Packet P;
 
-		CWeapon* weapon = cast_weapon();
-		if (weapon)
+		if (CWeapon* weapon = cast_weapon())
 		{
 			// Send unload event
 			CGameObject::u_EventGen(P, GE_WPN_UNLOAD_AMMO, weapon->ID());

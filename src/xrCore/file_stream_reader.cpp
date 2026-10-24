@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_stream_reader.h"
 
-void CFileStreamReader::construct	(LPCSTR file_name, const u32 &window_size)
+void CFileStreamReader::construct	(const char* file_name, const u32 &window_size)
 {
 	m_file_handle = Platform::OpenFile(file_name);
 	u32 file_size = (u32)Platform::GetFileSize(m_file_handle);
@@ -10,11 +10,11 @@ void CFileStreamReader::construct	(LPCSTR file_name, const u32 &window_size)
 	HANDLE file_mapping_handle =
 		CreateFileMapping(
 			m_file_handle,
-			0,
+			nullptr,
 			PAGE_READONLY,
 			0,
 			0,
-			0
+			nullptr
 		);
 	VERIFY					(file_mapping_handle != INVALID_HANDLE_VALUE);
 

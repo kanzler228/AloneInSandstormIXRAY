@@ -9,10 +9,11 @@ XRCORE_API xr_queue <xrLogger::LogRecord>* xrLogger::logData;
 
 void Log(const char* s)
 {
-#ifdef IXR_LINUX
-	std::cout << s;
-	return;
-#endif
+	if (IsDebuggerPresent())
+	{
+		OutputDebugStringA(s);
+		OutputDebugStringA("\n");
+	}
 	theLogger->SimpleMessage(s);
 }
 
@@ -46,7 +47,7 @@ void Log				(const char *msg, const Fmatrix &dop)	{
 	Log			(buf);
 }
 
-void xrLogger::Msg(LPCSTR Msg, va_list argList)
+void xrLogger::Msg(const char* Msg, va_list argList)
 {
 	string4096	formattedMessage;
 	int MsgSize = _vsnprintf(formattedMessage, sizeof(formattedMessage) - 1, Msg, argList);
@@ -55,11 +56,6 @@ void xrLogger::Msg(LPCSTR Msg, va_list argList)
 		return;
 
 	formattedMessage[MsgSize] = 0;
-
-#ifdef IXR_LINUX
-	std::cout << formattedMessage;
-	return;
-#endif
 
 	if (IsDebuggerPresent() && bFastDebugLog)
 	{
@@ -70,7 +66,7 @@ void xrLogger::Msg(LPCSTR Msg, va_list argList)
 	SimpleMessage(formattedMessage, MsgSize);
 }
 
-void xrLogger::SimpleMessage(LPCSTR Message, u32 MessageSize /*= 0*/)
+void xrLogger::SimpleMessage(const char* Message, u32 MessageSize /*= 0*/)
 {
 	switch (MessageSize)
 	{
@@ -114,9 +110,8 @@ void xrLogger::InitLog()
 		theLogger = new xrLogger;
 		xrLogger::logData = new xr_queue <xrLogger::LogRecord>;
 	}
-#ifdef IXR_WINDOWS
+
 	thread_spawn(LogThreadEntryStartup, "X-Ray Log Thread", 0, nullptr);
-#endif
 }
 
 void xrLogger::FlushLog()
@@ -147,32 +142,24 @@ void xrLogger::RemoveLogCallback(LogCallback logCb)
 
 void xrLogger::InternalCloseLog()
 {
-	while(!logData->empty() && hLogThread != 0) {
-		Sleep(1u);
+	while (!logData->empty())
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 
 	FlushLog();
-
-	if (hLogThread != 0)
-	{
-		bIsAlive = false;
-#ifdef IXR_WINDOWS
-		WaitForSingleObject(hLogThread, INFINITE);
-#endif
-		hLogThread = 0;
-	}
 
 	IWriter* tempCopy = (IWriter*)logFile;
 	logFile = nullptr;
 
 	if (tempCopy != nullptr)
+	{
 		FS.w_close(tempCopy);
+	}
 }
 
 xrLogger::xrLogger()
-	: logFile(nullptr), bFastDebugLog(false), 
-	bIsAlive(true), hLogThread(0),
-	bFlushRequested(false)
+	: logFile(nullptr), bFastDebugLog(true), bFlushRequested(false)
 {}
 
 xrLogger::~xrLogger()
@@ -211,7 +198,9 @@ void xrLogger::LogThreadEntry()
 			{
 				IWriter* mutableWritter = (IWriter*)logFile;
 				mutableWritter->flush();
+				::Msg("* Log file has been flushed successfully!");
 			}
+			bFlushRequested = false;
 		}
 	};
 
@@ -286,6 +275,6 @@ void xrLogger::LogThreadEntry()
 	FlushLogIfRequestedLambda();
 }
 
-xrLogger::LogRecord::LogRecord(LPCSTR Msg, u32 sizeMsg)
+xrLogger::LogRecord::LogRecord(const char* Msg, u32 sizeMsg)
 	: Message(Msg, sizeMsg)
 {}

@@ -1,9 +1,11 @@
 #include "StdAfx.h"
 #include "CustomDevice.h"
 #include "Inventory.h"
+#include "InventoryWeaponSlotLayout.h"
 #include "Actor.h"
 #include "player_hud.h"
 #include "Weapon.h"
+#include "Missile.h"
 
 CCustomDevice::~CCustomDevice()
 {
@@ -15,7 +17,7 @@ void CCustomDevice::UpdateXForm()
 	CInventoryItem::UpdateXForm();
 }
 
-void CCustomDevice::LoadSounds(LPCSTR section)
+void CCustomDevice::LoadSounds(const char* section)
 {
 	inherited::LoadSounds(section);
 
@@ -23,7 +25,7 @@ void CCustomDevice::LoadSounds(LPCSTR section)
 	m_sounds.LoadSound(section, "snd_holster", "sndHide");
 }
 
-BOOL CCustomDevice::net_Spawn(CSE_Abstract* DC)
+bool CCustomDevice::net_Spawn(CSE_Abstract* DC)
 {
 	TurnDetectorInternal(false);
 	return inherited::net_Spawn(DC);
@@ -38,7 +40,7 @@ bool CCustomDevice::CheckCompatibilityInt(CHudItem* itm, u16* slot_to_activate)
 
 	CInventoryItem& iitm = itm->item();
 	u32 slot = iitm.BaseSlot();
-	bool bres = (slot == INV_SLOT_2 || slot == KNIFE_SLOT || slot == BOLT_SLOT);
+	bool bres = (IsSidearmPhysicalSlot(slot) || slot == KNIFE_SLOT || slot == BOLT_SLOT);
 
 	if (!bres && slot_to_activate)
 	{
@@ -55,6 +57,10 @@ bool CCustomDevice::CheckCompatibilityInt(CHudItem* itm, u16* slot_to_activate)
 		else if (m_pInventory->ItemFromSlot(INV_SLOT_2) && m_pInventory->ItemFromSlot(INV_SLOT_2)->BaseSlot() != INV_SLOT_3)
 		{
 			*slot_to_activate = INV_SLOT_2;
+		}
+		else if (m_pInventory->ItemFromSlot(PISTOL_SLOT_NEW))
+		{
+			*slot_to_activate = PISTOL_SLOT_NEW;
 		}
 		else if (m_pInventory->ItemFromSlot(KNIFE_SLOT))
 		{
@@ -76,7 +82,12 @@ bool CCustomDevice::CheckCompatibilityInt(CHudItem* itm, u16* slot_to_activate)
 	{
 		if (CWeapon* W = itm->cast_weapon())
 		{
-			bres = bres && (W->GetState() != CHUDState::eBore) && (W->GetState() != CWeapon::eReload) && (W->GetState() != CWeapon::eSwitch) && !W->IsZoomed();
+			bres = bres && (W->GetState() != CHUDState::eBore) && (W->GetState() != CWeapon::eReload) && (W->GetState() != CWeapon::eSwitch) && (W->GetState() != CWeapon::eSwitchMode) && !W->IsZoomed();
+		}
+
+		if (CMissile* M = itm->cast_missile())
+		{
+			bres = bres && M->GetState() < CMissile::EMissileStates::eThrowStart;
 		}
 	}
 	return bres;
@@ -91,7 +102,7 @@ bool CCustomDevice::CheckCompatibility(CHudItem* itm)
 
 	if (!CheckCompatibilityInt(itm, nullptr))
 	{
-		HideDetector(true);
+		HideDetector(true, true);
 		return false;
 	}
 
@@ -111,8 +122,11 @@ void CCustomDevice::HideDetector(bool bFastMode, bool force)
 {
 	if (force)
 	{
-		m_bFastAnimMode = bFastMode;
-		SwitchState(eHiding);
+		if (GetNextState() != eHiding)
+		{
+			m_bFastAnimMode = bFastMode;
+			SwitchState(eHiding);
+		}
 		return;
 	}
 
@@ -149,6 +163,10 @@ void CCustomDevice::ToggleDetector(bool bFastMode, bool switching)
 		PIItem iitem = m_pInventory->ActiveItem();
 		CHudItem* itm = (iitem) ? iitem->cast_hud_item() : nullptr;
 		u16 slot_to_activate = NO_ACTIVE_SLOT;
+		if (!HudSection().size())
+		{
+			return;
+		}
 
 		if (CheckCompatibilityInt(itm, &slot_to_activate))
 		{
@@ -172,6 +190,14 @@ void CCustomDevice::ToggleDetector(bool bFastMode, bool switching)
 				}
 				m_pInventory->Activate(slot_to_activate);
 				m_bNeedActivation = true;
+
+				if (PIItem PItemFromSlot = m_pInventory->ItemFromSlot(slot_to_activate))
+				{
+					if (PItemFromSlot->cast_hud_item())
+					{
+						PItemFromSlot->cast_hud_item()->bDisablePrepareAnimation = true;
+					}
+				}
 			}
 			else
 			{
@@ -201,7 +227,7 @@ void CCustomDevice::ToggleDetector(bool bFastMode, bool switching)
 	}
 }
 
-void CCustomDevice::SwitchState(u32 S)
+void CCustomDevice::SwitchState(u8 S)
 {
 	if (IsGameTypeSingle() || OnServer())
 	{
@@ -212,7 +238,7 @@ void CCustomDevice::SwitchState(u32 S)
 	if (!IsGameTypeSingle() && OnClient())
 	{
 		SetNextState(S);
-		OnStateSwitch(u32(S));
+		OnStateSwitch(S);
 
 		switch (S)
 		{
@@ -235,7 +261,10 @@ void CCustomDevice::SwitchState(u32 S)
 
 void CCustomDevice::ShowingCallback(CBlend* B)
 {
-	ToggleDetector(g_player_hud->attached_item(0) != nullptr, true);
+	CObject* control_entity = Level().CurrentControlEntity();
+	CActor* actor = control_entity != nullptr ? control_entity->cast_actor() : nullptr;
+
+	ToggleDetector(g_player_hud->attached_item(0) != nullptr || actor != nullptr && actor->inventory().GetNextActiveSlot() != NO_ACTIVE_SLOT, true);
 	g_player_hud->ResetBlockedPartID();
 	g_player_hud->OnMovementChanged(mcAnyMove);
 	g_player_hud->RestoreHandBlends("right_hand");
@@ -245,23 +274,35 @@ void CCustomDevice::switch_device()
 {
 	CObject* control_entity = Level().CurrentControlEntity();
 	CActor* actor = control_entity != nullptr ? control_entity->cast_actor() : nullptr;
-	if (actor != nullptr && actor->HudAnimator() && actor->HudAnimator()->IsActive())
+	if (actor != nullptr && actor->HudAnimator() != nullptr && actor->HudAnimator()->IsAnyAnimatorActive())
+	{
+		return;
+	}
+
+	// SoC case
+	if (!hud_sect.size())
 	{
 		return;
 	}
 
 	PIItem active_item = m_pInventory->ActiveItem();
+	CHudItem* hud_item = active_item ? active_item->cast_hud_item() : nullptr;
 
 	bool need_fx = active_item == nullptr || active_item->cast_hud_item() == nullptr || !active_item->cast_hud_item()->m_eAnimationsFlags.test(af_prepare_detector);
 
-	if (GetState() == eHidden && g_player_hud->attached_item(0) && need_fx && active_item && active_item->BaseSlot() == INV_SLOT_2)
+	if (hud_item && hud_item->IsPending() && hud_item->GetState() != CHUDState::eHiding && hud_item->GetState() != CHUDState::eShowing)
 	{
-		if (g_player_hud->animator_play(g_player_hud->check_anim("anm_hide", 0) ? "anm_hide" : "anm_hide_0", 0, 1, TRUE, 1.5f, 0, false, true, [](CBlend* B) {static_cast<CCustomDevice*>(B->CallbackParam)->ShowingCallback(B); }, this, 0))
+		return;
+	}
+
+	if (GetState() == eHidden && g_player_hud->attached_item(0) && need_fx && active_item && IsSidearmPhysicalSlot(active_item->BaseSlot()))
+	{
+		if (g_player_hud->animator_play(g_player_hud->check_anim("anm_hide", 0) ? "anm_hide" : "anm_hide_0", 0, 1, true, 1.5f, 0, false, true, [](CBlend* B) {static_cast<CCustomDevice*>(B->CallbackParam)->ShowingCallback(B); }, this, 0))
 			g_player_hud->animator_fx_play(g_player_hud->check_anim("anm_hide", 0) ? "anm_hide" : "anm_hide_0", 0, 2, 0, 3.f, 1.f, 1.f, 0.5f);
 	}
 	else
 	{
-		ToggleDetector(g_player_hud->attached_item(0) != nullptr, true);
+		ToggleDetector(g_player_hud->attached_item(0) != nullptr || actor != nullptr && actor->inventory().GetNextActiveSlot() != NO_ACTIVE_SLOT, true);
 	}
 }
 
@@ -270,7 +311,7 @@ bool CCustomDevice::need_renderable()
 	return m_pInventory && (!m_pInventory->ActiveItem() || (m_pInventory->ActiveItem() && m_pInventory->ActiveItem()->cast_hud_item() && m_pInventory->ActiveItem()->cast_hud_item()->need_renderable()));
 }
 
-void CCustomDevice::OnStateSwitch(u32 S)
+void CCustomDevice::OnStateSwitch(u8 S)
 {
 	inherited::OnStateSwitch(S);
 
@@ -281,19 +322,19 @@ void CCustomDevice::OnStateSwitch(u32 S)
 		g_player_hud->attach_item(this);
 		m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
 		PlayHUDMotion(m_bFastAnimMode ? "anm_show_fast" : "anm_show", EHudMixType::eNoMix, S);
-		SetPending(TRUE);
+		SetPending(true);
 	}break;
 	case eHiding:
 	{
 		m_sounds.PlaySound("sndHide", Fvector().set(0, 0, 0), this, true, false);
 		PlayHUDMotion(m_bFastAnimMode ? "anm_hide_fast" : "anm_hide", EHudMixType::eMixAll, S);
-		SetPending(TRUE);
+		SetPending(true);
 		PlayWpnFinishDetector();
 	}break;
 	case eIdle:
 	{
 		PlayAnimIdle();
-		SetPending(FALSE);
+		SetPending(false);
 	}break;
 	case eHandDraw:
 	{
@@ -373,11 +414,11 @@ void CCustomDevice::OnStateSwitch(u32 S)
 	{
 		if (m_bIsZoomed)
 		{
-			PlayHUDMotion("anm_hand_jammed_aim", EHudMixType::eMixAll, eHandJammed);
+			PlayHUDMotion(HudAnimationExist("anm_hand_jammed_aim") ? "anm_hand_jammed_aim" : "anm_hand_dry_aim", EHudMixType::eMixAll, eHandJammed);
 		}
 		else
 		{
-			PlayHUDMotion("anm_hand_jammed", EHudMixType::eMixAll, eHandJammed);
+			PlayHUDMotion(HudAnimationExist("anm_hand_jammed") ? "anm_hand_jammed" : "anm_hand_dry", EHudMixType::eMixAll, eHandJammed);
 		}
 		break;
 	}
@@ -390,6 +431,18 @@ void CCustomDevice::OnStateSwitch(u32 S)
 		else
 		{
 			PlayHUDMotion("anm_hand_lightmisfire", EHudMixType::eMixAll, eHandLightMisfire);
+		}
+		break;
+	}
+	case eHandFiremode:
+	{
+		if (m_bIsZoomed)
+		{
+			PlayHUDMotion("anm_hand_firemode_aim", EHudMixType::eMixAll, eHandFiremode);
+		}
+		else
+		{
+			PlayHUDMotion("anm_hand_firemode", EHudMixType::eMixAll, eHandFiremode);
 		}
 		break;
 	}
@@ -410,7 +463,7 @@ void CCustomDevice::PlayWpnFinishDetector()
 
 	PIItem iitem = m_pInventory->ActiveItem();
 	CHudItem* itm = (iitem) ? iitem->cast_hud_item() : nullptr;
-	if (itm != nullptr && itm->GetState() == CHUDState::eIdle && itm->m_eAnimationsFlags.test(af_finish_detector))
+	if (itm != nullptr && !itm->IsPending() && itm->m_eAnimationsFlags.test(af_finish_detector))
 	{
 		itm->SwitchState(CHUDState::eFinishDetector);
 	}
@@ -466,7 +519,7 @@ void CCustomDevice::PlayAnimIdle()
 	}
 }
 
-void CCustomDevice::OnAnimationEnd(u32 state)
+void CCustomDevice::OnAnimationEnd(u8 state)
 {
 	inherited::OnAnimationEnd(state);
 	switch (state)
@@ -484,6 +537,7 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 	case eHandShoot:
 	case eHandJammed:
 	case eHandLightMisfire:
+	case eHandFiremode:
 	{
 		SwitchState(eIdle);
 	} break;
@@ -495,7 +549,6 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 		m_bIsZoomed = false;
 	} break;
 	case eHandThrowStart:
-	case eHandThrowIdle:
 	{
 		SwitchState(eHandThrowIdle);
 		break;
@@ -505,7 +558,7 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 
 bool CCustomDevice::NeedBlockSprint() const
 {
-	return GetState() == eSprintEnd;
+	return false;//GetState() == eSprintEnd;
 }
 
 bool CCustomDevice::CanDrawHand() const
@@ -536,10 +589,16 @@ bool CCustomDevice::CanLam() const
 		(GetState() == eIdle || GetState() == eHandLam || GetState() == eShowing || GetState() == eSprintEnd || GetState() == eSprintStart || GetState() == eHandDraw || GetState() == eHandHide);
 }
 
+bool CCustomDevice::CanFiremode() const
+{
+	return m_eAnimationsFlags.test(EAnimationsFlags::af_det_hand_firemode) &&
+		(GetState() == eIdle || GetState() == eHandFiremode || GetState() == eShowing || GetState() == eSprintEnd || GetState() == eSprintStart || GetState() == eHandDraw || GetState() == eHandHide);
+}
+
 bool CCustomDevice::CanShooting(bool dry) const
 {
 	return (dry && m_eAnimationsFlags.test(EAnimationsFlags::af_det_hand_dry) || m_eAnimationsFlags.test(EAnimationsFlags::af_det_hand_shoot)) && GetState() != eHidden && GetState() != eHiding
-			&& GetState() != eHandAimStart && GetState() != eHandAimEnd;
+			&& GetState() != eHandAimStart && GetState() != eHandAimEnd && GetState() != eShowing;
 }
 
 bool CCustomDevice::CanJammed() const
@@ -608,7 +667,7 @@ void CCustomDevice::UpdateVisibility()
 	if (m_bNeedActivation)
 	{
 		CActor* actor = Level().CurrentControlEntity()->cast_actor();
-		if (actor && actor->HudAnimator() && actor->HudAnimator()->IsActive())
+		if (actor && actor->HudAnimator() != nullptr && actor->HudAnimator()->IsAnyAnimatorActive())
 		{
 			m_bNeedActivation = false;
 			return;
@@ -634,7 +693,7 @@ void CCustomDevice::UpdateVisibility()
 		else
 		{
 			CWeapon* wpn = parent_hud_item != nullptr ? parent_hud_item->cast_weapon() : nullptr;
-			if (wpn != nullptr && (wpn->IsZoomed() && !m_eAnimationsFlags.test(EAnimationsFlags::af_aim_in_out) || wpn->GetState() == CWeapon::eReload || wpn->GetState() == CWeapon::eSwitch))
+			if (wpn != nullptr && (wpn->IsZoomed() && !m_eAnimationsFlags.test(EAnimationsFlags::af_aim_in_out) || wpn->GetState() == CWeapon::eReload || wpn->GetState() == CWeapon::eSwitch || wpn->GetState() == CWeapon::eSwitchMode && wpn->GetAmmoElapsed() + wpn->GetAmmoChamberElapsed() == 0))
 			{
 				HideDetector(true);
 				m_bNeedActivation = true;
@@ -698,7 +757,8 @@ void CCustomDevice::UpdateCL()
 
 bool CCustomDevice::can_be_attached() const
 {
-	if (smart_cast<CActor*>(H_Parent()) && m_pInventory)
+	CObject* h_parent = const_cast<CObject*>(H_Parent());
+	if (h_parent != nullptr && h_parent->cast_actor() != nullptr && m_pInventory)
 	{
 		return m_pInventory->InSlot(this) && !IsHidden();
 	}
@@ -734,23 +794,45 @@ void CCustomDevice::TurnDetectorInternal(bool b)
 	m_bWorking = b;
 }
 
-void CCustomDevice::SwitchZoom()
+void CCustomDevice::SwitchZoom(bool status)
 {
 	if (!m_eAnimationsFlags.test(EAnimationsFlags::af_aim_in_out))
 	{
 		return;
 	}
 
-	StopCurrentAnimWithoutCallback();
-
-	if (m_bIsZoomed)
+	if (!status)
 	{
-		m_bIsZoomed = false;
-		SwitchState(eHandAimEnd);
+		if (m_bIsZoomed)
+		{
+			StopCurrentAnimWithoutCallback();
+			m_bIsZoomed = false;
+			SwitchState(eHandAimEnd);
+		}
 	}
 	else
 	{
-		m_bIsZoomed = true;
-		SwitchState(eHandAimStart);
+		if (!m_bIsZoomed)
+		{
+			StopCurrentAnimWithoutCallback();
+			m_bIsZoomed = true;
+			SwitchState(eHandAimStart);
+		}
 	}
+}
+
+bool CCustomDevice::NeedMovementBlend() const
+{
+	const EDeviceStates state = static_cast<EDeviceStates>(GetState());
+	if (m_bIsZoomed || state == EDeviceStates::eHandAimEnd || state == EDeviceStates::eHandAimStart)
+	{
+		return false;
+	}
+
+	if (g_player_hud->attached_item(0) != nullptr && (IsShowing() || IsHiding()))
+	{
+		return false;
+	}
+
+	return inherited::NeedMovementBlend();
 }

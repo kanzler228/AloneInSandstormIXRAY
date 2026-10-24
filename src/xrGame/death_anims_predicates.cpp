@@ -46,7 +46,7 @@ type_motion::edirection	type_motion::dir( CEntityAlive& ea, const SHit& H, float
 	float front_factor	= dir.dotproduct( z_dir );
 	float sidefactor	= dir.dotproduct( x_dir );
 
-	if( _abs( front_factor ) > M_SQRT1_2 )
+	if(std::abs( front_factor ) > M_SQRT1_2 )
 	{
 		float sign = front_factor < 0.f ? -1.f : 1.f;
 
@@ -75,23 +75,23 @@ bool is_bone_head( IKinematics &K, u16 bone )
 
 }
 
-void type_motion_diagnostic( LPCSTR message, type_motion::edirection dr, const CEntityAlive& ea, const SHit& H, const MotionID &m )
+void type_motion_diagnostic( const char* message, type_motion::edirection dr, const CEntityAlive& ea, const SHit& H, const MotionID &m )
 {
 #ifdef DEBUG
 
 	if(! death_anim_debug )
 		return;
 	
-	IKinematicsAnimated *KA = smart_cast<IKinematicsAnimated*>( ea.Visual() );
+	IKinematicsAnimated *KA = ea.Visual()->dcast_PKinematicsAnimated();
 	VERIFY( KA );
-	IKinematics *K  = smart_cast<IKinematics*>( ea.Visual() );
-	LPCSTR bone_name = "not_definite";
+	IKinematics *K  = PKinematics( ea.Visual() );
+	const char* bone_name = "not_definite";
 	if( H.bone() != BI_NONE )
 	{
 		CBoneData& bd = K->LL_GetData( H.bone() );
 		bone_name = bd.name.c_str();
 	}
-	LPCSTR motion_name = "not_set";
+	const char* motion_name = "not_set";
 	if( m.valid() )
 		motion_name = KA->LL_MotionDefName_dbg( m ).first;
 
@@ -133,7 +133,7 @@ class	type_motion0: public type_motion
 
 		const Fvector dir_to_actor = Fvector().sub( H.initiator()->Position(), ea.Position() ).normalize_safe();
 
-		const float front_angle_cos = _cos( deg2rad ( 20.f ) );
+		const float front_angle_cos = std::cos( deg2rad ( 20.f ) );
 		
 		if( stalker_velocity_dir.dotproduct(dir_to_actor) < front_angle_cos )
 			return false;
@@ -165,28 +165,39 @@ class	type_motion1: public type_motion
 };
 
 //3.	Шотган 
-class	type_motion2: public type_motion
+class	type_motion2 : public type_motion
 {
-	bool predicate( CEntityAlive& ea, const SHit& H, MotionID &m, float &angle ) const	
+	bool predicate(CEntityAlive& ea, const SHit& H, MotionID& m, float& angle) const
 	{
 		m = MotionID();
-		if( H.initiator() !=  Level().CurrentControlEntity())
-		return false;
-		
-		CObject* O = Level().Objects.net_Find( H.weaponID );
-		if(!O)
+		if (H.initiator() != Level().CurrentControlEntity())
+		{
 			return false;
-		//static_cast<CGameObject*>(O)->cast_weapon()
-		CWeaponShotgun* s = smart_cast< CWeaponShotgun* >( static_cast<CGameObject*>(O) );
-		if(!s)
+		}
+
+		CObject* O = Level().Objects.net_Find(H.weaponID);
+		if (O == nullptr)
+		{
 			return false;
-		Fvector p;
-		const	float max_distance = 20.f;
-		if(Fvector().sub(H.initiator()->Position(),global_hit_position( p, ea, H )).magnitude() > max_distance)
+		}
+
+		bool is_shotgun = O->cast_weapon_shotgun() || O->cast_weapon_auto_shotgun();
+
+		if (!is_shotgun)
+		{
 			return false;
-		edirection dr = dir( ea, H, angle );
-		m = motion( dr );
-		type_motion_diagnostic( " type_motion2: 3.	Шотган ", dr, ea, H, m );
+		}
+
+		Fvector p = zero_vel;
+		const float max_distance = 20.f;
+		if (Fvector().sub(H.initiator()->Position(), global_hit_position(p, ea, H)).magnitude() > max_distance)
+		{
+			return false;
+		}
+
+		edirection dr = dir(ea, H, angle);
+		m = motion(dr);
+		type_motion_diagnostic(" type_motion2: 3.	Шотган ", dr, ea, H, m);
 		return true;
 	}
 };
@@ -213,21 +224,30 @@ class	type_motion3: public type_motion
 	}
 };
 
-bool is_snipper( u16 weaponID )
+bool is_snipper(u16 weaponID)
 {
-	CObject* O = Level().Objects.net_Find( weaponID );
-	if(!O)
+	CObject* O = Level().Objects.net_Find(weaponID);
+	if (O == nullptr)
+	{
 		return false;
-	CWeaponMagazined* WM = smart_cast<CWeaponMagazined*>( O );
-	if(!WM )
+	}
+
+	CWeaponMagazined* WM = O->cast_weapon_magazined();
+	if (WM == nullptr)
+	{
 		return false;
-	if( !WM->IsZoomed() )
+	}
+
+	if (!WM->IsZoomed())
+	{
 		return false;
-	//if( !WM->SingleShotMode() )
-		//return false;
-	if( !WM->IsScopeAttached() )
+	}
+
+	if (!WM->IsScopeAttached())
+	{
 		return false;
-	
+	}
+
 	return true;
 }
 
@@ -279,35 +299,35 @@ class	type_motion5: public type_motion
 	}
 };
 
-//7.	Гранта 
-class	type_motion6: public type_motion
+//7. Граната
+class	type_motion6 : public type_motion
 {
-	bool predicate( CEntityAlive& ea, const SHit& H, MotionID &m, float &angle ) const	
+	bool predicate(CEntityAlive& ea, const SHit& H, MotionID& m, float& angle) const
 	{
-		
-		if( H.initiator() !=  Level().CurrentControlEntity())
+
+		if (H.initiator() != Level().CurrentControlEntity())
 			return false;
 
-		if(H.type() == ALife::eHitTypeExplosion)
+		if (H.type() == ALife::eHitTypeExplosion)
 		{
-			edirection dr = dir( ea, H, angle );
-			m = motion( dr );
-			type_motion_diagnostic( "type_motion6: 7. Гранта", dr, ea, H, m );
+			edirection dr = dir(ea, H, angle);
+			m = motion(dr);
+			type_motion_diagnostic("type_motion6: 7. Гранта", dr, ea, H, m);
 			return true;
 		}
 
-		CObject* O = Level().Objects.net_Find( H.weaponID );
-		if(!O)
+		CObject* O = Level().Objects.net_Find(H.weaponID);
+		if (!O)
 		{
 			m = MotionID();
 			return false;
 		}
 
-		if( smart_cast<CExplosive*>( O ) != 0 )
-		{	
-			edirection dr = dir( ea, H, angle );
-			m = motion(  dr );
-			type_motion_diagnostic( "type_motion6: 7. Гранта - осколок", dr, ea, H, m );
+		if (O->cast_explosive() != nullptr)
+		{
+			edirection dr = dir(ea, H, angle);
+			m = motion(dr);
+			type_motion_diagnostic("type_motion6: 7. Гранта - осколок", dr, ea, H, m);
 			return true;
 		}
 
@@ -315,7 +335,7 @@ class	type_motion6: public type_motion
 	}
 };
 
-void death_anims::setup		( IKinematicsAnimated* k, LPCSTR section, CInifile const * ini )
+void death_anims::setup		( IKinematicsAnimated* k, const char* section, CInifile const * ini )
 {
 	clear();
 

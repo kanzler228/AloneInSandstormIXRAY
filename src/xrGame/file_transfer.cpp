@@ -26,9 +26,7 @@ void make_abort_packet(NET_Packet& packet, ClientID const & client)
 }
 
 
-server_site::server_site()
-{
-}
+server_site::server_site() = default;
 
 server_site::~server_site()
 {
@@ -97,7 +95,7 @@ void server_site::update_transfer()
 		tmp_packet.w_u8					(receive_data);
 		tmp_packet.w_u32				(ti->first.second.value());	//src
 		bool complete = tmp_ftnode->make_data_packet(tmp_packet);
-		Level().Server->SendTo			(tmp_client->ID, tmp_packet, net_flags(TRUE,TRUE,TRUE));
+		Level().Server->SendTo			(tmp_client->ID, tmp_packet, net_flags(true,true,true));
 		if (complete)
 		{
 			tmp_ftnode->signal_callback		(sending_complete);
@@ -122,7 +120,7 @@ void server_site::on_message(NET_Packet* packet, ClientID const & sender)
 			{
 				NET_Packet reject_packet;
 				make_reject_packet(reject_packet, ClientID(0));
-				Level().Server->SendTo(sender, reject_packet, net_flags(TRUE,TRUE,TRUE));
+				Level().Server->SendTo(sender, reject_packet, net_flags(true,true,true));
 				break;
 			}
 			if (temp_iter->second->receive_packet(*packet))
@@ -197,7 +195,7 @@ void server_site::start_transfer_file(shared_str const & file_name,
 {
 	if (is_transfer_active(to_client, from_client))
 	{
-		Msg("! ERROR: SV: transfering file to client [%d] already active.", to_client);
+		Msg("! ERROR: SV: transfering file to client [%u] already active.", to_client.value());
 		return;
 	}
 	filetransfer_node* ftnode = new filetransfer_node(
@@ -222,7 +220,7 @@ void server_site::start_transfer_file(CMemoryWriter& mem_writer,
 {
 	if (is_transfer_active(to_client, from_client))
 	{
-		Msg("! ERROR: SV: transfering file to client [%d] already active.", to_client);
+		Msg("! ERROR: SV: transfering file to client [%u] already active.", to_client.value());
 		return;
 	}
 	filetransfer_node* ftnode = new filetransfer_node(
@@ -247,7 +245,7 @@ void server_site::start_transfer_file(u8* data_ptr,
 {
 	if (is_transfer_active(to_client, from_client))
 	{
-		Msg("! ERROR: SV: transfering file to client [%d] already active.", to_client);
+		Msg("! ERROR: SV: transfering file to client [%u] already active.", to_client.value());
 		return;
 	}
 	filetransfer_node* ftnode = new filetransfer_node(
@@ -272,7 +270,7 @@ void server_site::start_transfer_file(buffer_vector<mutable_buffer_t> & vector_o
 {
 	if (is_transfer_active(to_client, from_client))
 	{
-		Msg("! ERROR: SV: transfering file to client [%d] already active.", to_client);
+		Msg("! ERROR: SV: transfering file to client [%u] already active.", to_client.value());
 		return;
 	}
 	filetransfer_node* ftnode = new filetransfer_node(
@@ -294,8 +292,8 @@ void server_site::stop_transfer_file(dst_src_pair_t const & tkey)
 	transfer_sessions_t::iterator temp_iter = m_transfers.find(tkey);
 	if (temp_iter == m_transfers.end())
 	{
-		Msg("! ERROR: SV: no file transfer for client [%d] found from client [%d].", 
-			tkey.first, tkey.second);
+		Msg("! ERROR: SV: no file transfer for client [%u] found from client [%u].",
+			tkey.first.value(), tkey.second.value());
 		return;
 	}
 	if (!temp_iter->second->is_complete())
@@ -304,7 +302,7 @@ void server_site::stop_transfer_file(dst_src_pair_t const & tkey)
 		make_abort_packet(abort_packet, tkey.second);
 		if (Level().Server->GetClientByID(tkey.first))
 		{
-			Level().Server->SendTo(tkey.first, abort_packet, net_flags(TRUE,TRUE,TRUE));
+			Level().Server->SendTo(tkey.first, abort_packet, net_flags(true,true,true));
 		}
 	}
 	xr_delete(temp_iter->second);
@@ -318,7 +316,7 @@ filereceiver_node* server_site::start_receive_file(shared_str const & file_name,
 	receiving_sessions_t::iterator temp_iter = m_receivers.find(from_client);
 	if (temp_iter != m_receivers.end())
 	{
-		Msg("! ERROR: SV: file already receiving from client [%d]", from_client);
+		Msg("! ERROR: SV: file already receiving from client [%u]", from_client.value());
 		return nullptr;
 	}
 	filereceiver_node* frnode = new filereceiver_node(file_name, rstate_callback);
@@ -339,7 +337,7 @@ filereceiver_node* server_site::start_receive_file(CMemoryWriter& mem_writer,
 	receiving_sessions_t::iterator temp_iter = m_receivers.find(from_client);
 	if (temp_iter != m_receivers.end())
 	{
-		Msg("! ERROR: SV: file already receiving from client [%d]", from_client);
+		Msg("! ERROR: SV: file already receiving from client [%u]", from_client.value());
 		return nullptr;
 	}
 	filereceiver_node* frnode = new filereceiver_node(&mem_writer, rstate_callback);
@@ -353,14 +351,14 @@ void server_site::stop_receive_file(ClientID const & from_client)
 	receiving_sessions_t::iterator temp_iter = m_receivers.find(from_client);
 	if (temp_iter == m_receivers.end())
 	{
-		Msg("! ERROR: SV: no file receiving from client [%u] found", from_client);
+		Msg("! ERROR: SV: no file receiving from client [%u] found", from_client.value());
 		return;
 	}
 	if (!temp_iter->second->is_complete())
 	{
 		NET_Packet reject_packet;
 		make_reject_packet(reject_packet, ClientID(0));
-		Level().Server->SendTo(from_client, reject_packet, net_flags(TRUE,TRUE,TRUE));
+		Level().Server->SendTo(from_client, reject_packet, net_flags(true,true,true));
 	}
 	xr_delete(temp_iter->second);
 	m_receivers.erase(temp_iter);
@@ -425,7 +423,7 @@ void client_site::update_transfer()
 		tmp_packet.w_begin					(M_FILE_TRANSFER);
 		tmp_packet.w_u8						(receive_data);
 		bool complete = m_transfering->make_data_packet(tmp_packet);
-		Level().Send(tmp_packet, net_flags	(TRUE, TRUE, TRUE));
+		Level().Send(tmp_packet, net_flags	(true, true, true));
 		if (complete)
 		{
 			m_transfering->signal_callback	(sending_complete);
@@ -459,7 +457,7 @@ void client_site::on_message(NET_Packet* packet)
 			{
 				NET_Packet reject_packet;
 				make_reject_packet(reject_packet, from_client);
-				Level().Send(reject_packet, net_flags(TRUE,TRUE,TRUE));
+				Level().Send(reject_packet, net_flags(true,true,true));
 			}
 		}break;
 	case abort_receive:
@@ -536,7 +534,7 @@ void client_site::stop_transfer_file()
 	{
 		NET_Packet abort_packet;
 		make_abort_packet(abort_packet, ClientID(0));
-		Level().Send(abort_packet, net_flags(TRUE,TRUE,TRUE));
+		Level().Send(abort_packet, net_flags(true,true,true));
 	}
 	xr_delete(m_transfering);
 }
@@ -547,7 +545,7 @@ filereceiver_node* client_site::start_receive_file(shared_str const & file_name,
 {
 	if (is_receiving_active(from_client))
 	{
-		Msg("! ERROR: CL: file already receiving from client [%d]", from_client);
+		Msg("! ERROR: CL: file already receiving from client [%u]", from_client.value());
 		return nullptr;
 	}
 	filereceiver_node* frnode = new filereceiver_node(file_name, rstate_callback);
@@ -567,7 +565,7 @@ filereceiver_node* client_site::start_receive_file(CMemoryWriter& mem_writer,
 {
 	if (is_receiving_active(from_client))
 	{
-		Msg("! ERROR: CL: file already receiving from client [%d]", from_client);
+		Msg("! ERROR: CL: file already receiving from client [%u]", from_client.value());
 		return nullptr;
 	}
 	mem_writer.clear();
@@ -582,14 +580,14 @@ void client_site::stop_receive_file(ClientID const & from_client)
 	receiving_sessions_t::iterator temp_iter = m_receivers.find(from_client);
 	if (temp_iter == m_receivers.end())
 	{
-		Msg("! ERROR: CL: no file receiving from client [%u] found", from_client);
+		Msg("! ERROR: CL: no file receiving from client [%u] found", from_client.value());
 		return;
 	}
 	if (!temp_iter->second->is_complete())
 	{
 		NET_Packet reject_packet;
 		make_reject_packet(reject_packet, from_client);
-		Level().Send(reject_packet, net_flags	(TRUE, TRUE, TRUE));
+		Level().Send(reject_packet, net_flags	(true, true, true));
 	}
 	xr_delete(temp_iter->second);
 	m_receivers.erase(temp_iter);

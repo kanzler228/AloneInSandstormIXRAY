@@ -42,7 +42,7 @@ struct LIST_SRV_ITEM {
 	LIST_SRV_INFO	info;
 };
 
-class CUIListItemServer : public CUIListBoxItem
+class CUIListItemServer final : public CUIListBoxItem
 {
 	typedef CUIListBoxItem	inherited;
 public:
@@ -50,7 +50,7 @@ public:
 
 			void			InitItemServer			(LIST_SRV_ITEM& params/*, Fvector2 size*/);
 			void			SetParams				(LIST_SRV_ITEM& params);
-			void			CreateConsoleCommand	(xr_string& command, LPCSTR player_name, LPCSTR player_pass, LPCSTR server_psw);
+			void			CreateConsoleCommand	(xr_string& command, const char* player_name, const char* player_pass, const char* server_psw);
 
 			int				Get_gs_index			()		{return m_srv_info.info.Index;}
 			LIST_SRV_ITEM*	GetInfo					()		{return &m_srv_info;};
@@ -67,11 +67,11 @@ protected:
 	CUIStatic* 				m_iconDedicated;
 //	CUIStatic* 				m_iconPunkBuster;
 	CUIStatic* 				m_iconUserPass;
-	CUITextWnd*				m_server;
-	CUITextWnd*				m_map;
-	CUITextWnd*				m_game;
-	CUITextWnd*				m_players;
-	CUITextWnd*				m_ping;
-	CUITextWnd*				m_version;
+	CUIStatic*				m_server;
+	CUIStatic*				m_map;
+	CUIStatic*				m_game;
+	CUIStatic*				m_players;
+	CUIStatic*				m_ping;
+	CUIStatic*				m_version;
 
 };

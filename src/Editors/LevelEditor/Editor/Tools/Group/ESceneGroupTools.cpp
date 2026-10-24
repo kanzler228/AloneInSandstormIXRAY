@@ -48,13 +48,13 @@ void ESceneGroupTool::UngroupObjects(bool bUndo)
 }
 
 
-BOOL  ESceneGroupTool::_RemoveObject(CCustomObject* object)
+bool  ESceneGroupTool::_RemoveObject(CCustomObject* object)
 {
 	inherited::_RemoveObject(object);
 
     CGroupObject* go 	= smart_cast<CGroupObject*>(object); 
     go->Clear1          ();
-    return              TRUE;
+    return              true;
 }
 
 void ESceneGroupTool::GroupObjects(bool bUndo)
@@ -147,7 +147,7 @@ void ESceneGroupTool::AlignToObject()
 }
 
 
-CCustomObject* ESceneGroupTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* ESceneGroupTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O	= new CGroupObject(data, name);
     O->FParentTools		= this;
@@ -243,7 +243,7 @@ void ESceneGroupTool::SaveSelectedObject()
 }
 
 
-void ESceneGroupTool::SetCurrentObject(LPCSTR nm)
+void ESceneGroupTool::SetCurrentObject(const char* nm)
 {
 	m_CurrentObject				= nm;
 /*	TfraGroup* frame			=(TfraGroup*)pFrame;
@@ -276,7 +276,7 @@ void ESceneGroupTool::MakeThumbnail()
         // save render params
         Flags32 old_flag			= psDeviceFlags;
         // set render params
-        psDeviceFlags.set			(rsStatistic|rsDrawGrid,FALSE);
+        psDeviceFlags.set			(rsStatistic|rsDrawGrid,false);
 
         U32Vec pixels;
         u32 w=512,h=512;

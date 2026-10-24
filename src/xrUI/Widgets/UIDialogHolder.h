@@ -60,4 +60,9 @@ public:
 	virtual bool 			IR_UIOnMouseWheel				(int direction);
 	virtual bool 			IR_UIOnKeyboardHold				(int dik);
 
+	virtual bool 			IR_UIOnGamepadKeyPress			(int id);
+	virtual bool 			IR_UIOnGamepadUpdateStick		(int id, Fvector2 value);
+	virtual bool 			IR_UIOnGamepadKeyHold			(int id);
+	virtual bool 			IR_UIOnGyroscopeMove			(Fvector3 value);
+	virtual bool 			IR_UIOnTouchpadMove				(Fvector2 value);
 };

@@ -24,10 +24,10 @@ void CSHCompilerTools::OnActivate()
     FillItemList();
 
     //Ext.m_Items->SetOnModifiedEvent		(TOnModifiedEvent(this,&CSHCompilerTools::Modified));
-    Ext.m_Items->SetOnItemCreaetEvent(TOnItemCreate(this, &CSHCompilerTools::OnCreateItem));
-    Ext.m_Items->SetOnItemCloneEvent(TOnItemClone(this, &CSHCompilerTools::OnCloneItem));
-    Ext.m_Items->SetOnItemRenameEvent(TOnItemRename(this, &CSHCompilerTools::OnRenameItem));
-    Ext.m_Items->SetOnItemRemoveEvent(TOnItemRemove(this, &CSHCompilerTools::OnRemoveItem));
+    Ext.m_Items->SetOnItemCreaetEvent({this, &CSHCompilerTools::OnCreateItem});
+    Ext.m_Items->SetOnItemCloneEvent({this, &CSHCompilerTools::OnCloneItem});
+    Ext.m_Items->SetOnItemRenameEvent({this, &CSHCompilerTools::OnRenameItem});
+    Ext.m_Items->SetOnItemRemoveEvent({this, &CSHCompilerTools::OnRemoveItem});
 
     inherited::OnActivate();
 }
@@ -50,7 +50,7 @@ bool CSHCompilerTools::OnCreate()
 
 void CSHCompilerTools::OnDestroy()
 {
-    m_bModified = FALSE;
+    m_bModified = false;
 }
 
 void CSHCompilerTools::ApplyChanges(bool bForced)
@@ -90,12 +90,12 @@ bool CSHCompilerTools::Save()
     bool bRes = m_Library.Save(fn);
 
     if (bRes) 
-        m_bModified = FALSE;
+        m_bModified = false;
 
     return bRes;
 }
 
-Shader_xrLC* CSHCompilerTools::FindItem(LPCSTR name)
+Shader_xrLC* CSHCompilerTools::FindItem(const char* name)
 {
     if (name && name[0])
     {
@@ -104,7 +104,7 @@ Shader_xrLC* CSHCompilerTools::FindItem(LPCSTR name)
     else return 0;
 }
 
-void CSHCompilerTools::AppendItem(LPCSTR path, LPCSTR parent_name)
+void CSHCompilerTools::AppendItem(const char* path, const char* parent_name)
 {
     Shader_xrLC* parent = FindItem(parent_name);
     xr_string pref = path;
@@ -117,7 +117,7 @@ void CSHCompilerTools::AppendItem(LPCSTR path, LPCSTR parent_name)
 
 }
 
-void CSHCompilerTools::OnRenameItem(LPCSTR old_full_name, LPCSTR new_full_name, EItemType type)
+void CSHCompilerTools::OnRenameItem(UIItemListForm::Node& node, const char* old_full_name, const char* new_full_name, EItemType type)
 {
     if (type == TYPE_OBJECT)
     {
@@ -136,9 +136,18 @@ void CSHCompilerTools::OnRenameItem(LPCSTR old_full_name, LPCSTR new_full_name, 
 }
 
 
-void CSHCompilerTools::OnRemoveItem(LPCSTR name, EItemType type)
+void CSHCompilerTools::OnRemoveItem(UIItemListForm::Node& node/*, const char* name, EItemType type*/)
 {
-    if (type == TYPE_OBJECT) {
+    string_path path;
+    if (node.Path.size())
+    {
+        xr_strconcat(path, node.Path.c_str(), "\\", node.Name.c_str());
+    } else
+    {
+        xr_strcpy(path, node.Name.c_str());
+    }
+    const char* name = path;
+    if (node.IsObject()) {
         R_ASSERT(name && name[0]);
         if (m_Shader && stricmp(m_Shader->Name, name) == 0)
         {
@@ -149,7 +158,7 @@ void CSHCompilerTools::OnRemoveItem(LPCSTR name, EItemType type)
     }
 }
 
-void CSHCompilerTools::SetCurrentItem(LPCSTR name, bool bView)
+void CSHCompilerTools::SetCurrentItem(const char* name, bool bView)
 {
     if (m_bLockUpdate) return;
 

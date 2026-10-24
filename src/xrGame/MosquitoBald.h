@@ -1,26 +1,27 @@
 #pragma once
 
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "../xrScripts/script_export_space.h"
 
-class CMosquitoBald : public CCustomZone
+class CMosquitoBald : public CAnomalyZone
 {
-private:
-	typedef	CCustomZone	inherited;
+	using inherited = CAnomalyZone;
+
 public:
-					CMosquitoBald				();
-	virtual			~CMosquitoBald				();
+	CMosquitoBald();
+	virtual ~CMosquitoBald();
 
-	virtual void	Load						(LPCSTR section);
+	virtual void Load(const char* section);
+	virtual void Affect(SZoneObjectInfo* O);
 
-	virtual void	Affect						(SZoneObjectInfo* O);
+	CMosquitoBald* cast_mosquito_bald_zone() override { return this; }
 
 protected:
-	virtual bool	BlowoutState				();
-	virtual	void	UpdateSecondaryHit			();
+	virtual bool BlowoutState();
+	virtual void UpdateSecondaryHit();
 	//для того чтобы blowout обновился один раз
 	//после того как зона перключилась в другое состояние
-	bool			m_bLastBlowoutUpdate;
+	bool m_bLastBlowoutUpdate;
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

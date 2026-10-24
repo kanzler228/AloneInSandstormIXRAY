@@ -2,6 +2,7 @@
 
 #include "UIArrow.h"
 #include "../UIXmlInit.h"
+#include <luabind/luabind.hpp>
 
 CUIArrow::CUIArrow()
 {
@@ -17,7 +18,7 @@ CUIArrow::~CUIArrow()
 {
 }
 
-void CUIArrow::init_from_xml( CUIXml& xml, LPCSTR path, CUIWindow* parent )
+void CUIArrow::init_from_xml( CUIXml& xml, const char* path, CUIWindow* parent )
 {
 	//m_arrow = UIHelper::CreateStatic( xml, "arrow", this );
 	parent->AttachChild( this );
@@ -30,11 +31,11 @@ void CUIArrow::init_from_xml( CUIXml& xml, LPCSTR path, CUIWindow* parent )
 	bool arrow_clockwise = ( xml.ReadAttribInt( path, 0, "clockwise", 1 ) == 1 )? true : false;
 	if ( arrow_clockwise )
 	{
-		m_angle_range = -_abs( m_angle_end - m_angle_begin );
+		m_angle_range = -std::abs( m_angle_end - m_angle_begin );
 	}
 	else
 	{
-		m_angle_range = _abs( m_angle_end - m_angle_begin );
+		m_angle_range = std::abs( m_angle_end - m_angle_begin );
 	}
 
 }
@@ -52,7 +53,7 @@ void CUIArrow::SetNewValue( float new_value )
 		float dif = m_temp_pos - m_pos;
 		float val = m_ang_velocity * Device.fTimeDelta;
 
-		val	= _min( _abs(val), _abs(dif) );
+		val	= std::min(std::abs(val), std::abs(dif) );
 		val	*= (dif > 0.0f)? +1.0f : -1.0f;
 		m_pos += val;
 	}
@@ -64,4 +65,19 @@ void CUIArrow::SetPos( float pos )
 {
 	m_pos = pos;
 	inherited::SetHeading( m_angle_begin + m_pos * m_angle_range );
+}
+
+using namespace luabind;
+#pragma optimize("s",on)
+void CUIArrow::script_register(lua_State* L)
+{
+	module(L)
+		[
+			class_<CUIArrow, CUIStatic>("CUIArrow")
+				.def(constructor<>())
+				.def("SetNewValue", &CUIArrow::SetNewValue)
+				.def("SetPos",		&CUIArrow::SetPos)
+				.def("GetPos",		&CUIArrow::GetPos)
+
+		];
 }

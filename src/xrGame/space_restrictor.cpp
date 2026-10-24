@@ -14,12 +14,13 @@
 #include "space_restriction_manager.h"
 #include "restriction_space.h"
 #include "ai_space.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "../xrEngine/xr_collide_form.h"
 #ifdef DEBUG
 #	include "debug_renderer.h"
 #endif
 #include "RadioactiveZone.h"
+#include "../xrServerEntities/clsid_game.h"
 
 CSpaceRestrictor::~CSpaceRestrictor	()
 {
@@ -35,54 +36,91 @@ float CSpaceRestrictor::Radius		() const
 	return							(CFORM()->getRadius());
 }
 
-BOOL CSpaceRestrictor::net_Spawn	(CSE_Abstract* data)
+bool CSpaceRestrictor::net_Spawn(CSE_Abstract* data)
 {
-	actual							(false);
+	actual(false);
 
-	CSE_Abstract					*abstract = (CSE_Abstract*)data;
-	CSE_ALifeSpaceRestrictor		*se_shape = smart_cast<CSE_ALifeSpaceRestrictor*>(abstract);
-	R_ASSERT						(se_shape);
+	CSE_Abstract* abstract = (CSE_Abstract*)data;
+	CSE_ALifeSpaceRestrictor* se_shape = smart_cast<CSE_ALifeSpaceRestrictor*>(abstract);
+	R_ASSERT(se_shape);
 
-	m_space_restrictor_type			= se_shape->m_space_restrictor_type;
+	m_space_restrictor_type = se_shape->m_space_restrictor_type;
 
-	CCF_Shape						*shape = new CCF_Shape(this);
-	collidable.model				= shape;
+	CCF_Shape* shape = new CCF_Shape(this);
+	collidable.model = shape;
 
-	for (u32 i=0; i < se_shape->shapes.size(); ++i) {
-		CShapeData::shape_def		&S = se_shape->shapes[i];
-		switch (S.type) {
-			case 0 : {
-				shape->add_sphere	(S.data.sphere);
+	for (u32 i = 0; i < se_shape->shapes.size(); ++i)
+	{
+		CShapeData::shape_def& S = se_shape->shapes[i];
+		switch (S.type)
+		{
+			case 0:
+			{
+				shape->add_sphere(S.data.sphere);
 				break;
 			}
-			case 1 : {
-				shape->add_box		(S.data.box);
+			case 1:
+			{
+				shape->add_box(S.data.box);
 				break;
 			}
 		}
 	}
 
-	shape->ComputeBounds			();
+	shape->ComputeBounds();
 
-	BOOL							result = inherited::net_Spawn(data);
-	
+	bool result = inherited::net_Spawn(data);
+
 	if (!result)
-		return						(FALSE);
+	{
+		return false;
+	}
 
-	CCustomZone* zone = cast_custom_zone();
+	CAnomalyZone* zone = cast_anomaly_zone();
 	const static bool isAiDieInAnomaly = EngineExternal()[EEngineExternalGame::EnableAiDieInAnomaly];
-	if (!isAiDieInAnomaly || !zone || smart_cast<CRadioactiveZone*>(zone))
-		SpatialComponent->spatial.type &= ~STYPE_VISIBLEFORAI;
-
-	setEnabled						(FALSE);
-	setVisible						(FALSE);
+	if (!isAiDieInAnomaly || zone == nullptr || zone->cast_radioactive_zone() != nullptr)
+	{
+		SpatialComponent->type &= ~ESPATIAL_TYPE::VISIBLEFORAI;
+	}
+	
+	//:(
+	{
+		bool space_restrictor = true;
+		if (CLS_ID == CLSID_SMART_TERRAIN)
+		{
+			SpatialComponent->type |= ESPATIAL_TYPE::SMART_TERRAIN;
+			space_restrictor = false;
+		}
+		else if (CLS_ID == CLSID_SIM_FACTION)
+		{
+			SpatialComponent->type |= ESPATIAL_TYPE::SIM_FACTION;
+			space_restrictor = false;
+		}
+		else if (!strcmp(cNameSect_str(), "camp_zone"))
+		{
+			SpatialComponent->type |= ESPATIAL_TYPE::CAMP_ZONE;
+			space_restrictor = false;
+		}
+		else if (!strcmp(cNameSect_str(), "anomal_zone"))
+		{
+			SpatialComponent->type |= ESPATIAL_TYPE::ANOMAL_ZONE_LOGIC;
+			space_restrictor = false;
+		}
+		if(space_restrictor)
+			SpatialComponent->type |= ESPATIAL_TYPE::SPACE_RESTRICTOR;
+	}
+	
+	setEnabled(false);
+	setVisible(false);
 
 	if (!ai().get_level_graph() || (RestrictionSpace::ERestrictorTypes(se_shape->m_space_restrictor_type) == RestrictionSpace::eRestrictorTypeNone))
-		return						(TRUE);
+	{
+		return true;
+	}
 
-	Level().space_restriction_manager().register_restrictor(this,RestrictionSpace::ERestrictorTypes(se_shape->m_space_restrictor_type));
+	Level().space_restriction_manager().register_restrictor(this, RestrictionSpace::ERestrictorTypes(se_shape->m_space_restrictor_type));
 
-	return							(TRUE);
+	return true;
 }
 
 void CSpaceRestrictor::net_Destroy	()
@@ -109,9 +147,9 @@ bool CSpaceRestrictor::inside	(const Fsphere &sphere) const
 	return		(prepared_inside(sphere));
 }
 
-BOOL CSpaceRestrictor::UsedAI_Locations	()
+bool CSpaceRestrictor::UsedAI_Locations	()
 {
-	return		(FALSE);
+	return		(false);
 }
 
 void CSpaceRestrictor::spatial_move		()
@@ -214,7 +252,7 @@ void CSpaceRestrictor::shedule_Update	(u32 dt)
 
 #ifdef DEBUG
 
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "../../xrUI/ui_base.h"
 
 extern	Flags32	dbg_net_Draw_Flags;
@@ -231,7 +269,7 @@ void CSpaceRestrictor::OnRender	()
 	xr_vector<CCF_Shape::shape_def>::iterator l_pShape;
 	
 	u32 Color = 0;
-	CCustomZone	*custom_zone = cast_custom_zone();
+	CAnomalyZone	*custom_zone = cast_anomaly_zone();
 	if (custom_zone && custom_zone->IsEnabled())
 		Color = color_xrgb(0, 255, 255);
 	else
@@ -293,15 +331,15 @@ void CSpaceRestrictor::OnRender	()
 		UI().Font().pFontMedium->SetColor	(0xffff0000);
 		UI().Font().pFontMedium->OutSet	(x, y-=delta_height);
 		UI().Font().pFontMedium->OutNext	( Name() );
-		CCustomZone* z = cast_custom_zone();
+		CAnomalyZone* z = cast_anomaly_zone();
 		if(z){
 			string64 str;
 			switch (z->ZoneState()){
-				case CCustomZone::eZoneStateIdle:		xr_strcpy(str,"IDLE"); break;
-				case CCustomZone::eZoneStateAwaking:	xr_strcpy(str,"AWAKING"); break;
-				case CCustomZone::eZoneStateBlowout:	xr_strcpy(str,"BLOWOUT"); break;
-				case CCustomZone::eZoneStateAccumulate: xr_strcpy(str,"ACCUMULATE"); break;
-				case CCustomZone::eZoneStateDisabled:	xr_strcpy(str,"DISABLED"); break;
+				case CAnomalyZone::eZoneStateIdle:		xr_strcpy(str,"IDLE"); break;
+				case CAnomalyZone::eZoneStateAwaking:	xr_strcpy(str,"AWAKING"); break;
+				case CAnomalyZone::eZoneStateBlowout:	xr_strcpy(str,"BLOWOUT"); break;
+				case CAnomalyZone::eZoneStateAccumulate: xr_strcpy(str,"ACCUMULATE"); break;
+				case CAnomalyZone::eZoneStateDisabled:	xr_strcpy(str,"DISABLED"); break;
 			};
 			UI().Font().pFontMedium->OutNext	( str );
 		}

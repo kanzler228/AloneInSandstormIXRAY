@@ -8,7 +8,7 @@
 
 #include "../xrRender/r__dsgraph_types.h"
 
-class CLightProjector		: public pureAppActivate
+class CLightProjector : public pureAppActivate
 {
 private:
 	static	const	int		P_rt_size		= 512;
@@ -40,7 +40,7 @@ private:
 	shared_str				c_factor	;
 public:
 	void					set_object		(IRenderable*	O);
-	BOOL					shadowing		()			{ return current!=0;	}
+	bool					shadowing		()			{ return current!=nullptr;	}
 	void					calculate		();
 	void					setup			(int slot);
 	void					finalize		()			{ receivers.clear(); taskid.clear();	}
@@ -52,7 +52,7 @@ public:
 #endif
 
 	CLightProjector			();
-	~CLightProjector		();
+	virtual ~CLightProjector();
 };
 
 #endif // !defined(AFX_LIGHTPRJ_H__CFA216D9_CACB_4515_9FBE_7C531649168F__INCLUDED_)

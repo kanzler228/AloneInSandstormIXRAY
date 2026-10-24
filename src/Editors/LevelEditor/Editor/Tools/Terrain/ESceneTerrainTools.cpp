@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "ESceneTerrainTools.h"
-#include "../../../UI/Tools/UIPuddlesTool.h"
 
 ESceneTerrainTool::ESceneTerrainTool() :
 	ESceneCustomOTool(OBJCLASS_TERRAIN)
@@ -45,12 +44,12 @@ void ESceneTerrainTool::OnControlRenameRemoveClick(ButtonValue* V, bool& bDataMo
 {
 }
 
-void ESceneTerrainTool::FillProp(LPCSTR pref, PropItemVec& items)
+void ESceneTerrainTool::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref, items);
 }
 
-BOOL ESceneTerrainTool::_AppendObject(CCustomObject* object)
+bool ESceneTerrainTool::_AppendObject(CCustomObject* object)
 {
 	if (object->GetName())
 	{
@@ -75,7 +74,6 @@ bool ESceneTerrainTool::Validate(bool full_test)
 void ESceneTerrainTool::CreateControls()
 {
 	inherited::CreateDefaultControls(estDefault);
-	pForm = new UIPuddleTool();
 }
  
 void ESceneTerrainTool::RemoveControls()
@@ -84,7 +82,7 @@ void ESceneTerrainTool::RemoveControls()
 }
 
 
-CCustomObject* ESceneTerrainTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* ESceneTerrainTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O = new CTerrain(data, name);
 	O->FParentTools = this;

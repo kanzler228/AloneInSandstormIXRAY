@@ -12,12 +12,87 @@
 #include "Missile.h"
 #include "Car.h"
 
+#include "../xrEngine/xr_input.h"
+#include "visual_memory_manager.h"
+#include "actor_memory.h"
+
+#include "Actor.h"
+#include "Inventory.h"
+#include "Weapon.h"
+
+int cam_dik = SDL_SCANCODE_LSHIFT;
+
+Fvector CCameraLook2::m_cam_offset_r;
+Fvector CCameraLook2::m_cam_offset_l;
+bool CCameraLook2::m_use_inertion;
+Fvector m_cam_offset_curr = {0.f, 0.f, 0.f};
+
+ICF static bool GetPickDist_Callback(collide::rq_result& result, LPVOID params)
+{
+	collide::rq_result* RQ = (collide::rq_result*)params;
+
+	if (result.O)
+	{
+		if (CCustomRocket* pRocket = result.O != nullptr ? result.O->cast_custom_rocket() : nullptr)
+		{
+			if (!pRocket->Useful())
+				return true;
+		}
+
+		if (CMissile* pMissile = result.O != nullptr ? result.O->cast_missile() : nullptr)
+		{
+			if (!pMissile->Useful())
+				return true;
+		}
+		CObject* current_entity = Level().CurrentEntity();
+		if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+		{
+			if (result.O == pActor)
+			{
+				return true;
+			}
+
+			if (CHolderCustom* get_holder = pActor->Holder())
+			{
+				CCar* car = get_holder != nullptr ? get_holder->cast_car() : nullptr;
+				if (car && result.O == car)
+				{
+					return true;
+				}
+			}
+		}
+	}
+	else
+	{
+		CDB::TRI& T = Level().ObjectSpace.GetStaticTris()[result.element];
+		SGameMtl* pMtl = GMLib.GetMaterialByIdx(T.material);
+		if (pMtl != nullptr && (pMtl->Flags.is(SGameMtl::flPassable) || pMtl->Flags.is(SGameMtl::flActorObstacle)))
+		{
+			return true;
+		}
+	}
+
+	*RQ = result;
+	return false;
+}
+
+collide::rq_result GetPickResult(Fvector pos, Fvector dir, float range, CObject* ignore)
+{
+	collide::rq_result RQ;
+	RQ.set(nullptr, range, -1);
+	static collide::rq_results RQR;
+	collide::ray_defs RD(pos, dir, RQ.range, CDB::OPT_FULL_TEST, collide::rqtBoth);
+	Level().ObjectSpace.RayQuery(RQR, RD, GetPickDist_Callback, &RQ, nullptr, ignore);
+	return RQ;
+}
+
+// CAM_3
 CCameraLook::CCameraLook(CObject* p, u32 flags ) 
 :CCameraBase(p, flags)
 {
 }
 
-void CCameraLook::Load(LPCSTR section)
+void CCameraLook::Load(const char* section)
 {
 	inherited::Load		(section);
 	style				= csLookAt;
@@ -40,79 +115,18 @@ void CCameraLook::load(IReader& packet)
 	load_data(pitch, packet);
 }
 
-void CCameraLook::Update(Fvector& point, Fvector& /**noise_dangle/**/)
+void CCameraLook::Update(Fvector& point, Fvector& noise_dangle, bool force_update_pos)
 {
-	vPosition.set		(point);
-	Fmatrix mR;
-	mR.setHPB			(-yaw,-pitch,-roll);
-
-	vDirection.set		(mR.k);
-	vNormal.set			(mR.j);
-
-	if (m_Flags.is(flRelativeLink)){
+	Fvector placeholder = zero_vel;
+	inherited::Update(point, placeholder, false);
+	
+	if (m_Flags.is(flRelativeLink))
+	{
 		parent->XFORM().transform_dir(vDirection);
 		parent->XFORM().transform_dir(vNormal);
 	}
-	UpdateDistance		(point);
-}
 
-ICF static BOOL GetPickDist_Callback(collide::rq_result& result, LPVOID params)
-{
-	collide::rq_result* RQ = (collide::rq_result*)params;
-
-	if (result.O)
-	{
-		if (CCustomRocket* pRocket = smart_cast<CCustomRocket*>(result.O))
-		{
-			if (!pRocket->Useful())
-				return TRUE;
-		}
-
-		if (CMissile* pMissile = smart_cast<CMissile*>(result.O))
-		{
-			if (!pMissile->Useful())
-				return TRUE;
-		}
-		CObject* current_entity = Level().CurrentEntity();
-		if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
-		{
-			if (result.O == pActor)
-			{
-				return TRUE;
-			}
-
-			if (CHolderCustom* get_holder = pActor->Holder())
-			{
-				CCar* car = get_holder != nullptr ? get_holder->cast_car() : nullptr;
-				if (car && result.O == car)
-				{
-					return TRUE;
-				}
-			}
-		}
-	}
-	else
-	{
-		CDB::TRI* T = Level().ObjectSpace.GetStaticTris() + result.element;
-		SGameMtl* pMtl = GMLib.GetMaterialByIdx(T->material);
-		if (pMtl != nullptr && (pMtl->Flags.is(SGameMtl::flPassable) || pMtl->Flags.is(SGameMtl::flActorObstacle)))
-		{
-			return TRUE;
-		}
-	}
-
-	*RQ = result;
-	return FALSE;
-}
-
-collide::rq_result GetPickResult(Fvector pos, Fvector dir, float range, CObject* ignore)
-{
-	collide::rq_result RQ;
-	RQ.set(nullptr, range, -1);
-	collide::rq_results RQR;
-	collide::ray_defs RD(pos, dir, RQ.range, CDB::OPT_FULL_TEST, collide::rqtBoth);
-	Level().ObjectSpace.RayQuery(RQR, RD, GetPickDist_Callback, &RQ, nullptr, ignore);
-	return RQ;
+	UpdateDistance(point);
 }
 
 void CCameraLook::UpdateDistance(Fvector& point) 
@@ -131,7 +145,7 @@ void CCameraLook::UpdateDistance(Fvector& point)
 	vPosition.add(point);
 }
 
-void CCameraLook::Move( int cmd, float val, float factor)
+void CCameraLook::Move(int cmd, float val, float factor)
 {
 	switch (cmd){
 	case kCAM_ZOOM_IN:	dist	-= val?val:(rot_speed.z*Device.fTimeDelta);	break;
@@ -146,7 +160,7 @@ void CCameraLook::Move( int cmd, float val, float factor)
 	clamp			(dist,lim_zoom[0],lim_zoom[1]);	
 }
 
-void CCameraLook::OnActivate( CCameraBase* old_cam )
+void CCameraLook::OnActivate(CCameraBase* old_cam)
 {
 	if (old_cam) {
 		if (m_Flags.is(flRelativeLink) == old_cam->m_Flags.is(flRelativeLink))
@@ -159,18 +173,8 @@ void CCameraLook::OnActivate( CCameraBase* old_cam )
 	if (yaw<-PI_MUL_2)yaw+=PI_MUL_2;
 }
 
-#include "../xrEngine/xr_input.h"
-#include "visual_memory_manager.h"
-#include "actor_memory.h"
-
-int cam_dik = SDL_SCANCODE_LSHIFT;
-
-Fvector CCameraLook2::m_cam_offset_r;
-Fvector CCameraLook2::m_cam_offset_l;
-bool CCameraLook2::m_use_inertion;
-Fvector m_cam_offset_curr = {0.f, 0.f, 0.f};
-
-void CCameraLook2::OnActivate( CCameraBase* old_cam )
+// CAM_2
+void CCameraLook2::OnActivate(CCameraBase* old_cam)
 {
 	CCameraLook::OnActivate( old_cam );
 	vPosition.set(old_cam->vPosition);
@@ -208,34 +212,16 @@ void CCameraLook2::UpdateDistance(Fvector& pivot, Fvector& correction)
 	}
 }
 
-#include "Actor.h"
-#include "Inventory.h"
-#include "Weapon.h"
-void CCameraLook2::Update(Fvector& point, Fvector& noise_dangle)
+void CCameraLook2::Update(Fvector& point, Fvector& noise_dangle, bool force_update_pos)
 {
-	Fmatrix mR, R;
-	Fmatrix rX, rY, rZ;
-	rX.rotateX(noise_dangle.x);
-	rY.rotateY(-noise_dangle.y);
-	rZ.rotateZ(noise_dangle.z);
-	R.mul_43(rY, rX);
-	R.mulB_43(rZ);
+	CCameraBase::Update(point, noise_dangle, false);
 
-	mR.identity();
-	Fquaternion Q;
-	Q.rotationYawPitchRoll(roll, yaw, pitch);
-	mR.rotation(Q);
-	mR.transpose();
-	mR.mulB_43(R);
-
-	vDirection.set					(mR.k);
-	vNormal.set						(mR.j);
-
-	CActor* pActor = smart_cast<CActor*>(parent);
-	if (pActor)
+	if (CActor* pActor = parent != nullptr ? parent->cast_actor() : nullptr)
 	{
-		CWeapon* pWeap = smart_cast<CWeapon*>(pActor->inventory().ActiveItem());
-		if(pWeap && pWeap->render_item_ui_query())
+		PIItem active_item = pActor->inventory().ActiveItem();
+		CWeapon* pWeap = active_item != nullptr ? active_item->cast_weapon() : nullptr;
+
+		if(pWeap != nullptr && pWeap->render_item_ui_query())
 		{
 			static Fvector cam_spr_vel = zero_vel;
 			vPosition.spring_inertion(point, cam_spr_vel, Device.fTimeDelta, 200.f, 20.f);
@@ -265,7 +251,7 @@ void CCameraLook2::Update(Fvector& point, Fvector& noise_dangle)
 	}
 }
 
-void CCameraLook2::Load(LPCSTR section)
+void CCameraLook2::Load(const char* section)
 {
 	CCameraLook::Load		(section);
 
@@ -282,7 +268,7 @@ void CCameraLook2::Load(LPCSTR section)
 	prev_d = 0.0f;
 }
 
-void CCameraFixedLook::Load	(LPCSTR section)
+void CCameraFixedLook::Load(const char* section)
 {
 	CCameraLook::Load(section);
 	style = csFixed;
@@ -310,23 +296,14 @@ void CCameraFixedLook::Move	(int cmd, float val, float factor)
 {
 }
 
-void CCameraFixedLook::Update(Fvector& point, Fvector& noise_dangle)
+void CCameraFixedLook::Update(Fvector& point, Fvector& noise_dangle, bool force_update_pos)
 {
-	Fquaternion	new_dir;
-	new_dir.slerp		(m_current_dir, m_final_dir, Device.fTimeDelta);	//1 sec
-	m_current_dir.set	(new_dir);
-	
-	Fmatrix	rm;
-	rm.rotation			(m_current_dir);
-	vPosition.set		(point);
-	vDirection.set		(rm.k);
-	vNormal.set			(rm.j);
-
-	UpdateDistance		(point);
+	CCameraLook::Update(point, noise_dangle, force_update_pos);
+	UpdateDistance(point);
 }
 
 void CCameraFixedLook::Set(float Y, float P, float R)
- {
+{
 	inherited::Set(Y, P, R);
 	Fmatrix	rm;
 	rm.setXYZ			(-P, -Y, -R);	

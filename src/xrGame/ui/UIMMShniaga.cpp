@@ -13,6 +13,7 @@
 #include "../saved_game_wrapper.h"
 #include "MainMenu.h"
 #include "../gamespy/GameSpy_Full.h"
+#include "../../xrUI/UIHelper.h"
 
 extern string_path g_last_saved_game;
 
@@ -24,6 +25,8 @@ CUIMMShniaga::CUIMMShniaga()
 	m_shniaga		= new CUIStatic();	AttachChild(m_shniaga);
 	m_magnifier		= new CUIStatic();	m_shniaga->AttachChild(m_magnifier);	m_magnifier->SetPPMode();
 	m_mag_pos		= 0;
+	m_anims[0]		= nullptr;
+	m_anims[1]		= nullptr;
 
 	m_selected		= nullptr;
 
@@ -36,6 +39,9 @@ CUIMMShniaga::CUIMMShniaga()
 
 	m_selected_btn	= -1;
 	m_page			= epi_none;
+
+	ActionRepeaters()->Register(this, kUI_UP);
+	ActionRepeaters()->Register(this, kUI_DOWN);
 }
 
 CUIMMShniaga::~CUIMMShniaga()
@@ -47,9 +53,11 @@ CUIMMShniaga::~CUIMMShniaga()
 
 	delete_data(m_buttons);
 	delete_data(m_buttons_new);
+
+	ActionRepeaters()->UnregisterOwner(this);
 }
 
-void CUIMMShniaga::InitShniaga(CUIXml& xml_doc, LPCSTR path)
+void CUIMMShniaga::InitShniaga(CUIXml& xml_doc, const char* path)
 {
 	string256 _path;
 
@@ -59,12 +67,30 @@ void CUIMMShniaga::InitShniaga(CUIXml& xml_doc, LPCSTR path)
 	m_mag_pos				= m_magnifier->GetWndPos().x;
 	xr_strconcat(_path,path,":shniaga");
 	CUIXmlInit::InitStatic(xml_doc, _path,0,m_shniaga);
+
+	xr_strconcat(_path, path, ":shniaga:left_anim");
+	if (xml_doc.NavigateToNode(_path))
+		m_anims[0] = UIHelper::CreateStatic(xml_doc, _path, m_shniaga);
+	xr_strconcat(_path, path, ":shniaga:right_anim");
+	if (xml_doc.NavigateToNode(_path))
+		m_anims[1] = UIHelper::CreateStatic(xml_doc, _path, m_shniaga);
+
+	xr_strconcat(_path, path, ":shniaga:left_grating");
+	if (xml_doc.NavigateToNode(_path))
+		m_gratings[0] = UIHelper::CreateStatic(xml_doc, _path, m_shniaga);
+	xr_strconcat(_path, path, ":shniaga:right_grating");
+	if (xml_doc.NavigateToNode(_path))
+		m_gratings[1] = UIHelper::CreateStatic(xml_doc, _path, m_shniaga);
+
 	xr_strconcat(_path,path,":buttons_region");
 	CUIXmlInit::InitScrollView(xml_doc, _path,0,m_view);
+
 	xr_strconcat(_path,path,":shniaga:magnifire:y_offset");
 	m_offset = xml_doc.ReadFlt(_path,0,0);
+
+	int def_speed = EngineExternal().ShadowOfChernobylMode() ? 1000 : 300;
 	xr_strconcat(_path, path, ":shniaga:speed");
-	m_run_speed = xml_doc.ReadInt(_path, 0, 300);
+	m_run_speed = xml_doc.ReadInt(_path, 0, def_speed);
 
 	if (!g_pGameLevel || !g_pGameLevel->bReady) 
 	{
@@ -97,35 +123,31 @@ void CUIMMShniaga::OnDeviceReset()
 {
 }
 
-void CUIMMShniaga::CreateList(xr_vector<CUITextWnd*>& lst, CUIXml& xml_doc, LPCSTR path, bool required)
+void CUIMMShniaga::CreateList(xr_vector<CUIStatic*>& lst, CUIXml& xml_doc, const char* path)
 {
 	CGameFont* pF;
 	u32	color;
-	float button_height				= xml_doc.ReadAttribFlt("button", 0, "h");
-	R_ASSERT						(button_height);
+	float button_height_legacy = xml_doc.ReadAttribFlt(path, 0, "btn_height", 30.f);
+	float button_height				= xml_doc.ReadAttribFlt("button", 0, "h", button_height_legacy);
 
 	CUIXmlInit::InitFont			(xml_doc, path, 0, color, pF);
-	if (!pF)
-	{
-		R_ASSERT(!required);
-		return;
-	}
+	R_ASSERT						(pF);
 
 	int nodes_num					= xml_doc.GetNodesNum(path, 0, "btn");
 
 	XML_NODE* tab_node				= xml_doc.NavigateToNode(path,0);
 	xml_doc.SetLocalRoot			(tab_node);
 
-	CUITextWnd* st;
+	CUIStatic* st;
 
 	for (int i = 0; i < nodes_num; ++i)
 	{		
-		st							= new CUITextWnd();
+		st							= new CUIStatic();
 		st->SetWndPos				(Fvector2().set(0,0));
 		st->SetWndSize				(Fvector2().set(m_view->GetDesiredChildWidth(), button_height));
-		st->SetFont					(pF);
 		st->SetTextComplexMode		(false);
 		st->SetTextST				(xml_doc.ReadAttrib	("btn", i, "caption"));
+		st->SetFont					(pF);
 
 //		float font_height			= st->GetFont()->GetHeight();
 //		UI().ClientToScreenScaledHeight(font_height);
@@ -144,10 +166,10 @@ void CUIMMShniaga::CreateList(xr_vector<CUITextWnd*>& lst, CUIXml& xml_doc, LPCS
 
 }
 
-void CUIMMShniaga::SetPage		(enum_page_id page_id, LPCSTR xml_file, LPCSTR xml_path)
+void CUIMMShniaga::SetPage		(enum_page_id page_id, const char* xml_file, const char* xml_path)
 {
 	VERIFY(m_page != page_id);
-	xr_vector<CUITextWnd*>*		lst = nullptr;
+	xr_vector<CUIStatic*>*		lst = nullptr;
 	switch (page_id)
 	{
 	case epi_main:
@@ -276,8 +298,16 @@ void CUIMMShniaga::Update()
 {
 	if (m_start_time > Device.dwTimeContinual - m_run_time)
 	{
-
 		Fvector2 pos = m_shniaga->GetWndPos();
+		if (m_anims[0])
+		{
+			float l = 2 * PI * m_anims[0]->GetHeight() / 2;
+			int n = iFloor(pos.y / l);
+			float a = 2 * PI * (pos.y - l * n) / l;
+			m_anims[0]->SetHeading(-a);
+			m_anims[1]->SetHeading(a);
+		}
+
 		pos.y = this->pos(m_origin, m_destination, Device.dwTimeContinual - m_start_time);
 		m_shniaga->SetWndPos(pos);		
 	}else
@@ -346,6 +376,58 @@ bool CUIMMShniaga::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 	return CUIWindow::OnKeyboardAction(dik, keyboard_action);
 }
 
+bool CUIMMShniaga::OnGamepadKeyAction(int id, EUIMessages gamepad_action)
+{
+	if (WINDOW_KEY_PRESSED == gamepad_action)
+	{
+		switch (get_binded_action(id, agUIGeneral))
+		{
+			case kUI_UP:
+				if (!any_binded_key_for_action_pressed_c(kUI_DOWN) && m_selected_btn > 0)
+					SelectBtn(m_selected_btn - 1);
+				ActionRepeaters()->SetActionStarted(this, kUI_UP);
+				return true;
+			case kUI_DOWN:
+				if (!any_binded_key_for_action_pressed_c(kUI_UP) && m_selected_btn < BtnCount() - 1)
+					SelectBtn(m_selected_btn + 1);
+				ActionRepeaters()->SetActionStarted(this, kUI_DOWN);
+				return true;
+			case kUI_ACCEPT:
+				ActionRepeaters()->ResetAll();
+				OnBtnClick();
+				return true;
+			case kUI_BACK:
+				ActionRepeaters()->ResetAll();
+				if (m_page != epi_main)
+					ShowMain();
+				return true;
+		}
+	}
+
+
+	return CUIWindow::OnGamepadKeyAction(id, gamepad_action);
+}
+
+bool CUIMMShniaga::OnGamepadKeyHold(int id)
+{
+	switch (get_binded_action(id, agUIGeneral))
+	{
+		case kUI_UP:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_UP) && !any_binded_key_for_action_pressed_c(kUI_DOWN) && m_selected_btn > 0)
+				SelectBtn(m_selected_btn - 1);
+			return true;
+		}
+		case kUI_DOWN:
+		{
+			if (ActionRepeaters()->CanRepeatActionNow(this, kUI_DOWN) && !any_binded_key_for_action_pressed_c(kUI_UP) && m_selected_btn < BtnCount() - 1)
+				SelectBtn(m_selected_btn + 1);
+			return true;
+		}
+	}
+	return false;
+}
+
 int CUIMMShniaga::BtnCount()
 {
 	R_ASSERT(-1);
@@ -393,6 +475,7 @@ void CUIMMShniaga::script_register(lua_State* L)
 		.def("SetVisibleMagnifier",			&CUIMMShniaga::SetVisibleMagnifier)
 		.def("SetPage",						&CUIMMShniaga::SetPage)
 		.def("ShowPage",					&CUIMMShniaga::ShowPage)
+		.def("GetPage",						&CUIMMShniaga::GetPage)
 	];
 }
 
@@ -426,15 +509,15 @@ void CUIMMShniaga::ProcessEvent(EVENT ev)
 					m_run_time = 100;
 
                 // reset flags
-				m_flags.set(fl_SoundFinalized,	FALSE);
-				m_flags.set(fl_MovingStoped,	FALSE);
+				m_flags.set(fl_SoundFinalized,	false);
+				m_flags.set(fl_MovingStoped,	false);
 			}	break;
 		case E_Finalize:
 			if (!m_flags.test(fl_SoundFinalized))
 			{
 				m_sound->whell_Click();
 				
-				m_flags.set(fl_SoundFinalized, TRUE);
+				m_flags.set(fl_SoundFinalized, true);
 			}	break;
 		case E_Stop:		
 			if (!m_flags.test(fl_MovingStoped))
@@ -446,7 +529,7 @@ void CUIMMShniaga::ProcessEvent(EVENT ev)
 				pos.y = m_destination;
 				m_shniaga->SetWndPos(pos);		
 
-                m_flags.set(fl_MovingStoped, TRUE);
+                m_flags.set(fl_MovingStoped, true);
 			}	break;
 		case E_Update:		m_sound->music_Update();
 			break;

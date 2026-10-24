@@ -7,7 +7,7 @@
 
 #include "stdafx.h"
 #include "UIHint.h"
-
+#include "../../xrEngine/xr_input.h"
 #include "UIStatic.h"
 #include "UIFrameWindow.h"
 #include "UIXmlInit.h"
@@ -20,7 +20,7 @@ UIHint::UIHint()
 	m_rect.set( 0.0f, 0.0f, UI_BASE_WIDTH, UI_BASE_HEIGHT );
 }
 
-void UIHint::init_from_xml( CUIXml& xml, LPCSTR path )
+void UIHint::init_from_xml( CUIXml& xml, const char* path )
 {
 	CUIXmlInit::InitWindow		( xml, path, 0, this);
 
@@ -29,14 +29,14 @@ void UIHint::init_from_xml( CUIXml& xml, LPCSTR path )
 	xml.SetLocalRoot			( new_root );
 
 	m_background = UIHelper::CreateFrameWindow	( xml, "background", this );
-	m_text       = UIHelper::CreateTextWnd		( xml, "text", this );
+	m_text       = UIHelper::CreateStatic		( xml, "text", this );
 	m_border     = xml.ReadAttribFlt			( "background", 0, "border", 0.0f );
 
 	xml.SetLocalRoot( stored_root );
 	m_visible = false;
 }
 
-void UIHint::set_text( LPCSTR text )
+void UIHint::set_text( const char* text )
 {
 	if ( !text || !xr_strlen(text) )
 	{
@@ -55,7 +55,7 @@ void UIHint::set_text( LPCSTR text )
 	SetWndSize					(m_background->GetWndSize());
 }
 
-LPCSTR UIHint::get_text() const
+const char* UIHint::get_text() const
 {
 	return m_text->GetText();
 }
@@ -139,8 +139,9 @@ void UIHintWindow::Update()
 		switch (Var.VarType)
 		{
 			case ExpressionVarVariadic::EVariadicType::eFloat:	NewText = xr_string::ToString(Var.Flt); break;
-			case ExpressionVarVariadic::EVariadicType::eStr:	NewText = Var.Str.c_str(); break;
+			case ExpressionVarVariadic::EVariadicType::eStr:	NewText = Var.Str.c_str() ? Var.Str.c_str() : ""; break;
 			case ExpressionVarVariadic::EVariadicType::eInt:	NewText = xr_string::ToString(Var.Int); break;
+		case ExpressionVarVariadic::EVariadicType::eUint:	NewText = xr_string::ToString(Var.UInt); break;
 			case ExpressionVarVariadic::EVariadicType::eBool:	NewText = Var.Boolean ? "true" : "false"; break;
 		}
 		m_hint_text = NewText.data();

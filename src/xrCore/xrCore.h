@@ -14,8 +14,16 @@
 
 #define _inline			inline
 #define __inline		inline
-#define ICF				__forceinline			// !!! this should be used only in critical places found by PROFILER
-#define ICN		    	__declspec (noinline)
+
+#ifdef IXR_WINDOWS
+    #define ICF __forceinline
+#elif defined(IXR_LINUX)
+    #define ICF __attribute__((always_inline)) inline
+#else
+    #define ICF inline
+#endif
+
+#define ICN __declspec (noinline)
 
 #ifndef DEBUG
 	#pragma inline_depth	( 254 )
@@ -61,6 +69,7 @@
 #pragma warning (disable:4702)
 #include <typeinfo>
 #include <algorithm>
+#include <ranges>
 #include <limits>
 #include <regex>
 #include <vector>
@@ -90,7 +99,7 @@
 
 #include "clsid.h"
 #include "xrSyncronize.h"
-#include "RingBuffer.h"
+#include "Containers/RingBuffer.h"
 #include "memory/xrMemory.h"
 
 #include "_stl_extensions.h"
@@ -98,24 +107,23 @@
 #include "_thread_types.h"
 #include "shared_string.h"
 #include "xrstring.h"
-#include "FixedVector.h"
+#include "Containers/FixedVector.h"
 #include "xr_resource.h"
-#include "rt_compressor.h"
+#include "compression/rtc/rt_compressor.h"
 #include "xr_shared.h"
 #include "string_concatenations.h"
 #include "xr_path.h"
 #include "stack_string.h"
-#include "Combinable.h"
-
+#include <magic_enum/magic_enum.hpp>
 // stl ext
 struct XRCORE_API xr_rtoken
 {
     shared_str	name;
     int	   	id;
-           	xr_rtoken	(LPCSTR _nm, int _id){name=_nm;id=_id;}
+           	xr_rtoken	(const char* _nm, int _id){name=_nm;id=_id;}
 public:
-    void	rename		(LPCSTR _nm)		{name=_nm;}
-    bool	equal		(LPCSTR _nm)		{return (0==xr_strcmp(*name,_nm));}
+    void	rename		(const char* _nm)		{name=_nm;}
+    bool	equal		(const char* _nm)		{return (0==xr_strcmp(*name,_nm));}
 };
 
 #pragma pack (push,1)
@@ -136,7 +144,7 @@ struct XRCORE_API xr_shortcut
         };
         u16		hotkey;
     };
-                xr_shortcut		(u8 k, BOOL a, BOOL c, BOOL s):key(k){ext.assign(u8((a?flAlt:0)|(c?flCtrl:0)|(s?flShift:0)));}
+                xr_shortcut		(u8 k, bool a, bool c, bool s):key(k){ext.assign(u8((a?flAlt:0)|(c?flCtrl:0)|(s?flShift:0)));}
                 xr_shortcut		(){ext.zero();key=0;}
     bool		similar			(const xr_shortcut& v)const{return ext.equal(v.ext)&&(key==v.key);}
 };
@@ -199,7 +207,7 @@ public:
     Flags64     ParamsData;
 
 public:
-	void _initialize	(LPCSTR ApplicationName, xrLogger::LogCallback cb=0, BOOL init_fs=TRUE, LPCSTR fs_fname=0);
+	void _initialize	(const char* ApplicationName, xrLogger::LogCallback cb=nullptr, bool init_fs=true, const char* fs_fname=nullptr);
 	void _destroy	    ();
 };
 
@@ -217,4 +225,21 @@ namespace Platform
     XRCORE_API xr_string ANSI_TO_UTF8(const xr_string& ansi);
 }
 
+#define ENUM_CLASS_FLAGS(Enum) \
+	inline           Enum& operator|=(Enum& Lhs, Enum Rhs) { return Lhs = (Enum)((__underlying_type(Enum))Lhs | (__underlying_type(Enum))Rhs); } \
+	inline           Enum& operator&=(Enum& Lhs, Enum Rhs) { return Lhs = (Enum)((__underlying_type(Enum))Lhs & (__underlying_type(Enum))Rhs); } \
+	inline           Enum& operator^=(Enum& Lhs, Enum Rhs) { return Lhs = (Enum)((__underlying_type(Enum))Lhs ^ (__underlying_type(Enum))Rhs); } \
+	inline constexpr Enum  operator| (Enum  Lhs, Enum Rhs) { return (Enum)((__underlying_type(Enum))Lhs | (__underlying_type(Enum))Rhs); } \
+	inline constexpr Enum  operator& (Enum  Lhs, Enum Rhs) { return (Enum)((__underlying_type(Enum))Lhs & (__underlying_type(Enum))Rhs); } \
+	inline constexpr Enum  operator^ (Enum  Lhs, Enum Rhs) { return (Enum)((__underlying_type(Enum))Lhs ^ (__underlying_type(Enum))Rhs); } \
+	inline constexpr bool  operator! (Enum  E)             { return !(__underlying_type(Enum))E; } \
+	inline constexpr Enum  operator~ (Enum  E)             { return (Enum)~(__underlying_type(Enum))E; }
+
 extern XRCORE_API xrCore Core;
+extern XRCORE_API bool ignore_error_window;
+#ifdef IXR_WINDOWS
+ICF void* aligned_alloc(size_t Aligned, size_t Sizeof)
+{
+    return _aligned_malloc(Sizeof, Aligned);
+}
+#endif

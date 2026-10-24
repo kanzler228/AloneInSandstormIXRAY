@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_monster_squad.h"
 #include "../../Entity.h"
 #include "../../entity_alive.h"
@@ -12,9 +12,7 @@ CMonsterSquad::CMonsterSquad() : leader(0), m_home_danger_end_tick(0), m_home_da
 	m_locked_corpses.reserve(10);
 }
 
-CMonsterSquad::~CMonsterSquad() 
-{
-}
+CMonsterSquad::~CMonsterSquad() = default;
 
 void CMonsterSquad::RegisterMember(CEntity *pE)
 {
@@ -98,7 +96,7 @@ void CMonsterSquad::InformSquadAboutEnemy(CEntityAlive const * const enemy)
 								it	!=	m_goals.end();
 							  ++it )
 	{
-		CBaseMonster* monster	=	smart_cast<CBaseMonster*>(it->first);
+		CBaseMonster* monster	= it->first != nullptr ? it->first->cast_base_monster() : nullptr;
 
 		if ( monster )
 		{

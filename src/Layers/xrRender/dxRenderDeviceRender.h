@@ -11,29 +11,31 @@
 
 class CResourceManager;
 
-class dxRenderDeviceRender : public IRenderDeviceRender
+class dxRenderDeviceRender :
+	public IRenderDeviceRender
 {
 public:
 	static dxRenderDeviceRender& Instance() {  return *((dxRenderDeviceRender*)(&*Device.m_pRender));}
 
 	dxRenderDeviceRender();
 
+	void GetRenderScale(float& RenderScale) override;
 	void Copy(IRenderDeviceRender &_in) override;
 	void setGamma(float fGamma) override;
 	void setBrightness(float fGamma) override;
 	void setContrast(float fGamma) override;
 	void updateGamma() override;
-	void OnDeviceDestroy( BOOL bKeepTextures) override;
+	void OnDeviceDestroy( bool bKeepTextures) override;
 	void ValidateHW() override;
 	void DestroyHW() override;
-	void Reset(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, float &fWidth_2, float &fHeight_2) override;
+	void Reset(SDL_Window* window, u32 &dwWidth, u32 &dwHeight) override;
 	void SetupStates() override;
-	void OnDeviceCreate(LPCSTR shName) override;
-	void Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, float &fWidth_2, float &fHeight_2, bool) override;
-	void SetupGPU( BOOL bForceGPU_SW, BOOL bForceGPU_NonPure, BOOL bForceGPU_REF) override;
+	void OnDeviceCreate(const char* shName) override;
+	void Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, bool) override;
+	void SetupGPU( bool bForceGPU_SW, bool bForceGPU_NonPure, bool bForceGPU_REF) override;
 	void overdrawBegin() override;
 	void overdrawEnd() override;
-	void DeferredLoad(BOOL E) override;
+	void DeferredLoad(bool E) override;
 	void ResourcesDeferredUpload() override;
 	void ResourcesDeferredUnload() override;
 	void ResourcesGetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps) override;
@@ -42,8 +44,9 @@ public:
 	void ResourcesDumpMemoryUsage() override;
 	bool HWSupportsShaderYUV2RGB() override;
 	DeviceState GetDeviceState() override;
-	BOOL GetForceGPU_REF() override;
+	bool GetForceGPU_REF() override;
 	u32 GetCacheStatPolys() override;
+	void GetCacheStats(u32& calls, u32& verts, u32& polys, u32& static_dips) override;
 	void Begin() override;
 	void Clear() override;
 	void End() override;
@@ -53,10 +56,18 @@ public:
 	virtual void SetCacheXformOld(Fmatrix &mView, Fmatrix &mProject);
 	void OnAssetsChanged() override;
 
+	void PostCreate() override;
+
+	const FactoryPtr<IUIShader>& GetSVGShader(const std::string_view& subpath, float width, float height, SVGTintRGBA tint) override;
+	const FactoryPtr<IUIShader>& GetSVGShader(const char* pSubpath, float width, float height, SVGTintRGBA tint) override;
+	const FactoryPtr<IUIShader>& GetSVGDefaultShader() override;
+
+	Frect GetSVGUV(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint) override;
+
 public:
 	CResourceManager*	Resources;
 	ref_shader			m_WireShader;
 	ref_shader			m_SelectionShader;
-
+	FactoryPtr<IUIShader> m_empty_default_shader;
 	CGammaControl		m_Gamma;
 };

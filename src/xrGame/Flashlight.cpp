@@ -4,17 +4,21 @@
 #include "player_hud.h"
 #include "Level.h"
 #include "Actor.h"
+#include "ElectronicsProblemsManager.h"
 
 CFlashlight::~CFlashlight()
 {
 	m_bFlashlightStatus = false;
 }
 
-void CFlashlight::Load(LPCSTR section)
+void CFlashlight::Load(const char* section)
 {
 	inherited::Load(section);
 
-	m_HudLight.SetInstalled(true);
+	if (THudLightTorch* LightTorch = GetOrCreateComponent<THudLightTorch>())
+	{
+		LightTorch->NewTorchlight(section);
+	}
 
 	m_fElectronicProblems.x = READ_IF_EXISTS(pSettings, r_float, section, "electronic_problems_level", 0.0f);
 	m_fElectronicProblems.y = READ_IF_EXISTS(pSettings, r_float, section, "electronic_problems_freq", 0.5f);
@@ -26,7 +30,9 @@ void CFlashlight::UpdateCL()
 {
 	inherited::UpdateCL();
 
-	if (!m_HudLight.GetTorchInstalled())
+	THudLightTorch* LightTorch = GetComponent<THudLightTorch>();
+
+	if (LightTorch == nullptr)
 	{
 		return;
 	}
@@ -41,7 +47,7 @@ void CFlashlight::UpdateCL()
 		float level_electronic_problems = 0.0f;
 		if (pActor != nullptr)
 		{
-			level_electronic_problems = pActor->CurrentElectronicsProblemsCnt();
+			level_electronic_problems = Level().GetElectronicsProblemsManager()->CurrentElectronicsProblemsCnt();
 		}
 
 		if (m_fElectronicProblems.x > 0.0f && level_electronic_problems > 0.0f)
@@ -57,18 +63,18 @@ void CFlashlight::UpdateCL()
 		}
 	}
 
-	m_HudLight.SwitchTorchlight(status);
+	LightTorch->SwitchTorchlight(status);
 
 	if (attachable_hud_item* item = HudItemData())
 	{
-		for (const shared_str& bone : m_HudLight.ConeBones)
+		for (const shared_str& bone : LightTorch->ConeBones)
 		{
-			item->set_bone_visible(bone, m_HudLight.GetTorchActive(), TRUE);
+			item->set_bone_visible(bone, LightTorch->GetTorchActive(), true);
 		}
 	}
 }
 
-void CFlashlight::OnMotionMark(u32 state, const motion_marks& mark)
+void CFlashlight::OnMotionMark(u8 state, const motion_marks& mark)
 {
 	inherited::OnMotionMark(state, mark);
 
@@ -83,8 +89,16 @@ void CFlashlight::OnH_B_Independent(bool just_before_destroy)
 	inherited::OnH_B_Independent(just_before_destroy);
 
 	m_bFlashlightStatus = false;
-	m_HudLight.SwitchTorchlight(false);
-	m_HudLight.UpdateTorchFromObject(this);
+
+	THudLightTorch* LightTorch = GetComponent<THudLightTorch>();
+
+	if (LightTorch == nullptr)
+	{
+		return;
+	}
+
+	LightTorch->SwitchTorchlight(false);
+	LightTorch->UpdateTorchFromObject(this);
 }
 
 void CFlashlight::OnHiddenItem()
@@ -92,8 +106,16 @@ void CFlashlight::OnHiddenItem()
 	inherited::OnHiddenItem();
 
 	m_bFlashlightStatus = false;
-	m_HudLight.SwitchTorchlight(false);
-	m_HudLight.UpdateTorchFromObject(this);
+
+	THudLightTorch* LightTorch = GetComponent<THudLightTorch>();
+
+	if (LightTorch == nullptr)
+	{
+		return;
+	}
+
+	LightTorch->SwitchTorchlight(false);
+	LightTorch->UpdateTorchFromObject(this);
 }
 
 void CFlashlight::OnMoveToRuck(const SInvItemPlace& prev)
@@ -101,6 +123,14 @@ void CFlashlight::OnMoveToRuck(const SInvItemPlace& prev)
 	inherited::OnMoveToRuck(prev);
 
 	m_bFlashlightStatus = false;
-	m_HudLight.SwitchTorchlight(false);
-	m_HudLight.UpdateTorchFromObject(this);
+
+	THudLightTorch* LightTorch = GetComponent<THudLightTorch>();
+
+	if (LightTorch == nullptr)
+	{
+		return;
+	}
+
+	LightTorch->SwitchTorchlight(false);
+	LightTorch->UpdateTorchFromObject(this);
 }

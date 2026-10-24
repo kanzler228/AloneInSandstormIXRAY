@@ -19,9 +19,10 @@ This page serves as an overview of new UI features. Each page below is provided 
 7. [Radial progress shapes](radial-progress-shape.md)
 8. [SVG on HUD](svg-icons.md)
 9. [Weight progress bar](weight-progress-bar.md)
+10. [Sleep dialog](sleep-dialog.md)
 
 ## Quick toggles
 
-1. `UseCompassBar` in `configs/engine_external.ltx` switches between minimap and horizontal compass.
+1. `UseCompassBar` in `configs/engine_external.ltx` (**deprecated** boot hint). Prefer `SetNavigationMode` via Lua or IXR Options. Details: [compass / minimap / motion icon](hud-compass-minimap-motion-icon.md).
 2. `hud_minimap` toggles the map or compass block.
 3. `hud_hide_quick_slots` toggles auto-hide for the quick slots panel.

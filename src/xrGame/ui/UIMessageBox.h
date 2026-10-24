@@ -6,7 +6,7 @@
 class CUI3tButton;
 class CUIEditBox;
 
-class CUIMessageBox: public CUIStatic
+class CUIMessageBox final : public CUIStatic
 {
 private:
 	typedef CUIStatic inherited;
@@ -28,24 +28,25 @@ public:
 		MESSAGEBOX_YES_NO_COPY
 	} E_MESSAGEBOX_STYLE;
 
-	virtual void InitMessageBox		(LPCSTR xml_template);
+	virtual void InitMessageBox		(const char* xml_template);
 			void Clear				();
-	virtual void SetText			(LPCSTR str);
-	virtual LPCSTR GetText			();
-	LPCSTR		 GetHost			();
-	LPCSTR		 GetPassword		();
-	LPCSTR		 GetUserPassword	();
+	virtual void SetText			(const char* str);
+	virtual const char* GetText			();
+	const char*		 GetHost			();
+	const char*		 GetPassword		();
+	const char*		 GetUserPassword	();
 	void		 SetUserPasswordMode(bool);
 	void		 SetPasswordMode	(bool);
 	E_MESSAGEBOX_STYLE GetBoxStyle	()			{return m_eMessageBoxStyle;};
 
-	void		 SetTextEditURL		(LPCSTR text);
-	LPCSTR		 GetTextEditURL		();
+	void		 SetTextEditURL		(const char* text);
+	const char*		 GetTextEditURL		();
 
 	virtual bool OnMouseAction			(float x, float y, EUIMessages mouse_action);
 	virtual void SendMessage		(CUIWindow *pWnd, s16 msg, void *pData);
 
 	void		OnYesOk				();
+	void		OnNo				();
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 	virtual CUIStatic* ui_cast_static() { return this; }
@@ -58,10 +59,10 @@ protected:
 	CUI3tButton* m_UIButtonCopy;
 
 	CUIStatic*	m_UIStaticPicture;
-	CUITextWnd*	m_UIStaticText;
-	CUITextWnd*	m_UIStaticHost;
-	CUITextWnd*	m_UIStaticPass;
-	CUITextWnd*	m_UIStaticUserPass;
+	CUIStatic*	m_UIStaticText;
+	CUIStatic*	m_UIStaticHost;
+	CUIStatic*	m_UIStaticPass;
+	CUIStatic*	m_UIStaticUserPass;
 	CUIEditBox* m_UIEditHost;
 	CUIEditBox* m_UIEditPass;
 	CUIEditBox* m_UIEditUserPass;

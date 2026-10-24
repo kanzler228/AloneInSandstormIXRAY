@@ -10,6 +10,7 @@
 #include "shared_data.h"
 
 #include "../../xrUI/Widgets/UIStatic.h"
+#include "../../xrUI/Widgets/UI3dStatic.h"
 
 //////////////////////////////////////////////////////////////////////////
 // SInfoPortionData: данные для InfoProtion
@@ -20,7 +21,8 @@ struct SArticleData : CSharedResource
 	shared_str group;
 	
 	//картинка
-	CUIStatic image;
+	CUI3dStatic model;
+	CUIStatic	image;
 
 	//текст статьи
 	xr_string	text;
@@ -51,7 +53,7 @@ public:
 
 protected:
 	shared_str			m_ArticleId;
-	virtual	void		load_shared					(LPCSTR);
+	virtual	void		load_shared					(const char*);
 	static  void		InitXmlIdToIndex			();
 public:
 	const shared_str	Id							()						{return m_ArticleId;}

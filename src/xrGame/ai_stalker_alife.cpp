@@ -23,6 +23,8 @@
 #include "ef_pattern.h"
 #include "trade_parameters.h"
 #include "clsid_game.h"
+#include "Actor.h"
+#include "Actor.h"
 
 extern u32 get_rank(const shared_str& section);
 
@@ -509,7 +511,7 @@ void CAI_Stalker::update_conflicted(CInventoryItem* item, const CWeapon* new_wea
 	}
 
 	remove_personal_only_ammo(item);
-	item->SetDropManual(TRUE);
+	item->SetDropManual(true);
 }
 
 void CAI_Stalker::on_after_take(const CGameObject* object)

@@ -2,7 +2,7 @@
 
 #include "xrMessages.h"
 
-extern BOOL		g_bCheckTime;
+extern bool		g_bCheckTime;
 extern int		g_dwEventDelay;
 
 class	NET_Event
@@ -104,22 +104,22 @@ public:
 		//-------------------------------------------
 		//*/
 	}
-	IC BOOL				available	(u32 T)
+	IC bool				available	(u32 T)
 	{
-//		if (queue.empty()/* || (T<queue.begin()->timestamp)*/)	return FALSE;
-//		else												return TRUE;
-		if (queue.empty()) return FALSE;
+//		if (queue.empty()/* || (T<queue.begin()->timestamp)*/)	return false;
+//		else												return true;
+		if (queue.empty()) return false;
 		/**
 		else 
 		{
-			if (!g_bCheckTime) return TRUE;
+			if (!g_bCheckTime) return true;
 #ifdef _DEBUG
-			if (T<queue.begin()->timestamp) return FALSE;
+			if (T<queue.begin()->timestamp) return false;
 #endif
-			return TRUE;
+			return true;
 		}
 		/**/
-		return			TRUE;
+		return			true;
 	}
 	IC void				get			(u16& ID, u16& dest, u16& type, NET_Packet& P)
 	{

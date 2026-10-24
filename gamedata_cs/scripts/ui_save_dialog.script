@@ -3,80 +3,72 @@
 -- Created:     27.9.2004
 -- Author:      Serhiy Vynnychenko (narrator@gsc-game.kiev.ua)
 -- Copyright:   2004 GSC Game World
--- Version:     0.8
+-- Version:     1.0
+-- Modified:    Serhiy Pryshchepa (peacemaker@gsc-game.kiev.ua)
 local saved_game_extension = ui_load_dialog.saved_game_extension
 
-class "save_item" (CUIListItemEx)
+class "save_item" (CUIListBoxItem)
 
-function save_item:__init() super()
---	self:SetWndRect		(Frect():set(0,0,430,22))
-	
-	local ca = 255
-	local cr = 216
-	local cg = 186
-	local cb = 140
-	
-	self.fn					= CUIStatic	()
-	self.fn:SetAutoDelete	(true)
-	self:AttachChild		(self.fn)
---	self.fn:SetWndRect		(Frect():set(0,0,280,22))
-	self.fn:SetFont			(GetFontLetterica18Russian())
-	self.fn:SetTextColor	(ca,cr,cg,cb)
-	self.fn:SetElipsis		(2,2);
-
-	self.fage				= CUIStatic	()
-	self.fage:SetAutoDelete	(true)
-	self:AttachChild		(self.fage)
---	self.fage:SetWndRect	(Frect():set(290,0,250+110,22))
-	self.fage:SetFont		(GetFontLetterica16Russian())
-	self.fage:SetTextColor	(ca,cr,cg,cb)
+function save_item:__init(height, color) super(height, color)
+	self:SetTextColor	(color)
+	self.fn				= self:GetTextItem()
+	self.fn:SetFont		(GetFontLetterica18Russian())
+	self.fn:SetEllipsis	(true)
 end
-
 
 class "save_dialog" (CUIScriptWnd)
 
-function save_dialog:__init() super()		
-	self:InitControls()
-	self:InitCallBacks()
-	self:FillList()
+function save_dialog:__init() super()
+	self:InitControls	()
+	self:InitCallBacks	()
+	self:FillList		()
+
+	action_repeaters():Register(self, key_bindings.kUI_DOWN,0,0)
+	action_repeaters():Register(self, key_bindings.kUI_UP,0,0)
 end
 
 function save_dialog:__finalize()
-
+	action_repeaters():UnregisterOwner(self)
 end
 
 function save_dialog:FillList()
 	self.list_box:RemoveAll()
 	local flist = getFS():file_list_open_ex("$game_saves$",FS.FS_ListFiles,"*"..saved_game_extension)
 	local f_cnt = flist:Size()
-	
+
 	flist:Sort(FS.FS_sort_by_modif_down)
-	
+
+	self:AddItemToList("[" .. game.translate_string("ui_create_new_save") .. "]", "")
+
 	for	it=0, f_cnt-1 	do
-		local file		=	flist:GetAt(it)			
-		local file_name = string.sub(file:NameFull(), 0, (string.len(file:NameFull()) - 4))
+		local file		=	flist:GetAt(it)
+		local file_name = string.sub(file:NameFull(), 0, (string.len(file:NameFull()) - string.len(saved_game_extension)))
 		local date_time = "[" .. file:ModifDigitOnly() .. "]"
-		--menu_item =  .. 
+		--menu_item =  ..
 		self:AddItemToList(file_name, date_time)
+	end
+
+	if self.list_box:GetSize() > 0 then
+		self.list_box:SetSelectedIndex(0)
 	end
 end
 
 function save_dialog:InitControls()
 	self:SetWndRect(Frect():set(0,0,1024,768))
-	
+
 	self.list_file_font = GetFontMedium()
 	self.list_date_font = GetFontMedium()
-	
+
 	local xml = CScriptXmlInit()
 	xml:ParseFile("ui_mm_save_dlg.xml")
-	
+
 	local ctrl
-	
-	xml:InitStatic					("background", self)
+
+	xml:InitWindow					("background", 0, self)
 
 	ctrl							= CUIWindow()
-	xml:InitWindow					("file_item:main",0,ctrl)
-	
+	xml:InitWindow					("file_item:main", 0, ctrl)
+
 	self.file_item_main_sz			= vector2():set(ctrl:GetWidth(),ctrl:GetHeight())
 
 	xml:InitWindow					("file_item:fn",0,ctrl)
@@ -84,35 +76,42 @@ function save_dialog:InitControls()
 
 	xml:InitWindow					("file_item:fd",0,ctrl)
 	self.file_item_fd_sz			= vector2():set(ctrl:GetWidth(),ctrl:GetHeight())
-	
-	
-		
+
+
 	self.form = xml:InitStatic		("form", self)
-	
-	xml:InitStatic					("form:caption", self.form)
-	
-	ctrl = xml:InitEditBox			("form:edit", self.form)
-	self:Register					(ctrl, "edit_filename")
-	
+
+	xml:InitTextWnd					("form:caption", self.form)
+
+	self.editbox					= xml:InitEditBox("form:edit", self.form)
+	self:Register					(self.editbox, "edit_filename")
+	self.editbox:SetText			(self:GetNewSavegameName())
+
 	xml:InitFrame					("form:list_frame", self.form)
 
-	self.list_box = xml:InitList	("form:list", self.form)
+	self.list_box = xml:InitListBox	("form:list", self.form)
 	self.list_box:ShowSelectedItem	(true)
 	self:Register					(self.list_box, "list_window")
-		
-	ctrl = xml:Init3tButton			("form:btn_save", self.form)	
-	self:Register					(ctrl, "button_ok")
 
-	ctrl = xml:Init3tButton			("form:btn_delete",	self.form)	
-	self:Register					(ctrl, "button_del")
-	
-	ctrl = xml:Init3tButton			("form:btn_cancel",	self.form)
-	self:Register					(ctrl, "button_cancel")	
-	
+	self.btn_save 					= xml:Init3tButton("form:btn_save", self.form)
+	self:Register					(self.btn_save, "button_ok")
+
+	self.btn_delete 				= xml:Init3tButton("form:btn_delete",	self.form)
+	self:Register					(self.btn_delete, "button_del")
+
+	self.btn_back 					= xml:Init3tButton("form:btn_cancel",	self.form)
+	self:Register					(self.btn_back, "button_cancel")
+
 	self.message_box				= CUIMessageBoxEx()
 	self:Register					(self.message_box,"message_box")
 
-	self.mbox_mode					= 0	
+	self.mbox_mode					= 0
+	
+	self.item_color			= xml:GetColor("file_item:itm_color", 0)
+
+	if xml:NodeExist("gamepad_legend", 0) then
+		self.gamepad_legend = xml:InitGamepadLegend("gamepad_legend", self)
+		self:Register(self.gamepad_legend, "gamepad_legend")
+	end
 end
 
 function save_dialog:InitCallBacks()
@@ -128,73 +127,75 @@ end
 function save_dialog:OnListItemClicked()
 	if self.list_box:GetSize()==0 then return end
 
-	local edit_box		= self:GetEditBox("edit_filename")
-	local item_id		= self.list_box:GetFocusedItem()
-	local item			= self.list_box:GetItem(item_id)
-	
+	local item			= self.list_box:GetSelectedItem()
+
 	if item==nil then return end
-	
-	local item_text		= item.fn:GetText()
-	edit_box:SetText	(item_text)
+
+	if self.list_box:GetSelectedIndex() == 0 then
+		self.editbox:SetText	(self:GetNewSavegameName())
+	else
+		local item_text			= item.fn:GetText()
+		self.editbox:SetText	(item_text)
+	end
 end
 
 function save_dialog:OnMsgYes()
 	if self.mbox_mode == 1 then
 		self:SaveFile(self.new_save)
-		
-		self:GetHolder():start_stop_menu	(self.owner, true) --new
-		self:GetHolder():start_stop_menu	(self,true)
-		self.owner:Show						(true)
-		
+
+		self.owner:ShowDialog(true)
+		self:HideDialog()
+		self.owner:Show(true)
+
 	elseif self.mbox_mode == 2 then
 		self:delete_selected_file()
-	end	
+	end
 end
 
 function save_dialog:OnButton_del_clicked()
 	if self.list_box:GetSize()==0 then return end
 
-	local index		= self.list_box:GetSelectedItem	()
-	
-	if index == -1 then return end
+	local item	= self.list_box:GetSelectedItem()
+	if item == nil then return end
 
+	if self.list_box:GetSelectedIndex() == 0 then
+		return
+	end
 	self.mbox_mode = 2
-	self.message_box:InitMessageBox("message_box_delete_file_name")		
-	self:GetHolder():start_stop_menu(self.message_box, true)
+	self.message_box:InitMessageBox("message_box_delete_file_name")
+	self.message_box:ShowDialog(true)
 end
 
 function save_dialog:delete_selected_file()
 	if self.list_box:GetSize()==0 then return end
-	local index		= self.list_box:GetSelectedItem	()
-	
+
+	local index = self.list_box:GetSelectedIndex()
+
 	if index == -1 then return end
 
-	local item				= self.list_box:GetItem(index)
-	local filename			= item.fn:GetText()
-	
+	local item		= self.list_box:GetItemByIndex(index)
+	local filename	= item.fn:GetText()
+
 	ui_load_dialog.delete_save_game(filename)
-	
-	self.list_box:RemoveItem(index)
-	self:OnListItemClicked	()
+
+	self.list_box:RemoveItem(item)
+	self:OnListItemClicked()
 end
 
 function save_dialog:OnButton_ok_clicked()
 	-- prepare message box
-	local message_box	= self.message_box
-	local main_frame	= self:GetFrameWindow("main_frame")	
-	
+
 	-- Get file name
-	local edit_box		= self:GetEditBox("edit_filename")
-	self.new_save		= edit_box:GetText()
-	
+	self.new_save		= self.editbox:GetText()
+
 	-- check for empty name
 	if string.len(self.new_save) == 0 then
 		self.mbox_mode = 0
-		self.message_box:InitMessageBox("message_box_empty_file_name")		
-		self:GetHolder():start_stop_menu(self.message_box, true)
+		self.message_box:InitMessageBox("message_box_empty_file_name")
+		self.message_box:ShowDialog(true)
 		return
 	end
-	
+
 	-- check for match name
 	local f = getFS()
 	local flist = f:file_list_open("$game_saves$",FS.FS_ListFiles)
@@ -203,56 +204,83 @@ function save_dialog:OnButton_ok_clicked()
 	if file_struct ~= nil then
 		self.mbox_mode = 1
 		self.message_box:InitMessageBox("message_box_file_already_exist")
-		self:GetHolder():start_stop_menu(self.message_box, true)
-		
-		flist:Free()	
+		self.message_box:ShowDialog(true)
+
+		flist:Free()
 		return
 	end
-	flist:Free()	
+	flist:Free()
 	self:SaveFile(self.new_save)
 
-	self:GetHolder():start_stop_menu	(self.owner, true) --new
-	self:GetHolder():start_stop_menu	(self,true)
-	self.owner:Show						(true)
+	self.owner:ShowDialog(true)
+	self:HideDialog()
+	self.owner:Show(true)
 end
 
 function save_dialog:OnButton_cancel_clicked()
-	self:GetHolder():start_stop_menu	(self.owner, true) --new
-	self:GetHolder():start_stop_menu	(self,true)
-	self.owner:Show						(true)
+	self.owner:ShowDialog(true)
+	self:HideDialog()
+	self.owner:Show(true)
 end
 
 function save_dialog:OnKeyboard(dik, keyboard_action)  --virtual function
 	CUIScriptWnd.OnKeyboard(self,dik,keyboard_action)
 	local bind = dik_to_bind(dik)
-	if bind == key_bindings.kQUIT then
-		self:OnButton_cancel_clicked()
-	else  
-
-	   DIK_RETURN			= 28
-
-		if dik == DIK_RETURN and keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+		if bind == key_bindings.kQUIT then
+			self:OnButton_cancel_clicked()
+		elseif dik == DIK_keys.DIK_DELETE then
+			self:OnButton_del_clicked()
+		elseif dik == DIK_keys.DIK_RETURN then
 			self:OnButton_ok_clicked()
+		elseif dik == DIK_keys.DIK_UP then
+			self.list_box:PrevItem()
+		elseif dik == DIK_keys.DIK_DOWN then
+			self.list_box:NextItem()
 		end
-   end
+	end
 	return true
 end
 
-function save_dialog:AddItemToList(file_name, date_time)	
-	
-	local _itm				= save_item()
+function save_dialog:OnGamepadKey(key, gamepad_action)  --virtual function
+	CUIScriptWnd.OnGamepadKey(self,key,gamepad_action)
+	local bind = dik_to_bind(key)
+	local bindUI = dik_to_bind(key, action_groups.agUIGeneral)
+	if gamepad_action == ui_events.WINDOW_KEY_PRESSED then
+		if bindUI == key_bindings.kUI_ACCEPT then
+			self:OnButton_ok_clicked()		
+		elseif bind == key_bindings.kQUIT or bindUI == key_bindings.kUI_BACK then
+			self:OnButton_cancel_clicked()		
+		elseif bindUI == key_bindings.kUI_ACTION_1 then
+			self:OnButton_del_clicked()		
+		elseif bindUI == key_bindings.kUI_UP then
+			action_repeaters():SetActionStarted(self, key_bindings.kUI_UP)
+			if not any_binded_key_for_action_pressed_c(key_bindings.kUI_DOWN) then
+				self.list_box:PrevItem()
+			end
+		elseif bindUI == key_bindings.kUI_DOWN then
+			action_repeaters():SetActionStarted(self, key_bindings.kUI_DOWN)
+			if not any_binded_key_for_action_pressed_c(key_bindings.kUI_UP) then
+				self.list_box:NextItem()
+			end
+		end
+	end
+	return true
+end
 
-	_itm:SetWndSize			(self.file_item_main_sz)
-	
-	_itm.fn:SetWndPos		(vector2():set(0,0))
-	_itm.fn:SetWndSize		(self.file_item_fn_sz)
+function save_dialog:AddItemToList(file_name, date_time)
+	local _itm			= save_item(self.file_item_main_sz.y, self.item_color)
+	_itm:SetWndSize		(self.file_item_main_sz)
 
-	_itm.fage:SetWndPos		(vector2():set(self.file_item_fn_sz.x+4, 0))
-	_itm.fage:SetWndSize	(self.file_item_fd_sz)
+	_itm.fn:SetWndPos	(vector2():set(0,0))
+	_itm.fn:SetWndSize	(self.file_item_fn_sz)
+	_itm.fn:SetText		(file_name)
 
-	_itm.fn:SetText			(file_name)
-	_itm.fage:SetText		(date_time)
-	self.list_box:AddItem	(_itm)	
+	_itm.fage			= _itm:AddTextField(date_time, self.file_item_fd_sz.x)
+	_itm.fage:SetFont	(GetFontLetterica16Russian())
+	_itm.fage:SetWndPos	(vector2():set(self.file_item_fn_sz.x+4, 0))
+
+	self.list_box:AddExistingItem(_itm)
 end
 
 function save_dialog:SaveFile(fileName)
@@ -262,3 +290,48 @@ function save_dialog:SaveFile(fileName)
 	end
 end
 
+function save_dialog:GetNewSavegameName()
+	local save_base = game.translate_string(level.name())
+	local dtime = game.get_game_time()
+
+	local dateAsString = dtime:dateToString(game.CTime.DateToDay)
+	local hourAsString = dtime:timeToString(game.CTime.TimeToSeconds)
+
+	local save_name = save_base .. " " .. dateAsString .. " " .. hourAsString
+	save_name = save_name:gsub(",", " ")
+	save_name = save_name:gsub(":", " ")
+	save_name = save_name:gsub("/", " ")
+	save_name = save_name:gsub("\\", " ")
+	save_name = save_name:gsub("  ", " ")
+	save_name = save_name:gsub("\"", "")
+	
+	return save_name
+end
+
+function save_dialog:OnGamepadKeyHold(key)
+	local bindUI = dik_to_bind(key, action_groups.agUIGeneral)
+
+	if bindUI == key_bindings.kUI_DOWN then
+		if action_repeaters():CanRepeatActionNow(self, key_bindings.kUI_DOWN)
+		and not any_binded_key_for_action_pressed_c(key_bindings.kUI_UP) then
+			self.list_box:NextItem()
+		end
+		return true
+	elseif bindUI == key_bindings.kUI_UP then
+		if action_repeaters():CanRepeatActionNow(self, key_bindings.kUI_UP)
+		and not any_binded_key_for_action_pressed_c(key_bindings.kUI_DOWN) then
+			self.list_box:PrevItem()
+		end
+		return true
+	end
+
+	return CUIScriptWnd.OnGamepadKeyHold(self,key)
+end
+
+function save_dialog:Update()
+	CUIScriptWnd.Update(self)
+	
+	self.btn_save:Show(not main_menu.in_controller_mode())
+	self.btn_delete:Show(not main_menu.in_controller_mode())
+	self.btn_back:Show(not main_menu.in_controller_mode())
+end

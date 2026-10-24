@@ -19,12 +19,15 @@ bool CTrade::CanTrade()
 {
 	CEntity* pEntity;
 
-	m_nearest.resize(0);
-	Level().ObjectSpace.GetNearest(m_nearest, pThis.base->Position(), 2.f, nullptr);
+	g_SpatialSpace->q_sphere(m_nearest, 0, ESPATIAL_TYPE::STALKER_ALIVE, pThis.base->Position(), 2.f);
 	if (!m_nearest.empty())
 	{
-		for (CObject* object : m_nearest)
+		for (ISpatialShared& SS : m_nearest)
 		{
+			ISpatial* S = SS.get();
+			if (!S) continue;
+			CObject* object = S->dcast_CObject();
+			if (!object || object->getDestroy()) continue;
 			// Может ли объект торговать
 			pEntity = object->cast_entity();
 			if (pEntity && !pEntity->g_Alive())
@@ -61,8 +64,8 @@ bool CTrade::CanTrade()
 	yaw = angle_normalize(yaw);
 	yaw2 = angle_normalize(yaw2);
 
-	float Res = rad2deg(_abs(yaw - yaw2) < PI ? _abs(yaw - yaw2) :
-		PI_MUL_2 - _abs(yaw - yaw2));
+	float Res = rad2deg(std::abs(yaw - yaw2) < PI ? std::abs(yaw - yaw2) :
+		PI_MUL_2 - std::abs(yaw - yaw2));
 	if (Res < 165.f || Res > 195.f)
 	{
 		RemovePartner();
@@ -191,35 +194,25 @@ u32	CTrade::GetItemPrice(PIItem pItem, bool b_buying, bool b_free)
 	// computing relation factor
 	float relation_factor = 0.0f;
 
-	CHARACTER_GOODWILL attitude = RELATION_REGISTRY().GetAttitude(pThis.inv_owner, pPartner.inv_owner);
+	s32 attitude = RELATION_REGISTRY().GetAttitude(pThis.inv_owner, pPartner.inv_owner);
 
-	if (NO_GOODWILL != attitude)
+	if (-type_max(s32) != attitude)
 	{
 		relation_factor = float(attitude + 1000.f) / 2000.f;
 	}
 
 	clamp(relation_factor, 0.0f, 1.0f);
 
-	const SInventoryOwner* _partner = nullptr;
 	bool buying = true;
 	bool is_actor = (pThis.type == TT_ACTOR) || (pPartner.type == TT_ACTOR);
 
 	if (is_actor)
 	{
-		//.		buying				= (pPartner.type == TT_ACTOR);
 		buying = b_buying;
-		_partner = &(buying ? pThis : pPartner);
 	}
-	else
-	{
-		// rare case
-		_partner = &pPartner;
-	}
-	//.	const SInventoryOwner	&partner = *_partner;
 
 	// computing action factor
 	const CTradeFactors* p_trade_factors = nullptr;
-
 
 	if (buying)
 	{
@@ -252,7 +245,7 @@ u32	CTrade::GetItemPrice(PIItem pItem, bool b_buying, bool b_free)
 		action_factor = trade_factors.enemy_factor() + (trade_factors.friend_factor() - trade_factors.enemy_factor()) * relation_factor;
 	}
 
-	clamp(action_factor, _min(trade_factors.enemy_factor(), trade_factors.friend_factor()), _max(trade_factors.enemy_factor(), trade_factors.friend_factor()));
+	clamp(action_factor, std::min(trade_factors.enemy_factor(), trade_factors.friend_factor()), std::max(trade_factors.enemy_factor(), trade_factors.friend_factor()));
 
 	if (action_factor == 0.0f)
 	{
@@ -260,11 +253,7 @@ u32	CTrade::GetItemPrice(PIItem pItem, bool b_buying, bool b_free)
 	}
 
 	// computing deficit_factor
-#if 0
-	float deficit_factor = partner.inv_owner->deficit_factor(pItem->object().cNameSect());
-#else
 	float deficit_factor = 1.f;
-#endif
 
 	// total price calculation
 	u32	result = iFloor(base_cost * condition_factor * action_factor * deficit_factor);

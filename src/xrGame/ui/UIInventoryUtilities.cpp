@@ -1,5 +1,5 @@
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "UIInventoryUtilities.h"
 #include "../WeaponAmmo.h"
@@ -11,6 +11,7 @@
 #include "../../xrEngine/string_table.h"
 #include "../Inventory.h"
 #include "../InventoryOwner.h"
+#include "../InventoryVolumeSystem.h"
 
 #include "../InfoPortion.h"
 #include "game_base_space.h"
@@ -21,12 +22,12 @@
 
 #include "../Include/xrRender/UIShader.h"
 
-const LPCSTR relationsLtxSection	= "game_relations";
-const LPCSTR ratingField			= "rating_names";
-const LPCSTR reputationgField		= "reputation_names";
-const LPCSTR goodwillField			= "goodwill_names";
+const char* relationsLtxSection	= "game_relations";
+const char* ratingField			= "rating_names";
+const char* reputationgField		= "reputation_names";
+const char* goodwillField			= "goodwill_names";
 
-const LPCSTR st_months[12]= // StringTable for GetDateAsString()
+const char* st_months[12]= // StringTable for GetDateAsString()
 {
 	"month_january",
 	"month_february",
@@ -52,9 +53,9 @@ xr_hash_map<xr_string, ui_shader*> _weaponUpgradeIconsShaders;
 
 static CUIStatic*	GetUIStatic				();
 
-typedef				std::pair<CHARACTER_RANK_VALUE, shared_str>	CharInfoStringID;
+typedef				std::pair<s32, shared_str>	CharInfoStringID;
 
-using CharInfoStrings = xr_map<CHARACTER_RANK_VALUE, shared_str>;
+using CharInfoStrings = xr_map<s32, shared_str>;
 using CharInfoStrings_it = CharInfoStrings::iterator;
 
 CharInfoStrings		*charInfoReputationStrings	= nullptr;
@@ -270,11 +271,11 @@ const shared_str InventoryUtilities::GetGameTimeAsString(ETimePrecision timePrec
 	return GetTimeAsString(Level().GetGameTime(), timePrec, timeSeparator);
 }
 
-const shared_str InventoryUtilities::GetTimeAndDateAsString(ALife::_TIME_ID time)
+const shared_str InventoryUtilities::GetTimeAndDateAsString(ALife::_TIME_ID time, bool legacyMode)
 {
 	string256 buf;
-	LPCSTR time_str = GetTimeAsString( time, etpTimeToMinutes ).c_str();
-	LPCSTR date_str = GetDateAsString( time, edpDateToDay ).c_str();
+	const char* time_str = GetTimeAsString( time, etpTimeToMinutes ).c_str();
+	const char* date_str = legacyMode ? GetDateAsStringLegacy( time, edpDateToDay ).c_str() : GetDateAsString( time, edpDateToDay ).c_str();
 	xr_strconcat(buf, time_str, ", ", date_str );
 	return buf;
 }
@@ -346,7 +347,7 @@ const shared_str InventoryUtilities::GetDateAsString(ALife::_TIME_ID date, EDate
 
 	split_time(date, year, month, day, hours, mins, secs, milisecs);
 	VERIFY( 1 <= month && month <= 12 );
-	LPCSTR month_str = g_pStringTable->translate( st_months[month-1] ).c_str();
+	const char* month_str = g_pStringTable->translate( st_months[month-1] ).c_str();
 
 	// Date
 	switch (datePrec)
@@ -367,7 +368,36 @@ const shared_str InventoryUtilities::GetDateAsString(ALife::_TIME_ID date, EDate
 	return bufDate;
 }
 
-LPCSTR InventoryUtilities::GetTimePeriodAsString(LPSTR _buff, u32 buff_sz, ALife::_TIME_ID _from, ALife::_TIME_ID _to)
+const shared_str InventoryUtilities::GetDateAsStringLegacy(ALife::_TIME_ID date, EDatePrecision datePrec, char dateSeparator)
+{
+	string32 bufDate;
+
+	ZeroMemory(bufDate, sizeof(bufDate));
+
+	u32 year = 0, month = 0, day = 0, hours = 0, mins = 0, secs = 0, milisecs = 0;
+
+	split_time(date, year, month, day, hours, mins, secs, milisecs);
+
+	// Date
+	switch (datePrec)
+	{
+	case edpDateToYear:
+		xr_sprintf(bufDate, "%04i", year);
+		break;
+	case edpDateToMonth:
+		xr_sprintf(bufDate, "%02i%c%04i", month, dateSeparator, year);
+		break;
+	case edpDateToDay:
+		xr_sprintf(bufDate, "%02i%c%02i%c%04i", day, dateSeparator, month, dateSeparator, year);
+		break;
+	default:
+		R_ASSERT(!"Unknown type of date precision");
+	}
+
+	return bufDate;
+}
+
+const char* InventoryUtilities::GetTimePeriodAsString(LPSTR _buff, u32 buff_sz, ALife::_TIME_ID _from, ALife::_TIME_ID _to)
 {
 	u32 year1,month1,day1,hours1,mins1,secs1,milisecs1;
 	u32 year2,month2,day2,hours2,mins2,secs2,milisecs2;
@@ -398,30 +428,108 @@ LPCSTR InventoryUtilities::GetTimePeriodAsString(LPSTR _buff, u32 buff_sz, ALife
 
 //////////////////////////////////////////////////////////////////////////
 
-void InventoryUtilities::UpdateWeightStr(CUITextWnd &wnd, CUITextWnd &wnd_max, CInventoryOwner *pInvOwner)
+void InventoryUtilities::UpdateWeight(CUIStatic &wnd, bool withPrefix)
 {
-	R_ASSERT		(pInvOwner);
-	string128		buf;
+	CInventoryOwner *pInvOwner = smart_cast<CInventoryOwner*>(Level().CurrentEntity());
+	R_ASSERT(pInvOwner);
+	string256 buf;
+	ZeroMemory(buf, sizeof(buf));
 
-	float total		= pInvOwner->inventory().CalcTotalWeight();
-	float max		= pInvOwner->MaxCarryWeight();
+	float total = pInvOwner->inventory().CalcTotalWeight();
+	float max	= pInvOwner->MaxCarryWeight();
 
-	LPCSTR kg_str	= g_pStringTable->translate( "st_kg" ).c_str();
-	xr_sprintf		(buf, "%.1f %s", total, kg_str);
-	wnd.SetText	(buf);
+	string16 cl;
+	ZeroMemory(cl, sizeof(cl));
 
-	LPCSTR max_str = g_pStringTable->translate("ui_inv_max_weight").c_str();
-	xr_sprintf		(buf, "(%s %.1f %s)", max_str, max, kg_str);
-	wnd_max.SetText	(buf);
+	if (total > max)
+	{
+		strcpy(cl, "%c[red]");
+	}
+	else
+	{
+		strcpy(cl, "%c[UI_orange]");
+	}
+
+	string32 prefix;
+	ZeroMemory(prefix, sizeof(prefix));
+
+	if (withPrefix)
+	{
+		xr_sprintf(prefix, "%%c[default]%s ", *g_pStringTable->translate("ui_inv_weight"));
+	}
+	else
+	{
+		strcpy(prefix, "");
+	}
+
+	xr_sprintf(buf, "%s%s%3.1f %s/%5.1f", prefix, cl, total, "%c[UI_orange]", max);
+	wnd.SetText(buf);
+	//	UIStaticWeight.ClipperOff();
+}
+
+void InventoryUtilities::UpdateWeightStr(CUIStatic* weightLabel, CUIStatic& wnd_max, CInventoryOwner* pInvOwner)
+{
+	R_ASSERT(pInvOwner);
+	string256 buf;
+
+	float total = pInvOwner->inventory().CalcTotalWeight();
+	float max = pInvOwner->MaxCarryWeight();
+
+	const char* kg_str = g_pStringTable->translate("st_kg").c_str();
+	if (weightLabel != nullptr)
+	{
+		xr_sprintf(buf, "%.1f %s", total, kg_str);
+		weightLabel->SetText(buf);
+	}
+
+	const char* max_str = g_pStringTable->translate("ui_inv_max_weight").c_str();
+	xr_sprintf(buf, "(%s %.1f %s)", max_str, max, kg_str);
+	wnd_max.SetText(buf);
+}
+
+void InventoryUtilities::UpdateVolumeStr(CUIStatic* volumeLabel, CUIStatic* volumeMax, CInventoryOwner* pInvOwner)
+{
+	R_ASSERT(pInvOwner);
+
+	const CInventoryVolumeSystem& volumeSystem = CInventoryVolumeSystem::Get();
+	const bool enabled = volumeSystem.IsEnabled();
+
+	string64 buf = {};
+
+	if (volumeLabel != nullptr)
+	{
+		if (enabled)
+		{
+			xr_sprintf(buf, "%.1f", volumeSystem.CalcRuckVolume(*pInvOwner));
+			volumeLabel->SetText(buf);
+		}
+		else
+		{
+			volumeLabel->SetText("");
+		}
+	}
+
+	if (volumeMax != nullptr)
+	{
+		if (enabled)
+		{
+			xr_sprintf(buf, "/ %.1f", volumeSystem.GetCapacity(*pInvOwner));
+			volumeMax->SetText(buf);
+		}
+		else
+		{
+			volumeMax->SetText("");
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-void LoadStrings(CharInfoStrings *container, LPCSTR section, LPCSTR field)
+void LoadStrings(CharInfoStrings *container, const char* section, const char* field)
 {
 	R_ASSERT(container);
 
-	LPCSTR				cfgRecord	= pSettings->r_string(section, field);
+	const char*				cfgRecord	= pSettings->r_string(section, field);
 	u32					count		= _GetItemCount(cfgRecord);
 	R_ASSERT3			(count%2, "there're must be an odd number of elements", field);
 	string64			singleThreshold;
@@ -489,7 +597,7 @@ void InventoryUtilities::ClearCharacterInfoStrings()
 
 //////////////////////////////////////////////////////////////////////////
 
-LPCSTR InventoryUtilities::GetRankAsText(CHARACTER_RANK_VALUE rankID)
+const char* InventoryUtilities::GetRankAsText(s32 rankID)
 {
 	InitCharacterInfoStrings();
 	CharInfoStrings::const_iterator cit = charInfoRankStrings->upper_bound(rankID);
@@ -500,7 +608,7 @@ LPCSTR InventoryUtilities::GetRankAsText(CHARACTER_RANK_VALUE rankID)
 
 //////////////////////////////////////////////////////////////////////////
 
-LPCSTR InventoryUtilities::GetReputationAsText(CHARACTER_REPUTATION_VALUE rankID)
+const char* InventoryUtilities::GetReputationAsText(s32 rankID)
 {
 	InitCharacterInfoStrings();
 
@@ -513,7 +621,7 @@ LPCSTR InventoryUtilities::GetReputationAsText(CHARACTER_REPUTATION_VALUE rankID
 
 //////////////////////////////////////////////////////////////////////////
 
-LPCSTR InventoryUtilities::GetGoodwillAsText(CHARACTER_GOODWILL goodwill)
+const char* InventoryUtilities::GetGoodwillAsText(s32 goodwill)
 {
 	InitCharacterInfoStrings();
 
@@ -528,14 +636,20 @@ LPCSTR InventoryUtilities::GetGoodwillAsText(CHARACTER_GOODWILL goodwill)
 //////////////////////////////////////////////////////////////////////////
 // специальная функция для передачи info_portions при нажатии кнопок UI 
 // (для tutorial)
-void InventoryUtilities::SendInfoToActor(LPCSTR info_id)
+void InventoryUtilities::SendInfoToActor(const char* info_id)
 {
 	if (!IsGameTypeSingle())
 	{
 		return;
 	}
-	
-	if (CActor* actor = Level().CurrentEntity() ? Level().CurrentEntity()->cast_actor() : nullptr)
+
+	if (!g_pGameLevel)
+	{
+		return;
+	}
+
+	CObject* entity = g_pGameLevel->CurrentEntity();
+	if (CActor* actor = entity ? entity->cast_actor() : nullptr)
 	{
 		actor->TransferInfo(info_id, true);
 	}
@@ -548,22 +662,24 @@ void InventoryUtilities::SendInfoToLuaScripts(shared_str info)
 	{
 		int mode = 10; // now Menu is Talk Dialog (show)
 		luabind::functor<void>	funct;
-		R_ASSERT( ai().script_engine().functor( "pda.actor_menu_mode", funct ) );
+		if (!ai().script_engine().functor("pda.actor_menu_mode", funct))
+			return;
 		funct( mode );
 	}
 	if ( info == shared_str("ui_talk_hide") )
 	{
 		int mode = 11; // Talk Dialog hide
 		luabind::functor<void>	funct;
-		R_ASSERT( ai().script_engine().functor( "pda.actor_menu_mode", funct ) );
+		if (!ai().script_engine().functor("pda.actor_menu_mode", funct))
+			return;
 		funct( mode );
 	}
 }
 
-u32 InventoryUtilities::GetGoodwillColor(CHARACTER_GOODWILL gw)
+u32 InventoryUtilities::GetGoodwillColor(s32 gw)
 {
 	u32 res = 0xffc0c0c0;
-	if(gw==NEUTRAL_GOODWILL){
+	if(gw==0){
 		res = 0xffc0c0c0;
 	}else
 	if(gw>1000){
@@ -575,10 +691,10 @@ u32 InventoryUtilities::GetGoodwillColor(CHARACTER_GOODWILL gw)
 	return res;
 }
 
-u32 InventoryUtilities::GetReputationColor(CHARACTER_REPUTATION_VALUE rv)
+u32 InventoryUtilities::GetReputationColor(s32 rv)
 {
 	u32 res = 0xffc0c0c0;
-	if(rv==NEUTRAL_REPUTATION){
+	if(rv==0){
 		res = 0xffc0c0c0;
 	}else
 	if(rv>50){
@@ -588,6 +704,83 @@ u32 InventoryUtilities::GetReputationColor(CHARACTER_REPUTATION_VALUE rv)
 		res = 0xffff0000;
 	}
 	return res;
+}
+
+InventoryUtilities::InventoryIconParams InventoryUtilities::GetInventoryIconParams(const char* section)
+{
+	InventoryIconParams ret_struct;
+	ret_struct.inv_grid_x = pSettings->r_float(section, "inv_grid_x");
+	ret_struct.inv_grid_y = pSettings->r_float(section, "inv_grid_y");
+	ret_struct.inv_grid_height = pSettings->r_float(section, "inv_grid_height");
+	ret_struct.inv_grid_width = pSettings->r_float(section, "inv_grid_width");
+	ret_struct.icons_texture = READ_IF_EXISTS(pSettings, r_string, section, "icons_texture", nullptr);
+	ret_struct.scaleIcon = READ_IF_EXISTS(pSettings, r_float, section, "inv_scale", 1.0f);
+
+	ret_struct._3d_static_visual = READ_IF_EXISTS(pSettings, r_string, section, "3d_static_visual_name", pSettings->r_string(section, "visual"));
+	ret_struct._3d_static_rotate = READ_IF_EXISTS(pSettings, r_fvector3, section, "3d_static_rotate", ret_struct._3d_static_rotate.set(0, 0, 0));
+	ret_struct._3d_static_rotate.mul(M_PI / 180.0f);
+	ret_struct._3d_static_scale = READ_IF_EXISTS(pSettings, r_float, section, "3d_static_scale", 1.f);
+	return ret_struct;
+}
+
+InventoryUtilities::ConditionDisplayParams InventoryUtilities::GetConditionDisplayParams(CInventoryItem* item)
+{
+	ConditionDisplayParams result = {};
+	result.state = 0.0f;
+	result.usePortion = false;
+	result.portionCurrent = 0;
+	result.portionMax = 0;
+	result.hideBackground = false;
+	result.disableGradient = false;
+
+	if (item == nullptr)
+	{
+		return result;
+	}
+
+	if (!item->IsUsingCondition())
+	{
+		return result;
+	}
+
+	float condition = item->GetConditionToShow();
+
+	CEatableItem* eatableItem = item->cast_eatable_item();
+	if (eatableItem != nullptr)
+	{
+		u8 maxUses = eatableItem->GetMaxUses();
+		if (maxUses > 0)
+		{
+			u8 remainingUses = eatableItem->GetRemainingUses();
+
+			result.usePortion = true;
+			result.portionCurrent = static_cast<int>(remainingUses);
+			result.portionMax = static_cast<int>(maxUses);
+
+			if (maxUses < 8)
+			{
+				result.hideBackground = true;
+			}
+
+			if (remainingUses < 1)
+			{
+				condition = 0.0f;
+			}
+			else if (maxUses > 8)
+			{
+				condition = static_cast<float>(remainingUses) / static_cast<float>(maxUses);
+			}
+			else
+			{
+				condition = (static_cast<float>(remainingUses) * 0.125f) - 0.0625f;
+			}
+
+			result.disableGradient = true;
+		}
+	}
+
+	result.state = condition;
+	return result;
 }
 
 u32	InventoryUtilities::GetRelationColor(ALife::ERelationType relation)

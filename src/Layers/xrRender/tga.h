@@ -33,14 +33,14 @@ public:
 	int width,height;
 	void *data;
 public:
-	TGAdesc()	{ data = 0; };
+	TGAdesc()	{ data = nullptr; };
 	~TGAdesc()	{};
 
 	void maketga( IWriter &fs );
 //	void maketga( int hf );
 };
 
-void	tga_save	(LPCSTR name, u32 w, u32 h, void* data, BOOL alpha );
+void	tga_save	(const char* name, u32 w, u32 h, void* data, bool alpha );
 
 #endif /*_INCDEF_TARGASAVER_H_*/
 

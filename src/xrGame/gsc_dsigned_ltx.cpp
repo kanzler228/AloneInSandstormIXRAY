@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#ifdef XR_MP_BUILD
 #include "gsc_dsigned_ltx.h"
 #include "../xrCore/xr_ini.h"
 
@@ -7,7 +8,7 @@ gsc_dsigned_ltx_writer::gsc_dsigned_ltx_writer(u8 const p_number[crypto::xr_dsa:
 											   u8 const g_number[crypto::xr_dsa::public_key_length],
 											   priv_key_filler_function_t pkf_func) :
 	xr_dsa_signer(p_number, q_number, g_number),
-	m_ltx(nullptr, FALSE, FALSE, FALSE)
+	m_ltx(nullptr, false, false, false)
 {
 	pkf_func(m_private_key);
 }
@@ -107,3 +108,5 @@ bool gsc_dsigned_ltx_reader::load_and_verify(u8* buffer, u32 const size)
 	m_ltx = new CInifile(&tmp_reader);
 	return true;
 }
+
+#endif

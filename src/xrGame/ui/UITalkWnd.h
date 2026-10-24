@@ -4,7 +4,6 @@
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrUI/Widgets/UIButton.h"
 #include "../../xrUI/Widgets/UIEditBox.h"
-//#include "UIListWnd.h"
 #include "../../xrUI/Widgets/UIFrameWindow.h"
 
 
@@ -14,24 +13,20 @@ class CActor;
 class CInventoryOwner;
 class CPhraseDialogManager;
 class CUITalkDialogWnd;
-//class CUITradeWnd;
-///////////////////////////////////////
-//
-///////////////////////////////////////
 
-class CUITalkWnd: public CUIDialogWnd
+class CUITalkWnd final : public CUIDialogWnd
 {
 private:
 	typedef CUIDialogWnd inherited;
 	ref_sound			m_sound;
-	void				PlaySnd					(LPCSTR text);
+	void				PlaySnd					(const char* text);
 	void				StopSnd					();
 
 public:
 						CUITalkWnd();
 	virtual				~CUITalkWnd();
 
-	IC		bool		playing_sound			()		 { return !!m_sound._feedback(); }
+	IC		bool		playing_sound			()		 { return m_sound.is_playing(); }
 	IC	CInventoryOwner*OthersInvOwner			() const { return m_pOthersInvOwner;	 };
 
 			void		InitTalkWnd				();
@@ -44,31 +39,32 @@ public:
 		
 	virtual void		Show					(bool status);
 	
-	void				Stop					();					//deffered
+	void				Stop					();
 	void				StopTalk				();
 
 	void				UpdateQuestions			();
 	void				NeedUpdateQuestions		();
-	//инициализации начального диалога собеседника
+	bool				IsActiveTalkUi			();
 	void				InitOthersStartDialog	();
 	virtual bool		OnKeyboardAction				(int dik, EUIMessages keyboard_action);
+	virtual bool		OnGamepadKeyAction		(int id, EUIMessages gamepad_action) override;
+	virtual bool		OnGamepadKeyHold		(int id) override;
 	void				SwitchToTrade			();
 	void				SwitchToUpgrade			();
-	void				AddIconedMessage		(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name);
+	void				AddIconedMessage		(const char* caption, const char* text, const char* texture_name, const char* templ_name);
+    void				AddIconedMessage		(const char* text, const char* texture_name, Frect texture_rect, const char* templ_name);
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 
 protected:
-	//диалог
 	void				InitTalkDialog			();
 	void				AskQuestion				();
 
 	void				SayPhrase				(const shared_str& phrase_id);
 
-	// Функции добавления строк в листы вопросов и ответов
 public:
 	void				AddQuestion				(const shared_str& text, const shared_str& id, int number, SPhraseInfo phInfo);
-	void				AddAnswer				(const shared_str& text, LPCSTR SpeakerName);
+	void				AddAnswer				(const shared_str& text, const char* SpeakerName);
 	bool				b_disable_break;
 	CUITalkDialogWnd*	UITalkDialogWnd;
 protected:
@@ -82,7 +78,6 @@ protected:
 
 	bool				m_bNeedToUpdateQuestions;
 
-	//текущий диалог, если NULL, то переходим в режим выбора темы
 	DIALOG_SHARED_PTR	m_pCurrentDialog;
 	bool				TopicMode				();
 	void				ToTopicMode				();

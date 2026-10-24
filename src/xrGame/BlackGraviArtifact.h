@@ -12,7 +12,7 @@
 using GAME_OBJECT_LIST = xr_vector<CPhysicsShellHolder*>;
 using GAME_OBJECT_LIST_it = GAME_OBJECT_LIST::iterator;
 
-class CBlackGraviArtefact: public CGraviArtefact,
+class CBlackGraviArtefact final : public CGraviArtefact,
 						   public Feel::Touch
 {
 private:
@@ -24,15 +24,15 @@ public:
 	CBlackGraviArtefact(void);
 	virtual ~CBlackGraviArtefact(void);
 
-	virtual BOOL net_Spawn			(CSE_Abstract* DC);
+	virtual bool net_Spawn			(CSE_Abstract* DC);
 
-	virtual void Load				(LPCSTR section);
+	virtual void Load				(const char* section);
 
 	virtual	void Hit				(SHit* pHDS);
 
 	virtual void feel_touch_new		(CObject* O);
 	virtual void feel_touch_delete	(CObject* O);
-	virtual BOOL feel_touch_contact	(CObject* O);
+	virtual bool feel_touch_contact	(CObject* O);
 
 protected:
 	virtual void	net_Relcase		(CObject* O );

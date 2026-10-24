@@ -15,11 +15,10 @@
 #include "server_entity_wrapper.h"
 #include "graph_engine.h"
 #include "patrol_path_storage.h"
+#include "../xrForms/CompilersUI.h"
 
-extern LPCSTR GAME_CONFIG;
-extern LPCSTR generate_temp_file_name(LPCSTR header0, LPCSTR header1, string_path& buffer);
-
-#define NO_MULTITHREADING
+extern const char* GAME_CONFIG;
+extern const char* generate_temp_file_name(const char* header0, const char* header1, string_path& buffer);
 
 static void* __cdecl luabind_allocator(void* context, const void* pointer, size_t const size) {
 	if (!size) {
@@ -36,12 +35,12 @@ static void* __cdecl luabind_allocator(void* context, const void* pointer, size_
 	return xr_realloc(non_const_pointer, size);
 }
 
-CGameSpawnConstructor::CGameSpawnConstructor(LPCSTR name, LPCSTR output, LPCSTR start, bool no_separator_check)
+CGameSpawnConstructor::CGameSpawnConstructor(const char* name, const char* output, const char* start, bool no_separator_check)
 {
 	load_spawns						(name,no_separator_check);
 	process_spawns					();
 	process_actor					(start);
-	save_spawn						(name,output);
+	save_spawn						(output);
 }
 
 CGameSpawnConstructor::~CGameSpawnConstructor	()
@@ -68,10 +67,10 @@ IC	shared_str CGameSpawnConstructor::actor_level_name()
 	);
 }
 
-extern void read_levels			(CInifile *ini, xr_set<CLevelInfo> &m_levels, bool rebuild_graph, xr_vector<LPCSTR> *);
-void fill_needed_levels	(LPSTR levels, xr_vector<LPCSTR> &result);
+extern void read_levels			(CInifile *ini, xr_set<CLevelInfo> &m_levels, bool rebuild_graph, xr_vector<const char*> *);
+void fill_needed_levels	(LPSTR levels, xr_vector<const char*> &result);
 
-void CGameSpawnConstructor::load_spawns	(LPCSTR name, bool no_separator_check)
+void CGameSpawnConstructor::load_spawns	(const char* name, bool no_separator_check)
 {
 	m_spawn_id							= 0;
 
@@ -84,7 +83,7 @@ void CGameSpawnConstructor::load_spawns	(LPCSTR name, bool no_separator_check)
 
 	// init patrol path storage
 	m_patrol_path_storage				= new CPatrolPathStorage();
-	xr_vector<LPCSTR>					needed_levels;
+	xr_vector<const char*>					needed_levels;
 	string4096							levels_string;
 	xr_strcpy							(levels_string,name);
 	_strlwr								(levels_string);
@@ -125,13 +124,8 @@ void CGameSpawnConstructor::process_spawns	()
 	LEVEL_SPAWN_STORAGE::iterator		I = m_level_spawns.begin();
 	LEVEL_SPAWN_STORAGE::iterator		E = m_level_spawns.end();
 	for ( ; I != E; ++I)
-#ifdef NO_MULTITHREADING
 		(*I)->Execute					();
-#else
-		m_thread_manager.start			(*I);
-	m_thread_manager.wait				();
-#endif
-
+ 
 	I									= m_level_spawns.begin();
 	for ( ; I != E; ++I)
 		(*I)->update					();
@@ -177,7 +171,7 @@ void CGameSpawnConstructor::verify_level_changers	()
 	VERIFY2									(m_level_changers.empty(),"Some of the level changers setup incorrectly");
 }
 
-void CGameSpawnConstructor::save_spawn				(LPCSTR name, LPCSTR output)
+void CGameSpawnConstructor::save_spawn(const char* output)
 {
 	CMemoryWriter					stream;
 
@@ -214,21 +208,33 @@ void CGameSpawnConstructor::save_spawn				(LPCSTR name, LPCSTR output)
 	stream.save_to					(*spawn_name(output));
 }
 
-shared_str CGameSpawnConstructor::spawn_name	(LPCSTR output)
+shared_str CGameSpawnConstructor::spawn_name(const char* output)
 {
-	string_path					file_name;
-	if (!output)
-		FS.update_path			(file_name,"$game_spawn$",*actor_level_name());
-	else {
-		actor_level_name		();
-		string_path				out;
-		xr_strconcat(out,output,".spawn");
-		FS.update_path			(file_name,"$game_spawn$",out);
+	string_path file_name;
+	if (gCompilerMode.AI_FreeMPBuild)
+	{
+		xr_string LevelPath = *actor_level_name();
+		LevelPath.erase(LevelPath.find('.'));
+		LevelPath += xr_string("\\") + output + ".spawn";
+
+		FS.update_path(file_name, _game_levels_, LevelPath.c_str());
 	}
-	return						(file_name);
+	else if (!output)
+	{
+		FS.update_path(file_name, "$game_spawn$", *actor_level_name());
+	}
+	else
+	{
+		actor_level_name();
+		string_path out;
+		xr_strconcat(out, output, ".spawn");
+		FS.update_path(file_name, "$game_spawn$", out);
+	}
+
+	return (file_name);
 }
 
-void CGameSpawnConstructor::add_story_object	(ALife::_STORY_ID id, CSE_ALifeDynamicObject *object, LPCSTR level_name)
+void CGameSpawnConstructor::add_story_object	(ALife::_STORY_ID id, CSE_ALifeDynamicObject *object, const char* level_name)
 {
 	if (id == INVALID_STORY_ID)
 		return;
@@ -245,10 +251,8 @@ void CGameSpawnConstructor::add_story_object	(ALife::_STORY_ID id, CSE_ALifeDyna
 
 void CGameSpawnConstructor::add_object				(CSE_Abstract *object)
 {
-	m_critical_section.Enter	();
-	object->m_tSpawnID			= spawn_id();
+ 	object->m_tSpawnID			= spawn_id();
 	spawn_graph().add_vertex	(new CServerEntityWrapper(object),object->m_tSpawnID);
-	m_critical_section.Leave	();
 }
 
 void CGameSpawnConstructor::remove_object			(CSE_Abstract *object)
@@ -256,7 +260,7 @@ void CGameSpawnConstructor::remove_object			(CSE_Abstract *object)
 	spawn_graph().remove_vertex	(object->m_tSpawnID);
 }
 
-void CGameSpawnConstructor::process_actor			(LPCSTR start_level_name)
+void CGameSpawnConstructor::process_actor			(const char* start_level_name)
 {
 	m_actor							= 0;
 	

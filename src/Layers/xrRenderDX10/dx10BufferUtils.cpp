@@ -4,48 +4,6 @@
 namespace dx10BufferUtils
 {
 
-HRESULT	IC CreateBuffer( ID3DBuffer** ppBuffer, const void* pData, UINT DataSize, bool bImmutable, bool bIndexBuffer)
-{
-	D3D_BUFFER_DESC desc;
-	desc.ByteWidth = DataSize;
-	//desc.Usage = bImmutable ? D3D_USAGE_IMMUTABLE : D3D_USAGE_DEFAULT;
-	desc.Usage = D3D_USAGE_DEFAULT;
-	desc.BindFlags = bIndexBuffer ? D3D_BIND_INDEX_BUFFER : D3D_BIND_VERTEX_BUFFER;
-	desc.CPUAccessFlags = 0;
-	desc.MiscFlags = 0;
-
-	D3D_SUBRESOURCE_DATA subData;
-	subData.pSysMem = pData;
-
-	HRESULT res = RDevice->CreateBuffer( &desc, pData ? &subData : nullptr, ppBuffer);
-	//R_CHK(res);
-	return res;
-}
-
-HRESULT	CreateVertexBuffer( ID3DVertexBuffer** ppBuffer, const void* pData, UINT DataSize, bool bImmutable)
-{
-	return CreateBuffer( ppBuffer, pData, DataSize, bImmutable, false);
-}
-
-HRESULT	CreateIndexBuffer( ID3DIndexBuffer** ppBuffer, const void* pData, UINT DataSize, bool bImmutable)
-{
-	return CreateBuffer( ppBuffer, pData, DataSize, bImmutable, true);
-}
-
-HRESULT	CreateConstantBuffer( ID3DBuffer** ppBuffer, UINT DataSize)
-{
-	D3D_BUFFER_DESC desc;
-	desc.ByteWidth = DataSize;
-	desc.Usage = D3D_USAGE_DYNAMIC;
-	desc.BindFlags = D3D_BIND_CONSTANT_BUFFER;
-	desc.CPUAccessFlags = D3D_CPU_ACCESS_WRITE;
-	desc.MiscFlags = 0;
-
-	HRESULT res = RDevice->CreateBuffer( &desc, 0, ppBuffer);
-	//R_CHK(res);
-	return res;
-}
-
 struct VertexFormatPairs
 {
 	D3DDECLTYPE	m_dx9FMT;
@@ -89,7 +47,7 @@ DXGI_FORMAT	ConvertVertexFormat(D3DDECLTYPE dx9FMT)
 struct VertexSemanticPairs
 {
 	D3DDECLUSAGE	m_dx9Semantic;
-	LPCSTR			m_dx10Semantic;
+	const char*			m_dx10Semantic;
 };
 
 VertexSemanticPairs	VertexSemanticList[] = 
@@ -110,7 +68,7 @@ VertexSemanticPairs	VertexSemanticList[] =
 	//D3DDECLUSAGE_SAMPLE,        // 13
 };
 
-LPCSTR	ConvertSemantic(D3DDECLUSAGE Semantic)
+const char*	ConvertSemantic(D3DDECLUSAGE Semantic)
 {
 	int arrayLength = sizeof(VertexSemanticList)/sizeof(VertexSemanticList[0]);
 	for (int i=0; i<arrayLength; ++i)
@@ -123,26 +81,25 @@ LPCSTR	ConvertSemantic(D3DDECLUSAGE Semantic)
 	return 0;
 }
 
-void ConvertVertexDeclaration( const xr_vector<D3DVERTEXELEMENT9> &declIn, xr_vector<D3D_INPUT_ELEMENT_DESC> &declOut)
+void ConvertVertexDeclaration(const xr_vector<D3DVERTEXELEMENT9>& declIn, xr_vector<RHIInputElementDesc>& declOut)
 {
-	int iDeclSize = (int)declIn.size()-1;
-	declOut.resize(iDeclSize+1);
+	// FX: Skip D3DDECL_END
+	size_t iDeclSize = declIn.size() - 1;
+	declOut.resize(iDeclSize);
 
-	for (int i=0; i<iDeclSize; ++i)
+	for (size_t i = 0; i < iDeclSize; ++i)
 	{
-		const D3DVERTEXELEMENT9		&descIn = declIn[i];
-		D3D_INPUT_ELEMENT_DESC		&descOut = declOut[i];
-		
+		const D3DVERTEXELEMENT9& descIn = declIn[i];
+		RHIInputElementDesc& descOut = declOut[i];
+
 		descOut.SemanticName = ConvertSemantic((D3DDECLUSAGE)descIn.Usage);
 		descOut.SemanticIndex = descIn.UsageIndex;
-		descOut.Format = ConvertVertexFormat((D3DDECLTYPE)descIn.Type);
+		descOut.Format = (ERHI_FORMAT)ConvertVertexFormat((D3DDECLTYPE)descIn.Type);
 		descOut.InputSlot = descIn.Stream;
 		descOut.AlignedByteOffset = descIn.Offset;
-		descOut.InputSlotClass = D3D_INPUT_PER_VERTEX_DATA;
+		descOut.InputSlotClass = ERHI_INPUT_CLASSIFICATION::VERTEX_DATA;
 		descOut.InstanceDataStepRate = 0;
 	}
-
-	ZeroMemory( &declOut[iDeclSize], sizeof(declOut[iDeclSize]) );
 }
 
 };

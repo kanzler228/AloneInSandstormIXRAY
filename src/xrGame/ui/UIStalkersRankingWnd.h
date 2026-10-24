@@ -1,5 +1,6 @@
 #pragma once
-#include "UIWindow.h"
+#include "../../xrUI/Widgets/UIWindow.h"
+#include "../../xrUI/Widgets/UIHint.h"
 
 class CUIFrameWindow;
 class CUIFrameLineWnd;
@@ -9,16 +10,23 @@ class CUICharacterInfo;
 class CUIScrollView;
 class CUIXml;
 class CSE_ALifeTraderAbstract;
+class UIHint;
+class CUIGamepadLegend;
 
 class CUIStalkersRankingWnd: public CUIWindow
 {
 	typedef CUIWindow inherited;
 public:
+	CUIStalkersRankingWnd();
+	virtual ~CUIStalkersRankingWnd();
+	
 			void			Init				();
 	virtual void			Show				(bool status);
 			void			ShowHumanDetails	();
-protected:
+	virtual void			DrawHint			();
 	CUIFrameWindow*			UIInfoFrame;
+protected:
+	CUIFrameWindow*			m_background = nullptr;
 	CUIFrameWindow*			UICharIconFrame;
 	CUIFrameLineWnd*		UIInfoHeader;
 	CUIFrameLineWnd*		UICharIconHeader;
@@ -30,16 +38,24 @@ protected:
 	CUIScrollView*			UIList;
 	void					AddStalkerItem		(CUIXml* xml, int num, CSE_ALifeTraderAbstract* t);
 	void					AddActorItem		(CUIXml* xml, int num, CSE_ALifeTraderAbstract* t);
+	s32						m_items_count;
 
 public:
 	CUIScrollView&			GetTopList			()			{return *UIList;}
 	void					ShowHumanInfo		(u16 id);
 	virtual void			Reset				();
+	
+	virtual bool			OnGamepadKeyAction	(int id, EUIMessages gamepad_action);
+	virtual bool			OnGamepadKeyHold	(int id);
+	virtual CUIWindow* ui_cast_window() { return this; }
+	UIHint*						m_hint_wnd = nullptr;
+	CUIGamepadLegend*		m_gamepad_legend = nullptr;
 };
 
-class CUIStalkerRankingInfoItem :public CUIWindow, public CUISelectable
+class CUIStalkerRankingInfoItem :public UIHintWindow, public CUISelectable
 {
-	CUIStalkersRankingWnd*	m_StalkersRankingWnd;
+	typedef UIHintWindow inherited;
+	CUIStalkersRankingWnd* m_StalkersRankingWnd;
 	u32						m_stored_alpha;
 public:
 	u16						m_humanID;
@@ -49,9 +65,13 @@ public:
 public:
 							CUIStalkerRankingInfoItem(CUIStalkersRankingWnd*);
 	
-	void					Init			(CUIXml* xml, LPCSTR path, int idx);
+	void					Init			(CUIXml* xml, const char* path, int idx);
 	virtual void			SetSelected		(bool b);
 	virtual bool			OnMouseDown		(int mouse_btn);
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUISelectable* ui_cast_selectable() { return this; }
+	virtual void				OnFocusReceive			();
+			void				SetHintText				();
 };
 
 class CUIStalkerRankingElipsisItem :public CUIStalkerRankingInfoItem
@@ -61,4 +81,6 @@ public:
 					CUIStalkerRankingElipsisItem(CUIStalkersRankingWnd*);
 	virtual void			SetSelected		(bool b);
 	virtual bool			OnMouseDown		(int mouse_btn);
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUISelectable* ui_cast_selectable() { return this; }
 };

@@ -13,7 +13,7 @@
 #include "../../xrEngine/date_time.h"
 // matrices
 #define	BIND_DECLARE(xf)	\
-class cl_xform_##xf	: public R_constant_setup {	virtual void setup (R_constant* C) { RCache.xforms.set_c_##xf (C); } }; \
+class cl_xform_##xf	: public RHIShaderConstant::Setup {	virtual void setup (RHIShaderConstant* C) { RCache.xforms.set_c_##xf (C); } }; \
 	static cl_xform_##xf	binder_##xf
 
 BIND_DECLARE(invw);
@@ -36,7 +36,7 @@ BIND_DECLARE(wvp_old);
 #endif
 
 #define DECLARE_TREE_BIND(c)	\
-	class cl_tree_##c: public R_constant_setup	{virtual void setup(R_constant* C) {RCache.tree.set_c_##c(C);} };	\
+	class cl_tree_##c: public RHIShaderConstant::Setup	{virtual void setup(RHIShaderConstant* C) {RCache.tree.set_c_##c(C);} };	\
 	static cl_tree_##c	tree_binder_##c
 
 DECLARE_TREE_BIND(m_xform_v);
@@ -56,30 +56,42 @@ DECLARE_TREE_BIND(c_scale);
 DECLARE_TREE_BIND(c_bias);
 DECLARE_TREE_BIND(c_sun);
 
-class cl_hemi_cube_pos_faces: public R_constant_setup
+class cl_lit_color : public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C) { RCache.hemi.set_c_lit_color(C); }
+};
+
+static cl_lit_color binder_lit_color;
+
+class cl_lit_dir : public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C) { RCache.hemi.set_c_lit_dir(C); }
+};
+
+static cl_lit_dir binder_lit_dir;
+
+class cl_hemi_cube_pos_faces: public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) {RCache.hemi.set_c_pos_faces(C);}
+	virtual void setup(RHIShaderConstant* C) {RCache.hemi.set_c_pos_faces(C);}
 };
 
 static cl_hemi_cube_pos_faces binder_hemi_cube_pos_faces;
 
-class cl_hemi_cube_neg_faces: public R_constant_setup
+class cl_hemi_cube_neg_faces: public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) {RCache.hemi.set_c_neg_faces(C);}
+	virtual void setup(RHIShaderConstant* C) {RCache.hemi.set_c_neg_faces(C);}
 };
 
 static cl_hemi_cube_neg_faces binder_hemi_cube_neg_faces;
 
-class cl_material: public R_constant_setup
+class cl_material: public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) {RCache.hemi.set_c_material(C);}
+	virtual void setup(RHIShaderConstant* C) {RCache.hemi.set_c_material(C);}
 };
 
 static cl_material binder_material;
 
-class cl_texgen : public R_constant_setup
+class cl_texgen : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		Fmatrix mTexgen;
 
@@ -112,9 +124,9 @@ class cl_texgen : public R_constant_setup
 };
 static cl_texgen		binder_texgen;
 
-class cl_VPtexgen : public R_constant_setup
+class cl_VPtexgen : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		Fmatrix mTexgen;
 
@@ -149,10 +161,10 @@ static cl_VPtexgen		binder_VPtexgen;
 
 // fog
 #if 1 //ndef _EDITOR
-class cl_fog_plane	: public R_constant_setup {
+class cl_fog_plane	: public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
@@ -183,10 +195,10 @@ class cl_fog_plane	: public R_constant_setup {
 static cl_fog_plane		binder_fog_plane;
 
 // fog-params
-class cl_fog_params	: public R_constant_setup {
+class cl_fog_params	: public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
@@ -207,10 +219,10 @@ class cl_fog_params	: public R_constant_setup {
 };	static cl_fog_params	binder_fog_params;
 
 // fog-color
-class cl_fog_color	: public R_constant_setup {
+class cl_fog_color	: public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup	(R_constant* C)	{
+	virtual void setup	(RHIShaderConstant* C)	{
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -231,18 +243,20 @@ class cl_fog_color	: public R_constant_setup {
 #endif
 
 // times
-class cl_times		: public R_constant_setup {
-	virtual void setup(R_constant* C)
+class cl_times : public RHIShaderConstant::Setup 
+{
+	virtual void setup(RHIShaderConstant* C)
 	{
-		float 		t	= RDEVICE.fTimeGlobal;
-		RCache.set_c	(C,t,t*10,t/10,_sin(t))	;
+		float t = RDEVICE.fTimeGlobal;
+		RCache.set_c(C, t, t - RDEVICE.fTimeDelta, t * 0.1f, std::sin(t));
 	}
 };
-static cl_times		binder_times;
+
+static cl_times binder_times;
 
 // eye-params
-class cl_eye_P		: public R_constant_setup {
-	virtual void setup(R_constant* C)
+class cl_eye_P		: public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C)
 	{
 		Fvector&		V	= RDEVICE.vCameraPosition;
 		RCache.set_c	(C,V.x,V.y,V.z,1);
@@ -251,8 +265,8 @@ class cl_eye_P		: public R_constant_setup {
 static cl_eye_P		binder_eye_P;
 
 // eye-params
-class cl_eye_D		: public R_constant_setup {
-	virtual void setup(R_constant* C)
+class cl_eye_D		: public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C)
 	{
 		Fvector&		V	= RDEVICE.vCameraDirection;
 		RCache.set_c	(C,V.x,V.y,V.z,0);
@@ -261,8 +275,8 @@ class cl_eye_D		: public R_constant_setup {
 static cl_eye_D		binder_eye_D;
 
 // eye-params
-class cl_eye_N		: public R_constant_setup {
-	virtual void setup(R_constant* C)
+class cl_eye_N		: public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C)
 	{
 		Fvector&		V	= RDEVICE.vCameraTop;
 		RCache.set_c	(C,V.x,V.y,V.z,0);
@@ -271,8 +285,8 @@ class cl_eye_N		: public R_constant_setup {
 static cl_eye_N		binder_eye_N;
 
 // eye-params
-class cl_hud_project : public R_constant_setup {
-	virtual void setup(R_constant* C)
+class cl_hud_project : public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C)
 	{
 		RCache.set_c (C, Device.mProject_hud);
 	}
@@ -281,8 +295,8 @@ static cl_hud_project binder_hud_project;
 
 #if 1 //ndef _EDITOR
 // TAA Jiter
-class cl_taa_jitter : public R_constant_setup {
-	virtual void setup(R_constant* C) {
+class cl_taa_jitter : public RHIShaderConstant::Setup {
+	virtual void setup(RHIShaderConstant* C) {
 		Fvector& V = ps_r_taa_jitter;
 		RCache.set_c(C, V.x, V.y, V.z, float(RDEVICE.dwFrame));
 	}
@@ -292,10 +306,10 @@ static cl_taa_jitter binder_taa_jitter;
 
 #if 1 //ndef _EDITOR
 // D-Light0
-class cl_sun0_color : public R_constant_setup {
+class cl_sun0_color : public RHIShaderConstant::Setup {
 	u32 marker;
 	Fvector4 result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -314,10 +328,10 @@ class cl_sun0_color : public R_constant_setup {
 	}
 };	static cl_sun0_color binder_sun0_color;
 
-class cl_sun0_dir_w : public R_constant_setup {
+class cl_sun0_dir_w : public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -332,10 +346,10 @@ class cl_sun0_dir_w : public R_constant_setup {
 	}
 };	static cl_sun0_dir_w binder_sun0_dir_w;
 
-class cl_sun0_dir_e : public R_constant_setup {
+class cl_sun0_dir_e : public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -353,10 +367,10 @@ class cl_sun0_dir_e : public R_constant_setup {
 	}
 };	static cl_sun0_dir_e binder_sun0_dir_e;
 
-class cl_amb_color : public R_constant_setup {
+class cl_amb_color : public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -377,34 +391,44 @@ class cl_amb_color : public R_constant_setup {
 	}
 };	static cl_amb_color binder_amb_color;
 
-class cl_hemi_color : public R_constant_setup {
+class cl_hemi_color : public RHIShaderConstant::Setup {
 	u32			marker;
 	Fvector4	result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
 			return;
 		}
 #endif
-		if (marker != Device.dwFrame) {
+		if (marker != Device.dwFrame) 
+		{
 			CEnvDescriptorMixer& desc = *g_pGamePersistent->Environment().CurrentEnv;
 #if defined(_EDITOR) || RENDER != R_R1
-			result.set(desc.hemi_color.x * ps_r2_sun_lumscale_hemi * 4.0f,
-				desc.hemi_color.y * ps_r2_sun_lumscale_hemi * 4.0f, desc.hemi_color.z * ps_r2_sun_lumscale_hemi * 4.0f, desc.weight);
+			if (desc.old_style)
+			{
+				result.set(desc.sky_color.x * ps_r2_sun_lumscale_hemi * 4.0f,
+					desc.sky_color.y * ps_r2_sun_lumscale_hemi * 4.0f, desc.sky_color.z * ps_r2_sun_lumscale_hemi * 4.0f, desc.weight);
+			}
+			else
+			{
+				result.set(desc.hemi_color.x * ps_r2_sun_lumscale_hemi * 4.0f,
+					desc.hemi_color.y * ps_r2_sun_lumscale_hemi * 4.0f, desc.hemi_color.z * ps_r2_sun_lumscale_hemi * 4.0f, desc.weight);
+			}
 #else
 			result.set(desc.hemi_color);
 #endif
 		}
+
 		RCache.set_c(C, result);
 	}
 }; static cl_hemi_color binder_hemi_color;
 #endif
 
-class cl_sky_color : public R_constant_setup {
+class cl_sky_color : public RHIShaderConstant::Setup {
 	u32 marker;
 	Fvector4 result;
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
 			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
@@ -424,36 +448,43 @@ class cl_sky_color : public R_constant_setup {
 	}
 }; static cl_sky_color binder_sky_color;
 
-static class cl_screen_res : public R_constant_setup		
+static class cl_screen_res : public RHIShaderConstant::Setup		
 {	
-	virtual void setup	(R_constant* C)
+	virtual void setup	(RHIShaderConstant* C)
 	{
 		RCache.set_c(C, RCache.get_target_width(), RCache.get_target_height(), 1.0f / RCache.get_target_width(), 1.0f / RCache.get_target_height());
 	}
 }	binder_screen_res;
 
-static class cl_scaled_screen_res : public R_constant_setup {
-	virtual void setup(R_constant* C) {
+static class cl_scaled_screen_res : public RHIShaderConstant::Setup 
+{
+	virtual void setup(RHIShaderConstant* C) 
+	{
 		RCache.set_c(C, RCache.get_width(), RCache.get_height(), 1.0f / RCache.get_width(), 1.0f / RCache.get_height());
 	}
 }	binder_scaled_screen_res;
 
-static class cl_target_screen_res : public R_constant_setup {
-	virtual void setup(R_constant* C) {
+static class cl_target_screen_res : public RHIShaderConstant::Setup 
+{
+	virtual void setup(RHIShaderConstant* C) 
+	{
 		RCache.set_c(C, (float)::Render->getTarget()->get_width(), (float)::Render->getTarget()->get_height(),
 			1.0f / (float)::Render->getTarget()->get_width(), 1.0f / (float)::Render->getTarget()->get_height());
 	}
 }	binder_target_screen_res;
 
-static class cl_screen_scale : public R_constant_setup {
-	virtual void setup(R_constant* C) {
-		RCache.set_c(C, RDEVICE.RenderScale, 0.0f, 0.0f, 0.0f);
+static class cl_screen_scale : public RHIShaderConstant::Setup 
+{
+	virtual void setup(RHIShaderConstant* C) 
+	{
+		RCache.set_c(C, GRHI->DevicePtr->RenderScale, 0.0f, 0.0f, 0.0f);
 	}
 } binder_screen_scale;
 
-static class cl_def_aref : public R_constant_setup
+static class cl_def_aref : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) override {
+	virtual void setup(RHIShaderConstant* C) override 
+	{
 #ifdef _EDITOR
 		float def_aref_cmd = 100 / 255.0f;
 #else
@@ -467,11 +498,11 @@ static class cl_def_aref : public R_constant_setup
 	}
 } binder_def_aref;
 
-static class cl_rain_params : public R_constant_setup {
+static class cl_rain_params : public RHIShaderConstant::Setup {
 	u32 marker;
 	Fvector4 result;
 
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 #ifdef _EDITOR
 		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
@@ -485,12 +516,12 @@ static class cl_rain_params : public R_constant_setup {
 	}
 } binder_rain_params;
 
-static class cl_inv_v : public R_constant_setup
+static class cl_inv_v : public RHIShaderConstant::Setup
 {
 	u32	marker;
 	Fmatrix	result;
 
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		result.invert(Device.mView);
 
@@ -498,23 +529,41 @@ static class cl_inv_v : public R_constant_setup
 	}
 } binder_inv_v;
 
-static class cl_m_hud_params : public R_constant_setup
+static class cl_env_wind : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) {
+	u32	marker;
+	Fmatrix	result;
+
+	virtual void setup(RHIShaderConstant* C)
+	{
+#ifdef _EDITOR
+		if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv) {
+			RCache.set_c(C, 0, 0, 0.0f, 0.0f);
+			return;
+		}
+#endif
+		const Fvector& WindDir = g_pGamePersistent->Environment().wind_blast_direction;
+		RCache.set_c(C, WindDir.x, WindDir.y, WindDir.z, g_pGamePersistent->Environment().wind_strength_factor);
+	}
+} binder_wind;
+
+static class cl_m_hud_params : public RHIShaderConstant::Setup
+{
+	virtual void setup(RHIShaderConstant* C) {
 		RCache.set_c(C, RDEVICE.hudViewportData.isRenderProcess, RDEVICE.hudViewportData.isRenderActive, 0.0f, RDEVICE.hudViewportData.renderZoomRotateFactor);
 	}
 }    binder_m_hud_params;
 
-static class cl_m_zoom_deviation : public R_constant_setup
+static class cl_m_zoom_deviation : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C) {
+	virtual void setup(RHIShaderConstant* C) {
 		RCache.set_c(C, 0.0f, 0.0f, RDEVICE.hudViewportData.renderScopeBrightnessValue, RDEVICE.hudViewportData.renderScopeBrightnessJitterValue);
 	}
 } binder_m_zoom_deviation;
 
-static class cl_affects : public R_constant_setup
+static class cl_affects : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		float decr = 0.0f;
 
@@ -525,17 +574,17 @@ static class cl_affects : public R_constant_setup
 	}
 } binder_affects;
 
-static class cl_actor_params : public R_constant_setup
+static class cl_actor_params : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		RCache.set_c(C, RDEVICE.hudViewportData.ActorHealth, RDEVICE.hudViewportData.ActorOutfitCondition, RDEVICE.hudViewportData.ActorWeaponCondition, RDEVICE.hudViewportData.ActorWeaponLoading);
 	}
 } binder_actor_states;
 
-static class cl_m_timearrow : public R_constant_setup
+static class cl_m_timearrow : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		u32 year = 0, month = 0, day = 0, hours = 0, mins = 0, secs = 0, milisecs = 0;
 		split_time(g_pGameLevel->GetGameTime(), year, month, day, hours, mins, secs, milisecs);
@@ -553,9 +602,9 @@ static class cl_m_timearrow : public R_constant_setup
 	}
 } binder_m_timearrow;
 
-static class cl_m_timearrow2 : public R_constant_setup
+static class cl_m_timearrow2 : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		u32 year = 0, month = 0, day = 0, hours = 0, mins = 0, secs = 0, milisecs = 0;
 		split_time(g_pGameLevel->GetGameTime(), year, month, day, hours, mins, secs, milisecs);
@@ -570,21 +619,32 @@ static class cl_m_timearrow2 : public R_constant_setup
 	}
 } binder_m_timearrow2;
 
-static class cl_digiclock : public R_constant_setup
+static class cl_digiclock : public RHIShaderConstant::Setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(RHIShaderConstant* C)
 	{
 		u32 year = 0, month = 0, day = 0, hours = 0, mins = 0, secs = 0, milisecs = 0;
 		split_time(g_pGameLevel->GetGameTime(), year, month, day, hours, mins, secs, milisecs);
 
 		float hh = (hours / 10) / 10.0f;
 		float hl = (hours % 10) / 10.0f;
-		float mh = (month / 10) / 10.0f;
-		float ml = (month % 10) / 10.0f;
+		float mh = (mins / 10) / 10.0f;
+		float ml = (mins % 10) / 10.0f;
 
 		RCache.set_c(C, hh, hl, mh, ml);
 	}
 } binder_digiclock;
+
+extern ENGINE_API Fcolor nvg_color;
+// night-vision color
+class cl_NVG_Color : public RHIShaderConstant::Setup
+{
+	virtual void setup(RHIShaderConstant* C)
+	{
+		RCache.set_c(C, nvg_color.r, nvg_color.g, nvg_color.b, nvg_color.a);
+	}
+};
+static cl_NVG_Color binder_NVG_Color;
 
 // Standart constant-binding
 void	CBlender_Compile::SetMapping()
@@ -616,6 +676,7 @@ void	CBlender_Compile::SetMapping()
 	r_Constant("consts", &tree_binder_consts);
 	r_Constant("wave", &tree_binder_wave);
 	r_Constant("wind", &tree_binder_wind);
+	r_Constant("env_wind", &binder_wind);
 
 #ifdef USE_DX11
 	r_Constant("consts_old", &tree_binder_consts_old);
@@ -632,7 +693,9 @@ void	CBlender_Compile::SetMapping()
 	r_Constant("hemi_cube_pos_faces", &binder_hemi_cube_pos_faces);
 	r_Constant("hemi_cube_neg_faces", &binder_hemi_cube_neg_faces);
 
-	//	Igor	temp solution for the texgen functionality in the shader
+	r_Constant("L_model_light_color", &binder_lit_color);
+	r_Constant("L_model_light_dir", &binder_lit_dir);
+
 	r_Constant("m_texgen", &binder_texgen);
 	r_Constant("mVPTexgen", &binder_VPtexgen);
 
@@ -666,9 +729,8 @@ void	CBlender_Compile::SetMapping()
 	r_Constant("target_screen_res", &binder_target_screen_res);
 
 	r_Constant("screen_scale", &binder_screen_scale);
-	
-	// Rain
-	r_Constant				("rain_params",		&binder_rain_params);
+
+	r_Constant("rain_params", &binder_rain_params);
 
 	//LVutner: Gunslinger...
 	r_Constant("m_hud_params", &binder_m_hud_params);
@@ -678,19 +740,15 @@ void	CBlender_Compile::SetMapping()
 	r_Constant("m_timearrow", &binder_m_timearrow);
 	r_Constant("m_timearrow2", &binder_m_timearrow2);
 	r_Constant("m_digiclock", &binder_digiclock);
+	r_Constant("nvg_color", &binder_NVG_Color);
 
-	// detail
-	//if (bDetail	&& detail_scaler)
-	//	Igor: bDetail can be overridden by no_detail_texture option.
-	//	But shader can be deatiled implicitly, so try to set this parameter
-	//	anyway.
 	if (detail_scaler)
-		r_Constant			("dt_params",		detail_scaler);
-
-	// other common
-	for (u32 it=0; it<DEV->v_constant_setup.size(); it++)
 	{
-		std::pair<shared_str,R_constant_setup*>	cs	= DEV->v_constant_setup[it];
-		r_Constant			(*cs.first,cs.second);
+		r_Constant("dt_params", detail_scaler);
+	}
+
+	for (const auto& [Name, Setup] : DEV->v_constant_setup)
+	{
+		r_Constant(*Name, Setup);
 	}
 }

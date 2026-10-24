@@ -13,14 +13,17 @@ CGameSpy_Available::~CGameSpy_Available()
 
 void CGameSpy_Available::LoadGameSpy()
 {
+#ifdef XR_MP_BUILD
 	GAMESPY_LOAD_FN(xrGS_GSIStartAvailableCheckA);
 	GAMESPY_LOAD_FN(xrGS_GSIAvailableCheckThink);
 	GAMESPY_LOAD_FN(xrGS_msleep);
 	GAMESPY_LOAD_FN(xrGS_GetQueryVersion);
+#endif
 }
 
 bool CGameSpy_Available::CheckAvailableServices(shared_str& resultstr)
 {
+#ifdef XR_MP_BUILD
 	GSIACResult result;
 	xrGS_GSIStartAvailableCheckA();
 
@@ -46,5 +49,6 @@ bool CGameSpy_Available::CheckAvailableServices(shared_str& resultstr)
 	{
 		resultstr = "Success";
 	};
+#endif
 	return true;
 }

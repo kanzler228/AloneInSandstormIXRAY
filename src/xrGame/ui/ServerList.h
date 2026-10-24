@@ -31,7 +31,8 @@ enum enum_connect_error
 
 typedef mixed_delegate<void (enum_connect_error, char const *)> connect_error_cb;
 
-class SServerFilters{
+class SServerFilters final
+{
 public:
 	bool	empty;
 	bool	full;
@@ -41,14 +42,15 @@ public:
 	bool	listen_servers;
 };
 
-class CServerList : public CUIWindow{
+class CServerList final : public CUIWindow
+{
 public:
 					CServerList			();
 	virtual			~CServerList		();
 
 	virtual void 	Update				();
 	virtual void 	SendMessage			(CUIWindow* pWnd, s16 msg, void* pData = NULL);
-			void 	InitFromXml			(CUIXml& xml_doc, LPCSTR path);
+			void 	InitFromXml			(CUIXml& xml_doc, const char* path);
 			void 	InitHeader			();
 			void 	InitSeparator		();
 			void 	AddServerToList		(ServerInfo* pServerInfo);
@@ -57,8 +59,8 @@ public:
 			void	SetConnectionErrCb	(connect_error_cb conn_err_cb) { m_connect_cb = conn_err_cb; }
 			void 	ConnectToSelected	();
 			void 	SetFilters			(SServerFilters& sf);
-			void 	SetPlayerName		(LPCSTR name);
-			void 	SetSortFunc			(LPCSTR func_name, bool make_sort);
+			void 	SetPlayerName		(const char* name);
+			void 	SetSortFunc			(const char* func_name, bool make_sort);
 			void	NetRadioChanged		(bool Local);
 	virtual void	RefreshGameSpyList	(bool Local);
 			void	RefreshQuick();

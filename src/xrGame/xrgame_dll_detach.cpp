@@ -8,7 +8,7 @@
 #include "entity_alive.h"
 #include "ui/UIInventoryUtilities.h"
 #include "../../xrUI/UIXmlInit.h"
-#include "../../xrUI/UItextureMaster.h"
+#include "../../xrUI/UITextureMaster.h"
 
 #include "InfoPortion.h"
 #include "PhraseDialog.h"
@@ -45,8 +45,8 @@ void init_game_globals()
 	InitHudSoundSettings							();
 	if(!g_dedicated_server)
 	{
-//		CInfoPortion::InitInternal					();
-//.		CEncyclopediaArticle::InitInternal			();
+		CInfoPortion::InitInternal					();
+		CEncyclopediaArticle::InitInternal			();
 		CPhraseDialog::InitInternal					();
 		InventoryUtilities::CreateShaders			();
 	};
@@ -61,17 +61,15 @@ void init_game_globals()
 extern CUIXml*	g_uiSpotXml;
 extern CUIXml*	pWpnScopeXml;
 
-extern void destroy_lua_wpn_params	();
-extern void destroy_lua_knife_params();
-
 void clean_game_globals()
 {
-	destroy_lua_wpn_params							();
-	destroy_lua_knife_params();
+	GECSManager->DestroyAll();
+
+	// destroy object factory
+	xr_delete(g_object_factory);
+
 	// destroy ai space
 	xr_delete										(g_ai_space);
-	// destroy object factory
-	xr_delete										(g_object_factory);
 	// destroy monster squad global var
 	xr_delete										(g_monster_squad);
 
@@ -80,11 +78,11 @@ void clean_game_globals()
 
 	if(!g_dedicated_server)
 	{
-//.		CInfoPortion::DeleteSharedData					();
-//.		CInfoPortion::DeleteIdToIndexData				();
+		CInfoPortion::DeleteSharedData					();
+		CInfoPortion::DeleteIdToIndexData				();
 
-//.		CEncyclopediaArticle::DeleteSharedData			();
-//.		CEncyclopediaArticle::DeleteIdToIndexData		();
+		CEncyclopediaArticle::DeleteSharedData			();
+		CEncyclopediaArticle::DeleteIdToIndexData		();
 
 		CPhraseDialog::DeleteSharedData					();
 		CPhraseDialog::DeleteIdToIndexData				();

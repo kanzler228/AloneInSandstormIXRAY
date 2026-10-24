@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 #include "light.h"
 
 static const float	SQRT2		=	1.4142135623730950488016887242097f;
@@ -6,7 +6,7 @@ static const float	RSQRTDIV2	=	0.70710678118654752440084436210485f;
 
 light::light()
 {
-	ISpatialOwner::spatial_create(g_SpatialSpace, this, STYPE_LIGHTSOURCE);
+	ISpatialOwner::spatial_create(g_SpatialSpace, this, ESPATIAL_TYPE::LIGHTSOURCE);
 	flags.type		= POINT;
 	flags.bStatic	= false;
 	flags.bActive	= false;
@@ -82,35 +82,29 @@ void light::destroy(bool deffered)
 }
 
 
-#if (RENDER==R_R2) || (RENDER==R_R4)
-void light::set_texture		(LPCSTR name)
+void light::set_texture(const char* name)
 {
-	if ((0==name) || (0==name[0]))
+#if (RENDER==R_R2) || (RENDER==R_R4)
+	if ((0 == name) || (0 == name[0]))
 	{
 		// default shaders
-		s_spot.destroy		();
-		s_point.destroy		();
+		s_spot.destroy();
+		s_point.destroy();
 		s_volumetric.destroy();
 		return;
 	}
 
-#pragma todo				("Only shadowed spot implements projective texture")
-	string256				temp;
-	
-	xr_strconcat(temp,"r2\\accum_spot_",name);
-	s_spot.create			(RImplementation.Target->b_accum_spot,temp,name);
+#pragma todo("Only shadowed spot implements projective texture")
+	string256 temp;
 
-	s_volumetric.create		("accum_volumetric", name);
-}
+	xr_strconcat(temp, "r2\\accum_spot_", name);
+	s_spot.create(RImplementation.Target->b_accum_spot, temp, name);
+
+	s_volumetric.create("accum_volumetric", name);
 #endif
-
-#if RENDER==R_R1
-void light::set_texture		(LPCSTR name)
-{
 }
-#endif
 
-void light::set_shadow				(bool b)						
+void light::set_shadow(bool b)						
 { 
 	flags.bShadow=b;
 #if RENDER!=R_R1
@@ -165,32 +159,37 @@ void light::set_active(bool a)
 	}
 }
 
-void	light::set_position		(const Fvector& P)
+void light::set_position(const Fvector& P)
 {
-	float	eps					=	EPS;	//_max	(range*0.001f,EPS_L);
-	if (position.similar(P,eps))return	;
-	position.set				(P);
+	float	eps = EPS;	//_max	(range*0.001f,EPS_L);
+	if (position.similar(P, eps))return;
+	position.set(P);
 	spatial_move();
 }
 
-void	light::set_range		(float R)			{
-	float	eps					=	_max	(range*0.1f,EPS);
-	if (fsimilar(range,R,eps))	return	;
-	range						= R		;
+void light::set_range(float R)
+{
+	float	eps = std::max(range * 0.1f, EPS);
+	if (fsimilar(range, R, eps))	return;
+	range = R;
 	spatial_move();
 };
 
-void	light::set_cone			(float angle)		{
-	if (fsimilar(cone,angle))	return	;
-	VERIFY						(cone < deg2rad(121.f));	// 120 is hard limit for lights
-	cone						= angle;
+void light::set_cone(float angle)
+{
+	if (fsimilar(cone, angle))
+		return;
+
+	VERIFY(cone < deg2rad(121.f));	// 120 is hard limit for lights
+	cone = angle;
 	spatial_move();
 }
-void	light::set_rotation		(const Fvector& D, const Fvector& R)	{ 
-	Fvector	old_D		= direction;
-	direction.normalize	(D);
+void light::set_rotation(const Fvector& D, const Fvector& R)
+{
+	Fvector	old_D = direction;
+	direction.normalize(D);
 	right.normalize(R);
-	if (!fsimilar(1.f, old_D.dotproduct(D),EPS_S))	spatial_move();
+	if (!fsimilar(1.f, old_D.dotproduct(D), EPS_S))	spatial_move();
 }
 
 #if RENDER!=R_R1
@@ -198,10 +197,10 @@ void light::get_sectors()
 {
 	if(RImplementation.SectorsCount()<=1 || SpatialComponent.get() == nullptr) return;
 	xrCriticalSectionGuard guard(&sectors_lc);
-	if(0== SpatialComponent->spatial.sector)
+	if(0== SpatialComponent->sector)
 		SpatialComponent->spatial_updatesector();
 
-	CSector* sector = (CSector*)SpatialComponent->spatial.sector;
+	CSector* sector = (CSector*)SpatialComponent->sector;
 	if(0==sector) return;
 
 	if(flags.type == IRender_Light::SPOT || flags.type == IRender_Light::OMNIPART)
@@ -236,13 +235,14 @@ bool light::has_light_visible_from_sectors()
 }
 #endif
 
-void	light::spatial_move			()
+void light::spatial_move()
 {
-	switch(flags.type)	{
+	switch(flags.type)
+	{
 	case IRender_Light::REFLECTED	:	
 	case IRender_Light::POINT		:	
 		{
-		SpatialComponent->spatial.sphere.set		(position, range);
+		SpatialComponent->sphere.set		(position, range);
 		} 
 		break;
 	case IRender_Light::SPOT		:	
@@ -251,24 +251,24 @@ void	light::spatial_move			()
 			VERIFY2						(cone < deg2rad(121.f), "Too large light-cone angle. Maybe you have passed it in 'degrees'?");
 			if (cone>=PI_DIV_2)			{
 				// obtused-angled
-				SpatialComponent->spatial.sphere.P.mad	(position,direction,range);
-				SpatialComponent->spatial.sphere.R		= range * tanf(cone/2.f);
+				SpatialComponent->sphere.P.mad	(position,direction,range);
+				SpatialComponent->sphere.R		= range * tanf(cone/2.f);
 			} else {
 				// acute-angled
-				SpatialComponent->spatial.sphere.R		= range / (2.f * _sqr(_cos(cone/2.f)));
-				SpatialComponent->spatial.sphere.P.mad	(position,direction, SpatialComponent->spatial.sphere.R);
+				SpatialComponent->sphere.R		= range / (2.f * _sqr(std::cos(cone/2.f)));
+				SpatialComponent->sphere.P.mad	(position,direction, SpatialComponent->sphere.R);
 			}
 		}
 		break;
 	case IRender_Light::OMNIPART	:
 		{
 			// is it optimal? seems to be...
-			//spatial.sphere.P.mad		(position,direction,range);
-			//spatial.sphere.R			= range;
+			//sphere.P.mad		(position,direction,range);
+			//sphere.R			= range;
 			// This is optimal.
 			const float fSphereR		= range*RSQRTDIV2;
-			SpatialComponent->spatial.sphere.P.mad		(position,direction,fSphereR);
-			SpatialComponent->spatial.sphere.R			= fSphereR;
+			SpatialComponent->sphere.P.mad		(position,direction,fSphereR);
+			SpatialComponent->sphere.R			= fSphereR;
 		}
 		break;
 	}
@@ -278,7 +278,8 @@ void	light::spatial_move			()
 
 #if (RENDER==R_R2) || (RENDER==R_R4)
 	svis.invalidate();
-	get_sectors();
+	if((SpatialComponent->type&ESPATIAL_TYPE::LIGHTSOURCE)!=ESPATIAL_TYPE::NONE)
+		get_sectors();
 #endif // (RENDER==R_R2) || (RENDER==R_R4)
 }
 
@@ -290,9 +291,9 @@ void light::spatial_updatesector_internal()
 vis_data& light::get_homdata()
 {
 	// commit vis-data
-	hom.sphere.set	(SpatialComponent->spatial.sphere.P, SpatialComponent->spatial.sphere.R);
-	hom.box.set		(SpatialComponent->spatial.sphere.P, SpatialComponent->spatial.sphere.P);
-	hom.box.grow	(SpatialComponent->spatial.sphere.R);
+	hom.sphere.set	(SpatialComponent->sphere.P, SpatialComponent->sphere.R);
+	hom.box.set		(SpatialComponent->sphere.P, SpatialComponent->sphere.P);
+	hom.box.grow	(SpatialComponent->sphere.R);
 	return			hom;
 };
 
@@ -326,7 +327,7 @@ void	light::xform_calc			()
 		L_right.crossproduct		(L_up,L_dir);			L_right.normalize	();
 	} else {
 		// auto find 'up' and 'right' vectors
-		L_up.set					(0,1,0);				if (_abs(L_up.dotproduct(L_dir))>.99f)	L_up.set(0,0,1);
+		L_up.set					(0,1,0);				if (std::abs(L_up.dotproduct(L_dir))>.99f)	L_up.set(0,0,1);
 		L_right.crossproduct		(L_up,L_dir);			L_right.normalize	();
 		L_up.crossproduct			(L_dir,L_right);		L_up.normalize		();
 	}
@@ -376,55 +377,170 @@ void	light::xform_calc			()
 
 		// _min(L->cone + deg2rad(4.5f), PI*0.98f) - Here, it is needed to enlarge the shadow map frustum to include also 
 		// displaced pixels and the pixels neighbor to the examining one.
-		X.S.project.build_projection		(_min(cone + deg2rad(5.f), PI*0.98f), 1.f,virtual_size,range+EPS_S);
+		X.S.project.build_projection		(std::min(cone + deg2rad(5.f), PI*0.98f), 1.f,virtual_size,range+EPS_S);
 
 		X.S.combine.mul(X.S.project,X.S.view);
 	}
 }
 
-void	light::optimize_smap_size()
+static u32 quantize_smap_size_nearest(u32 raw, u32 atlas_size, u32 min_size)
 {
-	int _cached_size = X.S.size;
-	X.S.posX	= 0;
-	X.S.posY	= 0;
-	X.S.size	= SMAP_adapt_max;
-	X.S.transluent = FALSE;
+	static const u32 buckets[] =
+	{
+		32, 64, 128, 256, 512, 1024, 2048
+	};
+
+	u32 max_size = atlas_size / 2;
+	if (max_size < min_size)
+		max_size = min_size;
+
+	raw = clampr(raw, min_size, max_size);
+
+	u32 result = min_size;
+	u32 best_diff = u32(-1);
+
+	for (u32 i = 0; i < sizeof(buckets) / sizeof(buckets[0]); ++i)
+	{
+		u32 b = buckets[i];
+		if (b < min_size)
+			continue;
+		if (b > max_size)
+			break;
+
+		u32 diff = (raw > b) ? (raw - b) : (b - raw);
+		if (diff < best_diff)
+		{
+			best_diff = diff;
+			result = b;
+		}
+	}
+
+	return result;
+}
+
+void light::optimize_smap_size()
+{
+	const u32 cached_size = X.S.size;
+
+	X.S.posX = 0;
+	X.S.posY = 0;
+	X.S.transluent = false;
+
 	// Compute approximate screen area (treating it as an point light) - R*R/dist_sq
 	// Note: we clamp screen space area to ONE, although it is not correct at all
-	float	dist = Device.vCameraPosition.distance_to(SpatialComponent->spatial.sphere.P) - SpatialComponent->spatial.sphere.R;
-			if (dist<0)	dist	= 0;
-	float	ssa					= clampr	(range*range / (1.f+dist*dist),0.f,1.f);
 
-	// compute intensity
-	//float	intensity0			= (L->color.r + L->color.g + L->color.b)/3.f;
-	//float	intensity1			= (L->color.r * 0.2125f + L->color.g * 0.7154f + L->color.b * 0.0721f);
-	//float	intensity			= (intensity0+intensity1)/2.f;		// intensity1 tends to underestimate...
+	float dist = Device.vCameraPosition.distance_to(SpatialComponent->sphere.P) - SpatialComponent->sphere.R;
 
-	// compute how much duelling frusta occurs	[-1..1]-> 1 + [-0.5 .. +0.5]
-	float	duel_dot			= 1.f -	0.5f*Device.vCameraDirection.dotproduct(direction);
+	if (dist < 0)	
+	{
+		dist = 0;
+	}
+
+	float ssa = clampr(range * range / (1.f + dist * dist), 0.f, 1.f);
 
 	// compute how large the light is - give more texels to larger lights, assume 8m as being optimal radius
-	float	sizefactor			= range/8.f;				// 4m = .5, 8m=1.f, 16m=2.f, 32m=4.f
+	float sizefactor = range / 8.f; // 4m = .5, 8m=1.f, 16m=2.f, 32m=4.f
 
 	// compute how wide the light frustum is - assume 90deg as being optimal
-	float	widefactor			= cone/deg2rad(90.f);	// 
+	float widefactor = cone / PI_DIV_2;
 
 	// factors
-	float	factor0				= powf	(ssa,		1.f/2.f);		// ssa is quadratic
-	//float	factor1				= powf	(intensity, 1.f/16.f);		// less perceptually important?
-	float	factor2				= powf	(duel_dot,	1.f/4.f);		// difficult to fast-change this -> visible
-	float	factor3				= powf	(sizefactor,1.f/4.f);		// this shouldn't make much difference
-	float	factor4				= powf	(widefactor,1.f/2.f);		// make it linear ???
-	float	factor				= ps_r2_ls_squality * factor0 /** factor1*/ * factor2 * factor3 * factor4;
-	
-	// final size calc
-	u32 _size					= iFloor( factor * SMAP_adapt_optimal );
-	if (_size<SMAP_adapt_min)	_size	= SMAP_adapt_min;
-	if (_size>SMAP_adapt_max)	_size	= SMAP_adapt_max;
-	int _epsilon				= iCeil	(float(_size)*0.01f);
-	int _diff					= _abs	(int(_size)-int(_cached_size));
-	X.S.size					= (_diff>=_epsilon)?_size:_cached_size;
+	float factor0 = powf(ssa, 1.f / 2.f); // ssa is quadratic
+	float factor1 = powf(sizefactor, 1.f / 4.f); // this shouldn't make much difference
+	float factor2 = powf(widefactor, 1.f / 2.f); // make it linear ???
+
+	if (flags.type == IRender_Light::SPOT)
+	{
+		float duel_dot = 1.f - 0.5f * Device.vCameraDirection.dotproduct(direction);
+		factor0 *= powf(duel_dot, 1.f / 4.f);
+	}
+
+	float factor = ps_r2_ls_squality * factor0 * factor1 * factor2;
+
+	u32 raw_size = iFloor(factor * SMAP_adapt_optimal);
+	raw_size = clampr(raw_size, (u32)SMAP_adapt_min, (u32)SMAP_adapt_max);
+
+	const u32 atlas_size = RImplementation.o.smapsize;
+
+	// important: do not let one light consume too much atlas
+	u32 atlas_max = atlas_size / 2;
+	if (atlas_max < (u32)SMAP_adapt_min)
+		atlas_max = SMAP_adapt_min;
+
+	raw_size = std::min(raw_size, atlas_max);
+
+	// quantize to allocator-friendly buckets
+	u32 new_size = quantize_smap_size_nearest(raw_size, atlas_size, SMAP_adapt_min);
+
+	// bucket-based hysteresis
+	if (cached_size != 0)
+	{
+		// keep previous bucket unless raw size clearly exceeds it
+		if (new_size < cached_size)
+		{
+			if (raw_size > cached_size * 3 / 4)
+				new_size = cached_size;
+		}
+		else if (new_size > cached_size)
+		{
+			if (raw_size < new_size)
+				new_size = cached_size;
+		}
+	}
+
+	X.S.size = new_size;
 }
+
+
+//void light::optimize_smap_size()
+//{
+//	int _cached_size = X.S.size;
+//
+//	X.S.posX = 0;
+//	X.S.posY = 0;
+//
+//	X.S.size = SMAP_adapt_max;
+//	X.S.transluent = false;
+//
+//	// Compute approximate screen area (treating it as an point light) - R*R/dist_sq
+//	// Note: we clamp screen space area to ONE, although it is not correct at all
+//
+//	float dist = Device.vCameraPosition.distance_to(SpatialComponent->sphere.P) - SpatialComponent->sphere.R;
+//
+//	if (dist < 0)	
+//	{
+//		dist = 0;
+//	}
+//
+//	float ssa = clampr(range * range / (1.f + dist * dist), 0.f, 1.f);
+//
+//	// compute how large the light is - give more texels to larger lights, assume 8m as being optimal radius
+//	float sizefactor = range / 8.f; // 4m = .5, 8m=1.f, 16m=2.f, 32m=4.f
+//
+//	// compute how wide the light frustum is - assume 90deg as being optimal
+//	float widefactor = cone / PI_DIV_2;
+//
+//	// factors
+//	float factor0 = powf(ssa, 1.f / 2.f); // ssa is quadratic
+//	float factor1 = powf(sizefactor, 1.f / 4.f); // this shouldn't make much difference
+//	float factor2 = powf(widefactor, 1.f / 2.f); // make it linear ???
+//
+//	if (flags.type == IRender_Light::SPOT)
+//	{
+//		float duel_dot = 1.f - 0.5f * Device.vCameraDirection.dotproduct(direction);
+//		factor0 *= powf(duel_dot, 1.f / 4.f);
+//	}
+//
+//	float factor = ps_r2_ls_squality * factor0 * factor1 * factor2;
+//
+//	// final size calc
+//	u32 _size = iFloor(factor * SMAP_adapt_optimal);
+//	if (_size < SMAP_adapt_min)	_size = SMAP_adapt_min;
+//	if (_size > SMAP_adapt_max)	_size = SMAP_adapt_max;
+//	int _epsilon = iCeil(float(_size) * 0.01f);
+//	int _diff = std::abs(int(_size) - int(_cached_size));
+//	X.S.size = (_diff >= _epsilon) ? _size : _cached_size;
+//}
 
 //								+X,				-X,				+Y,				-Y,			+Z,				-Z
 static	Fvector cmNorm[6]	= {{0.f,1.f,0.f}, {0.f,1.f,0.f}, {0.f,0.f,-1.f},{0.f,0.f,1.f}, {0.f,1.f,0.f}, {0.f,1.f,0.f}};
@@ -452,7 +568,7 @@ void light::export_(light_Package& package)
 					L->set_range		(range);
 					L->set_virtual_size(virtual_size);
 					L->set_color		(color);
-					L->SpatialComponent->spatial.sector	= SpatialComponent->spatial.sector;	//. dangerous?
+					L->SpatialComponent->sector	= SpatialComponent->sector;	//. dangerous?
 					L->s_spot			= s_spot	;
 					L->s_point			= s_point	;
 
@@ -504,8 +620,8 @@ float	light::get_LOD					()
 	if	(!flags.bShadow)	return 1;
 	extern float r_ssaGLOD_start, r_ssaGLOD_end;
 	extern float ps_r2_slight_fade;
-	float	distSQ = Device.vCameraPosition.distance_to_sqr(SpatialComponent->spatial.sphere.P) + EPS;
-	float	ssa = ps_r2_slight_fade * SpatialComponent->spatial.sphere.R/distSQ;
+	float	distSQ = Device.vCameraPosition.distance_to_sqr(SpatialComponent->sphere.P) + EPS;
+	float	ssa = ps_r2_slight_fade * SpatialComponent->sphere.R/distSQ;
 	float	lod = _sqrt(clampr((ssa - r_ssaGLOD_end)/(r_ssaGLOD_start-r_ssaGLOD_end),0.f,1.f));
 	return lod;
 #else

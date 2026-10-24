@@ -45,7 +45,7 @@ float CTeamBaseZone::Radius			() const
 	return						(CFORM()->getRadius());
 }
 
-BOOL CTeamBaseZone::net_Spawn	(CSE_Abstract* DC) 
+bool CTeamBaseZone::net_Spawn	(CSE_Abstract* DC) 
 {
 	CCF_Shape					*l_pShape = new CCF_Shape(this);
 	collidable.model			= l_pShape;
@@ -72,12 +72,12 @@ BOOL CTeamBaseZone::net_Spawn	(CSE_Abstract* DC)
 
 	m_Team = l_tpALifeScriptZone->m_team;
 
-	BOOL						bOk = inherited::net_Spawn(DC);
+	bool						bOk = inherited::net_Spawn(DC);
 	if (bOk) {
 		l_pShape->ComputeBounds	();
 		Fvector					P;
 		XFORM().transform_tiny	(P,CFORM()->getSphere().P);
-		setEnabled				(TRUE);
+		setEnabled				(false);
 	}
 
 	if (!IsGameTypeSingle() && !g_dedicated_server)
@@ -111,7 +111,7 @@ void CTeamBaseZone::shedule_Update(u32 dt)
 
 void CTeamBaseZone::feel_touch_new	(CObject *tpObject)
 {
-	if(OnServer() && smart_cast<CActor*>(tpObject))
+	if(OnServer() && tpObject->cast_actor() != nullptr)
 	{
 		NET_Packet			P_;
 
@@ -119,27 +119,27 @@ void CTeamBaseZone::feel_touch_new	(CObject *tpObject)
 		P_.w_u16			(GAME_EVENT_PLAYER_ENTER_TEAM_BASE);
 		P_.w_u16			( tpObject->ID() );
 		P_.w_u8				( GetZoneTeam() );
-		u_EventSend			(P_,net_flags(TRUE,TRUE));
+		u_EventSend			(P_,net_flags(true,true));
 	};
 }
 
 void CTeamBaseZone::feel_touch_delete	(CObject *tpObject)
 {
-	if(OnServer() && smart_cast<CActor*>(tpObject))
+	if(OnServer() && tpObject->cast_actor() != nullptr)
 	{
 		NET_Packet			P_;
 		u_EventGen			(P_,GE_GAME_EVENT,ID()	);
 		P_.w_u16			(GAME_EVENT_PLAYER_LEAVE_TEAM_BASE );
 		P_.w_u16			( tpObject->ID() );
 		P_.w_u8				( GetZoneTeam() );
-		u_EventSend			(P_,net_flags(TRUE,TRUE));
+		u_EventSend			(P_,net_flags(true,true));
 	};
 }
 
-BOOL CTeamBaseZone::feel_touch_contact	(CObject* O)
+bool CTeamBaseZone::feel_touch_contact	(CObject* O)
 {
-	CActor*	pActor = smart_cast<CActor*>(O);
-	if (!pActor) return (FALSE);
+	CActor*	pActor = O->cast_actor();
+	if (!pActor) return (false);
 	return ((CCF_Shape*)CFORM())->Contact(O);
 }
 

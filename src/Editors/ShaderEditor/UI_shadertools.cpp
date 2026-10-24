@@ -33,7 +33,6 @@ void CShaderTool::OnChangeEditor(ISHTools* tools)
 	m_Current = tools; R_ASSERT(m_Current);
 	m_Current->OnActivate();
     ExecCommand(COMMAND_UPDATE_PROPERTIES);
-	ExecCommand(COMMAND_UPDATE_CAPTION);
 }
 //---------------------------------------------------------------------------
 
@@ -62,10 +61,11 @@ bool CShaderTool::OnCreate()
 
     // create props
     m_Items = new UIItemListForm(); /*TItemList::CreateForm		("Items",				fraLeftBar->paItemList,		alClient,TItemList::ilEditMenu|TItemList::ilDragAllowed|TItemList::ilFolderStore);*/
-	m_Items->SetOnItemFocusedEvent(TOnILItemFocused(this,&CShaderTool::OnItemFocused));
+	m_Items->SetOnItemFocusedEvent({ this,&CShaderTool::OnItemFocused });
     m_Items->m_Flags.set(UIItemListForm::fMenuEdit, true);
     m_ItemProps = new UIPropertiesForm();//TProperties::CreateForm	("Item Properties",		fraLeftBar->paShaderProps,	alClient);
     m_PreviewProps = new UIPropertiesForm();//  	= TProperties::CreateForm	("Preview Properties",	fraLeftBar->paPreviewProps,	alClient);
+    m_PreviewProps->DisableSearch(true);
 
     // create tools
     RegisterTools		();
@@ -117,7 +117,7 @@ void CShaderTool::OnFrame()
 	Current()->OnFrame();
 }
 
-void CShaderTool::ZoomObject(BOOL bOnlySel)
+void CShaderTool::ZoomObject(bool bOnlySel)
 {
 	Current()->ZoomObject(bOnlySel);
 }
@@ -176,17 +176,17 @@ void CShaderTool::ApplyChanges()
 	Current()->ApplyChanges();
 }
 
-void CShaderTool::ShowProperties(LPCSTR focused_item)
+void CShaderTool::ShowProperties(const char* focused_item)
 {
 	//m_ItemProps->ShowProperties();
 }
 
-LPCSTR CShaderTool::CurrentToolsName()
+const char* CShaderTool::CurrentToolsName()
 {
 	return Current()?Current()->ToolsName():"";
 }
 
-LPCSTR CShaderTool::GetInfo()
+const char* CShaderTool::GetInfo()
 {
 	return 0;
 }
@@ -204,12 +204,12 @@ ISHTools* CShaderTool::FindTools(TElTabSheet* sheet)
     return 0;
 }*/
 
-bool CShaderTool::Load(LPCSTR name)
+bool CShaderTool::Load(const char* name)
 {
 	return true;
 }
 
-bool CShaderTool::Save(LPCSTR name, bool bInternal)
+bool CShaderTool::Save(const char* name, bool bInternal)
 {
 	bool bRes = true;
     for (ToolsPairIt it=m_Tools.begin(); it!=m_Tools.end(); it++)
@@ -283,19 +283,19 @@ bool CShaderTool::RayPick(const Fvector& start, const Fvector& dir, float& dist,
 void CShaderTool::RealUpdateProperties()
 {
     Current()->RealUpdateProperties();
-	m_Flags.set(flRefreshProps,FALSE);
+	m_Flags.set(flRefreshProps,false);
 }
 
 void CShaderTool::RealUpdateList()
 {
     Current()->RealUpdateList();
-	m_Flags.set(flRefreshList,FALSE);
+	m_Flags.set(flRefreshList,false);
 }
 
 void  CShaderTool::OnItemFocused(ListItem* items)
 {
     if (!items)return;
-    LPCSTR name = 0;
+    const char* name = 0;
     Current()->m_CurrentItem = 0;
 
     Current()->m_CurrentItem = items;

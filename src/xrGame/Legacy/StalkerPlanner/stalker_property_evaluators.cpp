@@ -22,7 +22,6 @@
 #include "enemy_manager.h"
 #include "danger_manager.h"
 #include "ai_space.h"
-#include "ai/stalker/ai_stalker.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "alife_human_brain.h"
 #include "Actor.h"
@@ -33,27 +32,22 @@
 #include "agent_member_manager.h"
 #include "cover_point.h"
 #include "level_graph.h"
-#include "cover_point.h"
-#include "level_graph.h"
 #include "stalker_animation_manager.h"
 #include "Weapon.h"
 
 using namespace StalkerDecisionSpace;
-
-typedef CStalkerPropertyEvaluator::_value_type _value_type;
-
 const float wounded_enemy_reached_distance	= 3.f;
 
 //////////////////////////////////////////////////////////////////////////
 // CStalkerPropertyEvaluatorALife
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorALife::CStalkerPropertyEvaluatorALife	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorALife::CStalkerPropertyEvaluatorALife	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorALife::evaluate	()
+bool CStalkerPropertyEvaluatorALife::evaluate	()
 {
 	return			(!!ai().get_alife());
 }
@@ -62,12 +56,12 @@ _value_type CStalkerPropertyEvaluatorALife::evaluate	()
 // CStalkerPropertyEvaluatorAlive
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorAlive::CStalkerPropertyEvaluatorAlive	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorAlive::CStalkerPropertyEvaluatorAlive	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorAlive::evaluate	()
+bool CStalkerPropertyEvaluatorAlive::evaluate	()
 {
 	return			(!!object().g_Alive());
 }
@@ -76,12 +70,12 @@ _value_type CStalkerPropertyEvaluatorAlive::evaluate	()
 // CStalkerPropertyEvaluatorItems
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorItems::CStalkerPropertyEvaluatorItems	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorItems::CStalkerPropertyEvaluatorItems	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorItems::evaluate	()
+bool CStalkerPropertyEvaluatorItems::evaluate	()
 {
 	return			(!!m_object->memory().item().selected());
 }
@@ -92,7 +86,7 @@ _value_type CStalkerPropertyEvaluatorItems::evaluate	()
 
 CStalkerPropertyEvaluatorEnemies::CStalkerPropertyEvaluatorEnemies	(
 	CAI_Stalker *object, 
-	LPCSTR evaluator_name, 
+	const char* evaluator_name, 
 	u32 time_to_wait,
 	const bool *dont_wait
 ) : 
@@ -102,7 +96,7 @@ CStalkerPropertyEvaluatorEnemies::CStalkerPropertyEvaluatorEnemies	(
 	m_dont_wait		= dont_wait;
 }
 
-_value_type CStalkerPropertyEvaluatorEnemies::evaluate	()
+bool CStalkerPropertyEvaluatorEnemies::evaluate	()
 {
 	if (m_object->memory().enemy().selected())
 		return			(true);
@@ -120,12 +114,12 @@ _value_type CStalkerPropertyEvaluatorEnemies::evaluate	()
 // CStalkerPropertyEvaluatorSeeEnemy
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorSeeEnemy::CStalkerPropertyEvaluatorSeeEnemy	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorSeeEnemy::CStalkerPropertyEvaluatorSeeEnemy	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorSeeEnemy::evaluate	()
+bool CStalkerPropertyEvaluatorSeeEnemy::evaluate	()
 {
 	return				(m_object->memory().enemy().selected() ? m_object->memory().visual().visible_now(m_object->memory().enemy().selected()) : false);
 }
@@ -134,22 +128,24 @@ _value_type CStalkerPropertyEvaluatorSeeEnemy::evaluate	()
 // CStalkerPropertyEvaluatorEnemySeeMe
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorEnemySeeMe::CStalkerPropertyEvaluatorEnemySeeMe	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorEnemySeeMe::CStalkerPropertyEvaluatorEnemySeeMe	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorEnemySeeMe::evaluate	()
+bool CStalkerPropertyEvaluatorEnemySeeMe::evaluate	()
 {
 	const CEntityAlive		*enemy = m_object->memory().enemy().selected();
 	if (!enemy)
 		return				(false);
 
-	const CCustomMonster	*enemy_monster = smart_cast<const CCustomMonster*>(enemy);
+	CEntityAlive* cast_enemy = const_cast<CEntityAlive*>(enemy);
+
+	const CCreature	*enemy_monster = cast_enemy != nullptr ? cast_enemy->cast_creature() : nullptr;
 	if (enemy_monster)
 		return				(enemy_monster->memory().visual().visible_now(m_object));
 
-	const CActor			*actor = smart_cast<const CActor*>(enemy);
+	const CActor* actor = cast_enemy != nullptr ? cast_enemy->cast_actor () : nullptr;
 	if (actor)
 		return				(actor->memory().visual().visible_now(m_object));
 
@@ -160,12 +156,12 @@ _value_type CStalkerPropertyEvaluatorEnemySeeMe::evaluate	()
 // CStalkerPropertyEvaluatorItemToKill
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorItemToKill::CStalkerPropertyEvaluatorItemToKill	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorItemToKill::CStalkerPropertyEvaluatorItemToKill	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorItemToKill::evaluate	()
+bool CStalkerPropertyEvaluatorItemToKill::evaluate	()
 {
 	return				(!!m_object->item_to_kill());
 }
@@ -174,12 +170,12 @@ _value_type CStalkerPropertyEvaluatorItemToKill::evaluate	()
 // CStalkerPropertyEvaluatorItemCanKill
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorItemCanKill::CStalkerPropertyEvaluatorItemCanKill	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorItemCanKill::CStalkerPropertyEvaluatorItemCanKill	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorItemCanKill::evaluate	()
+bool CStalkerPropertyEvaluatorItemCanKill::evaluate	()
 {
 	return				(m_object->item_can_kill());
 }
@@ -188,12 +184,12 @@ _value_type CStalkerPropertyEvaluatorItemCanKill::evaluate	()
 // CStalkerPropertyEvaluatorFoundItemToKill
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorFoundItemToKill::CStalkerPropertyEvaluatorFoundItemToKill	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorFoundItemToKill::CStalkerPropertyEvaluatorFoundItemToKill	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorFoundItemToKill::evaluate	()
+bool CStalkerPropertyEvaluatorFoundItemToKill::evaluate	()
 {
 	return				(m_object->remember_item_to_kill());
 }
@@ -202,12 +198,12 @@ _value_type CStalkerPropertyEvaluatorFoundItemToKill::evaluate	()
 // CStalkerPropertyEvaluatorFoundAmmo
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorFoundAmmo::CStalkerPropertyEvaluatorFoundAmmo	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorFoundAmmo::CStalkerPropertyEvaluatorFoundAmmo	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorFoundAmmo::evaluate	()
+bool CStalkerPropertyEvaluatorFoundAmmo::evaluate	()
 {
 	return				(m_object->remember_ammo());
 }
@@ -216,12 +212,12 @@ _value_type CStalkerPropertyEvaluatorFoundAmmo::evaluate	()
 // CStalkerPropertyEvaluatorReadyToKillSmartCover
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorReadyToKillSmartCover::CStalkerPropertyEvaluatorReadyToKillSmartCover	(CAI_Stalker *object, LPCSTR evaluator_name, u32 min_ammo_count) :
+CStalkerPropertyEvaluatorReadyToKillSmartCover::CStalkerPropertyEvaluatorReadyToKillSmartCover	(CAI_Stalker *object, const char* evaluator_name, u32 min_ammo_count) :
 	inherited		(object, evaluator_name, min_ammo_count)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorReadyToKillSmartCover::evaluate	()
+bool CStalkerPropertyEvaluatorReadyToKillSmartCover::evaluate	()
 {
 	if (m_object->movement().current_params().cover() && !m_object->movement().current_params().cover()->can_fire())
 		return		(true);
@@ -233,13 +229,13 @@ _value_type CStalkerPropertyEvaluatorReadyToKillSmartCover::evaluate	()
 // CStalkerPropertyEvaluatorReadyToKill
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorReadyToKill::CStalkerPropertyEvaluatorReadyToKill	(CAI_Stalker *object, LPCSTR evaluator_name, u32 min_ammo_count) :
+CStalkerPropertyEvaluatorReadyToKill::CStalkerPropertyEvaluatorReadyToKill	(CAI_Stalker *object, const char* evaluator_name, u32 min_ammo_count) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name),
 	m_min_ammo_count(min_ammo_count)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorReadyToKill::evaluate	()
+bool CStalkerPropertyEvaluatorReadyToKill::evaluate	()
 {
 	if (!m_object->ready_to_kill())
 		return		(false);
@@ -250,8 +246,9 @@ _value_type CStalkerPropertyEvaluatorReadyToKill::evaluate	()
 	if (!m_object->best_weapon())
 		return (false);
 
-	CWeapon&		best_weapon = smart_cast<CWeapon&>(*m_object->best_weapon());
-	if (best_weapon.GetAmmoElapsed() <= (int)m_min_ammo_count) {
+	CWeapon& best_weapon = *m_object->best_weapon()->cast_weapon();
+	if (best_weapon.GetAmmoElapsed() <= (int)m_min_ammo_count)
+	{
 		if (best_weapon.GetAmmoMagSize() <= (int)m_min_ammo_count)
 			return	(best_weapon.GetState() != CWeapon::eReload);
 		else
@@ -265,12 +262,12 @@ _value_type CStalkerPropertyEvaluatorReadyToKill::evaluate	()
 // CStalkerPropertyEvaluatorReadyToDetour
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorReadyToDetour::CStalkerPropertyEvaluatorReadyToDetour	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorReadyToDetour::CStalkerPropertyEvaluatorReadyToDetour	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorReadyToDetour::evaluate	()
+bool CStalkerPropertyEvaluatorReadyToDetour::evaluate	()
 {
 	return				(m_object->ready_to_detour());
 }
@@ -279,12 +276,12 @@ _value_type CStalkerPropertyEvaluatorReadyToDetour::evaluate	()
 // CStalkerPropertyEvaluatorAnomaly
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorAnomaly::CStalkerPropertyEvaluatorAnomaly	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorAnomaly::CStalkerPropertyEvaluatorAnomaly	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorAnomaly::evaluate	()
+bool CStalkerPropertyEvaluatorAnomaly::evaluate	()
 {
 	if (!m_object->undetected_anomaly())
 		return			(false);
@@ -300,12 +297,12 @@ _value_type CStalkerPropertyEvaluatorAnomaly::evaluate	()
 // CStalkerPropertyEvaluatorInsideAnomaly
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorInsideAnomaly::CStalkerPropertyEvaluatorInsideAnomaly	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorInsideAnomaly::CStalkerPropertyEvaluatorInsideAnomaly	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorInsideAnomaly::evaluate	()
+bool CStalkerPropertyEvaluatorInsideAnomaly::evaluate	()
 {
 	if (!m_object->inside_anomaly())
 		return			(false);
@@ -321,12 +318,12 @@ _value_type CStalkerPropertyEvaluatorInsideAnomaly::evaluate	()
 // CStalkerPropertyEvaluatorPanic
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorPanic::CStalkerPropertyEvaluatorPanic	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorPanic::CStalkerPropertyEvaluatorPanic	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited			(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorPanic::evaluate	()
+bool CStalkerPropertyEvaluatorPanic::evaluate	()
 {
 	if (object().animation().global_selector())
 		return			(false);
@@ -339,17 +336,19 @@ _value_type CStalkerPropertyEvaluatorPanic::evaluate	()
 // CStalkerPropertyEvaluatorSmartTerrainTask
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorSmartTerrainTask::CStalkerPropertyEvaluatorSmartTerrainTask	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorSmartTerrainTask::CStalkerPropertyEvaluatorSmartTerrainTask	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited			(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorSmartTerrainTask::evaluate	()
+bool CStalkerPropertyEvaluatorSmartTerrainTask::evaluate	()
 {
 	if (!ai().get_alife())
 		return			(false);
 
-	CSE_ALifeHumanAbstract		*stalker = smart_cast<CSE_ALifeHumanAbstract*>(ai().alife().objects().object(m_object->ID(), true));
+	CSE_ALifeDynamicObject* object = ai().alife().objects().object(m_object->ID(), true);
+
+	CSE_ALifeHumanAbstract* stalker = object != nullptr ? object->cast_human_abstract() : nullptr;
 	if (!stalker)
 		return					(false);
 
@@ -363,12 +362,12 @@ _value_type CStalkerPropertyEvaluatorSmartTerrainTask::evaluate	()
 // CStalkerPropertyEvaluatorEnemyReached
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorEnemyReached::CStalkerPropertyEvaluatorEnemyReached	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorEnemyReached::CStalkerPropertyEvaluatorEnemyReached	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorEnemyReached::evaluate	()
+bool CStalkerPropertyEvaluatorEnemyReached::evaluate	()
 {
 	const CEntityAlive			*enemy = object().memory().enemy().selected();
 	if (!enemy)
@@ -385,12 +384,12 @@ _value_type CStalkerPropertyEvaluatorEnemyReached::evaluate	()
 // CStalkerPropertyEvaluatorPlayerOnThePath
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorPlayerOnThePath::CStalkerPropertyEvaluatorPlayerOnThePath	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorPlayerOnThePath::CStalkerPropertyEvaluatorPlayerOnThePath	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorPlayerOnThePath::evaluate	()
+bool CStalkerPropertyEvaluatorPlayerOnThePath::evaluate	()
 {
 	const CEntityAlive			*enemy = object().memory().enemy().selected();
 	if (!enemy)
@@ -409,18 +408,20 @@ _value_type CStalkerPropertyEvaluatorPlayerOnThePath::evaluate	()
 // CStalkerPropertyEvaluatorEnemyCriticallyWounded
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorEnemyCriticallyWounded::CStalkerPropertyEvaluatorEnemyCriticallyWounded	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorEnemyCriticallyWounded::CStalkerPropertyEvaluatorEnemyCriticallyWounded	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited		(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorEnemyCriticallyWounded::evaluate	()
+bool CStalkerPropertyEvaluatorEnemyCriticallyWounded::evaluate	()
 {
 	const CEntityAlive			*enemy = object().memory().enemy().selected();
 	if (!enemy)
 		return					(false);
 
-	const CAI_Stalker			*enemy_stalker = smart_cast<const CAI_Stalker*>(enemy);
+	CEntityAlive* cast_enemy = const_cast<CEntityAlive*>(enemy);
+
+	const CAI_Stalker* enemy_stalker = cast_enemy != nullptr ? cast_enemy->cast_stalker() : nullptr;
 	if (!enemy_stalker)
 		return					(false);
 
@@ -431,12 +432,12 @@ _value_type CStalkerPropertyEvaluatorEnemyCriticallyWounded::evaluate	()
 // CStalkerPropertyEvaluatorShouldThrowGrenade
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorShouldThrowGrenade::CStalkerPropertyEvaluatorShouldThrowGrenade	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorShouldThrowGrenade::CStalkerPropertyEvaluatorShouldThrowGrenade	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited					(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorShouldThrowGrenade::evaluate	()
+bool CStalkerPropertyEvaluatorShouldThrowGrenade::evaluate	()
 {
 #if 0
 	return						(false);
@@ -501,12 +502,12 @@ _value_type CStalkerPropertyEvaluatorShouldThrowGrenade::evaluate	()
 // CStalkerPropertyEvaluatorTooFarToKillEnemy
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorTooFarToKillEnemy::CStalkerPropertyEvaluatorTooFarToKillEnemy	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorTooFarToKillEnemy::CStalkerPropertyEvaluatorTooFarToKillEnemy	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited					(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorTooFarToKillEnemy::evaluate	()
+bool CStalkerPropertyEvaluatorTooFarToKillEnemy::evaluate	()
 {
 	if (!object().memory().enemy().selected())
 		return					(false);
@@ -522,12 +523,12 @@ _value_type CStalkerPropertyEvaluatorTooFarToKillEnemy::evaluate	()
 // CStalkerPropertyEvaluatorLowCover
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerPropertyEvaluatorLowCover::CStalkerPropertyEvaluatorLowCover	(CAI_Stalker *object, LPCSTR evaluator_name) :
+CStalkerPropertyEvaluatorLowCover::CStalkerPropertyEvaluatorLowCover	(CAI_Stalker *object, const char* evaluator_name) :
 	inherited					(object ? object->lua_game_object() : 0,evaluator_name)
 {
 }
 
-_value_type CStalkerPropertyEvaluatorLowCover::evaluate	()
+bool CStalkerPropertyEvaluatorLowCover::evaluate	()
 {
 	return						(false);
 

@@ -3,6 +3,7 @@
 #include "../xrServerEntities/xrServer_Objects_Abstract.h"
 #include "../xrServerEntities/xrServer_Object_Base.h"
 #include "../xrServerEntities/xrServer_Objects.h"
+#include "../../../../xrECore/Editor/Intersect.h"
 
 #define SPAWNPOINT_CHUNK_VERSION		0xE411
 #define SPAWNPOINT_CHUNK_POSITION		0xE412
@@ -46,7 +47,7 @@ bool CLE_Visual::g_tmp_lock = false;
 
 CLE_Visual::~CLE_Visual()
 {
-	::Render->model_Delete	(visual,TRUE);
+	::Render->model_Delete	(visual,true);
 }
 
 void CLE_Visual::OnDrawUI()
@@ -67,7 +68,7 @@ void CLE_Visual::OnDrawUI()
 
 void CLE_Visual::OnChangeVisual()
 {
-	::Render->model_Delete(visual, TRUE);
+	::Render->model_Delete(visual, true);
 	if (source->visual_name.size())
 	{
 		visual = ::Render->model_Create(source->visual_name.c_str());
@@ -83,7 +84,7 @@ void CLE_Visual::OnChangeVisual()
 			{
 				mr = ELog.DlgMsg(mtSkip, mbYes | mbNo, _msg.c_str());
 			}
-			LPCSTR _new_val = 0;
+			const char* _new_val = 0;
 			g_tmp_lock = true;
 
 			if (mr == mrSkip)
@@ -235,7 +236,7 @@ void CSpawnPoint::CLE_Motion::PlayMotion()
 	if (animator) animator->Play(true);
 }
 // SpawnData
-void CSpawnPoint::SSpawnData::Create(LPCSTR _entity_ref)
+void CSpawnPoint::SSpawnData::Create(const char* _entity_ref)
 {
 	m_Data = g_SEFactoryManager->create_entity(_entity_ref);
 	if (m_Data != nullptr)
@@ -266,7 +267,7 @@ void CSpawnPoint::SSpawnData::Create(LPCSTR _entity_ref)
 		{
 			if (pSettings->r_bool(_entity_ref, "$player"))
 			{
-				m_Data->flags().set(M_SPAWN_OBJECT_ASPLAYER, TRUE);
+				m_Data->flags().set(M_SPAWN_OBJECT_ASPLAYER, true);
 			}
 		}
 		m_ClassID = pSettings->r_clsid(_entity_ref, "class");
@@ -287,7 +288,7 @@ void CSpawnPoint::SSpawnData::Destroy()
 	xr_delete(IdleParticle);
 }
 
-void CSpawnPoint::SSpawnData::get_bone_xform	(LPCSTR name, Fmatrix& xform)
+void CSpawnPoint::SSpawnData::get_bone_xform	(const char* name, Fmatrix& xform)
 {
 	xform.identity		();
 	if (name&&name[0]&&m_Visual&&m_Visual->visual){
@@ -300,7 +301,7 @@ void CSpawnPoint::SSpawnData::get_bone_xform	(LPCSTR name, Fmatrix& xform)
 	}
 }
 
-bool CSpawnPoint::SSpawnData::LoadLTX	(CInifile& ini, LPCSTR sect_name)
+bool CSpawnPoint::SSpawnData::LoadLTX	(CInifile& ini, const char* sect_name)
 {
 	xr_string temp 		= ini.r_string		(sect_name, "name");
 	Create				(temp.c_str());
@@ -322,7 +323,7 @@ bool CSpawnPoint::SSpawnData::LoadLTX	(CInifile& ini, LPCSTR sect_name)
 	return Valid();
 }
 
-void CSpawnPoint::SSpawnData::SaveLTX	(CInifile& ini, LPCSTR sect_name)
+void CSpawnPoint::SSpawnData::SaveLTX	(CInifile& ini, const char* sect_name)
 {
 	ini.w_string(sect_name, "name", m_Data->name());
 	ini.w_u8			(sect_name,"fl", m_flags.get());
@@ -334,7 +335,7 @@ void CSpawnPoint::SSpawnData::SaveLTX	(CInifile& ini, LPCSTR sect_name)
 	ini_stream.move_begin	();
 	Packet.inistream 		= &ini_stream;
 	
-	m_Data->Spawn_Write	(Packet,TRUE);
+	m_Data->Spawn_Write	(Packet,true);
 }
 
 void CSpawnPoint::SSpawnData::SaveStream(IWriter& F)
@@ -349,7 +350,7 @@ void CSpawnPoint::SSpawnData::SaveStream(IWriter& F)
 
 	F.open_chunk		(SPAWNPOINT_CHUNK_SPAWNDATA);
 	NET_Packet 			Packet;
-	m_Data->Spawn_Write	(Packet,TRUE);
+	m_Data->Spawn_Write	(Packet,true);
 	F.w_u32				(Packet.B.count);
 	F.w					(Packet.B.data,Packet.B.count);
 	F.close_chunk		();
@@ -398,7 +399,7 @@ bool CSpawnPoint::SSpawnData::ExportGame(SExportStreams* F, CSpawnPoint* owner)
 	// end
 
 	NET_Packet					Packet;
-	m_Data->Spawn_Write			(Packet,TRUE);
+	m_Data->Spawn_Write			(Packet,true);
 
 	SExportStreamItem& tgt 		= (m_flags.test(eSDTypeRespawn))? F->spawn_rs : F->spawn;
 	tgt.stream.open_chunk		(tgt.chunk++);
@@ -414,7 +415,7 @@ void CSpawnPoint::SSpawnData::ExportSpawn(xr_vector<NET_Packet>& Ps, CSpawnPoint
 	m_Data->position().set(owner->GetPosition());
 	m_Data->angle().set(owner->GetRotation());
 	Ps.push_back(NET_Packet());
-	m_Data->Spawn_Write(Ps.back(), TRUE);
+	m_Data->Spawn_Write(Ps.back(), true);
 }
 
 void CSpawnPoint::SSpawnData::PreExportSpawn(CSpawnPoint* owner)
@@ -472,7 +473,50 @@ void CSpawnPoint::SSpawnData::OnAnimControlClick(ButtonValue* value, bool& bModi
 	}
 }
 
-void CSpawnPoint::SSpawnData::FillProp(LPCSTR pref, PropItemVec& items)
+void CSpawnPoint::SSpawnData::OnWallmarkUpdateClick(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	CSE_ALifeDynamicWallmark* DW = smart_cast<CSE_ALifeDynamicWallmark*>(m_Data);
+	VERIFY(DW);
+
+	if (!Wallmark)
+	{
+		EWallmarkWrapper::WMData data;
+		data.Shader = DW->shader;
+		data.Texture = DW->texture;
+		data.Pos = m_owner->GetPosition();
+		data.Dir = m_owner->_Transform().j;
+		data.Pos.add(data.Dir);
+		data.Dir.invert();
+		data.w = DW->w;
+		data.r = DW->r;
+		data.h = DW->h;
+		Wallmark = xr_make_shared<EWallmarkWrapper>(data);
+	} else
+	{
+		auto& data = Wallmark->GetData();
+		data.Shader = DW->shader;
+		data.Texture = DW->texture;
+		data.Pos = m_owner->GetPosition();
+		data.Dir = m_owner->_Transform().j;
+		data.Pos.add(data.Dir);
+		data.Dir.invert();
+		data.w = DW->w;
+		data.r = DW->r;
+		data.h = DW->h;
+	
+		Wallmark->Update();
+	}
+}
+
+void CSpawnPoint::SSpawnData::OnWallmarkDetachClick(ButtonValue* value, bool& bModif, bool& bSafe)
+{
+	if (Wallmark)
+	{
+		Wallmark->Detach();
+	}
+}
+
+void CSpawnPoint::SSpawnData::FillProp(const char* pref, PropItemVec& items)
 {
 	xrCriticalSectionGuard guard(mLuaEnter);
 
@@ -481,15 +525,22 @@ void CSpawnPoint::SSpawnData::FillProp(LPCSTR pref, PropItemVec& items)
 	if(Scene->m_LevelOp.m_mapUsage.MatchType(eGameIDDeathmatch|eGameIDTeamDeathmatch|eGameIDArtefactHunt|eGameIDCaptureTheArtefact))
 		PHelper().CreateFlag8		(items, PrepareKey(pref,"MP respawn"), &m_flags, eSDTypeRespawn);
 
-   if(m_Visual)
-   {
-	ButtonValue* BV = PHelper().CreateButton	    (	items, 
+    if(m_Visual)
+    {
+		ButtonValue* BV = PHelper().CreateButton	    (	items, 
 									PrepareKey(pref,m_Data->name(),"Model\\AnimationControl"),
 									"|<<,Play,Pause,Stop,>>|",
 									0);
-   BV->OnBtnClickEvent.bind			(this,&CSpawnPoint::SSpawnData::OnAnimControlClick);
+		BV->OnBtnClickEvent.bind(this,&CSpawnPoint::SSpawnData::OnAnimControlClick);
+    }
 
-   }
+	if (CSE_ALifeDynamicWallmark* DW = smart_cast<CSE_ALifeDynamicWallmark*>(m_Data);DW)
+	{
+		auto Button = PHelper().CreateButton(items, PrepareKey(pref,m_Data->name(), "Update Wallmark"), "Update", 0);
+		Button->OnBtnClickEvent.bind(this, &CSpawnPoint::SSpawnData::OnWallmarkUpdateClick);
+		Button = PHelper().CreateButton(items, PrepareKey(pref, m_Data->name(), "Convert Wallmark to Static"), "Convert", 0);
+		Button->OnBtnClickEvent.bind(this, &CSpawnPoint::SSpawnData::OnWallmarkDetachClick);
+	}
 }
 
 void CSpawnPoint::SSpawnData::Render(bool bSelected, const Fmatrix& parent,int priority, bool strictB2F)
@@ -508,12 +559,16 @@ void CSpawnPoint::SSpawnData::Render(bool bSelected, const Fmatrix& parent,int p
 
 	if (IdleParticle)
 	{
-		IParticleCustom* Particles = smart_cast<IParticleCustom*>(IdleParticle);
-		static Fvector v = { 0.f, 0.f, 0.f };
-		Particles->UpdateParent(parent, v, FALSE);
-		Particles->OnFrame(1);
+		float Dist = EDevice->vCameraPosition.distance_to(m_owner->FPosition);
+		if (Dist < EDevice->RenderRadius * 0.25f)
+		{
+			IParticleCustom* Particles = smart_cast<IParticleCustom*>(IdleParticle);
+			static Fvector v = { 0.f, 0.f, 0.f };
+			Particles->UpdateParent(parent, v, false);
+			Particles->OnFrame(1);
 
-		::RImplementation.model_Render(IdleParticle, parent, priority, strictB2F, 1.f);
+			::RImplementation.model_Render(IdleParticle, parent, priority, strictB2F, 1.f);
+		}
 	}
 
 	if(bSelected)
@@ -548,11 +603,15 @@ void CSpawnPoint::SSpawnData::OnFrame()
 		if(m_Data->m_editor_flags.is(CSE_Abstract::flVisualAnimationChange))
 		{
 			m_Visual->PlayAnimationFirstFrame();
-			m_Data->m_editor_flags.set(CSE_Abstract::flVisualAnimationChange, FALSE);
+			m_Data->m_editor_flags.set(CSE_Abstract::flVisualAnimationChange, false);
 		}
 
-		if (m_Visual->visual&&PKinematics(m_Visual->visual))
-			PKinematics			(m_Visual->visual)->CalculateBones(TRUE);
+		IKinematics* KinematicsObj = PKinematics(m_Visual->visual);
+		if (m_Visual->visual && KinematicsObj != nullptr)
+		{
+			float Dist = EDevice->vCameraPosition.distance_to(m_owner->FPosition);
+			KinematicsObj->CalculateBones(true);
+		}
 	}
 	// motion part
 	if (m_Motion)
@@ -589,17 +648,19 @@ void CSpawnPoint::SSpawnData::OnFrame()
 
 	xr_vector<CLE_Visual*>::iterator it 	= m_VisualHelpers.begin();
 	xr_vector<CLE_Visual*>::iterator it_e 	= m_VisualHelpers.end();
-	for(;it!=it_e;++it)
+	for (; it != it_e; ++it)
 	{
-		CLE_Visual* v 			= *it;
-		if (PKinematics(v->visual))
-			PKinematics			(v->visual)->CalculateBones(TRUE);
+		CLE_Visual* v = *it;
+		if (IKinematics* KinematicsObj = PKinematics(v->visual))
+		{
+			KinematicsObj->CalculateBones(true);
+		}
 	}
 
 	// reset editor flags
 	m_Data->m_editor_flags.zero	();
 }
-CSpawnPoint::CSpawnPoint(LPVOID data, LPCSTR name):CCustomObject(data,name),m_SpawnData(this)
+CSpawnPoint::CSpawnPoint(LPVOID data, const char* name):CCustomObject(data,name),m_SpawnData(this)
 {
 	m_rpProfile			= "";
 	m_EM_Ptr			= NULL;
@@ -631,7 +692,7 @@ void CSpawnPoint::Construct(LPVOID data)
 			m_EM_HemiColor		= 0x00FFFFFF;
 			m_EM_ShapeType		= CShapeData::cfSphere;
 		}else{
-			CreateSpawnData(LPCSTR(data));
+			CreateSpawnData((const char*)(data));
 			if (!m_SpawnData.Valid())
 			{
 				SetValid(false);
@@ -730,17 +791,17 @@ void CSpawnPoint::DetachObject()
 	}
 }
 
-bool CSpawnPoint::RefCompare	(LPCSTR ref)
+bool CSpawnPoint::RefCompare	(const char* ref)
 {
 	return ref&&ref[0]&&m_SpawnData.Valid()?(strcmp(ref,m_SpawnData.m_Data->name())==0):false; 
 }
 
-LPCSTR CSpawnPoint::RefName	() 			
+const char* CSpawnPoint::RefName	() 			
 {
 	return m_SpawnData.Valid()?m_SpawnData.m_Data->name():0;
 }
 
-bool CSpawnPoint::CreateSpawnData(LPCSTR entity_ref)
+bool CSpawnPoint::CreateSpawnData(const char* entity_ref)
 {
 	R_ASSERT(entity_ref&&entity_ref[0]);
 	m_SpawnData.Destroy	();
@@ -978,7 +1039,7 @@ void CSpawnPoint::Render( int priority, bool strictB2F )
 					{
 						Fvector pos={0,0,0};
 						EDevice->SetShader(EDevice->m_WireShader);
-						DU_impl.DrawCross(pos,0.25f,Selected()?ENVMOD_SEL_COLOR2:ENVMOD_COLOR,true);
+						AddCross(pos,0.25f,0.25f,0.25f,0.25f,0.25f,0.25f,Selected()?ENVMOD_SEL_COLOR2:ENVMOD_COLOR,true);
 						if (Selected())
 							switch(m_EM_ShapeType)
 							{
@@ -1064,46 +1125,51 @@ bool CSpawnPoint::RayPick(float& distance, const Fvector& start, const Fvector& 
 	if (!IsLoaded)
 		return false;
 
-	bool bPick 	= false;
-	if (m_AttachedObject){
-		bPick 	= m_AttachedObject->RayPick(distance, start, direction, pinf);
-		return 	bPick;
+	bool bPick = false;
+	if (m_AttachedObject)
+	{
+		bPick = m_AttachedObject->RayPick(distance, start, direction, pinf);
+		return bPick;
 	}
 
-	Fbox 		bb;
-	Fvector 	pos;
-	float 		radius;
-	GetBox		(bb);
-	bb.getsphere(pos,radius);
+	Fbox bb;
+	Fvector pos;
+	float radius;
+	GetBox(bb);
+	bb.getsphere(pos, radius);
 
 	Fvector ray2;
-	ray2.sub	(pos, start);
+	ray2.sub(pos, start);
 
 	float d = ray2.dotproduct(direction);
-	if( d > 0  ){
+	if (d > 0)
+	{
 		float d2 = ray2.magnitude();
-		if( ((d2*d2-d*d) < (radius*radius)) && (d>radius) ){
+		if (((d2 * d2 - d * d) < (radius * radius)) && (d > radius))
+		{
 			Fvector pt;
-			if (Fbox::rpOriginOutside==bb.Pick2(start,direction,pt)){
-				d	= start.distance_to(pt);
-				if (d<distance){
-					distance	= d;
-					bPick 		= true;
-					if( pinf && m_SpawnData.m_Visual && m_SpawnData.m_Visual->visual )
+			if (Fbox::rpOriginOutside == bb.Pick2(start, direction, pt))
+			{
+				d = start.distance_to(pt);
+				if (d < distance)
+				{
+					distance = d;
+					bPick = true;
+					if (pinf && m_SpawnData.m_Visual && m_SpawnData.m_Visual->visual)
 					{
 
-						IKinematics*  K = m_SpawnData.m_Visual->visual->dcast_PKinematics();
+						IKinematics* K = m_SpawnData.m_Visual->visual->dcast_PKinematics();
 						u16 b_id = u16(-1);
 						Fvector norm;
-						if( K )
+						if (K)
 						{
-						   bPick =	ETOOLS::intersect( FTransformRP, *K, start,  direction, b_id, distance,  norm );
-						   if( bPick )
-						   {
-							   pinf->visual_inf.K = K;
-							   pinf->visual_inf.normal = norm;
-							   pt.mad( start, direction, distance ); 
-						   }
+							bPick = XRay::Collision::intersect(FTransformRP, *K, start, direction, b_id, distance, norm);
+							if (bPick)
+							{
+								pinf->visual_inf.K = K;
+								pinf->visual_inf.normal = norm;
+								pt.mad(start, direction, distance);
+							}
 
 						}
 
@@ -1146,7 +1212,7 @@ bool CSpawnPoint::OnAppendObject(CCustomObject* object)
 	return true;
 }
 
-bool CSpawnPoint::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool CSpawnPoint::LoadLTX(CInifile& ini, const char* sect_name)
 {
 	xrCriticalSectionGuard guard(mLuaEnter);
 
@@ -1224,7 +1290,7 @@ bool CSpawnPoint::LoadLTX(CInifile& ini, LPCSTR sect_name)
 	return true;
 }
 
-void CSpawnPoint::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void CSpawnPoint::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	CCustomObject::SaveLTX(ini, sect_name);
 
@@ -1461,23 +1527,21 @@ bool CSpawnPoint::ExportGame(SExportStreams* F)
 
 void CSpawnPoint::OnFillRespawnItemProfile(ChooseValue* val)
 {
-	val->m_Items->clear		();
-	string_path				fn;
-	FS.update_path			(fn,"$game_config$", "mp\\respawn_items.ltx");
-	CInifile				ini(fn);
-	CInifile::RootIt it 	= ini.sections().begin();
-	CInifile::RootIt it_e 	= ini.sections().end();
-
-	for(;it!=it_e;++it)
+	val->m_Items->clear();
+	string_path	fn;
+	FS.update_path(fn,"$game_config$", "mp\\respawn_items.ltx");
+	CInifile ini(fn);
+	CInifile::Root& sections = ini.sections();
+	for(CInifile::Sect& sect : sections)
 	{
-		shared_str name		= (*it)->Name;
+		shared_str& sect_name = sect.Name;
 		shared_str hint;
-		if(ini.line_exist(name,"description"))
-			hint 			= ini.r_string(name,"description");
+		if(ini.line_exist(sect_name,"description"))
+			hint 			= ini.r_string(sect_name,"description");
 		else
 			hint 			= "<empty>";
 		
-		val->m_Items->push_back( SChooseItem( name.c_str(), hint.c_str() ) );
+		val->m_Items->push_back( SChooseItem(sect_name.c_str(), hint.c_str() ) );
 	}
 }
 
@@ -1522,7 +1586,7 @@ void CSpawnPoint::OnProfileChange(PropValue* prop)
 			CSE_Abstract* tmp	= g_SEFactoryManager->create_entity	(*s_name);
 			VERIFY				(tmp);
 			NET_Packet 			Packet;
-			tmp->Spawn_Write	(Packet,TRUE);
+			tmp->Spawn_Write	(Packet,true);
 			R_ASSERT			(m_SpawnData.m_Data->Spawn_Read(Packet));
 			m_SpawnData.m_Data->set_editor_flag(CSE_Abstract::flVisualChange|CSE_Abstract::flVisualAnimationChange);
 			g_SEFactoryManager->destroy_entity		(tmp);
@@ -1532,7 +1596,7 @@ void CSpawnPoint::OnProfileChange(PropValue* prop)
 	}
 }
 
-void CSpawnPoint::FillProp(LPCSTR pref, PropItemVec& items)
+void CSpawnPoint::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref,items);
 
@@ -1612,11 +1676,11 @@ void CSpawnPoint::FillProp(LPCSTR pref, PropItemVec& items)
 }
 void CSpawnPoint::OnEnvModFlagChange(PropValue* prop)
 {
-	LTools->UpdateProperties(FALSE);
+	LTools->UpdateProperties(false);
 }
 
 
-bool CSpawnPoint::OnChooseQuery(LPCSTR specific)
+bool CSpawnPoint::OnChooseQuery(const char* specific)
 {
 	return (m_SpawnData.Valid()&&(0==strcmp(m_SpawnData.m_Data->name(),specific)));
 }

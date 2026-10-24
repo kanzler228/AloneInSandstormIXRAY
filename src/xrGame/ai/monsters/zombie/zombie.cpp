@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "zombie.h"
 #include "zombie_state_manager.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
@@ -20,7 +20,7 @@ CZombie::~CZombie()
 	xr_delete		(StateMan);
 }
 
-void CZombie::Load(LPCSTR section)
+void CZombie::Load(const char* section)
 {
 	inherited::Load	(section);
 
@@ -83,7 +83,7 @@ void CZombie::reinit()
 	active_triple_idx		= u8(-1);
 }
 
-void CZombie::reload(LPCSTR section)
+void CZombie::reload(const char* section)
 {
 	inherited::reload(section);
 
@@ -105,8 +105,9 @@ void CZombie::BoneCallback(CBoneInstance* B)
 void CZombie::vfAssignBones()
 {
 	// Установка callback на кости
-	bone_spine =	&smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(smart_cast<IKinematics*>(Visual())->LL_BoneID("bip01_spine"));
-	bone_head =		&smart_cast<IKinematics*>(Visual())->LL_GetBoneInstance(smart_cast<IKinematics*>(Visual())->LL_BoneID("bip01_head"));
+	IKinematics* kin = PKinematics(Visual());
+	bone_spine = &kin->LL_GetBoneInstance(kin->LL_BoneID("bip01_spine"));
+	bone_head =	&kin->LL_GetBoneInstance(kin->LL_BoneID("bip01_head"));
 	//if(!PPhysicsShell())//нельзя ставить колбеки, если создан физ шел - у него стоят свои колбеки!!!
 	//{
 		//bone_spine->set_callback(BoneCallback,this);
@@ -119,14 +120,14 @@ void CZombie::vfAssignBones()
 	Bones.AddBone(bone_head, AXIS_Z);	Bones.AddBone(bone_head, AXIS_Y);
 }
 
-BOOL CZombie::net_Spawn (CSE_Abstract* DC) 
+bool CZombie::net_Spawn (CSE_Abstract* DC) 
 {
 	if (!inherited::net_Spawn(DC))
-		return(FALSE);
+		return(false);
 
 	vfAssignBones	();
 
-	return(TRUE);
+	return(true);
 }
 
 #define TIME_FAKE_DEATH			5000

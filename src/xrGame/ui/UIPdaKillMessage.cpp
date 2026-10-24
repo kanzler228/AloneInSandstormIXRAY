@@ -27,13 +27,13 @@ void CUIPdaKillMessage::Init(KillMessageStruct& msg, CGameFont* F)
 			InitIcon(m_ext_info,	x, msg.m_ext_info);
 
 	Fvector2 sz		= GetWndSize();
-	sz.x			= _max(sz.x, x+m_ext_info.GetWidth());
+	sz.x			= std::max(sz.x, x+m_ext_info.GetWidth());
 	SetWndSize		(sz);
 	
 	SetColorAnimation			("ui_main_msgs_short", LA_ONLYALPHA|LA_TEXTCOLOR|LA_TEXTURECOLOR, 5000.0f);
 }
 
-float CUIPdaKillMessage::InitText(CUITextWnd& refStatic, float x, PlayerInfo& info)
+float CUIPdaKillMessage::InitText(CUIStatic& refStatic, float x, PlayerInfo& info)
 {
 
 	if ( 0 == xr_strlen(info.m_name))
@@ -48,7 +48,7 @@ float CUIPdaKillMessage::InitText(CUITextWnd& refStatic, float x, PlayerInfo& in
 
 	refStatic.SetWndPos					(Fvector2().set(x, y));
 	refStatic.SetHeight					(GetHeight());
-	refStatic.SetEllipsis				(true);
+	refStatic.SetEllipsis				(1, 1);
 	refStatic.SetText					(info.m_name.c_str());
 	refStatic.AdjustWidthToText			();
 	refStatic.SetWidth					(refStatic.GetWidth()+_eps);

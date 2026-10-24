@@ -7,12 +7,12 @@
 using Fvector4Vec = xr_vector<Fvector4>;
 using Fvector4It = Fvector4Vec::iterator;
 
-BOOL GetPointColor(SPickQuery::SResult* R, u32& alpha)
+bool GetPointColor(SPickQuery::SResult* R, u32& alpha)
 {
     CSurface* surf = R->e_mesh->GetSurfaceByFaceID(R->tag); VERIFY(surf);
     Shader_xrLC* c_sh = EDevice->ShaderXRLC.Get(surf->_ShaderXRLCName());
     if (!c_sh->flags.bRendering) 
-        return FALSE;
+        return false;
 
     const Fvector2* cuv[3];
     R->e_mesh->GetFaceTC(R->tag, cuv);
@@ -33,7 +33,7 @@ BOOL GetPointColor(SPickQuery::SResult* R, u32& alpha)
     V %= surf->m_ImageData->h;	if (V < 0) V += surf->m_ImageData->h;
 
     alpha = color_get_A(surf->m_ImageData->layers.back()[V * surf->m_ImageData->w + U]);
-    return TRUE;
+    return true;
 }
 
 int	SceneBuilder::BuildObjectLOD(const Fmatrix& parent, CEditableObject* E, int sector_num)

@@ -9,7 +9,7 @@
 #include "StdAfx.h"
 #include "pch_script.h"
 #include "script_entity.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "../xrEngine/Feel_Vision.h"
 #include "../xrEngine/motion.h"
 #include "../Include/xrRender/Kinematics.h"
@@ -28,7 +28,7 @@
 #include "ai_object_location.h"
 #include "movement_manager.h"
 #include "game_object_space.h"
-
+#include "ParticlesObject.h"
 void  ActionCallback(IKinematics *tpKinematics);
 
 CScriptEntity::CScriptEntity()
@@ -53,7 +53,7 @@ DLL_Pure *CScriptEntity::_construct		()
 	m_object	= smart_cast<CGameObject*>(this);
 	VERIFY		(m_object);
 	
-	m_monster	= smart_cast<CCustomMonster*>(this);
+	m_monster	= smart_cast<CCreature*>(this);
 	
 	init		();
 	
@@ -132,7 +132,7 @@ bool CScriptEntity::GetScriptControl() const
 	return				(m_bScriptControl);
 }
 
-LPCSTR CScriptEntity::GetScriptControlName() const
+const char* CScriptEntity::GetScriptControlName() const
 {
 	return				(*m_caScriptName);
 }
@@ -220,9 +220,9 @@ void CScriptEntity::vfUpdateSounds()
 		return;
 
 	CScriptSoundAction	&l_tSoundAction = currentAction->m_tSoundAction;
-	if (l_tSoundAction.m_caBoneName.size() && m_current_sound && m_current_sound->_feedback())
+	if (l_tSoundAction.m_caBoneName.size() && m_current_sound && m_current_sound->is_playing())
 	{
-		m_current_sound->_feedback()->set_position(GetUpdatedMatrix(l_tSoundAction.m_caBoneName,l_tSoundAction.m_tSoundPosition,Fvector().set(0,0,0)).c);
+		m_current_sound->set_position(GetUpdatedMatrix(l_tSoundAction.m_caBoneName,l_tSoundAction.m_tSoundPosition,Fvector().set(0,0,0)).c);
 	}
 }
 
@@ -367,19 +367,21 @@ bool CScriptEntity::bfAssignSound(CScriptEntityAction *tpEntityAction)
 	if (l_tSoundAction.m_bCompleted)
 		return		(false);
 	
-	if (m_current_sound) {
-		if (!m_current_sound->_feedback())
-			if (!l_tSoundAction.m_bStartedToPlay) {
-#ifdef _DEBUG
-//				Msg									("%6d Starting sound %s",Device.dwTimeGlobal,*l_tSoundAction.m_caSoundToPlay);
-#endif
-				const Fmatrix	&l_tMatrix = GetUpdatedMatrix(l_tSoundAction.m_caBoneName,l_tSoundAction.m_tSoundPosition,l_tSoundAction.m_tSoundAngles);
-				m_current_sound->play_at_pos(m_object,l_tMatrix.c,l_tSoundAction.m_bLooped ? sm_Looped : 0);
+	if (m_current_sound)
+	{
+		if (!m_current_sound->is_playing())
+		{
+			if (!l_tSoundAction.m_bStartedToPlay)
+			{
+				const Fmatrix& l_tMatrix = GetUpdatedMatrix(l_tSoundAction.m_caBoneName, l_tSoundAction.m_tSoundPosition, l_tSoundAction.m_tSoundAngles);
+				m_current_sound->play_at_pos(m_object, l_tMatrix.c, l_tSoundAction.m_bLooped ? sm_Looped : 0);
 				l_tSoundAction.m_bStartedToPlay = true;
 			}
-			else {
-				l_tSoundAction.m_bCompleted		= true;
+			else
+			{
+				l_tSoundAction.m_bCompleted = true;
 			}
+		}
 	}
 	else {
 		if (xr_strlen(l_tSoundAction.m_caSoundToPlay)) {
@@ -392,28 +394,33 @@ bool CScriptEntity::bfAssignSound(CScriptEntityAction *tpEntityAction)
 	return		(!l_tSoundAction.m_bCompleted);
 }
 
-bool CScriptEntity::bfAssignParticles(CScriptEntityAction *tpEntityAction)
+bool CScriptEntity::bfAssignParticles(CScriptEntityAction* tpEntityAction)
 {
-	CScriptParticleAction	&l_tParticleAction = tpEntityAction->m_tParticleAction;
+	CScriptParticleAction& l_tParticleAction = tpEntityAction->m_tParticleAction;
 	if (l_tParticleAction.m_bCompleted)
-		return		(false);
-	if (l_tParticleAction.m_tpParticleSystem) {
-		if (true/** !l_tParticleAction.m_tpParticleSystem/**/)
-			if (!l_tParticleAction.m_bStartedToPlay) {
-				const Fmatrix	&l_tMatrix = GetUpdatedMatrix(*l_tParticleAction.m_caBoneName,l_tParticleAction.m_tParticlePosition,l_tParticleAction.m_tParticleAngles);
-				Fvector zero_vel_={0.f,0.f,0.f};
-				l_tParticleAction.m_tpParticleSystem->UpdateParent(l_tMatrix,zero_vel_);
-				l_tParticleAction.m_tpParticleSystem->play_at_pos(l_tMatrix.c);
-				l_tParticleAction.m_bStartedToPlay = true;
-			}
-			else {
-				l_tParticleAction.m_bCompleted = true;
-			}
+		return (false);
+
+	if (l_tParticleAction.m_tpParticleSystem)
+	{
+		if (!l_tParticleAction.m_bStartedToPlay)
+		{
+			const Fmatrix& l_tMatrix = GetUpdatedMatrix(*l_tParticleAction.m_caBoneName, l_tParticleAction.m_tParticlePosition, l_tParticleAction.m_tParticleAngles);
+			Fvector zero_vel_ = { 0.f,0.f,0.f };
+			l_tParticleAction.m_tpParticleSystem->UpdateParent(l_tMatrix, zero_vel_);
+			l_tParticleAction.m_tpParticleSystem->play_at_pos(l_tMatrix.c);
+			l_tParticleAction.m_bStartedToPlay = true;
+		}
+		else
+		{
+			l_tParticleAction.m_bCompleted = true;
+		}
 	}
 	else
+	{
 		l_tParticleAction.m_bCompleted = true;
+	}
 
-	return			(!l_tParticleAction.m_bCompleted);
+	return (!l_tParticleAction.m_bCompleted);
 }
 
 bool CScriptEntity::bfAssignObject(CScriptEntityAction *tpEntityAction)
@@ -522,7 +529,7 @@ void CScriptEntity::net_Destroy()
 	m_initialized			= false;
 }
 
-LPCSTR CScriptEntity::GetPatrolPathName()
+const char* CScriptEntity::GetPatrolPathName()
 {
 #ifdef DEBUG
 	if (!GetScriptControl()) {
@@ -535,13 +542,13 @@ LPCSTR CScriptEntity::GetPatrolPathName()
 	return					(*m_tpActionQueue.back()->m_tMovementAction.m_path_name);
 }
 
-BOOL CScriptEntity::net_Spawn		(CSE_Abstract* DC)
+bool CScriptEntity::net_Spawn		(CSE_Abstract* DC)
 {
 	m_initialized					= true;
-	object().setVisible				(TRUE);
-	object().setEnabled				(TRUE);
+	object().setVisible				(true);
+	object().setEnabled				(true);
 
-	return							(TRUE);
+	return							(true);
 }
 
 void CScriptEntity::shedule_Update	(u32 DT)
@@ -584,17 +591,17 @@ bool CScriptEntity::bfScriptAnimation()
 
 			m_tpScriptAnimation = m_tpNextAnimation;
 			IKinematicsAnimated	*skeleton_animated = smart_cast<IKinematicsAnimated*>(object().Visual());
-			LPCSTR				animation_id = *GetCurrentAction()->m_tAnimationAction.m_caAnimationToPlay;
+			const char*				animation_id = *GetCurrentAction()->m_tAnimationAction.m_caAnimationToPlay;
 			MotionID			animation = skeleton_animated->ID_Cycle(animation_id);
 			CBlend				*result = 0;
 			for (u16 i=0; i<MAX_PARTS; ++i) {
 				CBlend			*blend = 0;
 				if (result) {
-					skeleton_animated->LL_PlayCycle(i,animation,TRUE,0,0);
+					skeleton_animated->LL_PlayCycle(i,animation,true,0,0);
 					continue;
 				}
 
-				blend			= skeleton_animated->LL_PlayCycle(i,animation,TRUE,ScriptCallBack,this);
+				blend			= skeleton_animated->LL_PlayCycle(i,animation,true,ScriptCallBack,this);
 				if (!blend)
 					continue;
 				result			= blend;

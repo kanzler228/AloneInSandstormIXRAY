@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "snork.h"
 #include "snork_jump.h"
 //#include "../jump_ability.h"
@@ -19,7 +19,7 @@
 //	xr_delete(m_jumper);
 //}
 //
-//void CSnorkJump::load(LPCSTR section)
+//void CSnorkJump::load(const char* section)
 //{
 //	//m_jumper->load(section);
 //}
@@ -159,8 +159,8 @@
 //{
 //	float ret_val = flt_max;
 //	
-//	BOOL				enabled = m_object->getEnabled();
-//	m_object->setEnabled(FALSE);
+//	bool				enabled = m_object->getEnabled();
+//	m_object->setEnabled(false);
 //	collide::rq_result	l_rq;
 //
 //	Fvector			trace_from;

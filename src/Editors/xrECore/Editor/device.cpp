@@ -1,4 +1,4 @@
-//---------------------------------------------------------------------------
+﻿//---------------------------------------------------------------------------
 #include "stdafx.h"
 
 #include "../xrEngine/GameFont.h"
@@ -11,20 +11,17 @@
 #include "../Layers/xrRender/dxRenderDeviceRender.h"
 #include "UI_ToolsCustom.h"
 #include "SoundProcessor.h"
-
+#include "device_win_custom.h"
 CEditorRenderDevice 	*	EDevice;
 bool g_bIsEditor;
 
-extern int	rsDVB_Size;
-extern int	rsDIB_Size;
-
-//CStatsPhysics* _BCL			CEditorRenderDevice::StatPhysics() { return Statistic; }
-void	   _BCL			CEditorRenderDevice::AddSeqFrame(pureFrame* f, bool mt) { seqFrame.Add(f, REG_PRIORITY_LOW); }
-void	   _BCL			CEditorRenderDevice::RemoveSeqFrame(pureFrame* f) { seqFrame.Remove(f); }
+void CEditorRenderDevice::AddSeqFrame(pureFrame* f, bool mt) { seqFrame.Add(f, REG_PRIORITY_LOW); }
+void CEditorRenderDevice::RemoveSeqFrame(pureFrame* f) { seqFrame.Remove(f); }
 
 ENGINE_API xr_atomic_bool g_bRendering;
 //---------------------------------------------------------------------------
 #include <luabind/luabind.hpp>
+void EditorFillPropTextureParams(STextureParams* ThisCall, const char* base_name, xr_vector<PropItem*>& items, PropValue::TOnChange OnChangeEvent);
 
 static LPVOID __cdecl luabind_allocator(
 	luabind::memory_allocation_function_parameter const,
@@ -36,7 +33,7 @@ static LPVOID __cdecl luabind_allocator(
 	{
 		LPVOID	non_const_pointer = const_cast<LPVOID>(pointer);
 		xr_free(non_const_pointer);
-		return	(0);
+		return	(nullptr);
 	}
 
 	if (!pointer)
@@ -51,7 +48,7 @@ static LPVOID __cdecl luabind_allocator(
 void setup_luabind_allocator()
 {
 	luabind::allocator = &luabind_allocator;
-	luabind::allocator_parameter = 0;
+	luabind::allocator_parameter = nullptr;
 }
 
 
@@ -59,9 +56,6 @@ CEditorRenderDevice::CEditorRenderDevice()
 {
 	RenderRadius = 400;
 	psDeviceFlags.assign(rsStatistic|rsFilterLinear|rsFog|rsDrawGrid);
-// dynamic buffer size
-	rsDVB_Size		= 1024 * 16;
-	rsDIB_Size		= 2048;
 // default initialization
     m_ScreenQuality = 1.f;
 	//dwMaximized = 0;
@@ -70,11 +64,11 @@ CEditorRenderDevice::CEditorRenderDevice()
 	mProject.identity();
     mFullTransform.identity();
     mView.identity	();
-	m_WireShader	= 0;
-	m_SelectionShader = 0;
+	m_WireShader	= nullptr;
+	m_SelectionShader = nullptr;
 
-    b_is_Ready 			= FALSE;
-	b_is_Active			= FALSE;
+    b_is_Ready 			= false;
+	b_is_Active			= false;
 
 	// Engine flow-control
 	fTimeDelta		= 0;
@@ -85,7 +79,7 @@ CEditorRenderDevice::CEditorRenderDevice()
 	dwFillMode		= D3DFILL_SOLID;
     dwShadeMode		= D3DSHADE_GOURAUD;
 
-    m_CurrentShader	= 0;
+    m_CurrentShader	= nullptr;
     //pSystemFont		= 0;
 
 	fASPECT 		= 1.f;
@@ -98,6 +92,7 @@ CEditorRenderDevice::CEditorRenderDevice()
 	g_bIsEditor = true;
 
 	setup_luabind_allocator();
+	STextureParams::FillPropImpl = EditorFillPropTextureParams;
 }
 
 CEditorRenderDevice::~CEditorRenderDevice()
@@ -151,7 +146,8 @@ void CEditorRenderDevice::Initialize()
 		SDL_MaximizeWindow(g_AppInfo.Window);
 	
 	SDL_ShowWindow(g_AppInfo.Window);
-
+	SDL_RaiseWindow(g_AppInfo.Window);
+	
 
 	if (psDeviceFlags.test(mtSound))
 	{
@@ -197,21 +193,18 @@ void CEditorRenderDevice::InitTimer()
 
 void CEditorRenderDevice::Clear()
 {
-	u32 ClearColor = 0x0;
+	float ClearColor[4] = {};
 
 	if (EPrefs)
 	{
-		float color[4] = 
-		{ 
-			color_get_R(EPrefs->scene_clear_color) / 255.f, 
-			color_get_G(EPrefs->scene_clear_color) / 255.f,
-			color_get_B(EPrefs->scene_clear_color) / 255.f, 
-			color_get_A(EPrefs->scene_clear_color) / 255.f
-		};
-		ClearColor = color_rgba_f(color[0], color[1], color[2], color[3]);
+		ClearColor[0] = color_get_R(EPrefs->scene_clear_color) / 255.f;
+		ClearColor[1] = color_get_G(EPrefs->scene_clear_color) / 255.f;
+		ClearColor[2] = color_get_B(EPrefs->scene_clear_color) / 255.f;
+		ClearColor[3] = color_get_A(EPrefs->scene_clear_color) / 255.f;
 	}
 
-	CHK_DX(REDevice->Clear(0, 0, D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL | D3DCLEAR_TARGET, ClearColor, 1, 0));
+	GRHI->ClearDepthStencil(GRHI->GetDepthStencilView(), ERHI_CLEAR_TARGET::DEPTH | ERHI_CLEAR_TARGET::STENCIL, 1, 0);
+	GRHI->ClearTarget(GRHI->GetRenderTargetView(0), ClearColor);
 }
 
 //---------------------------------------------------------------------------
@@ -227,6 +220,7 @@ void CEditorRenderDevice::ResetNearer(){
 bool CEditorRenderDevice::Create()
 {
 	if (b_is_Ready)	return false;
+	psDeviceFlags.set(rsVSync, true);
 
 	TimerGlobal.Start();
 	//Statistic = EStatistic;
@@ -256,14 +250,14 @@ bool CEditorRenderDevice::Create()
 	string_path 		sh;
     FS.update_path		(sh,_game_data_,"shaders.xr");
 
-    IReader* F			= 0;
+    IReader* F			= nullptr;
 	if (FS.exist(sh))
-		F				= FS.r_open(0,sh);
+		F				= FS.r_open(nullptr,sh);
 	Resources			= new CResourceManager	();
 
     // if build options - load textures immediately
     if (strstr(Core.Params,"-build")||strstr(Core.Params,"-ebuild"))
-        EDevice->Resources->DeferredLoad(FALSE);
+        EDevice->Resources->DeferredLoad(false);
 
 	g_FontManager = new CFontManager();
 
@@ -290,7 +284,7 @@ void CEditorRenderDevice::Destroy()
 	SearchIcon.destroy();
 	::Render->destroy();
 	// before destroy
-	_Destroy(FALSE);
+	_Destroy(false);
 
 	xr_delete(Resources);
 
@@ -307,15 +301,15 @@ void CEditorRenderDevice::_SetupStates()
 		float fBias = -1.f;
 		CHK_DX(REDevice->SetSamplerState( i, D3DSAMP_MIPMAPLODBIAS, *((LPDWORD) (&fBias))));
 	}
-	EDevice->SetRS(D3DRS_DITHERENABLE,	TRUE				);
-    EDevice->SetRS(D3DRS_COLORVERTEX,		TRUE				);
-    EDevice->SetRS(D3DRS_STENCILENABLE,	FALSE				);
-    EDevice->SetRS(D3DRS_ZENABLE,			TRUE				);
+	EDevice->SetRS(D3DRS_DITHERENABLE,	true				);
+    EDevice->SetRS(D3DRS_COLORVERTEX,		true				);
+    EDevice->SetRS(D3DRS_STENCILENABLE,	false				);
+    EDevice->SetRS(D3DRS_ZENABLE,			true				);
     EDevice->SetRS(D3DRS_SHADEMODE,		D3DSHADE_GOURAUD	);
 	EDevice->SetRS(D3DRS_CULLMODE,		D3DCULL_CCW			);
 	EDevice->SetRS(D3DRS_ALPHAFUNC,		D3DCMP_GREATER		);
-	EDevice->SetRS(D3DRS_LOCALVIEWER,		TRUE				);
-    EDevice->SetRS(D3DRS_NORMALIZENORMALS,TRUE				);
+	EDevice->SetRS(D3DRS_LOCALVIEWER,		true				);
+    EDevice->SetRS(D3DRS_NORMALIZENORMALS,true				);
 
 	EDevice->SetRS(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 	EDevice->SetRS(D3DRS_SPECULARMATERIALSOURCE,D3DMCS_MATERIAL);
@@ -327,7 +321,7 @@ void CEditorRenderDevice::_SetupStates()
 //---------------------------------------------------------------------------
 void CEditorRenderDevice::_Create(IReader* F)
 {
-	b_is_Ready				= TRUE;
+	b_is_Ready				= true;
 
 	// General Render States
     _SetupStates		();
@@ -341,7 +335,7 @@ void CEditorRenderDevice::_Create(IReader* F)
 
 	texture_null.create("ed\\ed_nodata");
 	texture_null->Load();
-	UIChooseForm::SetNullTexture(texture_null->pSurface);
+	UIChooseForm::SetNullTexture(texture_null->get_SRView()->GetRawSRV());
 
 	// signal another objects
     UI->OnDeviceCreate			();       
@@ -349,10 +343,10 @@ void CEditorRenderDevice::_Create(IReader* F)
 	EDevice->InitWindowStyle();
 }
 
-void CEditorRenderDevice::_Destroy(BOOL	bKeepTextures)
+void CEditorRenderDevice::_Destroy(bool	bKeepTextures)
 {
-	b_is_Ready 						= FALSE;
-    m_CurrentShader				= 0;
+	b_is_Ready 						= false;
+    m_CurrentShader				= nullptr;
 
     UI->OnDeviceDestroy			();
 
@@ -371,8 +365,6 @@ void CEditorRenderDevice::_Destroy(BOOL	bKeepTextures)
 //---------------------------------------------------------------------------
 void  CEditorRenderDevice::Resize(int w, int h, bool maximized)
 {
-	m_RenderArea = w * h;
-
 	dwRealWidth = w;
 	dwRealHeight = h;
 
@@ -399,19 +391,20 @@ void CEditorRenderDevice::Reset(bool)
 	UI->ResetEnd(RDevice);
 	_SetupStates();
 
-	UIChooseForm::SetNullTexture(texture_null->pSurface);
+	R_ASSERT(texture_null->get_SRView(), "Null texture not found!");
+	UIChooseForm::SetNullTexture(texture_null->get_SRView()->GetRawSRV());
 
-	SearchIcon = EDevice->Resources->_CreateTexture("ed\\content_browser\\search");
+	SearchIcon = EDevice->Resources->_CreateTexture("ed\\content_browser_search");
 	if (SearchIcon)
 	{
 		SearchIcon->Load();
-		GUIManager->SearchIcon = SearchIcon->pSurface;
+		GUIManager->SearchIcon = SearchIcon->get_SRView()->GetRawSRV();
 	}
 	u32 tm_end = TimerAsync();
 	Msg("*** RESET [%d ms]", tm_end - tm_start);
 }
 
-void CEditorRenderDevice::Reset(IReader* F, BOOL bKeepTextures)
+void CEditorRenderDevice::Reset(IReader* F, bool bKeepTextures)
 {
 	CTimer tm;
 	tm.Start();
@@ -423,68 +416,30 @@ void CEditorRenderDevice::Reset(IReader* F, BOOL bKeepTextures)
 void CEditorRenderDevice::MaximizedWindow()
 {
 	auto hwnd = GetHWND();
-	if (IsZoomed(hwnd))
-		SendMessageW(hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
+	if (EDevice->isZoomed) {
+		ResoreWindow(false);
+		return;
+	}
 
-	//
-	LONG style = GetWindowLong(hwnd, GWL_STYLE);
-	style &= ~WS_THICKFRAME;
-	SetWindowLong(hwnd, GWL_STYLE, style);
-
-	GetWindowRect(hwnd, &EDevice->NormalWinSize);
-	EDevice->NormalWinSizeSaved = true;
 	EDevice->isZoomed = true;
 
-	auto CurrentMonitor = ::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-
-	MONITORINFO minfo;
-	minfo.cbSize = sizeof(MONITORINFO);
-	GetMonitorInfo(CurrentMonitor, &minfo);
-
-	const RECT& workArea = minfo.rcWork;
-
-	SDL_SetWindowSize(g_AppInfo.Window, workArea.right - workArea.left, workArea.bottom - workArea.top);
-	SDL_SetWindowPosition(g_AppInfo.Window, workArea.left, workArea.top);
+	SendMessage(hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
 }
 
 void CEditorRenderDevice::ResoreWindow(bool moving)
 {
-	if (EDevice->NormalWinSizeSaved)
+	SendMessageW(GetHWND(), WM_SYSCOMMAND, SC_RESTORE, 0);
+
+	WINDOWPLACEMENT wp{};
+	wp.length = sizeof(wp);
+
+	if (GetWindowPlacement(GetHWND(), &wp)) //analog EDevice->NormalWinSizeSaved
 	{
-		auto& r = EDevice->NormalWinSize;
-		MoveWindow(GetHWND(), r.left, r.top, r.right - r.left, r.bottom - r.top, TRUE);
-
-		if (moving)
-		{
-			float mouseX, mouseY;
-			SDL_GetMouseState(&mouseX, &mouseY);
-			SDL_SetWindowPosition(g_AppInfo.Window, mouseX / 2, mouseY - 10);
-		}
+		RECT r = wp.rcNormalPosition;
+		MoveWindow(GetHWND(), r.left, r.top, r.right - r.left, r.bottom - r.top, true);
 	}
-	{
-		// Получаем текущий стиль окна
-		LONG style = GetWindowLong(GetHWND(), GWL_STYLE);
-
-		// Оставляем WS_THICKFRAME (для докинга), но убираем заголовок и ненужные элементы
-		style &= ~WS_CAPTION;         // Убираем заголовок (крестик, свернуть и т. д.)
-		style &= ~WS_SYSMENU;         // Убираем системное меню (Alt+Space)
-		style |= WS_THICKFRAME;       // Оставляем для докинга и изменения размера
-		style |= WS_BORDER;           // Тонкая рамка (опционально)
-
-		// Применяем новый стиль
-		SetWindowLong(GetHWND(), GWL_STYLE, style);
-
-		// Принудительно обновляем окно, чтобы изменения вступили в силу
-		SetWindowPos(
-			GetHWND(),
-			nullptr,
-			0, 0, 0, 0,
-			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
-		);
-	}
+	
 	EDevice->isZoomed = false;
-
-
 }
 
 bool CEditorRenderDevice::Begin()
@@ -501,7 +456,7 @@ bool CEditorRenderDevice::Begin()
 		// If the device was lost, do not render until we get it back
 		if (D3DERR_DEVICELOST == _hr) {
 			Sleep(33);
-			return	FALSE;
+			return	false;
 		}
 
 		// Check if the device is ready to be reset
@@ -511,28 +466,24 @@ bool CEditorRenderDevice::Begin()
 		}
 	}
 
-	VERIFY(FALSE == g_bRendering);
+	VERIFY(false == g_bRendering);
 	(REDevice->BeginScene());
 
 	Clear();
 
 	RCache.OnFrameBegin();
-	g_bRendering = TRUE;
-	return		TRUE;
+	g_bRendering = true;
+	return		true;
 }
 
 //---------------------------------------------------------------------------
 void CEditorRenderDevice::End()
 {
 	VERIFY(b_is_Ready);
-	g_bRendering = 	FALSE;
+	g_bRendering = 	false;
 	// end scene
 	RCache.OnFrameEnd();
-
-    (REDevice->EndScene());
-
-	CHK_DX(REDevice->Present( NULL, NULL, NULL, NULL ));
-
+	GRHI->Present();
 }
 
 void CEditorRenderDevice::UpdateView()
@@ -569,24 +520,85 @@ void CEditorRenderDevice::FrameMove()
 	}
 
     // process objects
-	seqFrame.Process(rp_Frame);
+	seqFrame.Process<&pureFrame::OnFrame>();
 }
+
+#if _WINDOWS
+
+SDL_HitTestResult SDLCALL HitTest(
+	SDL_Window* window,
+	const SDL_Point* pt,
+	void* data)
+{
+	bool isZoomed = *(bool*)data;
+
+	if (isZoomed)
+		return SDL_HITTEST_NORMAL;
+
+	int w, h;
+	SDL_GetWindowSize(window, &w, &h);
+
+	const int border = 6;
+
+	// TOP LEFT
+	if (pt->x < border && pt->y < border)
+		return SDL_HITTEST_RESIZE_TOPLEFT;
+
+	// TOP RIGHT
+	if (pt->x > w - border && pt->y < border)
+		return SDL_HITTEST_RESIZE_TOPRIGHT;
+
+	// BOTTOM LEFT
+	if (pt->x < border && pt->y > h - border)
+		return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+
+	// BOTTOM RIGHT
+	if (pt->x > w - border && pt->y > h - border)
+		return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+
+	// TOP
+	if (pt->y < border)
+		return SDL_HITTEST_RESIZE_TOP;
+
+	// BOTTOM
+	if (pt->y > h - border)
+		return SDL_HITTEST_RESIZE_BOTTOM;
+
+	// LEFT
+	if (pt->x < border)
+		return SDL_HITTEST_RESIZE_LEFT;
+
+	// RIGHT
+	if (pt->x > w - border)
+		return SDL_HITTEST_RESIZE_RIGHT;
+
+	// title bar area
+	//if (pt->y < 32)
+	//	return SDL_HITTEST_DRAGGABLE;
+
+	return SDL_HITTEST_NORMAL;
+}
+#endif
 
 void CEditorRenderDevice::InitWindowStyle()
 {
 	UI->InitWindowIcons();
 
 #if _WINDOWS
-	LONG_PTR style = GetWindowLongPtr(GetHWND(), GWL_STYLE);
-	style &= ~WS_CAPTION;
-	SetWindowLongPtr(GetHWND(), GWL_STYLE, style);
+	SDL_SetWindowBordered(g_AppInfo.Window, false);
+
+	win_chezze_layer(GetHWND());
+	SDL_SetWindowHitTest(g_AppInfo.Window, HitTest, &EDevice->isZoomed);
+
+	SetFocus(EDevice->GetHWND());
+	SetForegroundWindow(EDevice->GetHWND());
 #else
 	SDL_SetWindowResizable(g_AppInfo.Window, SDL_TRUE);
 	SDL_SetWindowHitTest(g_AppInfo.Window, HitTestCallback, 0);
 #endif
 }
 
-void CEditorRenderDevice::DP(D3DPRIMITIVETYPE pt, ref_geom geom, u32 vBase, u32 pc)
+void CEditorRenderDevice::DP(ERHI_PRIMITIVE_TOPOLOGY pt, ref_geom geom, u32 vBase, u32 pc)
 {
 	ref_shader S 			= m_CurrentShader?m_CurrentShader:m_WireShader;
     u32 dwRequired			= S->E[0]->passes.size();
@@ -597,7 +609,7 @@ void CEditorRenderDevice::DP(D3DPRIMITIVETYPE pt, ref_geom geom, u32 vBase, u32 
     }
 }
 
-void CEditorRenderDevice::DIP(D3DPRIMITIVETYPE pt, ref_geom geom, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC)
+void CEditorRenderDevice::DIP(ERHI_PRIMITIVE_TOPOLOGY pt, ref_geom geom, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC)
 {
 	ref_shader S 			= m_CurrentShader?m_CurrentShader:m_WireShader;
     u32 dwRequired			= S->E[0]->passes.size();
@@ -640,15 +652,13 @@ void CEditorRenderDevice::CreateWindow()
 	int DisplayX = GetSystemMetrics(SM_CXFULLSCREEN);
 	int DisplayY = GetSystemMetrics(SM_CYFULLSCREEN);
 
-	g_AppInfo.Window = SDL_CreateWindow("IX-Ray Editor", DisplayX, DisplayY, SDL_WINDOW_RESIZABLE);
+	g_AppInfo.Window = SDL_CreateWindow("IX-Ray Editor", DisplayX, DisplayY, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+#if _WINDOWS
+	SetForegroundWindow(EDevice->GetHWND());
+#endif
 }
 
 void CEditorRenderDevice::DestryWindow()
 {
 	SDL_DestroyWindow(g_AppInfo.Window);
-}
-
-u32 GetGpuNum()
-{
-	return 2;
 }

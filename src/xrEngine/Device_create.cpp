@@ -4,25 +4,25 @@
 #include "../Include/xrRender/DrawUtils.h"
 //#include "xr_effgamma.h"
 #include "Render.h"
-#include "../xrCore/Collision/xrXRC.h"
+#include "../xrCore/Collision/xrCDB.h"
 
-extern XRCORE_API BOOL *cdb_bDebug;
+extern XRCORE_API bool *cdb_bDebug;
 
 void	SetupGPU(IRenderDeviceRender *pRender)
 {
 	// Command line
 	char *lpCmdLine		= Core.Params;
 
-	BOOL bForceGPU_SW;
-	BOOL bForceGPU_NonPure;
-	BOOL bForceGPU_REF;
+	bool bForceGPU_SW;
+	bool bForceGPU_NonPure;
+	bool bForceGPU_REF;
 
-	if (strstr(lpCmdLine,"-gpu_sw")!=nullptr)		bForceGPU_SW		= TRUE;
-	else										bForceGPU_SW		= FALSE;
-	if (strstr(lpCmdLine,"-gpu_nopure")!=nullptr)	bForceGPU_NonPure	= TRUE;
-	else										bForceGPU_NonPure	= FALSE;
-	if (strstr(lpCmdLine,"-gpu_ref")!=nullptr)		bForceGPU_REF		= TRUE;
-	else										bForceGPU_REF		= FALSE;
+	if (strstr(lpCmdLine,"-gpu_sw")!=nullptr)		bForceGPU_SW		= true;
+	else										bForceGPU_SW		= false;
+	if (strstr(lpCmdLine,"-gpu_nopure")!=nullptr)	bForceGPU_NonPure	= true;
+	else										bForceGPU_NonPure	= false;
+	if (strstr(lpCmdLine,"-gpu_ref")!=nullptr)		bForceGPU_REF		= true;
+	else										bForceGPU_REF		= false;
 
 	pRender->SetupGPU(bForceGPU_SW, bForceGPU_NonPure, bForceGPU_REF);
 }
@@ -41,12 +41,12 @@ void CRenderDevice::_SetupStates	()
 	m_pRender->SetupStates();
 }
 
-void CRenderDevice::_Create	(LPCSTR shName)
+void CRenderDevice::_Create	(const char* shName)
 {
 	Memory.mem_compact			();
 
 	// after creation
-	b_is_Ready					= TRUE;
+	b_is_Ready					= true;
 	_SetupStates				();
 
 	m_pRender->OnDeviceCreate(shName);
@@ -69,33 +69,31 @@ void CRenderDevice::Create	()
 	Statistic			= new CStats();
 
 #ifdef	DEBUG
-	cdb_clRAY		= &Statistic->clRAY;				// total: ray-testing
-	cdb_clBOX		= &Statistic->clBOX;				// total: box query
-	cdb_clFRUSTUM	= &Statistic->clFRUSTUM;			// total: frustum query
 	cdb_bDebug		= &bDebug;
 #endif
 
 	if (!m_pRender)
-		m_pRender			= RenderFactory->CreateRenderDeviceRender();
+		m_pRender = RenderFactory->CreateRenderDeviceRender();
+
 	SetupGPU(m_pRender);
 	Log					("Starting RENDER device...");
 
 	psCurrentVidMode[0]	= TargetWidth;
 	psCurrentVidMode[1] = TargetHeight;
 
-	fFOV				= 90.f;
-	fASPECT				= 1.f;
-	m_pRender->Create	(
+	fFOV = 90.f;
+	fASPECT = 1.f;
+
+	m_pRender->Create
+	(
 		g_AppInfo.Window,
 		TargetWidth,
 		TargetHeight,
-		HalfTargetWidth,
-		HalfTargetHeight,
 		true
 	);
 
 	string_path			fname; 
-	FS.update_path		(fname,"$game_data$","shaders.xr");
+	FS.update_path		(fname,_game_data_,"shaders.xr");
 
 	//////////////////////////////////////////////////////////////////////////
 	_Create				(fname);

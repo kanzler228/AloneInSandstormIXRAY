@@ -6,7 +6,7 @@
 //	Description : AI Behaviour for monster "Crow"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "pch_script.h"
 #include "../../../xrPhysics/PhysicsShell.h"
 #include "../../../xrPhysics/phvalide.h"
@@ -21,30 +21,47 @@
 #include "Hit.h"
 #include "../../../xrScripts/script_callback_ex.h"
 
-void CAI_Crow::SAnim::Load	(IKinematicsAnimated* visual, LPCSTR prefix)
+void CAI_Crow::SAnim::Load	(IKinematicsAnimated* visual, const char* prefix, const char* prefix2)
 {
 	const MotionID		&M = visual->ID_Cycle_Safe(prefix);
-	if (M)				m_Animations.push_back(M);
-	for (int i=0; (i<MAX_ANIM_COUNT)&&(m_Animations.size()<MAX_ANIM_COUNT); ++i){
+	if (M)				
+		m_Animations.push_back(M);
+	else
+	{
+		const MotionID& _M = visual->ID_Cycle_Safe(prefix2);
+		if (_M)
+			m_Animations.push_back(_M);
+	}
+	for (int i=0; (i<MAX_ANIM_COUNT)&&(m_Animations.size()<MAX_ANIM_COUNT); ++i)
+	{
 		string128		sh_anim;
 		xr_sprintf			(sh_anim,"%s_%d",prefix,i);
 		const MotionID	&M_ = visual->ID_Cycle_Safe(sh_anim);
-		if (M_)			m_Animations.push_back(M_);
+		if (M_)			
+			m_Animations.push_back(M_);
+		else
+		{
+			xr_sprintf(sh_anim, "%s_%d", prefix2, i);
+			const MotionID& M__ = visual->ID_Cycle_Safe(sh_anim);
+			if (M__)
+				m_Animations.push_back(M_);
+
+		}
 	}
 	R_ASSERT			(m_Animations.size());
 }
 
-void CAI_Crow::SSound::Load	(LPCSTR prefix)
+void CAI_Crow::SSound::Load	(const char* prefix)
 {
 	string_path	fn;
-	if (FS.exist(fn,"$game_sounds$",prefix,".ogg")){
+	if (FS.exist(fn,_game_sounds_,prefix,".ogg")){
 		m_Sounds.push_back	(ref_sound());
 		::Sound->create		(m_Sounds.back(),prefix,st_Effect,sg_SourceType);
 	}
 	for (int i=0; (i<MAX_SND_COUNT)&&(m_Sounds.size()<MAX_SND_COUNT); ++i){
 		string64		name;
 		xr_sprintf			(name,"%s_%d",prefix,i);
-		if (FS.exist(fn,"$game_sounds$",name,".ogg")){
+		if (FS.exist(fn,_game_sounds_,name,".ogg")){
 			m_Sounds.push_back(ref_sound());
 			::Sound->create(m_Sounds.back(),name,st_Effect,sg_SourceType);
 		}
@@ -56,7 +73,7 @@ void CAI_Crow::SSound::Load	(LPCSTR prefix)
 void CAI_Crow::SSound::SetPosition	(const Fvector& pos)
 {
 	for (int i=0; i<(int)m_Sounds.size(); ++i)
-		if (m_Sounds[i]._feedback())
+		if (m_Sounds[i].is_playing())
 			m_Sounds[i].set_position(pos);
 }
 
@@ -108,12 +125,12 @@ void CAI_Crow::init		()
 	o_workload_rframe = 0;
 }
 
-void CAI_Crow::Load(LPCSTR section)
+void CAI_Crow::Load(const char* section)
 {
 	inherited::Load(section);
 	//////////////////////////////////////////////////////////////////////////
-	SpatialComponent->spatial.type &= ~STYPE_VISIBLEFORAI;
-	SpatialComponent->spatial.type &= ~STYPE_REACTTOSOUND;
+	SpatialComponent->type &= ~ESPATIAL_TYPE::VISIBLEFORAI;
+	SpatialComponent->type &= ~ESPATIAL_TYPE::REACTTOSOUND;
 	//////////////////////////////////////////////////////////////////////////
 
 	// sounds
@@ -127,31 +144,36 @@ void CAI_Crow::Load(LPCSTR section)
 	vVarGoal = pSettings->r_fvector3(section, "goal_variability");
 	fIdleSoundDelta = pSettings->r_float(section, "idle_sound_delta");
 	fIdleSoundTime = fIdleSoundDelta + fIdleSoundDelta * Random.randF(-.5f, .5f);
-	VERIFY2(valid_pos(Position()), dbg_valide_pos_string(Position(), this, "CAI_Crow::Load( LPCSTR section )").c_str());
+	VERIFY2(valid_pos(Position()), dbg_valide_pos_string(Position(), this, "CAI_Crow::Load( const char* section )").c_str());
 }
 
-BOOL CAI_Crow::net_Spawn		(CSE_Abstract* DC)
+bool CAI_Crow::net_Spawn(CSE_Abstract* DC)
 {
-	BOOL R		= inherited::net_Spawn	(DC);
-	setVisible	(TRUE);
-	setEnabled	(TRUE);
+	bool R		= inherited::net_Spawn	(DC);
+	setVisible	(true);
+	setEnabled	(true);
+
+	renderable.visual->IsIgnoreOptimize = true;
 
 	// animations
-	IKinematicsAnimated*	M		= smart_cast<IKinematicsAnimated*>(Visual()); R_ASSERT(M);
-	m_Anims.m_death.Load		(M,"death");
-	m_Anims.m_death_dead.Load	(M,"death_drop");
-	m_Anims.m_death_idle.Load	(M,"death_idle");
-	m_Anims.m_fly.Load			(M,"fly_fwd");
-	m_Anims.m_idle.Load			(M,"fly_idle");
+	IKinematicsAnimated*	M		= Visual()->dcast_PKinematicsAnimated();
+	R_ASSERT(M);
+	m_Anims.m_death.Load		(M,"death","norm_death");
+	m_Anims.m_death_dead.Load	(M,"death_drop","norm_death_dead");
+	m_Anims.m_death_idle.Load	(M,"death_idle","norm_death_idle");
+	m_Anims.m_fly.Load			(M,"fly_fwd","norm_fly_fwd");
+	m_Anims.m_idle.Load			(M,"fly_idle","norm_idle");
 
 	o_workload_frame = 0;
 	o_workload_rframe = 0;
 
-	if (GetfHealth() > 0) {
+	if (GetfHealth() > 0.f)
+	{
 		st_current = ECrowStates::eFlyIdle;
 		st_target = ECrowStates::eFlyIdle;
 		// disable UpdateCL, enable only on HIT
 		processing_deactivate();
+		SpatialComponent->type |= ESPATIAL_TYPE::CROW_ALIVE;
 	}
 	else {
 		st_current = ECrowStates::eDeathFall;
@@ -159,9 +181,11 @@ BOOL CAI_Crow::net_Spawn		(CSE_Abstract* DC)
 		// Crow is already dead, need to enable physics
 		processing_activate();
 		CreateSkeleton();
+		SpatialComponent->type |= ESPATIAL_TYPE::CROW_DEAD;
 	}
 
 	VERIFY2( valid_pos( Position() ), dbg_valide_pos_string(Position(),this,"CAI_Crow::net_Spawn").c_str());
+	SpatialComponent->type |= ESPATIAL_TYPE::CROW;
 	return		R;
 }
 
@@ -179,25 +203,29 @@ void CAI_Crow::net_Destroy		()
 // crow update
 void CAI_Crow::switch2_FlyUp()
 {
-	smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle	(m_Anims.m_fly.GetRandom());
+	Visual()->dcast_PKinematicsAnimated()->PlayCycle	(m_Anims.m_fly.GetRandom());
 }
 void CAI_Crow::switch2_FlyIdle()
 {
-	smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle	(m_Anims.m_idle.GetRandom());
+	MotionID anm = m_Anims.m_idle.GetRandom();
+	if (anm.valid())
+		Visual()->dcast_PKinematicsAnimated()->PlayCycle	(anm);
 }
 void CAI_Crow::switch2_DeathDead()
 {
 	// AI need to pickup this
-	SpatialComponent->spatial.type	|=	STYPE_VISIBLEFORAI;
+	SpatialComponent->type	|= ESPATIAL_TYPE::VISIBLEFORAI;
 	//
-	smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle	(m_Anims.m_death_dead.GetRandom());
+	Visual()->dcast_PKinematicsAnimated()->PlayCycle	(m_Anims.m_death_dead.GetRandom());
 }
 void CAI_Crow::switch2_DeathFall()
 {
 	Fvector V;
 	V.mul(XFORM().k,fSpeed);
 //	m_PhysicMovementControl->SetVelocity(V);
-	smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle	(m_Anims.m_death.GetRandom(),TRUE,cb_OnHitEndPlaying,this);
+	Visual()->dcast_PKinematicsAnimated()->PlayCycle	(m_Anims.m_death.GetRandom(),true,cb_OnHitEndPlaying,this);
+	SpatialComponent->type &= ~ESPATIAL_TYPE::CROW_ALIVE;
+	SpatialComponent->type |= ESPATIAL_TYPE::CROW_DEAD;
 }
 
 void CAI_Crow::state_Flying		(float fdt)
@@ -261,7 +289,7 @@ void CAI_Crow::state_DeathFall()
 		st_target = eDeathDead;
 
 	if (bPlayDeathIdle){
-		smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle	(m_Anims.m_death_idle.GetRandom());
+		Visual()->dcast_PKinematicsAnimated()->PlayCycle	(m_Anims.m_death_idle.GetRandom());
 		bPlayDeathIdle		= false;
 	}
 	VERIFY2(valid_pos(Position()), dbg_valide_pos_string(Position(), this, "CAI_Crow::state_DeathFall()").c_str());
@@ -274,7 +302,7 @@ void CAI_Crow::Die				(CObject* who)
 								// and do it especially before Creating physics shell or it definitely throws processing enable/disable calls: underflow  
 	CreateSkeleton	()		;
 
-	const CGameObject *who_object = smart_cast<const CGameObject*>(who);
+	const CGameObject *who_object = who != nullptr ? who->cast_game_object() : nullptr;
 	callback(GameObject::eDeath)(lua_game_object(), who_object ? who_object->lua_game_object() : 0);
 	
 };
@@ -311,8 +339,8 @@ void CAI_Crow::renderable_Render	()
 collide::rq_result GetPickResult(Fvector pos, Fvector dir, float range, CObject* ignore);
 void CAI_Crow::shedule_Update		(u32 DT)
 {
-	float fDT = float(DT)/1000.F;
-	SpatialComponent->spatial.type &=~STYPE_VISIBLEFORAI;
+	float fDT = Device.fTimeDelta;
+	SpatialComponent->type &=~ESPATIAL_TYPE::VISIBLEFORAI;
 
 	inherited::shedule_Update(DT);
 
@@ -331,12 +359,28 @@ void CAI_Crow::shedule_Update		(u32 DT)
 	case eFlyUp:			if	(Position().y<=vOldPosition.y)	st_target = eFlyIdle;	break;
 	case eDeathFall:		state_DeathFall();											break;
 	}
-	if ((eDeathFall!=st_current)&&(eDeathDead!=st_current)){
+	if ((eDeathFall!=st_current)&&(eDeathDead!=st_current))
+	{
 		// At random times, change the direction (goal) of the plane
 		if(fGoalChangeTime<=0)	{
 			fGoalChangeTime += fGoalChangeDelta+fGoalChangeDelta*Random.randF(-0.5f,0.5f);
 
-			Fvector vP = Actor()->Position();
+			g_SpatialSpace->q_sphere(nearbyObjects, 0, ESPATIAL_TYPE::ACTOR_DEAD | ESPATIAL_TYPE::AI_DEAD, Position(), 300.0f);
+			Fvector vP;
+			if (!nearbyObjects.empty())
+			{
+				ISpatialShared& S = nearbyObjects[Random.randI(nearbyObjects.size())];
+				vP = S->sphere.P;
+			}
+			else 
+			{
+				vP = Actor()->Position();
+				float distanceToActor = Position().distance_to(vP);
+				if (distanceToActor > 500.0f) 
+				{
+					fGoalChangeTime = 30.0f;
+				}
+			}
 
 			Fvector dest_dir;
 			dest_dir.sub(Actor()->Position(), Position());
@@ -440,7 +484,7 @@ void CAI_Crow::HitSignal	(float /**HitAmount/**/, Fvector& /**local_dir/**/, COb
 //		if (first_time)	Die			(who);
 		st_target		= eDeathFall;
 	}
-	else smart_cast<IKinematicsAnimated*>(Visual())->PlayCycle(m_Anims.m_death_dead.GetRandom());
+	else Visual()->dcast_PKinematicsAnimated()->PlayCycle(m_Anims.m_death_dead.GetRandom());
 }
 //---------------------------------------------------------------------
 void CAI_Crow::HitImpulse	(float	/**amount/**/,		Fvector& /**vWorldDir/**/, Fvector& /**vLocalDir/**/)
@@ -450,7 +494,7 @@ void CAI_Crow::HitImpulse	(float	/**amount/**/,		Fvector& /**vWorldDir/**/, Fvec
 void CAI_Crow::CreateSkeleton()
 {
 	m_pPhysicsShell=P_build_Shell(this,false,(BONE_P_MAP*)0);//P_build_SimpleShell(this,0.3f,false);
-	m_pPhysicsShell->SetMaterial(smart_cast<IKinematics*>(Visual())->LL_GetData(smart_cast<IKinematics*>(Visual())->LL_GetBoneRoot()).game_mtl_idx);
+	m_pPhysicsShell->SetMaterial(PKinematics(Visual())->LL_GetData(PKinematics(Visual())->LL_GetBoneRoot()).game_mtl_idx);
 }
 
 //void CAI_Crow::Hit	(float P, Fvector &dir, CObject* who, s16 element,Fvector p_in_object_space, float impulse, ALife::EHitType hit_type)
@@ -461,16 +505,25 @@ void	CAI_Crow::Hit							(SHit* pHDS)
 	HDS.impulse /= 100.f;
 	inherited::Hit(&HDS);
 
-	const CGameObject *who_object = smart_cast<const CGameObject*>(pHDS->who);
+	const CGameObject *who_object = pHDS->who != nullptr ? pHDS->who->cast_game_object() : nullptr;
 	callback(GameObject::eHit)(lua_game_object(), who_object ? who_object->lua_game_object() : 0);
 }
 
-BOOL CAI_Crow::UsedAI_Locations()
+bool CAI_Crow::UsedAI_Locations()
 {
-	return		(FALSE);
+	return		(false);
 }
 
 void CAI_Crow::create_physic_shell()
 {
 	// do not delete!!!
+}
+
+void CAI_Crow::net_Relcase(CObject* O)
+{
+	inherited::net_Relcase(O);
+
+	auto it = std::find_if(nearbyObjects.begin(), nearbyObjects.end(), [O](ISpatialShared& spatial) { return O == spatial->dcast_CObject(); });
+	if (it != nearbyObjects.end())
+		nearbyObjects.erase(it);
 }

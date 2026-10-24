@@ -18,10 +18,10 @@ namespace StackTrace
 
 	bool GetNextStackFrameString(LPSTACKFRAME stackFrame, PCONTEXT threadCtx, std::string& frameStr)
 	{
-		BOOL result = StackWalk(MACHINE_TYPE, GetCurrentProcess(), GetCurrentThread(), stackFrame, threadCtx, nullptr,
+		bool result = StackWalk(MACHINE_TYPE, GetCurrentProcess(), GetCurrentThread(), stackFrame, threadCtx, nullptr,
 			SymFunctionTableAccess, SymGetModuleBase, nullptr);
 
-		if (result == FALSE || stackFrame->AddrPC.Offset == 0)
+		if (result == false || stackFrame->AddrPC.Offset == 0)
 		{
 			return false;
 		}
@@ -94,7 +94,7 @@ namespace StackTrace
 			u32 dwOptions = SymGetOptions();
 			SymSetOptions(dwOptions | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
 
-			if (SymInitialize(GetCurrentProcess(), nullptr, TRUE))
+			if (SymInitialize(GetCurrentProcess(), nullptr, true))
 			{
 				symEngineInitialized = true;
 			}

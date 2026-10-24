@@ -7,8 +7,9 @@
 #include "xrUITheme.h"
 #include "ImGuizmo.h"
 #include "imgui_internal.h"
-#include "font/fa.h"
-#include "IconsFontAwesome6.h"
+#include "font/fa7.h"
+#include "IconsFontAwesome7.h"
+#include "../xrEUI/ModernUI.h"
 
 XREUI_API XrUIManager* GUIManager = nullptr;
 
@@ -41,11 +42,13 @@ void LoadImGuiFontBase(const char* Font, float scale)
 	{
 		if (!FontsStorage.contains(Font))
 		{
-			FontsStorage[Font] = ImGui::GetIO().Fonts->AddFontFromFileTTF(Platform::ANSI_TO_UTF8(FullPath).c_str(), scale * 14.0f, &FontConfig, ImGui::GetIO().Fonts->GetGlyphRangesCyrillic());
+			FontsStorage[Font] = ImGui::GetIO().Fonts->AddFontFromFileTTF(Platform::ANSI_TO_UTF8(FullPath).c_str(), XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::FontSize), &FontConfig, ImGui::GetIO().Fonts->GetGlyphRangesCyrillic());
 		}
 
 		ImCurrentFont = Font;
 		//ImGui::GetIO().Fonts->AddFontDefault(&FontsStorage[Font]);
+
+		ImGui::GetIO().FontDefault = FontsStorage[Font];
 	}
 }
 
@@ -57,8 +60,19 @@ void XrUIManager::Initialize(HWND hWnd, IDirect3DDevice9* device, const char* in
 	ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 	ImGuiIO& io = ImGui::GetIO();
 	xr_strcpy(m_name_ini, ini_path);
-	io.IniFilename = m_name_ini;
+	io.IniFilename = xr_strdup(Platform::ANSI_TO_UTF8(m_name_ini).c_str());
 	io.ConfigWindowsMoveFromTitleBarOnly = true;
+
+#ifdef IXR_WINDOWS
+	const HDC screen = GetDC(nullptr);
+	m_ScaleDpi = GetDeviceCaps(screen, LOGPIXELSX) / 96.f;
+	ReleaseDC(nullptr, screen);
+#else
+	m_ScaleDpi = SDL_GetWindowDisplayScale(g_AppInfo.Window);
+#endif
+	ImGui::GetStyle().ScaleAllSizes(m_ScaleDpi);
+	io.ConfigDpiScaleFonts = true;
+	io.ConfigDpiScaleViewports = true;
 
 	CUIThemeManager::Get().InitDefault();
 	Push(&CUIThemeManager::Get(), false);
@@ -67,10 +81,6 @@ void XrUIManager::Initialize(HWND hWnd, IDirect3DDevice9* device, const char* in
 	string_path Fonts = {};
 	FS.update_path(Fonts, _game_fonts_, "editors\\");
 	FS.file_list(Files, Fonts, 1, "*.ttf");
-
-	const HDC screen = GetDC(nullptr);
-	m_ScaleDpi = GetDeviceCaps(screen, LOGPIXELSX) / 96.f;
-	ReleaseDC(nullptr, screen);
 
 	auto OldFont = ImCurrentFont;
 	for (auto& File : Files)
@@ -90,7 +100,8 @@ void XrUIManager::Initialize(HWND hWnd, IDirect3DDevice9* device, const char* in
 	static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
 	ImFontConfig icons_config = {};
 	icons_config.MergeMode = true;
-	FontsStorage["_fa"] = io.Fonts->AddFontFromMemoryCompressedTTF(FontAwesome_compressed_data, FontAwesome_compressed_size, 16.0f, &icons_config, icons_ranges);
+	float FontSize = XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::FontSize);
+	FontsStorage["_fa"] = io.Fonts->AddFontFromMemoryCompressedTTF(FontAwesome_compressed_data, FontAwesome_compressed_size, FontSize * 0.75f, &icons_config, icons_ranges);
 
 	//io.Fonts->Build();
 
@@ -300,23 +311,29 @@ void XrUIManager::Draw()
 	ImGui::PushFont(FontsStorage[ImCurrentFont]);
 	//ImGui::DockSpaceOverViewport();
 	{
-		m_MenuBarHeight = 32;
-		int headerSize = 8;
+		m_MenuBarHeight = ScaleByDpi(64.f);
+		m_MenuBarButtonHeight = m_MenuBarHeight - XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::ButtonSize);
+
+
+		float headerSize = 0.f
+			+ XRay::ImGui::GetEditorSize(XRay::ImGui::EEditorSizes::PanelPadding) * 2
+			- 1 // WinAPI WindowBorder
+			;
+
+
 		ImGuiViewport* viewport = ImGui::GetMainViewport();
-		ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + m_MenuBarHeight - headerSize));
-		ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - headerSize));
+		ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + m_MenuBarHeight + headerSize));
+		ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - headerSize - m_MenuBarHeight));
 		ImGui::SetNextWindowViewport(viewport->ID);
 		ImGuiWindowFlags window_flags = 0
 			| ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking
 			| ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
 			| ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus
-			| ImGuiWindowFlags_NoBackground;
-
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, UIToolBarSize / 2));
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3, 2));
+			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        float separatorSize = ImGui::GetStyle().DockingSeparatorSize + 1 /*WinAPI WindowBorder*/;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(separatorSize, separatorSize));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::BackgroundTint).Value);
+		ImGui::PushStyleColor(ImGuiCol_Border, XRay::ImGui::GetEditorColor(XRay::ImGui::EEditorColors::BackgroundTint).Value);
 		ImGui::Begin("MyDockspace", NULL, window_flags);
 		ImGuiID dockMain = ImGui::GetID("MyDockspace");
 
@@ -324,7 +341,8 @@ void XrUIManager::Draw()
 
 		ImGui::DockSpace(dockMain);
 		ImGui::End();
-		ImGui::PopStyleVar(4);
+		ImGui::PopStyleColor(2); // Border, WindowBG
+		ImGui::PopStyleVar(1); // WindowPadding
 
 	}
 
@@ -356,6 +374,7 @@ void XrUIManager::Draw()
 	//EndFrame();
 }
 
+#if 0
 static bool ImGui_ImplWin32_UpdateMouseCursor()
 {
 	ImGuiIO& io = ImGui::GetIO();
@@ -388,3 +407,5 @@ static bool ImGui_ImplWin32_UpdateMouseCursor()
 	}
 	return true;
 }
+
+#endif

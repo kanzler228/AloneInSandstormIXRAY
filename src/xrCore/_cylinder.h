@@ -18,15 +18,15 @@ public:
 
 
 public:
-    IC bool operator==(SelfCRef Left)
+    ICF bool operator==(SelfCRef Left)
     {
         return Left.m_center == m_center && Left.m_direction == m_direction && m_height == Left.m_height && m_radius == Left.m_radius;
     }
 
 public:
-	IC SelfRef	invalidate	()	{ m_center.set(0,0,0); m_direction.set(0,0,0); m_height=0; m_radius=0; return *this; }
+	ICF SelfRef	invalidate	()	{ m_center.set(0,0,0); m_direction.set(0,0,0); m_height=0; m_radius=0; return *this; }
 	enum ecode { cyl_cap, cyl_wall, cyl_none };
-    IC int		intersect	(const _vector3<T>& start, const _vector3<T>& dir, T afT[2], ecode code[2] ) const
+    ICF int		intersect	(const _vector3<T>& start, const _vector3<T>& dir, T afT[2], ecode code[2] ) const
     {
         T fEpsilon = 1e-12f;
 
@@ -44,7 +44,7 @@ public:
 
         T fInv, fA, fB, fC, fDiscr, fRoot, fT, fT0, fT1, fTmp0, fTmp1;
 
-        if ( _abs(kD.z) >= 1.0f - fEpsilon ){
+        if (std::abs(kD.z) >= 1.0f - fEpsilon ){
             // line is parallel to cylinder axis
             if ( kP.x*kP.x+kP.y*kP.y <= fRadiusSqr ){
                 fTmp0 = fInvDLength/kD.z;
@@ -59,9 +59,9 @@ public:
             }
         }
 
-        if ( _abs(kD.z) <= fEpsilon ){
+        if (std::abs(kD.z) <= fEpsilon ){
             // line is perpendicular to axis of cylinder
-            if ( _abs(kP.z) > fHalfHeight ){
+            if (std::abs(kP.z) > fHalfHeight ){
                 // line is outside the planar caps of cylinder
                 return 0;
             }
@@ -194,7 +194,7 @@ public:
 		rpOriginOutside	= 2,
 		fcv_forcedword	= u32(-1)
 	};
-    IC ERP_Result	intersect	(const _vector3<T>& start, const _vector3<T>& dir, T& dist) const
+    ICF ERP_Result	intersect	(const _vector3<T>& start, const _vector3<T>& dir, T& dist) const
     {
     	T				afT[2];
 		ecode 			code[2];
@@ -218,6 +218,6 @@ typedef _cylinder<float>	Fcylinder;
 typedef _cylinder<double>	Dcylinder;
 
 template <class T>
-BOOL	_valid			(const _cylinder<T>& c)	{ return _valid(c.m_center) && _valid(c.m_direction) && _valid(c.m_height) && _valid(c.m_radius);	}
+bool	_valid			(const _cylinder<T>& c)	{ return _valid(c.m_center) && _valid(c.m_direction) && _valid(c.m_height) && _valid(c.m_radius);	}
 
 #endif // _DEBUG

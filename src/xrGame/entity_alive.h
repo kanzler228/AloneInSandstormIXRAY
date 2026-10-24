@@ -25,6 +25,8 @@ class CEntityAlive : public CEntity {
 private:
 	typedef	CEntity			inherited;	
 	u32						m_used_time;
+	u16						m_lastHitBoneID = u16(-1);
+	ALife::_OBJECT_ID		m_lastHitWhoID = ALife::_OBJECT_ID(-1);
 public:
 	virtual CEntityAlive*		cast_entity_alive		()	{return this;}
 	virtual CActor*				cast_actor				()  {return nullptr;}
@@ -33,7 +35,7 @@ public:
 	virtual CInventoryOwner* cast_inventory_owner() { return nullptr; }
 	virtual CGameObject* cast_game_object() { return this; }
 public:
-
+	bool					m_bEntityIgnoredByMonsters = false;
 	bool					m_bMobility;
 	float					m_fAccuracy;
 	float					m_fIntelligence;
@@ -52,18 +54,18 @@ public:
 
 	// Core events
 	virtual DLL_Pure		*_construct				();
-	virtual void			Load					(LPCSTR section);
+	virtual void			Load					(const char* section);
 	virtual void			reinit					();
-	virtual void			reload					(LPCSTR section);
+	virtual void			reload					(const char* section);
 
 	//object serialization
 	virtual void			save					(NET_Packet &output_packet);
 	virtual void			load					(IReader &input_packet);
 
 
-	virtual BOOL			net_Spawn				(CSE_Abstract* DC);
+	virtual bool			net_Spawn				(CSE_Abstract* DC);
 	virtual void			net_Destroy				();
-	virtual	BOOL			net_SaveRelevant		();
+	virtual	bool			net_SaveRelevant		();
 
 	virtual void			shedule_Update			(u32 dt);
 	virtual	void			create_anim_mov_ctrl	( CBlend *b, Fmatrix *start_pose, bool local_animation );
@@ -72,7 +74,7 @@ public:
 	virtual void			HitImpulse				(float amount, Fvector& vWorldDir, Fvector& vLocalDir);
 	virtual	void			Hit						(SHit* pHDS);
 	virtual void			Die						(CObject* who);
-	virtual void			g_WeaponBones			(int &L, int &R1, int &R2)										= 0;
+	virtual void			g_WeaponBones			(u16 &L, u16 &R1, u16 &R2) {}
 			void			set_lock_corpse			(bool b_l_corpse);
 			bool			is_locked_corpse		();
 //	virtual float			GetfHealth				() const;
@@ -100,8 +102,6 @@ public:
 	virtual void							PHFreeze					()						;
 
 	virtual void							PHGetLinearVell				(Fvector& velocity)		;
-	virtual CPHSoundPlayer*					ph_sound_player				()						;
-	virtual	CIKLimbsController				*character_ik_controller	()						;
 	virtual ICollisionHitCallback			*get_collision_hit_callback	()						;
 	virtual void							set_collision_hit_callback	(ICollisionHitCallback *cc);
 protected:
@@ -113,18 +113,19 @@ protected:
 
 	virtual void				StartFireParticles(CWound* pWound);
 	virtual void				UpdateFireParticles();
-	virtual void				LoadFireParticles(LPCSTR section);
+	virtual void				LoadFireParticles(const char* section);
 public:	
 	static  void				UnloadFireParticles	();
 protected:
 	static STR_VECTOR*			m_pFireParticlesVector;
 	static u32					m_dwMinBurnTime;
+	static u32					m_dwMinBurnTimeDead;
 	static float				m_fStartBurnWoundSize;
 	static float				m_fStopBurnWoundSize;
 
 
 	virtual void				BloodyWallmarks			(float P, const Fvector &dir, s16 element, const Fvector& position_in_object_space);
-	static  void				LoadBloodyWallmarks		(LPCSTR section);
+	static  void				LoadBloodyWallmarks		(const char* section);
 public:	
 	static  void				UnloadBloodyWallmarks	();
 

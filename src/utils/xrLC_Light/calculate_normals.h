@@ -1,11 +1,9 @@
-#ifndef __CALCULATE_NORMALS_H__
-#define __CALCULATE_NORMALS_H__
+#pragma once
 
 #include "itterate_adjacents_static.h"
-#include "itterate_adjacents.h"
+#include "../../Editors/Public/itterate_adjacents.h"
 
-
-template	<typename typeVertex>
+template <typename typeVertex>
 class calculate_normals
 {
 
@@ -35,15 +33,14 @@ static void	calc_normals( vecVertex &vertices, vecFace &faces )
 
 	// Clear temporary flag
 	// Status			("Processing...");
-	float sm_cos	= _cos(deg2rad(g_params().m_sm_angle));
+	float sm_cos	= std::cos(deg2rad(g_params().m_sm_angle));
 
 	for (vecFaceIt it = faces.begin(); it!=faces.end(); it++)
 	{
 		(*it)->flags.bSplitted	= true;
 		(*it)->CalcNormal		();
 	}
-
-
+	 
 	// remark:
 	//	we use Face's bSplitted value to indicate that face is processed
 	//  so bSplitted means bUsed
@@ -65,7 +62,7 @@ static void	calc_normals( vecVertex &vertices, vecFace &faces )
 		{
  			vecFace new_adj;
 			typename itterate_adjacents_type::recurse_tri_params p( pTestVertex, new_adj, sm_cos );
-			typename itterate_adjacents_type::RecurseTri( 0, p );
+			itterate_adjacents_type::RecurseTri( 0, p );
  
 			type_vertex*	pNewVertex			= pTestVertex->CreateCopy_NOADJ( vertices );
 			VCountAllocated++;
@@ -83,20 +80,17 @@ static void	calc_normals( vecVertex &vertices, vecFace &faces )
 	}
 	Progress		( 1.f );
 
-	Status("vCountSize: %u", VCountAllocated);
-
 	// Destroy unused vertices
- 	isolate_vertices<type_vertex>( FALSE, vertices);
+ 	isolate_vertices<type_vertex>( false, vertices);
 	  
 	// Recalculate normals
 	for ( vecVertexIt it=vertices.begin(); it!=vertices.end(); it++ )
 		(*it)->normalFromAdj	();
 
-	clMsg	("%d vertices was duplicated 'cause of SM groups",vertices.size()-Vcount);
+	// clMsg	("%d vertices was duplicated 'cause of SM groups",vertices.size()-Vcount);
 
 	// Clear temporary flag
 	for ( vecFaceIt it = faces.begin(); it!=faces.end(); it++ )
 		(*it)->flags.bSplitted = false;
 }
 };
-#endif //__CALCULATE_NORMALS_H__

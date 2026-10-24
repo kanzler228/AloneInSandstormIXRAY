@@ -1,21 +1,12 @@
 #include "stdafx.h"
-
 #include "../xrCore/Collision/Frustum.h"
-
-#pragma warning(disable:4995)
-// mmsystem.h
-#define MMNOSOUND
-#define MMNOMIDI
-#define MMNOAUX
-#define MMNOMIXER
-#define MMNOJOY
-#include <mmsystem.h>
-#pragma warning(default:4995)
 
 #include "x_ray.h"
 #include "Render.h"
 #include "EngineThreading.h"
+#include "FPSCounter.h"
 #include "IGame_Level.h"
+#include "Autotest.h"
 
 #include "../xrCore/FS_impl.h"
 #include "IGame_Persistent.h"
@@ -27,17 +18,18 @@ ENGINE_API CTimer loading_save_timer;
 ENGINE_API bool loading_save_timer_started = false;
 ENGINE_API xr_atomic_bool g_bRendering = false;
 extern ENGINE_API float psHUD_FOV;
+bool IsFpsShow = false;
 
-BOOL g_bLoaded = FALSE;
+bool g_bLoaded = false;
 ref_light precache_light = 0;
 
-BOOL CRenderDevice::Begin()
+bool CRenderDevice::Begin()
 {
 	PROF_EVENT("Render: Begin");
 
 	if (g_dedicated_server)
 	{
-		return TRUE;
+		return true;
 	}
 
 	switch (m_pRender->GetDeviceState())
@@ -48,7 +40,7 @@ BOOL CRenderDevice::Begin()
 	case IRenderDeviceRender::dsLost:
 		// If the device was lost, do not render until we get it back
 		Sleep(33);
-		return FALSE;
+		return false;
 		break;
 
 	case IRenderDeviceRender::dsNeedReset:
@@ -64,7 +56,7 @@ BOOL CRenderDevice::Begin()
 
 	g_bRendering = true;
 
-	return TRUE;
+	return true;
 }
 
 void CRenderDevice::Clear()
@@ -139,17 +131,13 @@ void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_use
 int g_svDedicateServerUpdateReate = 100;
 
 ENGINE_API xr_list<LOADING_EVENT> g_loading_events;
-int g_dwFPSlimit = 500;
+int fps_limit, main_menu_fps_limit = 144;
+
 void CRenderDevice::time_factor(const float &time_factor)
 {
 	Timer.time_factor		(time_factor);
 	TimerGlobal.time_factor	(time_factor);
 	Sound->time_factor		(time_factor);
-}
-
-void CRenderDevice::callback(const u32& cb_time, const std::function<void()> &func)
-{
-	m_time_callbacks.insert({dwTimeGlobal+cb_time,func});
 }
 
 void CRenderDevice::on_idle		()
@@ -158,24 +146,13 @@ void CRenderDevice::on_idle		()
 		Sleep(100);
 		return;
 	}
-
-	// FPS Limit
-	bool main_menu_active = g_pGamePersistent && g_pGamePersistent->m_pMainMenu && g_pGamePersistent->m_pMainMenu->IsActive();
-	int fps_limit = main_menu_active ? 120 : g_dwFPSlimit;
-	if (fps_limit > 0)
-	{
-		static DWORD dwLastFrameTime = 0;
-		int dwCurrentTime = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
-
-		int selected_time = (dwCurrentTime - (int)dwLastFrameTime);
-		if (selected_time >= 0 && selected_time < (1000 / fps_limit))
-			return;
-		dwLastFrameTime = dwCurrentTime;
-	}
-
-
-
-	PROF_FRAME("Main Thread");
+	
+	bool main_menu_active = g_pGamePersistent						   &&
+							g_pGamePersistent->m_pMainMenu			   &&
+							g_pGamePersistent->m_pMainMenu->IsActive();
+#ifdef IXRAY_PROFILER // optick
+	PROF_FRAME("CPU FRAME BEGIN");
+#endif
 	Platform::SetThreadName("X-Ray Primary Thread");
 
 	Device.BeginRender();
@@ -186,6 +163,9 @@ void CRenderDevice::on_idle		()
 	SDL_SetWindowRelativeMouseMode(g_AppInfo.Window, !g_dedicated_server && Focus);
 
 	g_bEnableStatGather = psDeviceFlags.test(rsStatistic);
+
+	if (Autotest::Active())
+		Autotest::FrameBegin();
 
 	if (!g_loading_events.empty())
 	{
@@ -201,88 +181,45 @@ void CRenderDevice::on_idle		()
 	}
 	else 
 	{
-		{
-			PROF_EVENT("Update Particles");
-			if (g_pGamePersistent)
-				g_pGamePersistent->UpdateParticles();
+		if (g_pGamePersistent)
+			g_pGamePersistent->UpdatePlayDestroyParticles();
 
-			if (Device.ModelDefferClear)
-			{
-				Device.ModelDefferClear();
-			}
-		}
+		if (Device.ModelDefferClear)
+			Device.ModelDefferClear();
 
+		u32 tglob = Device.dwTimeGlobal;
 		for (auto it = m_time_callbacks.begin(); it != m_time_callbacks.end();)
 		{
-		    if (Device.dwTimeGlobal >= it->first)
+		    if (tglob >= it->first)
 			{
 				it->second();
-		        it = m_time_callbacks.erase(it);
+				fast_erase(m_time_callbacks, it);
 		    }
 			else
 		       ++it;
 		}
 
+		if (GActorInterface != nullptr)
 		{
-			PROF_EVENT("seqParallelBeforRender");
-			for (auto& it : Device.seqParallelBeforRender)
-				it();
-
-			Device.seqParallelBeforRender.clear();
-		}
-
-		if (g_pIGameActor != nullptr)
-		{
-			g_pIGameActor->UpdatePlayerHud();
+			GActorInterface->UpdatePlayerHud();
 		}
 
 		secondary_tasks.run(&XRay::Engine::PreRenderThread);
 		FrameMove();
 	}
 
-	// Precache
-	if (dwPrecacheFrame)
+	if (dwPrecacheFrame!=0u)
 	{
-		float factor					= float(dwPrecacheFrame) / float(dwPrecacheTotal);
-		float angle						= PI_MUL_2 * factor;
-		vCameraDirection.set			(_sin(angle),0,_cos(angle));	vCameraDirection.normalize	();
-		vCameraTop.set					(0,1,0);
-		vCameraRight.crossproduct		(vCameraTop,vCameraDirection);
+		float factor = float(dwPrecacheFrame) / float(dwPrecacheTotal);
+		float angle = PI_MUL_2 * factor;
+		vCameraDirection.set(std::sin(angle), 0, std::cos(angle));	vCameraDirection.normalize();
+		vCameraTop.set(0, 1, 0);
+		vCameraRight.crossproduct(vCameraTop, vCameraDirection);
 
-		mView.build_camera_dir			(vCameraPosition,vCameraDirection,vCameraTop);
+		mView.build_camera_dir(vCameraPosition, vCameraDirection, vCameraTop);
+
+		CalculateTransforms();
 	}
-
-	// Matrices
-	mFullTransform.mul			( mProject,mView	);
-	m_pRender->SetCacheXform(mView, mProject);
-
-	mInvFullTransform.invert44(mFullTransform);
-	
-	mView_hud_old			= mView_hud;
-	mProject_hud_old		= mProject_hud;
-	mFullTransform_hud_old	= mFullTransform_hud;
-
-	mView_old				= mView_saved;
-	mProject_old			= mProject_saved;
-	mFullTransform_old		= mFullTransform_saved;
-
-	m_pRender->SetCacheXformOld(mView_old, mProject_old);
-
-	mProject_hud.build_projection(deg2rad(psHUD_FOV), Device.fASPECT, 
-		Device.fHUDViewportNear, g_pGamePersistent->Environment().CurrentEnv->far_plane);
-
-	mView_hud.set(mView);
-	mFullTransform_hud.mul(mProject_hud, mView_hud);
-
-	mView_saved				= mView;
-	mProject_saved			= mProject;
-	mFullTransform_saved	= mFullTransform;
-
-	vCameraPosition_saved	= vCameraPosition;
-
-	// *** Resume threads
-	// Capture end point - thread must run only ONE cycle
-	// Release start point - allow thread to run
 
 	secondary_tasks.run(&XRay::Engine::GameThread);
 
@@ -294,24 +231,81 @@ void CRenderDevice::on_idle		()
 		{
 			if (Begin())
 			{
-				seqRender.Process(rp_Render);
-				if (psDeviceFlags.test(rsCameraPos) || psDeviceFlags.test(rsStatistic) || Statistic->errors.size())
-					Statistic->Show();
+				{
+					PROF_EVENT("------ [OnRender phase] ------")
+					seqRender.Process<&pureRender::OnRender>();
+				}
+
+				if (IsFpsShow &&
+					g_pGameLevel &&
+					!main_menu_active &&
+					!load_screen_renderer.IsActive() &&
+					!Device.Paused())
+				{
+					pFPSCounter->OnRender();
+				}
 
 				End();
 			}
 		}
-		Statistic->RenderTOTAL_Real.End();
-		Statistic->RenderTOTAL_Real.FrameEnd();
-		Statistic->RenderTOTAL.accum = Statistic->RenderTOTAL_Real.accum;
 	}
 	secondary_tasks.wait();
 
 	Device.EndRender();
+	
+#ifdef IXRAY_PROFILER_TRACY
+	PROF_FRAME("idle");
+#endif
+	
 	if (!b_is_Active)
 	{
 		Sleep(1);
 	}
+}
+
+void CRenderDevice::CalculateTransforms()
+{
+	mFullTransform.mul(mProject,mView);
+
+	if (m_pRender)
+	{
+		m_pRender->SetCacheXform(mView, mProject);
+	}
+
+	mInvFullTransform.invert44(mFullTransform);
+	mInv3x4FullTransform.invert(mFullTransform);
+
+	mView_hud_old			= mView_hud;
+	mProject_hud_old		= mProject_hud;
+	mFullTransform_hud_old	= mFullTransform_hud;
+
+	mView_old				= mView_saved;
+	mProject_old			= mProject_saved;
+	mFullTransform_old		= mFullTransform_saved;
+
+	if (m_pRender)
+	{
+		m_pRender->SetCacheXformOld(mView_old, mProject_old);
+	}
+
+	mProject_hud.build_projection(deg2rad(psHUD_FOV), Device.fASPECT, 
+		Device.fHUDViewportNear, g_pGamePersistent->Environment().CurrentEnv->far_plane);
+
+	mView_hud.set(mView);
+	mFullTransform_hud.mul(mProject_hud, mView_hud);
+
+	mFullTransform_hud_special.mul(Fmatrix().build_projection(deg2rad(psHUD_FOV), Device.fASPECT,
+		Device.fViewportNear, g_pGamePersistent->Environment().CurrentEnv->far_plane), mView_hud);
+	mInv3x4FullTransform_hud_special.invert(mFullTransform_hud_special);
+
+	mView_saved = mView;
+	mProject_saved = mProject;
+	mFullTransform_saved = mFullTransform;
+
+	vCameraPosition_saved = vCameraPosition;
+	vCameraDirection_saved = vCameraDirection;
+	vCameraRight_saved = vCameraRight;
+	vCameraTop_saved = vCameraTop;
 }
 
 bool quiting = false;
@@ -320,6 +314,8 @@ void CRenderDevice::message_loop()
 {
 	while (!quiting)
 	{
+		GRHI->BeginFrame();
+
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
@@ -332,42 +328,46 @@ void CRenderDevice::message_loop()
 
 		if (!quiting)
 		{
-		on_idle();
-	}
+			on_idle();
+		}
 	}
 }
 
 void CRenderDevice::Run()
 {
 	//	DUMP_PHASE;
-	g_bLoaded = FALSE;
+	g_bLoaded = false;
 	Log("Starting engine...");
 	thread_name("X-Ray Primary Thread");
 
 	// Startup timers and calculate timer delta
 	dwTimeGlobal = 0;
 	Timer_MM_Delta = 0;
+
 	{
-		u32 time_mm = timeGetTime();
-		while (timeGetTime() == time_mm);			// wait for next tick
-		u32 time_system = timeGetTime();
+		u32 time_mm = SDL_GetTicks();
+		while (SDL_GetTicks() == time_mm)
+		{
+			SDL_Delay(0);
+		}
+
+		u32 time_system = SDL_GetTicks();
 		u32 time_local = TimerAsync();
 		Timer_MM_Delta = time_system - time_local;
 	}
 
-	g_AppInfo.MainThread = GetCurrentThread();
+	g_AppInfo.MainThread = Platform::GetCurrentThread();
 	// Message cycle
-	seqAppStart.Process(rp_AppStart);
+	seqAppStart.Process<&pureAppStart::OnAppStart>();
 
 	m_pRender->ClearTarget();
 	message_loop();
 
-	seqAppEnd.Process(rp_AppEnd);
+	seqAppEnd.Process<&pureAppEnd::OnAppEnd>();
 
 	// Stop Balance-Threads
 	secondary_tasks.wait();
 	details_task.wait();
-	ParticleWorkerCallback = nullptr;
 }
 
 u32 app_inactive_time		= 0;
@@ -460,7 +460,7 @@ struct EfficientFilteredDelta
 		size_t count = buffer_filled ? BUFFER_SIZE : current_index;
 		if (count < 5) return median * 2.0f;
 
-		std::vector<float> deviations;
+		xr_vector<float> deviations;
 		deviations.reserve(count);
 
 		for (size_t i = 0; i < count; ++i)
@@ -472,69 +472,69 @@ struct EfficientFilteredDelta
 		return median + 3.0f * mad;
 	}
 } delta_filter;
+
 bool use_smoothed_delta = false;
-void ProcessLoading();
 void CRenderDevice::FrameMove()
 {
-	PROF_EVENT("Render: Frame Move");
-	dwFrame			++;
-	dwTimeContinual	= TimerMM.GetElapsed_ms() - app_inactive_time;
-
-	if (psDeviceFlags.test(rsConstantFPS))	{
-		fTimeDelta		=	0.033f;			
-		fTimeGlobal		+=	0.033f;
-		dwTimeDelta		=	33;
-		dwTimeGlobal	+=	33;
-	} else {
-		float fPreviousFrameTime = Timer.GetElapsed_sec(); Timer.Start();	// previous frame
-		fTimeDelta = 0.1f * fTimeDelta + 0.9f*fPreviousFrameTime;			// smooth random system activity - worst case ~7% error
-
-		clamp(fTimeDelta, 0.0000002f, .1f);
-
-		fTimeDeltaSmoothing = fTimeDelta;
-
-		if(use_smoothed_delta)
-		{
-			delta_filter.CalculateSmoothedDelta(fTimeDeltaSmoothing);
-			clamp(fTimeDeltaSmoothing, 0.0000002f, .1f);
-		}
-
-		fTimeDelta = fTimeDeltaSmoothing;
-
-		if (Paused()) {
-			fTimeDelta = 0.0f;
-			fTimeDeltaSmoothing = 0.0f;
-		}
-
-		fTimeGlobal		= TimerGlobal.GetElapsed_sec();
-		u32	_old_global	= dwTimeGlobal;
-		dwTimeGlobal = TimerGlobal.GetElapsed_ms();
-		dwTimeDelta		= dwTimeGlobal-_old_global;
+	dwFrame++;
+	dwTimeContinual = TimerMM.GetElapsed_ms() - app_inactive_time;
+	
+	float dt;
+	
+	if (!Paused())
+	{
+		dt = Timer.GetElapsed_sec();
+		Timer.Start();
 	}
+	else
+	{
+		fTimeDelta = 0.0f;
+		fTimeDeltaSmoothing = 0.0f;
+		dt = fTimeDelta;
+	}
+	
+	float prev_dt = fTimeDelta;
+	fTimeDeltaContinual = dt * (1.f/time_factor());
+	constexpr float a = .1f;
+	fTimeDelta = a * dt + (1.f - a) * prev_dt;
+	fTimeDeltaSmoothing = fTimeDelta;
+
+	if (use_smoothed_delta)
+	{
+		delta_filter.CalculateSmoothedDelta(fTimeDeltaSmoothing);
+		fTimeDelta = fTimeDeltaSmoothing;
+	}
+	
+	// don't touch! some hud & graphics artefacts can be without clamp.
+	clamp(fTimeDelta, EPS_S, .1f);
+	clamp(fTimeDeltaSmoothing, EPS_S, .1f);
+
+	fTimeGlobal = TimerGlobal.GetElapsed_sec();
+	u32 _old_global = dwTimeGlobal;
+	dwTimeGlobal = TimerGlobal.GetElapsed_ms();
+	dwTimeDelta = dwTimeGlobal - _old_global;
 
 	Statistic->EngineTOTAL.Begin();
-	ProcessLoading();
+	{
+		{
+			PROF_EVENT("------ [OnFrame phase] ------")
+		   Device.seqFrame.Process<&pureFrame::OnFrame>();
+		}
+		g_bLoaded = true;
+	}
 	Statistic->EngineTOTAL.End();
 }
 
-void ProcessLoading()
-{
-	Device.seqFrame.Process(rp_Frame);
-	g_bLoaded = TRUE;
-}
-
-ENGINE_API BOOL bShowPauseString = TRUE;
-
-CRenderDevice::CRenderDevice() :
-	m_pRender(0)
+CRenderDevice::CRenderDevice() : dwPrecacheTotal(0), m_pRender(nullptr), Statistic(nullptr)
 {
 	b_is_Active = true;
-	b_is_Ready = FALSE;
+	b_is_Ready = false;
 	Timer.Start();
-	m_bNearer = FALSE;
-};
+	m_bNearer = false;
+}
 
-void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
+ENGINE_API bool bShowPauseString = true;
+void CRenderDevice::Pause(bool bOn, bool bTimer, bool bSound, const char* reason)
 {
 	static int snd_emitters_ = -1;
 
@@ -544,11 +544,11 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 	if (bOn)
 	{
 		if (!Paused())
-			bShowPauseString = TRUE;
+			bShowPauseString = true;
 
 		if (bTimer && (!g_pGamePersistent || g_pGamePersistent->CanBePaused()))
 		{
-			g_pauseMngr.Pause(TRUE);
+			g_pauseMngr.Pause(true);
 	}
 
 		if (bSound && ::Sound)
@@ -561,7 +561,7 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 		if (bTimer && g_pauseMngr.Paused())
 		{
 			fTimeDelta						= EPS_S + EPS_S;
-			g_pauseMngr.Pause(FALSE);
+			g_pauseMngr.Pause(false);
 		}
 		
 		if (bSound)
@@ -574,21 +574,21 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 	}
 }
 
-BOOL CRenderDevice::Paused()
+bool CRenderDevice::Paused()
 {
 	return g_pauseMngr.Paused();
 };
 
 void CRenderDevice::OnWM_Activate(bool active, bool minimized)
 {
-	BOOL NewState = (active && (!minimized)) ? TRUE : FALSE;
+	bool NewState = (active && (!minimized)) ? true : false;
 	bool OldState = Device.b_is_Active;
 
 	Device.b_is_Active = psDeviceFlags.test(rsDeviceActive) || NewState;
 
 	if (Device.b_is_Active && !OldState)
 	{
-		Device.seqAppActivate.Process(rp_AppActivate);
+		Device.seqAppActivate.Process<&pureAppActivate::OnAppActivate>();
 		app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
 
 		if (g_dedicated_server)
@@ -599,7 +599,7 @@ void CRenderDevice::OnWM_Activate(bool active, bool minimized)
 	else if (!psDeviceFlags.test(rsDeviceActive))
 	{
 		app_inactive_time_start = TimerMM.GetElapsed_ms();
-		Device.seqAppDeactivate.Process(rp_AppDeactivate);
+		Device.seqAppDeactivate.Process<&pureAppDeactivate::OnAppDeactivate>();
 		SDL_ShowCursor();
 	}
 	else
@@ -636,7 +636,7 @@ CLoadScreenRenderer::CLoadScreenRenderer()
 
 void CLoadScreenRenderer::start(bool b_user_input) 
 {
-	Device.seqRender.Add			(this, 0);
+	Device.seqRender.Add			(this, UI_LOAD_SCREEN);
 	b_registered					= true;
 	b_need_user_input				= b_user_input;
 }

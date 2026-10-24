@@ -1,7 +1,5 @@
 #include "stdafx.h"
 #include "GameFont.h"
-
-
 #include "../xrCore/Collision/ISpatial.h"
 #include "IGame_Persistent.h"
 #include "Render.h"
@@ -9,25 +7,20 @@
 
 #include "../Include/xrRender/DrawUtils.h"
 
-int		g_ErrorLineCount	= 15;
-Flags32 g_stats_flags		= {0};
+int g_ErrorLineCount = 15;
+Flags32 g_stats_flags = {0};
 
-// stats
-DECLARE_RP(Stats);
+ENGINE_API bool g_bDisableRedText = false;
 
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-BOOL			g_bDisableRedText	= FALSE;
 CStats::CStats	()
 {
-	fFPS				= 30.f;
-	fRFPS				= 30.f;
-	fTPS				= 0;
-	pFont				= 0;
-	fMem_calls			= 0;
-	RenderDUMP_DT_Count = 0;
-	Device.seqRender.Add		(this,REG_PRIORITY_LOW-1000);
+	fFPS = 0.f;
+	fRFPS = 0.f;
+	fTPS = 0.f;
+	pFont = nullptr;
+	fMem_calls = 0.f;
+	RenderDUMP_DT_Count = 0.f;
+	Device.seqRender.Add(this, REG_PRIORITY_LOW - 1000);
 }
 
 CStats::~CStats()
@@ -100,41 +93,42 @@ void CStats::Show()
 		TEST1.FrameEnd				();
 		TEST2.FrameEnd				();
 		TEST3.FrameEnd				();
-
-		g_SpatialSpace->stat_insert.FrameEnd		();
-		g_SpatialSpace->stat_remove.FrameEnd		();
-		g_SpatialSpacePhysic->stat_insert.FrameEnd	();
-		g_SpatialSpacePhysic->stat_remove.FrameEnd	();
 	}
+	
+	if (Device.fTimeDelta > EPS_S)
+	{
+		constexpr float smoothing_alpha = 0.10f;
+		
+		float raw_fps = 1.f / Device.fTimeDelta;
+		fFPS = raw_fps * smoothing_alpha + fFPS * (1.f - smoothing_alpha);
 
-	// calc FPS & TPS
-	if (Device.fTimeDelta>EPS_S) {
-		float fps  = 1.f/Device.fTimeDelta;
-		//if (Engine.External.tune_enabled)	vtune.update	(fps);
 		float fOne = 0.3f;
 		float fInv = 1.f-fOne;
-		fFPS = fInv*fFPS + fOne*fps;
-
-		if (RenderTOTAL.result>EPS_S) {
+		
+		if (RenderTOTAL.result > EPS_S)
+		{
 			u32	rendered_polies = Device.m_pRender->GetCacheStatPolys();
 			fTPS = fInv*fTPS + fOne*float(rendered_polies)/(RenderTOTAL.result*1000.f);
 			//fTPS = fInv*fTPS + fOne*float(RCache.stat.polys)/(RenderTOTAL.result*1000.f);
 			fRFPS= fInv*fRFPS+ fOne*1000.f/RenderTOTAL.result;
 		}
 	}
+	
 	{
 		float mem_count		= float	(Memory.stat_calls);
 		if (mem_count>fMem_calls)	fMem_calls	=	mem_count;
 		else						fMem_calls	=	.9f*fMem_calls + .1f*mem_count;
 		Memory.stat_calls	= 0		;
 	}
-
-	////////////////////////////////////////////////
-	if (g_dedicated_server) return;
-	////////////////////////////////////////////////
+	
+	if (g_dedicated_server)
+		return;
+	
 	int frm = 2000;
 	div_t ddd = div(Device.dwFrame,frm);
-	if( ddd.rem < frm/2.0f ){
+	
+	if( ddd.rem < frm/2.0f )
+		{
 		pFont->SetColor	(0xFFFFFFFF	);
 		pFont->OutSet	(0,0);
 		pFont->OutNext	(*eval_line_1);
@@ -146,8 +140,7 @@ void CStats::Show()
 	CGameFont& F = *pFont;
 	float f_base_size = 15.0f;
 	F.SetHeight(f_base_size);
-
-	// Show them
+	
 	if (psDeviceFlags.test(rsStatistic))
 	{
 		static float	r_ps		= 0;
@@ -160,23 +153,10 @@ void CStats::Show()
 		F.SetColor	(0xFFFFFFFF	);
 
 		F.OutSet	(10,35);
-		F.OutNext	("FPS/RFPS:    %3.1f/%3.1f",fFPS,fRFPS);
-		F.OutNext	("TPS:         %2.2f M",	fTPS);
+		F.OutNext	("FPS/RFPS:    %4.0f/%4.0f",fFPS,fRFPS);
+		F.OutNext	("TPS:         %4.0f M",	fTPS);
 		m_pRender->OutData1(F);
-		//F.OutNext	("VERT:        %d/%d",		RCache.stat.verts,RCache.stat.calls?RCache.stat.verts/RCache.stat.calls:0);
-		//F.OutNext	("POLY:        %d/%d",		RCache.stat.polys,RCache.stat.calls?RCache.stat.polys/RCache.stat.calls:0);
-		//F.OutNext	("DIP/DP:      %d",			RCache.stat.calls);
-#ifdef _DEBUG
-		F.OutSkip	();
-		F.OutNext	("mapped:      %d",			g_file_mapped_memory);
-		F.OutSkip	();
-		m_pRender->OutData2(F);
-		//F.OutNext	("SH/T/M/C:    %d/%d/%d/%d",RCache.stat.states,RCache.stat.textures,RCache.stat.matrices,RCache.stat.constants);
-		//F.OutNext	("RT/PS/VS:    %d/%d/%d",	RCache.stat.target_rt,RCache.stat.ps,RCache.stat.vs);
-		//F.OutNext	("DCL/VB/IB:   %d/%d/%d",   RCache.stat.decl,RCache.stat.vb,RCache.stat.ib);
-#endif
 		m_pRender->OutData3(F);
-		//F.OutNext	("xforms:      %d",			RCache.stat.xforms);
 		F.OutSkip	();
 
 #define PPP(a) (100.f*float(a)/float(EngineTOTAL.result))
@@ -186,8 +166,6 @@ void CStats::Show()
 		F.OutNext	("uSheduler:   %2.2fms, %2.1f%%",Sheduler.result,		PPP(Sheduler.result));
 		F.OutNext	("uSheduler_L: %2.2fms",fShedulerLoad);
 		F.OutNext	("uParticles:  Qstart[%d] Qactive[%d] Qdestroy[%d]",	Particles_starting,Particles_active,Particles_destroy);
-		F.OutNext	("spInsert:    o[%.2fms, %2.1f%%], p[%.2fms, %2.1f%%]",	g_SpatialSpace->stat_insert.result, PPP(g_SpatialSpace->stat_insert.result),	g_SpatialSpacePhysic->stat_insert.result, PPP(g_SpatialSpacePhysic->stat_insert.result));
-		F.OutNext	("spRemove:    o[%.2fms, %2.1f%%], p[%.2fms, %2.1f%%]",	g_SpatialSpace->stat_remove.result, PPP(g_SpatialSpace->stat_remove.result),	g_SpatialSpacePhysic->stat_remove.result, PPP(g_SpatialSpacePhysic->stat_remove.result));
 		F.OutNext	("Physics:     %2.2fms, %2.1f%%",Physics.result,		PPP(Physics.result));	
 		F.OutNext	("  collider:  %2.2fms", ph_collision.result);	
 		F.OutNext	("  solver:    %2.2fms, %d",ph_core.result,ph_core.count);	
@@ -247,21 +225,10 @@ void CStats::Show()
 		F.OutNext	("TEST 3:      %2.2fms, %d",TEST3.result,TEST3.count);
 		F.OutSkip	();
 		F.OutNext	("qpc[%3d]",CPU::qpc_counter);
+		
 		CPU::qpc_counter	=	0		;
-//		F.OutSet	(640,0);
 		F.OutSkip	();
 		m_pRender->OutData4(F);
-		/*
-		F.OutNext	("static:        %3.1f/%d",	RCache.stat.r.s_static.verts/1024.f,		RCache.stat.r.s_static.dips );
-		F.OutNext	("flora:         %3.1f/%d",	RCache.stat.r.s_flora.verts/1024.f,			RCache.stat.r.s_flora.dips );
-		F.OutNext	("  flora_lods:  %3.1f/%d",	RCache.stat.r.s_flora_lods.verts/1024.f,	RCache.stat.r.s_flora_lods.dips );
-		F.OutNext	("dynamic:       %3.1f/%d",	RCache.stat.r.s_dynamic.verts/1024.f,		RCache.stat.r.s_dynamic.dips );
-		F.OutNext	("  dynamic_sw:  %3.1f/%d",	RCache.stat.r.s_dynamic_sw.verts/1024.f,	RCache.stat.r.s_dynamic_sw.dips );
-		F.OutNext	("  dynamic_inst:%3.1f/%d",	RCache.stat.r.s_dynamic_inst.verts/1024.f,	RCache.stat.r.s_dynamic_inst.dips );
-		F.OutNext	("  dynamic_1B:  %3.1f/%d",	RCache.stat.r.s_dynamic_1B.verts/1024.f,	RCache.stat.r.s_dynamic_1B.dips );
-		F.OutNext	("  dynamic_2B:  %3.1f/%d",	RCache.stat.r.s_dynamic_2B.verts/1024.f,	RCache.stat.r.s_dynamic_2B.dips );
-		F.OutNext	("details:       %3.1f/%d",	RCache.stat.r.s_details.verts/1024.f,		RCache.stat.r.s_details.dips );
-*/
 		//////////////////////////////////////////////////////////////////////////
 		// Renderer specific
 		F.OutSet						(200,0);
@@ -274,7 +241,7 @@ void CStats::Show()
 
 		//////////////////////////////////////////////////////////////////////////
 		// process PURE STATS
-		seqStats.Process				(rp_Stats);
+		seqStats.Process<&pureStats::OnStats>();
 		pFont->OnRender					();
 	};
 
@@ -319,7 +286,7 @@ void CStats::Show()
 		for (u32 it=0; it<errors.size(); it++)
 			F_.OutNext("%s",errors[it].c_str());
 #else
-		for (u32 it=(u32)_max(int(0),(int)errors.size() - g_ErrorLineCount); it<errors.size(); it++)
+		for (u32 it=(u32)std::max(int(0),(int)errors.size() - g_ErrorLineCount); it<errors.size(); it++)
 			F_.OutNext("%s",errors[it].c_str());
 #endif
 		F_.OnRender	();
@@ -377,18 +344,12 @@ void CStats::Show()
 		TEST1.FrameStart			();
 		TEST2.FrameStart			();
 		TEST3.FrameStart			();
-
-		g_SpatialSpace->stat_insert.FrameStart		();
-		g_SpatialSpace->stat_remove.FrameStart		();
-
-		g_SpatialSpacePhysic->stat_insert.FrameStart();
-		g_SpatialSpacePhysic->stat_remove.FrameStart();
 	}
 	dwSND_Played = dwSND_Allocated = 0;
 	Particles_starting = Particles_active = Particles_destroy = 0;
 }
 
-void	_LogCallback(LPCSTR string)
+void	_LogCallback(const char* string)
 {
 	if (string && '!' == string[0] && ' ' == string[1])
 		Device.Statistic->errors.emplace_back(string);
@@ -425,7 +386,7 @@ void CStats::OnDeviceDestroy		()
 	xr_delete	(pFont);
 }
 
-void CStats::OnRender				()
+void CStats::OnRender()
 {
 #ifdef DEBUG_DRAW
 	if (g_stats_flags.is(st_sound)){
@@ -446,8 +407,8 @@ void CStats::OnRender				()
 					DU->DrawSphere		(Fidentity, item.params.position, item.params.min_distance, 0x400000FF,	0xFF0000FF, true, true);
 				if (g_stats_flags.is(st_sound_max_dist))
 					DU->DrawSphere		(Fidentity, item.params.position, item.params.max_distance, 0x4000FF00,	0xFF008000, true, true);
-				
-				xr_string out_txt		= (out_txt.size() && g_stats_flags.is(st_sound_info_name)) ? item.name.c_str():"";
+
+				xr_string out_txt = (item.name.size() && g_stats_flags.is(st_sound_info_name)) ? item.name.c_str() : "";
 
 				if (item.game_object)
 				{
@@ -465,4 +426,13 @@ void CStats::OnRender				()
 		}
 	}
 #endif
+	
+	if (psDeviceFlags.test(rsCameraPos) || psDeviceFlags.test(rsStatistic) || !Device.Statistic->errors.empty())
+	{
+		Device.Statistic->Show();
+	}
+	
+	Device.Statistic->RenderTOTAL_Real.End();
+	Device.Statistic->RenderTOTAL_Real.FrameEnd();
+	Device.Statistic->RenderTOTAL.accum = Device.Statistic->RenderTOTAL_Real.accum;
 }

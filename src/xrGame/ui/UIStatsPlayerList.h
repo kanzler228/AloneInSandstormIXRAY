@@ -4,17 +4,16 @@
 #include "UIStatsPlayerInfo.h"
 
 class CUIXml;
-class CUITextWnd;
 
 typedef bool(*player_cmp_func)(LPVOID v1, LPVOID v2);
 
-class CUIStatsPlayerList : public CUIScrollView
+class CUIStatsPlayerList final : public CUIScrollView
 {
 public:
 					CUIStatsPlayerList			();
 	virtual			~CUIStatsPlayerList			();
 
-			void 	Init						(CUIXml& xml_doc, LPCSTR path);
+			void 	Init						(CUIXml& xml_doc, const char* path);
 			void 	SetSpectator				(bool f);
 			void 	SetTeam						(int team);
 			void 	AddField					(const char* name, float width);
@@ -29,11 +28,11 @@ public:
 	virtual CUIScrollView* ui_cast_scroll_view() { return this; }
 
 protected:
-			void	InitHeader					(CUIXml& xml_doc, LPCSTR path);
-			void	InitTeamHeader				(CUIXml& xml_doc, LPCSTR path);
+			void	InitHeader					(CUIXml& xml_doc, const char* path);
+			void	InitTeamHeader				(CUIXml& xml_doc, const char* path);
 	virtual void	RecalcSize					();
 			void	ShowHeader					(bool bShow);
-			LPCSTR	GetST_entry					(LPCSTR itm);
+			const char*	GetST_entry					(const char* itm);
 
 	int				m_CurTeam;
 	bool			m_bSpectator;
@@ -43,7 +42,7 @@ protected:
 
 	CUIStatic*						m_header;
     CUIWindow*						m_header_team;
-	CUITextWnd*						m_header_text;
+	CUIStatic*						m_header_text;
 	u32								m_prev_upd_time;
 
 	typedef struct{

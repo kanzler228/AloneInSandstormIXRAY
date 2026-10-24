@@ -2,8 +2,6 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#if !defined(SHADER__INCLUDED_)
-#define SHADER__INCLUDED_
 #pragma once
 
 #include "r_constants.h"
@@ -31,14 +29,14 @@ struct ECORE_API STextureList :
 	typedef xr_vector<std::pair<u32,ref_texture> > inherited_vec;
 						~STextureList	();
 
-						IC BOOL		equal (const STextureList& base) const
+						IC bool		equal (const STextureList& base) const
 						{
-							if (size()!=base.size())			return FALSE;
+							if (size()!=base.size())			return false;
 							for (u32 cmp=0; cmp<size(); cmp++)	{
-								if ((*this)[cmp].first	!=base[cmp].first)	return FALSE;
-								if ((*this)[cmp].second	!=base[cmp].second)	return FALSE;
+								if ((*this)[cmp].first	!=base[cmp].first)	return false;
+								if ((*this)[cmp].second	!=base[cmp].second)	return false;
 							}
-							return TRUE;
+							return true;
 						}
 	virtual		void	clear();
 	virtual		void	clear_not_free();
@@ -54,7 +52,7 @@ struct ECORE_API STextureList :
 };
 typedef	resptr_core<STextureList,resptr_base<STextureList> >								ref_texture_list;
 //////////////////////////////////////////////////////////////////////////
-struct ECORE_API SMatrixList : public xr_resource_flagged, public svector<ref_matrix, 4>
+struct ECORE_API SMatrixList : public xr_resource_flagged, public FixedVector<ref_matrix, 4>
 {
 	SMatrixList();
 	SMatrixList& operator=(const SMatrixList& Other) = delete;
@@ -65,7 +63,7 @@ struct ECORE_API SMatrixList : public xr_resource_flagged, public svector<ref_ma
 
 typedef	resptr_core<SMatrixList,resptr_base<SMatrixList> >									ref_matrix_list;
 //////////////////////////////////////////////////////////////////////////
-struct  ECORE_API SConstantList : public xr_resource_flagged, public svector<ref_constant_obsolette, 4>
+struct  ECORE_API SConstantList : public xr_resource_flagged, public FixedVector<ref_constant_obsolette, 4>
 {
 	~SConstantList();
 	SConstantList();
@@ -77,20 +75,24 @@ struct  ECORE_API SConstantList : public xr_resource_flagged, public svector<ref
 typedef	resptr_core<SConstantList,resptr_base<SConstantList> >								ref_constant_list;
 
 //////////////////////////////////////////////////////////////////////////
-struct	 ECORE_API		SGeometry		: public xr_resource_flagged									{
+struct ECORE_API SGeometry
+	: public xr_resource_flagged
+{
 	ref_declaration		dcl;
-	ID3DVertexBuffer*	vb;
-	ID3DIndexBuffer*	ib;
+	IRHIBuffer*	vb;
+	IRHIBuffer*	ib;
 	u32					vb_stride;
 						~SGeometry		();
 						SGeometry& operator=(const SGeometry& Other) = delete;
 };
 
-struct 	ECORE_API	resptrcode_geom	: public resptr_base<SGeometry>
+struct ECORE_API resptrcode_geom:
+	public resptr_base<SGeometry>
 {
-	void 				create			(D3DVERTEXELEMENT9* decl, ID3DVertexBuffer* vb, ID3DIndexBuffer* ib);
-	void				create			(u32 FVF				, ID3DVertexBuffer* vb, ID3DIndexBuffer* ib);
-	void				destroy			()			{ _set(NULL);		}
+	void 				create			(RHIInputElementDesc* DescList, size_t DeclSize, IRHIBuffer* vb, IRHIBuffer* ib);
+	void 				create			(D3DVERTEXELEMENT9* decl, IRHIBuffer* vb, IRHIBuffer* ib);
+	void				create			(u32 FVF				, IRHIBuffer* vb, IRHIBuffer* ib);
+	void				destroy			()			{ _set(nullptr);		}
 	u32					stride			()	const	{ return _get()->vb_stride;	}
 };
 
@@ -111,13 +113,15 @@ struct	  ECORE_API		SPass			: public xr_resource_flagged									{
 
 	ref_texture_list					T;
 	ref_constant_list					C;
+	u8 iPriority = u8(-1);
+
 #ifdef _EDITOR
 	ref_matrix_list						M;
 #endif
 
 						~SPass			();
 
-	BOOL equal(const SPass& other);
+	bool equal(const SPass& other);
 };
 typedef	resptr_core<SPass,resptr_base<SPass> >												ref_pass;
 
@@ -136,15 +140,15 @@ public:
 	};
 public:
 	Sflags								flags;
-	svector<ref_pass,SHADER_PASSES_MAX>	passes;
+	FixedVector<ref_pass,SHADER_PASSES_MAX>	passes;
 
 						ShaderElement	();
 						~ShaderElement	();
 
 						ShaderElement& operator=(const ShaderElement& Other) = delete;
 
-	BOOL				equal			(ShaderElement& S);
-	BOOL				equal			(ShaderElement* S);
+	bool				equal			(ShaderElement& S);
+	bool				equal			(ShaderElement* S);
 	void _copy(const ShaderElement& Other);
 };
 typedef	resptr_core<ShaderElement,resptr_base<ShaderElement> >								ref_selement;
@@ -159,16 +163,16 @@ public:
 	Shader& operator=(const Shader& Other) = delete;
 
 						~Shader			();
-	BOOL				equal			(Shader& S);
-	BOOL				equal			(Shader* S);
+	bool				equal			(Shader& S);
+	bool				equal			(Shader* S);
 
 	void _copy(Shader& Other);
 };
 struct 	 ECORE_API	resptrcode_shader	: public resptr_base<Shader>
 {
-	void				create			(LPCSTR s_shader=0, LPCSTR s_textures=0, LPCSTR s_constants=0, LPCSTR s_matrices=0);
-	void				create			(IBlender*	B,	LPCSTR s_shader=0, LPCSTR s_textures=0, LPCSTR s_constants=0, LPCSTR s_matrices=0);
-	void				destroy			()	{ _set(NULL);		}
+	void				create			(const char* s_shader=nullptr, const char* s_textures=nullptr, const char* s_constants=nullptr, const char* s_matrices=nullptr);
+	void				create			(IBlender*	B,	const char* s_shader=nullptr, const char* s_textures=nullptr, const char* s_constants=nullptr, const char* s_matrices=nullptr);
+	void				destroy			()	{ _set(nullptr);		}
 };
 typedef	resptr_core<Shader,resptrcode_shader>												ref_shader;
 
@@ -178,6 +182,7 @@ enum	SE_R1				{
 	SE_R1_LPOINT			= 2,	// add: point light
 	SE_R1_LSPOT				= 3,	// add:	spot light
 	SE_R1_LMODELS			= 4,	// lighting info for models or shadowing from models
+	SE_R1_UI				= 5,	// 
 };
 
 //#define		SE_R2_NORMAL_HQ		0	// high quality/detail
@@ -190,4 +195,3 @@ enum	SE_R1				{
 
 #pragma pack(pop)
 
-#endif // !defined(AFX_SHADER_H__9CBD70DD_E147_446B_B4EE_5DA321EB726F__INCLUDED_)

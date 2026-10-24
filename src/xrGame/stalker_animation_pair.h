@@ -14,23 +14,21 @@
 class CBlend;
 class CAI_Stalker;
 
-#define USE_HEAD_BONE_PART_FAKE
-
-class CStalkerAnimationPair {
-#ifdef USE_HEAD_BONE_PART_FAKE
+class CStalkerAnimationPair
+{
 public:
-	enum {
+	enum
+	{
 		all_bone_parts = u16(0xf),
 	};
-#endif // USE_HEAD_BONE_PART_FAKE
 
 public:
-	typedef xr_vector<float>						ANIMATION_WEIGHTS;
-	typedef std::pair<LPCSTR,LPCSTR>				BLEND_ID;
+	using ANIMATION_WEIGHTS = xr_vector<float>;
+	using BLEND_ID = std::pair<const char*, const char*>;
 
 public:
-	typedef xr_delegate<void()>		CALLBACK_ID;
-	typedef xr_vector<CALLBACK_ID>					CALLBACKS;
+	using CALLBACK_ID = xr_delegate<void()>;
+	using CALLBACKS = xr_vector<CALLBACK_ID>;
 
 private:
 	MotionID				m_animation;
@@ -38,30 +36,22 @@ private:
 	bool					m_actual;
 	bool					m_step_dependence;
 	bool					m_global_animation;
-	const ANIM_VECTOR		*m_array;
 	MotionID				m_array_animation;
+	const ANIM_VECTOR		*m_array;
 	CALLBACKS				m_callbacks;
 	Fmatrix					*m_target_matrix;
-	bool					m_callback_on_collision;
 	CAI_Stalker*			m_object;
+
+	const char*					m_object_name;
+	const char*					m_animation_type_name;
 
 public:
 	bool					m_just_started;
 	Fmatrix					m_target_matrix_impl;
 
-#ifdef DEBUG
-private:
-	LPCSTR					m_object_name;
-	LPCSTR					m_animation_type_name;
-#endif // DEBUG
-
 private:
 			void			select_animation		(const ANIM_VECTOR &array, const ANIMATION_WEIGHTS *weights);
-#ifndef USE_HEAD_BONE_PART_FAKE
-			void			play_global_animation	(IKinematicsAnimated *skeleton_animated, PlayCallback callback, const bool &use_animation_movement_control, const bool &local_animation, bool mix_animations);
-#else // USE_HEAD_BONE_PART_FAKE
 			void			play_global_animation	(IKinematicsAnimated *skeleton_animated, PlayCallback callback, const u32 &bone_part, const bool &use_animation_movement_control, const bool &local_animation, bool mix_animations);
-#endif // USE_HEAD_BONE_PART_FAKE
 
 public:
 	IC						CStalkerAnimationPair	(CAI_Stalker* object);
@@ -79,15 +69,11 @@ public:
 	IC		void			make_inactual			();
 
 public:
-#ifndef USE_HEAD_BONE_PART_FAKE
-			void			play					(IKinematicsAnimated *skeleton_animated, PlayCallback callback, const bool &use_animation_movement_control, const bool &local_animation, bool continue_interrupted_animation = true, bool mix_animations = true);
-#else // USE_HEAD_BONE_PART_FAKE
 			void			play					(IKinematicsAnimated *skeleton_animated, PlayCallback callback, const bool &use_animation_movement_control, const bool &local_animation, bool continue_interrupted_animation = true, const u32 &bone_part = all_bone_parts, bool mix_animations = true);
-#endif // USE_HEAD_BONE_PART_FAKE
 
 #ifdef DEBUG
 public:
-	IC		void			set_dbg_info			(LPCSTR object_name, LPCSTR animation_type_name);
+	IC		void			set_dbg_info			(const char* object_name, const char* animation_type_name);
 			BLEND_ID		*blend_id				(IKinematicsAnimated *skeleton_animated, BLEND_ID &result) const;
 #endif // DEBUG
 
@@ -97,8 +83,6 @@ public:
 	IC		void			remove_callback			(const CALLBACK_ID &callback);
 			void			on_animation_end		();
 	IC		bool			need_update				() const;
-	IC		void			callback_on_collision	(bool const &value);
-	IC		bool			callback_on_collision	() const;
 	IC		void			target_matrix			();
 	IC		void			target_matrix			(Fmatrix const &matrix);
 			void			target_matrix			(Fvector const &position, Fvector const &direction);

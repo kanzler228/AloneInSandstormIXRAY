@@ -12,8 +12,12 @@ struct ABC
     int abcC;
 };
 #endif
+#define GAMEPAD_GLYPH_START 57344
+#define GAMEPAD_GLYPH_END 57535
 
-class ENGINE_API CGameFont
+extern ENGINE_API Fvector2 g_current_font_scale;
+
+class ENGINE_API CGameFont final
 {
 	friend class dxFontRender;
 	friend class FontRender;
@@ -30,7 +34,8 @@ public:
 	{
 		alLeft = 0,
 		alRight,
-		alCenter
+		alCenter,
+		alJustify
 	};
 	enum EGradientMode
 	{
@@ -42,7 +47,6 @@ public:
 	};
 
 private:
-
 	struct String
 	{
 		string2048 string;
@@ -71,11 +75,15 @@ protected:
 	float fCurrentX = 0.0f;
 	float fCurrentY = 0.0f;
 	bool fGradientEnabled = false;
+	float fCurrentWidthCoef = 1.0f;
 	EGradientMode fGradientMode = gm_vert;
 
 	u32 uFlags;
 	u32 dwCurrentColor;
 	u32 dwGradientColor;
+	bool fOutlineEnabled = false;
+	u32 dwOutlineColor = color_rgba(0, 0, 0, 255);
+	float fOutlineOffset = 1.f;
 
 	EAligment eCurrentAlignment;
 	xrCriticalSection s_cs;
@@ -85,59 +93,135 @@ protected:
 public:
 	enum
 	{
-		fsDeviceIndependent = (1 << 0), //#DELETE_ME deprecated
-		fsValid = (1 << 1),
-
-		fsMultibyte = (1 << 2),
-
+		fsDeviceIndependent = 1 << 0, //#DELETE_ME deprecated
+		fsValid = 1 << 1,
+		fsMultibyte = 1 << 2,
 		fsForceDWORD = u32(-1)
 	};
-
-
-public:
+	
 	CGameFont(const char* section, u32 flags = 0);
-	//CGameFont(const char* shader, const char* texture, u32 flags = 0);
 	~CGameFont();
 
-	void ReInit();
-	inline void SetColor(u32 C) { dwCurrentColor = C; };
-	inline void SetGradientColor(u32 C) { dwGradientColor = C; };
+	void  ReInit();
+	void  SetColor(u32 C) { dwCurrentColor = C; }
+	void  SetGradientColor(u32 C) { dwGradientColor = C; }
+	void  SetOutline(bool enable) { fOutlineEnabled = enable; }
+	bool  IsOutlineEnabled() const { return fOutlineEnabled; }
+	void  SetOutlineColor(u32 C) { dwOutlineColor = C; }
+	u32   GetOutlineColor() const { return dwOutlineColor; }
+	void  SetOutlineOffset(float offset) { fOutlineOffset = offset > 0.f || offset < 0.f ? offset : 0.f; }
+	float GetOutlineOffset() const { return fOutlineOffset; }
+	void  SetHeight(float S);
+	float GetHeight() { return fCurrentHeight; }
+	void  SetAligment(EAligment aligment) { eCurrentAlignment = aligment; }
 
-	//inline void SetHeightI(float S);
-	inline void SetHeight(float S);
+	void SetWidthCoef(float S) { fCurrentWidthCoef = (S > 1e-6f) ? S : 1.f; }
+	float GetWidthCoef() const { return fCurrentWidthCoef; }
 
-	inline float GetHeight() { return fCurrentHeight; };
-	inline void SetAligment(EAligment aligment) { eCurrentAlignment = aligment; }
-
+	/**
+	 * Извлекает ширину строки.
+	 * @param s строка с текстом.
+	 * @return количество пикселей.
+	 */
 	float SizeOf_(const char* s);
+
+	/**
+	 * Извлекает ширину символа.
+	 * @param s строка, из которой будет извлечена ширина текста в пикселях.
+	 * @return количество пикселей.
+	 */
 	float SizeOf_(int cChar);
 
+
+	/**
+	 * Извлекает высоту текста в пикселях.
+	 * @param s строка, из которой будет извлечена высота текста в пикселях.
+	 * @return количество пикселей.
+	 */
 	float CurrentHeight_();
 
 	void OutSetI(float x, float y);
 	void OutSet(float x, float y);
 
-	void MasterOut(BOOL bCheckDevice, BOOL bUseCoords, BOOL bScaleCoords, BOOL bUseSkip, float _x, float _y, float _skip, const char* fmt, va_list p);
+	void MasterOut(
+			bool bCheckDevice,
+			bool bUseCoords,
+			bool bScaleCoords,
+			bool bUseSkip,
+			float _x,
+			float _y,
+			float _skip,
+			const char* fmt,
+			va_list p
+		);
 
-	BOOL IsMultibyte() {
-		return uFlags & fsMultibyte;
-	};
+	bool IsMultibyte() { return uFlags & fsMultibyte;}
 	u16 SplitByWidth(u16* puBuffer, u16 uBufferSize, float fTargetWidth, const char* pszText);
 	u16 GetCutLengthPos(float fTargetWidth, const char* pszText);
 
 	void SetGradient(bool val) { fGradientEnabled = val; }
 	void SetGradientMode(EGradientMode mode) { fGradientMode = mode; }
+
+	/**
+	 * 
+	 * Выводит на экран текст относительно указанных координат.
+	 * @param _x - откуда рисуем по x
+	 * @param _y - откуда рисуем по y
+	 * @param fmt - форматированный текст для вывода.
+	 */
 	void OutI(float _x, float _y, const char* fmt, ...);
+	
+	/**
+	 * Выводит на экран текст относительно указанных координат.
+	 * @param _x откуда рисуем по x
+	 * @param _y откуда рисуем по y
+	 * @param fmt форматированный текст для вывода.
+	 */
 	void Out(float _x, float _y, const char* fmt, ...);
+	
+	/**
+	 * Добавляет строку с текстом в поток вывода, относительно установленного SetOut(x, y).
+	 * В последующем, относительно предыдущих строк.
+	 * @param fmt форматированная строка.
+	 */
 	void OutNext(const char* fmt, ...);
 
-	void OutSkip(float val = 1.f);
+	/**
+	 * Устанавливает смещение вывода относительно левого края экрана.
+	 * @param x сколько пикселей нужно отступить.
+	 */
+	void OutLeft(float x);
 
+	/**
+	 * Устанавливает смещение вывода относительно правого края экрана.
+	 * @param x сколько пикселей нужно отступить.
+	 */
+	void OutRight(float y);
+
+	/**
+	 * Устанавливает смещение вывода относительно верхнего края экрана.
+	 * @param y сколько пикселей нужно отступить.
+	 */
+	void OutTop(float y);
+
+	/**
+	 * Устанавливает смещение вывода относительно нижнего края экрана.
+	 * @param y сколько пикселей нужно отступить.
+	 */
+	void OutBottom(float y);
+	
+	/**
+	 * Пихает пустую строчку в поток вывода.
+	 * @param val коэффициент, на который будет умножен размер шрифта в пикселях, определяя размер пустой строки.
+	 */
+	void OutSkip(float val = 1.f);
+	
+	/**
+	 * Выводит шрифт на экран.
+	 */
 	void OnRender();
 
-	inline void Clear() { xrCriticalSectionGuard g(&s_cs); strings.clear(); };
-
-	//shared_str m_font_name;
+	void Clear() { xrCriticalSectionGuard g(&s_cs); strings.clear(); }
 
 	struct Style
 	{
@@ -154,46 +238,53 @@ public:
 		int yOffset;
 	};
 
-	inline u32 GetSize()
+	IC u32 GetSize()
 	{
 		return Size;
 	}
 
-	inline float GetLetterSpacing()
+	IC float GetLetterSpacing()
 	{
 		return LetterSpacing;
 	}
 
-	inline void SetLetterSpacing(float spacing)
+	IC void SetLetterSpacing(float spacing)
 	{
 		LetterSpacing = spacing;
 	}
 
-	inline float GetLineSpacing()
+	IC float GetLineSpacing()
 	{
 		return LineSpacing;
 	}
 
-	inline void SetLineSpacing(float spacing)
+	IC void SetLineSpacing(float spacing)
 	{
 		LineSpacing = spacing;
 	}
 
-	inline Style GetStyle()
+	IC Style GetStyle()
 	{
 		return Style;
 	}
 
-	inline const char* GetName()
+	IC const char* GetName()
 	{
 		return Name;
 	}
 
 	const Glyph* GetGlyphInfo(int ch);
+	bool GetAtlasTexSize(u32& outW, u32& outH) const;
 
 	// returns symbol width in pixels
 	float WidthOf(int ch);
 	float WidthOf(const char* str);
+
+	inline Fvector2 sizeOfImage(Frect rect)
+	{
+		float sc = fCurrentHeight / rect.height();
+		return {rect.width() * sc, rect.height() * sc};
+	}
 
 private:
 	float LetterSpacing = 0; //that must be in CUIText from new font system

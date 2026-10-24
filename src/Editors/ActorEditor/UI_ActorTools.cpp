@@ -171,29 +171,29 @@ void CActorTools::OnFrame()
 			if (!MainForm->GetKeyForm()->AutoChange())
 				K->Bone_Calculate(&K->LL_GetData(K->LL_GetBoneRoot()), &Fidentity);
 			else
-				K->CalculateBones(TRUE);
+				K->CalculateBones(true);
 		}
 
 	}
 	if (m_Flags.is(flRefreshShaders))
 	{
-		m_Flags.set(flRefreshShaders, FALSE);
+		m_Flags.set(flRefreshShaders, false);
 		m_pEditObject->OnDeviceDestroy();
 	}
 	if (m_Flags.is(flMakeThumbnail))
 	{
-		m_Flags.set(flMakeThumbnail, FALSE);
+		m_Flags.set(flMakeThumbnail, false);
 		RealMakeThumbnail();
 	}
 	if (m_Flags.is(flGenerateLODHQ)|| m_Flags.is(flGenerateLODLQ))
 	{
 		RealGenerateLOD(m_Flags.is(flGenerateLODHQ));
-		m_Flags.set(flGenerateLODHQ, FALSE);
-		m_Flags.set(flGenerateLODLQ, FALSE);
+		m_Flags.set(flGenerateLODHQ, false);
+		m_Flags.set(flGenerateLODLQ, false);
 	}
 	if (m_Flags.is(flRefreshSubProps))
 	{
-		m_Flags.set(flRefreshSubProps, FALSE);
+		m_Flags.set(flRefreshSubProps, false);
 
 		xr_vector<ListItem*> items;
 		m_ObjectItems->GetSelected(0, items, false);
@@ -218,7 +218,7 @@ bool CActorTools::OnCreate()
 	m_ObjectItems = new UIItemListForm();
 	m_ObjectItems->m_Flags.set(UIItemListForm::fMultiSelect, true);
 	m_Props = new UIPropertiesForm();
-	m_ObjectItems->SetOnItemsFocusedEvent(TOnILItemsFocused(this, &CActorTools::OnObjectItemsFocused));
+	m_ObjectItems->SetOnItemsFocusedEvent({this, &CActorTools::OnObjectItemsFocused});
 	m_PreviewObject.OnCreate();
 
 	// key bar
@@ -260,7 +260,6 @@ bool CActorTools::IfModified()
 void CActorTools::Modified()
 {
 	m_bObjectModified = true;
-	ExecCommand(COMMAND_UPDATE_CAPTION);
 }
 void  CActorTools::OnBoneModified(void)
 {
@@ -281,12 +280,12 @@ void CActorTools::OnItemModified(void)
 
 
 
-LPCSTR CActorTools::GetInfo()
+const char* CActorTools::GetInfo()
 {
 	return 0;
 }
 
-void CActorTools::ZoomObject(BOOL bSelOnly)
+void CActorTools::ZoomObject(bool bSelOnly)
 {
 	VERIFY(m_bReady);
 	if (m_pEditObject) {
@@ -301,7 +300,7 @@ void CActorTools::ZoomObject(BOOL bSelOnly)
 					float		r = 0.5f;
 					switch ((*b_it)->shape.type) {
 					case SBoneShape::stBox:
-						r = _max(_max((*b_it)->shape.box.m_halfsize.x, (*b_it)->shape.box.m_halfsize.y), (*b_it)->shape.box.m_halfsize.z);
+						r = std::max(std::max((*b_it)->shape.box.m_halfsize.x, (*b_it)->shape.box.m_halfsize.y), (*b_it)->shape.box.m_halfsize.z);
 						C = (*b_it)->shape.box.m_translate;
 						break;
 					case SBoneShape::stSphere:
@@ -309,7 +308,7 @@ void CActorTools::ZoomObject(BOOL bSelOnly)
 						C = (*b_it)->shape.sphere.P;
 						break;
 					case SBoneShape::stCylinder:
-						r = _max((*b_it)->shape.cylinder.m_height, (*b_it)->shape.cylinder.m_radius);
+						r = std::max((*b_it)->shape.cylinder.m_height, (*b_it)->shape.cylinder.m_radius);
 						C = (*b_it)->shape.cylinder.m_center;
 						break;
 					}
@@ -327,7 +326,7 @@ void CActorTools::ZoomObject(BOOL bSelOnly)
 	}
 }
 
-bool CActorTools::Load(LPCSTR obj_name)
+bool CActorTools::Load(const char* obj_name)
 {
 	VERIFY(m_bReady);
 	CEditableObject* O = new CEditableObject(obj_name);
@@ -363,7 +362,7 @@ bool CActorTools::Load(LPCSTR obj_name)
 	return false;
 }
 
-bool CActorTools::Save(LPCSTR obj_name, bool bInternal)
+bool CActorTools::Save(const char* obj_name, bool bInternal)
 {
 	xr_string 		full_name;
 	full_name = obj_name;
@@ -418,7 +417,7 @@ void CActorTools::Clear()
 	m_Props->ClearProperties();
 
 	m_bObjectModified = false;
-	m_Flags.set(flUpdateGeometry | flUpdateMotionDefs | flUpdateMotionKeys | flReadOnlyMode, FALSE);
+	m_Flags.set(flUpdateGeometry | flUpdateMotionDefs | flUpdateMotionKeys | flReadOnlyMode, false);
 	m_EditMode = emObject;
 
 	SDL_SetWindowTitle(g_AppInfo.Window, "IX-Ray Actor Editor");
@@ -737,7 +736,7 @@ void CActorTools::SetPreviewObjectPrefs()
 
 void CActorTools::OnObjectModified(void)
 {
-	m_Flags.set(flUpdateGeometry, TRUE);
+	m_Flags.set(flUpdateGeometry, true);
 	OnGeometryModified();
 }
 
@@ -745,7 +744,7 @@ void CActorTools::ShowClipMaker()
 {
 }
 
-bool CActorTools::Import(LPCSTR initial, LPCSTR obj_name)
+bool CActorTools::Import(const char* initial, const char* obj_name)
 {
 	string_path full_name;
 
@@ -762,9 +761,9 @@ bool CActorTools::Import(LPCSTR initial, LPCSTR obj_name)
 	CEditableObject* O = new CEditableObject(obj_name);
 	if (O->Load(full_name))
 	{
-		O->m_objectFlags.set(CEditableObject::eoDynamic, TRUE);
-		O->m_objectFlags.set(CEditableObject::eoProgressive, TRUE);
-		O->m_objectFlags.set(CEditableObject::eoSkipOpt, FALSE);
+		O->m_objectFlags.set(CEditableObject::eoDynamic, true);
+		O->m_objectFlags.set(CEditableObject::eoProgressive, true);
+		O->m_objectFlags.set(CEditableObject::eoSkipOpt, false);
 		xr_delete(m_pEditObject);
 		m_pEditObject = O;
 		// delete visual
@@ -782,21 +781,21 @@ bool CActorTools::Import(LPCSTR initial, LPCSTR obj_name)
 	return false;
 }
 
-bool CActorTools::ExportOGF(LPCSTR name)
+bool CActorTools::ExportOGF(const char* name)
 {
 	VERIFY(m_bReady);
 	if (m_pEditObject && m_pEditObject->ExportOGF(name, 4)) return true;
 	return false;
 }
 
-bool CActorTools::ExportOMF(LPCSTR name)
+bool CActorTools::ExportOMF(const char* name)
 {
 	VERIFY(m_bReady);
 	if (m_pEditObject && m_pEditObject->ExportOMF(name)) return true;
 	return false;
 }
 
-bool CActorTools::ExportOBJ(LPCSTR name)
+bool CActorTools::ExportOBJ(const char* name)
 {
 	VERIFY(m_bReady);
 	if (m_pEditObject && m_pEditObject->ExportOBJ(name)) return true;
@@ -804,7 +803,7 @@ bool CActorTools::ExportOBJ(LPCSTR name)
 }
 
 
-bool CActorTools::ExportCPP(LPCSTR name)
+bool CActorTools::ExportCPP(const char* name)
 {
 	if (m_pEditObject)
 	{
@@ -870,7 +869,7 @@ bool CActorTools::ExportCPP(LPCSTR name)
 }
 
 #include "../xrECore/Editor/EDetailModel.h"
-bool CActorTools::ExportDM(LPCSTR name)
+bool CActorTools::ExportDM(const char* name)
 {
 	VERIFY(m_bReady);
 
@@ -898,7 +897,7 @@ void CActorTools::WorldMotionRotate(const Fvector& R)
 
 
 
-void CActorTools::SetCurrentMotion(LPCSTR name, u16 slot)
+void CActorTools::SetCurrentMotion(const char* name, u16 slot)
 {
 	if (m_pEditObject)
 	{
@@ -930,19 +929,19 @@ CSMotion* CActorTools::GetCurrentMotion()
 	return m_pEditObject ? m_pEditObject->FindSMotionByName(m_CurrentMotion.c_str()) : 0;
 }
 
-CSMotion* CActorTools::FindMotion(LPCSTR name)
+CSMotion* CActorTools::FindMotion(const char* name)
 {
 	return m_pEditObject ? m_pEditObject->FindSMotionByName(name) : 0;
 }
 
-LPCSTR CActorTools::ExtractMotionName(LPCSTR full_name, LPCSTR prefix)
+const char* CActorTools::ExtractMotionName(const char* full_name, const char* prefix)
 {
-	LPCSTR _templ = "\\Slot ";
+	const char* _templ = "\\Slot ";
 	if (0 == strstr(full_name, _templ))
 		return full_name + xr_strlen(prefix) + 1;
 	else
 	{
-		LPCSTR mot_nm = strstr(full_name, _templ);
+		const char* mot_nm = strstr(full_name, _templ);
 		mot_nm += xr_strlen(_templ);
 		while (isdigit(*mot_nm))
 		{
@@ -953,11 +952,11 @@ LPCSTR CActorTools::ExtractMotionName(LPCSTR full_name, LPCSTR prefix)
 	//    	return full_name + xr_strlen(prefix) + 1 + xr_strlen(_templ) + 1;
 }
 
-u16 CActorTools::ExtractMotionSlot(LPCSTR full_name, LPCSTR prefix)
+u16 CActorTools::ExtractMotionSlot(const char* full_name, const char* prefix)
 {
-	LPCSTR _templ = "\\Slot ";
+	const char* _templ = "\\Slot ";
 	u16 slot = 0;
-	LPCSTR slot_nm = strstr(full_name, _templ);
+	const char* slot_nm = strstr(full_name, _templ);
 	if (0 != slot_nm)
 	{
 		string16 				tmp;
@@ -975,7 +974,7 @@ u16 CActorTools::ExtractMotionSlot(LPCSTR full_name, LPCSTR prefix)
 	return slot;
 }
 
-xr_string CActorTools::BuildMotionPref(u16 slot, LPCSTR prefix)
+xr_string CActorTools::BuildMotionPref(u16 slot, const char* prefix)
 {
 	VERIFY(slot < MAX_ANIM_SLOT);
 	string32 slot_nm; 			sprintf(slot_nm, "Slot %1d", slot + 1);
@@ -1028,8 +1027,8 @@ void CActorTools::RealGenerateLOD(bool hq)
 
 		if (O && O->IsMUStatic())
 		{
-			BOOL bLod = O->m_objectFlags.is(CEditableObject::eoUsingLOD);
-			O->m_objectFlags.set(CEditableObject::eoUsingLOD, FALSE);
+			bool bLod = O->m_objectFlags.is(CEditableObject::eoUsingLOD);
+			O->m_objectFlags.set(CEditableObject::eoUsingLOD, false);
 			xr_string tex_name;
 			tex_name = EFS.ChangeFileExt(O->GetName(), "");
 
@@ -1059,7 +1058,7 @@ void CActorTools::RealGenerateLOD(bool hq)
 
 }
 
-bool CActorTools::BatchConvert(LPCSTR fn)
+bool CActorTools::BatchConvert(const char* fn)
 {
 	bool bRes = true;
 	FS.TryLoad(fn);
@@ -1079,7 +1078,7 @@ bool CActorTools::BatchConvert(LPCSTR fn)
 			{
 				Msg(".Converting '%s' <-> '%s'", it->first.c_str(), it->second.c_str());
 				CEditableObject* O = new CEditableObject("convert");
-				BOOL res = O->Load(src_name);
+				bool res = O->Load(src_name);
 				if (res) res = O->ExportOGF(tgt_name, 4);
 				Log(res ? ".OK" : "!.FAILED");
 				xr_delete(O);
@@ -1107,7 +1106,7 @@ bool CActorTools::BatchConvert(LPCSTR fn)
 			{
 				Msg(".Converting '%s' <-> '%s'", it->first.c_str(), it->second.c_str());
 				CEditableObject* O = new CEditableObject("convert");
-				BOOL res = O->Load(src_name);
+				bool res = O->Load(src_name);
 				if (res) res = O->ExportOMF(tgt_name);
 				Log(res ? ".OK" : "!.FAILED");
 				xr_delete(O);

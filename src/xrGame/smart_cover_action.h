@@ -11,7 +11,7 @@
 #include "smart_cover_detail.h"
 #include "../xrScripts/script_space_forward.h"
 #include "ai_monster_space.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 namespace smart_cover{
 
@@ -47,7 +47,7 @@ public:
 	IC	Animations	const	&animations			(shared_str const& cover_id, shared_str const &id) const;
 
 private:
-		void				add_animation		(LPCSTR animation_type, luabind::object const &table);
+		void				add_animation		(const char* animation_type, luabind::object const &table);
 };
 
 } // namespace smart_cover

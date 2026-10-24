@@ -7,13 +7,13 @@
 #include "game_cl_base.h"
 #include "../xrEngine/string_table.h"
 #include "Level.h"
-#include "../xrCore/associative_vector.h"
+#include "../xrCore/Containers/associative_vector.h"
 
 class CUIStatic;
 
 class UITeamState;
 
-class UITeamHeader : public CUIWindow
+class UITeamHeader final : public CUIWindow
 {
 private:
 	typedef	CUIWindow									inherited;
@@ -34,7 +34,7 @@ private:
 public:
 					UITeamHeader	(UITeamState const * const parent);
 	virtual			~UITeamHeader	();
-			void	Init			(CUIXml& uiXml, LPCSTR path);
+			void	Init			(CUIXml& uiXml, const char* path);
 	virtual	void	Update			();
 
 	virtual CUIWindow* ui_cast_window() { return this; }

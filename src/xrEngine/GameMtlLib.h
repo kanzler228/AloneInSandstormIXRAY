@@ -4,9 +4,6 @@
 
 class ButtonValue;
 
-#define GAMEMTL_CURRENT_VERSION			0x0001
-//----------------------------------------------------
-
 #define GAMEMTLS_CHUNK_VERSION        	0x1000
 #define GAMEMTLS_CHUNK_AUTOINC	        0x1001
 #define GAMEMTLS_CHUNK_MTLS	        	0x1002
@@ -31,11 +28,30 @@ class ButtonValue;
 //----------------------------------------------------
 
 #define GAMEMTL_SUBITEM_COUNT			24
-#define GAMEMTL_STEPSOUND_SUBITEM_COUNT 16
+#define GAMEMTL_STEPSOUND_SUBITEM_COUNT 24
 
 #define GAMEMTL_NONE_ID					u32(-1)
 #define GAMEMTL_NONE_IDX				u16(-1)
 #define GAMEMTL_FILENAME				"gamemtl.xr"
+
+enum EGameMtlVersion : s32
+{
+    // The big issue is that GSC had version 1 in SOC,
+    // then they introduced a significant change in CS,
+    // but didn't change the version number...
+    // In fact, they NEVER have changed the number
+    // since the system was introduced in 2002.
+    // So, we introduce virtual values:
+    GAMEMTL_VERSION_SOC     = -2,
+    GAMEMTL_VERSION_CS      = -1,
+
+    GAMEMTL_VERSION_UNKNOWN = 0,
+
+    // Real version numbers in GAMEMTL_FILENAME:
+    GAMEMTL_VERSION_COP     = 1,
+
+    GAMEMTL_CURRENT_VERSION = GAMEMTL_VERSION_COP,
+};
 
 #ifdef _EDITOR
 #define GM_NON_GAME
@@ -125,7 +141,7 @@ public:
         fPHBouncing				= 0.1f;
 		fDensityFactor			= 0.0f;
 	}
-    void 				Load			(IReader& fs);
+    EGameMtlVersion		Load			(IReader& fs);
     void 				Save			(IWriter& fs);
     IC int				GetID			(){return ID;}
 #ifdef _EDITOR
@@ -207,13 +223,13 @@ public:
     void				Save			(IWriter& fs);
     void				Load			(IReader& fs);
     IC int 				GetParent		(){return ID_parent;}
-    BOOL				SetParent		(int parent);
+    bool				SetParent		(int parent);
 #ifdef _EDITOR
 	void 				FillProp		(PropItemVec& values);
     void				TransferFromParent(SGameMtlPair* parent);
 #endif
 #ifdef DEBUG
-	LPCSTR				dbg_Name		();
+	const char*				dbg_Name		();
 #endif
 };
 
@@ -233,16 +249,11 @@ protected:
     u32					material_count;
     GameMtlPairVec		material_pairs_rt;
 
+    EGameMtlVersion     m_version{};
 public:
 	CGameMtlLibrary		();
-	~CGameMtlLibrary	()
-	{
-		/*
-    	R_ASSERT		(0==material_pairs_rt.size());
-    	R_ASSERT		(0==material_pairs.size());
-    	R_ASSERT		(0==materials.size());
-		*/
-    }
+    ~CGameMtlLibrary() = default;
+
 	IC void				Unload			()
 	{
 		material_count	= 0;
@@ -255,8 +266,9 @@ public:
 			xr_delete	(*p_it);
 		material_pairs.clear();
 	}
+
     // material routine
-    IC GameMtlIt 		GetMaterialIt	(LPCSTR name)
+    IC GameMtlIt GetMaterialIt(const char* name)
     {
         for (GameMtlIt it=materials.begin(); materials.end() != it; ++it)
             if (0==_strcmpi(*(*it)->m_Name,name)) return it;
@@ -274,7 +286,7 @@ public:
             if ((*it)->ID==id) return it;
         return materials.end();
     }
-	IC u32				GetMaterialID	(LPCSTR name)
+    IC u32 GetMaterialID(const char* name)
     {
     	GameMtlIt it	= GetMaterialIt	(name);
         return (it==materials.end())?GAMEMTL_NONE_ID:(*it)->ID;
@@ -282,13 +294,13 @@ public:
 #ifdef _EDITOR
 	// editor
 	SGameMtl*			AppendMaterial	(SGameMtl* parent);
-	void				RemoveMaterial	(LPCSTR name);
+	void				RemoveMaterial	(const char* name);
 	IC SGameMtl*		GetMaterialByID	(int ID)
     {
 	    GameMtlIt it=GetMaterialItByID(ID);
     	return materials.end() != it?*it:0;
     }
-	IC SGameMtl*		GetMaterial		(LPCSTR name)
+	IC SGameMtl*		GetMaterial		(const char* name)
     {
 	    GameMtlIt it=GetMaterialIt(name);
     	return materials.end() != it?*it:0;
@@ -298,7 +310,7 @@ public:
 	IC SGameMtl*		GetMaterialByID (s32 id)		{return GetMaterialByIdx(GetMaterialIdx(id));}
 #endif
 	IC u16				GetMaterialIdx	(int ID)		{GameMtlIt it=GetMaterialItByID(ID);VERIFY(materials.end() != it); return (u16)(it-materials.begin());}
-	IC u16				GetMaterialIdx	(LPCSTR name)	{GameMtlIt it=GetMaterialIt(name);VERIFY(materials.end() != it); return (u16)(it-materials.begin());}
+	IC u16				GetMaterialIdx	(const char* name)	{GameMtlIt it=GetMaterialIt(name);VERIFY(materials.end() != it); return (u16)(it-materials.begin());}
 	   SGameMtl*		GetMaterialByIdx(u16 idx)		;
 
 
@@ -309,14 +321,14 @@ public:
 // material pair routine
 #ifdef _EDITOR
 	void 				CopyMtlPairs		(SGameMtl* from, SGameMtl* to);
-	BOOL				UpdateMtlPairs		(SGameMtl* src);
-	BOOL				UpdateMtlPairs		();
-	LPCSTR				MtlPairToName		(int mtl0, int mtl1);
-	void				NameToMtlPair		(LPCSTR name, int& mtl0, int& mtl1);
-	void				MtlNameToMtlPair	(LPCSTR name, int& mtl0, int& mtl1);
+	bool				UpdateMtlPairs		(SGameMtl* src);
+	bool				UpdateMtlPairs		();
+	const char*				MtlPairToName		(int mtl0, int mtl1);
+	void				NameToMtlPair		(const char* name, int& mtl0, int& mtl1);
+	void				MtlNameToMtlPair	(const char* name, int& mtl0, int& mtl1);
 	SGameMtlPair*		CreateMaterialPair	(int m0, int m1, SGameMtlPair* parent=0);
 	SGameMtlPair*		AppendMaterialPair	(int m0, int m1, SGameMtlPair* parent=0);
-	void				RemoveMaterialPair	(LPCSTR name);
+	void				RemoveMaterialPair	(const char* name);
 	void				RemoveMaterialPair	(GameMtlPairIt rem_it);
 	void				RemoveMaterialPair	(int mtl);
 	void				RemoveMaterialPair	(int mtl0, int mtl1);
@@ -324,7 +336,7 @@ public:
 	SGameMtlPair*		GetMaterialPair		(int id);
 	GameMtlPairIt		GetMaterialPairIt	(int mtl0, int mtl1);
 	SGameMtlPair*		GetMaterialPair		(int mtl0, int mtl1);
-	SGameMtlPair*		GetMaterialPair		(LPCSTR name);
+	SGameMtlPair*		GetMaterialPair		(const char* name);
 #else
 	// game
 	IC SGameMtlPair*	GetMaterialPair		(u16 idx0, u16 idx1){R_ASSERT((idx0<material_count)&&(idx1<material_count)); return material_pairs_rt[idx1*material_count+idx0];}
@@ -332,6 +344,10 @@ public:
 	IC GameMtlPairIt	FirstMaterialPair	(){return material_pairs.begin();}
 	IC GameMtlPairIt	LastMaterialPair	(){return material_pairs.end();}
 
+    auto GetLibraryVersion() const noexcept
+    {
+        return m_version;
+    }
 	// IO routines
 	void				Load				();
 	bool				Save				();
@@ -340,8 +356,8 @@ public:
 #define GET_RANDOM(a_vector)			(a_vector[Random.randI(a_vector.size())])
 
 #define CLONE_MTL_SOUND(_res_, _mtl_pair_, _a_vector_)\
-	{ VERIFY2(!_mtl_pair_##->_a_vector_.empty(),_mtl_pair_->dbg_Name());\
-	_res_.clone(GET_RANDOM(_mtl_pair_##->_a_vector_),st_Effect,sg_SourceType);\
+	{ VERIFY2(!_mtl_pair_->_a_vector_.empty(),_mtl_pair_->dbg_Name());\
+	_res_.clone(GET_RANDOM(_mtl_pair_->_a_vector_),st_Effect,sg_SourceType);\
 	}
 
 extern MTL_EXPORT_API CGameMtlLibrary		GMLib;

@@ -3,7 +3,7 @@
 #include "HudSound.h"
 #include "../xrSound/ai_sounds.h"
 #include "Artefact.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 
 struct ITEM_TYPE
 {
@@ -69,7 +69,7 @@ public:
 		Feel::Touch::feel_touch.clear();
 	}
 
-	void load(LPCSTR sect, LPCSTR prefix)
+	void load(const char* sect, const char* prefix)
 	{
 		u32 i = 1;
 		string256 temp = {};
@@ -97,21 +97,21 @@ public:
 	}
 };
 
-class CCustomZone;
+class CAnomalyZone;
 
 class CAfList final : public CDetectList<CArtefact>
 {
 protected:
-	BOOL feel_touch_contact(CObject* O) override;
+	bool feel_touch_contact(CObject* O) override;
 public:
 	CAfList() = default;
 	int m_af_rank = 0;
 };
 
-class CZoneList final : public CDetectList<CCustomZone>
+class CZoneList final : public CDetectList<CAnomalyZone>
 {
 protected:
-	BOOL feel_touch_contact(CObject* O) override;
+	bool feel_touch_contact(CObject* O) override;
 public:
 	CZoneList() = default;
 	virtual	~CZoneList();

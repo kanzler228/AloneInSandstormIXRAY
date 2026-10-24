@@ -21,10 +21,10 @@ class	adopt_sampler
 	CBlender_Compile*		C;
 	u32						stage;
 public:
-	adopt_sampler			(CBlender_Compile*	_C, u32 _stage)		: C(_C), stage(_stage)		{ if (u32(-1)==stage) C=0;		}
-	adopt_sampler			(const adopt_sampler&	_C)				: C(_C.C), stage(_C.stage)	{ if (u32(-1)==stage) C=0;		}
+	adopt_sampler			(CBlender_Compile*	_C, u32 _stage)		: C(_C), stage(_stage)		{ if (u32(-1)==stage) C=nullptr;		}
+	adopt_sampler			(const adopt_sampler&	_C)				: C(_C.C), stage(_C.stage)	{ if (u32(-1)==stage) C=nullptr;		}
 
-	adopt_sampler&			_texture		(LPCSTR texture)		{ if (C) C->i_Texture	(stage,texture);											return *this;	}
+	adopt_sampler&			_texture		(const char* texture)		{ if (C) C->i_Texture	(stage,texture);											return *this;	}
 	adopt_sampler&			_projective		(bool _b)				{ if (C) C->i_Projective(stage,_b);													return *this;	}
 	adopt_sampler&			_clamp			()						{ if (C) C->i_Address	(stage,D3DTADDRESS_CLAMP);									return *this;	}
 	adopt_sampler&			_wrap			()						{ if (C) C->i_Address	(stage,D3DTADDRESS_WRAP);									return *this;	}
@@ -58,13 +58,13 @@ public:
 	adopt_compiler&			_o_emissive		(bool	E)								{	C->SH->flags.bEmissive=E;					return	*this;		}
 	adopt_compiler&			_o_distort		(bool	E)								{	C->SH->flags.bDistort=E;					return	*this;		}
 	adopt_compiler&			_o_wmark		(bool	E)								{	C->SH->flags.bWmark=E;						return	*this;		}
-	adopt_compiler&			_pass			(LPCSTR	vs,		LPCSTR ps)				{	C->r_Pass			(vs,ps,true);			return	*this;		}
-	adopt_compiler&			_fog			(bool	_fog)							{	C->PassSET_LightFog	(FALSE,_fog);			return	*this;		}
+	adopt_compiler&			_pass			(const char*	vs,		const char* ps)				{	C->r_Pass			(vs,ps,true);			return	*this;		}
+	adopt_compiler&			_fog			(bool	_fog)							{	C->PassSET_LightFog	(false,_fog);			return	*this;		}
 	adopt_compiler&			_ZB				(bool	_test,	bool _write)			{	C->PassSET_ZB		(_test,_write);			return	*this;		}
 	adopt_compiler&			_blend			(bool	_blend, u32 abSRC, u32 abDST)	{	C->PassSET_ablend_mode(_blend,abSRC,abDST);	return 	*this;		}
 	adopt_compiler&			_aref			(bool	_aref,  u32 aref)				{	C->PassSET_ablend_aref(_aref,aref);			return 	*this;		}
 	adopt_compiler&			_color_write_enable (bool cR, bool cG, bool cB, bool cA)		{	C->r_ColorWriteEnable(cR, cG, cB, cA);		return	*this;		}
-	adopt_sampler			_sampler		(LPCSTR _name)							{	u32 s = C->r_Sampler(_name,0);				return	adopt_sampler(C,s);	}
+	adopt_sampler			_sampler		(const char* _name)							{	u32 s = C->r_Sampler(_name,nullptr);				return	adopt_sampler(C,s);	}
 };
 
 class	adopt_blend
@@ -72,7 +72,7 @@ class	adopt_blend
 public:
 };
 
-void LuaLog(LPCSTR caMessage)
+void LuaLog(const char* caMessage)
 {
 	Lua::LuaOut	(Lua::eLuaMessageTypeMessage,"%s",caMessage);
 }
@@ -88,7 +88,7 @@ static void* lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize) {
 	(void)osize;
 	if (!nsize) {
 		g_render_lua_allocator.free_impl(ptr);
-		return					0;
+		return					nullptr;
 	}
 
 	if (!ptr)
@@ -178,16 +178,16 @@ void	CResourceManager::LS_Load			()
 	];
 
 	// load shaders
-	xr_vector<char*>*	folder			= FS.file_list_open	("$game_shaders$",::Render->getShaderPath(),FS_ListFiles|FS_RootOnly);
+	xr_vector<char*>*	folder			= FS.file_list_open	(_game_shaders_,::Render->getShaderPath(),FS_ListFiles|FS_RootOnly);
 	VERIFY								(folder);
 	for (u32 it=0; it<folder->size(); it++)	{
 		string_path						namesp,fn;
 		xr_strcpy							(namesp,(*folder)[it]);
-		if	(0==strext(namesp) || 0!=xr_strcmp(strext(namesp),".lua"))	continue;
+		if	(nullptr==strext(namesp) || 0!=xr_strcmp(strext(namesp),".lua"))	continue;
 		*strext	(namesp)=0;
 		if		(0==namesp[0])			xr_strcpy	(namesp,"_G");
 		xr_strconcat(fn,::Render->getShaderPath(),(*folder)[it]);
-		FS.update_path					(fn,"$game_shaders$",fn);
+		FS.update_path					(fn,_game_shaders_,fn);
 		try {
 			Script::bfLoadFileIntoNamespace	(LSVM,fn,namesp,true);
 		} catch (...)
@@ -204,7 +204,7 @@ void	CResourceManager::LS_Unload			()
 	LSVM		= nullptr;
 }
 
-BOOL	CResourceManager::_lua_HasShader	(LPCSTR s_shader)
+bool	CResourceManager::_lua_HasShader	(const char* s_shader)
 {
 	string256	undercorated;
 	for (int i=0, l=xr_strlen(s_shader)+1; i<l; i++)
@@ -218,7 +218,7 @@ BOOL	CResourceManager::_lua_HasShader	(LPCSTR s_shader)
 			;
 }
 
-Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
+Shader*	CResourceManager::_lua_Create		(const char* d_shader, const char* s_textures)
 {
 	CBlender_Compile	C;
 	Shader				S;
@@ -227,12 +227,12 @@ Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
 	string256	undercorated;
 	for (int i=0, l=xr_strlen(d_shader)+1; i<l; i++)
 		undercorated[i]=('\\'==d_shader[i])?'_':d_shader[i];
-	LPCSTR		s_shader = undercorated;
+	const char*		s_shader = undercorated;
 
 	// Access to template
 	C.BT				= nullptr;
-	C.bEditor			= FALSE;
-	C.bDetail			= FALSE;
+	C.bEditor			= false;
+	C.bDetail			= false;
 
 	// Prepare
 	_ParseList			(C.L_textures,	s_textures	);
@@ -275,7 +275,7 @@ Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
 	if (Script::bfIsObjectPresent(LSVM,s_shader,"l_point",LUA_TFUNCTION))
 	{
 		C.iElement			= 2;
-		C.bDetail			= FALSE;
+		C.bDetail			= false;
 		S.E[2]				= C._lua_Compile(s_shader,"l_point");;
 	}
 
@@ -283,7 +283,7 @@ Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
 	if (Script::bfIsObjectPresent(LSVM,s_shader,"l_spot",LUA_TFUNCTION))
 	{
 		C.iElement			= 3;
-		C.bDetail			= FALSE;
+		C.bDetail			= false;
 		S.E[3]				= C._lua_Compile(s_shader,"l_spot");;
 	}
 
@@ -291,7 +291,7 @@ Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
 	if (Script::bfIsObjectPresent(LSVM,s_shader,"l_special",LUA_TFUNCTION))
 	{
 		C.iElement			= 4;
-		C.bDetail			= FALSE;
+		C.bDetail			= false;
 		S.E[4]				= C._lua_Compile(s_shader,"l_special");
 	}
 
@@ -308,16 +308,16 @@ Shader*	CResourceManager::_lua_Create		(LPCSTR d_shader, LPCSTR s_textures)
 	return N;
 }
 
-ShaderElement*		CBlender_Compile::_lua_Compile	(LPCSTR namesp, LPCSTR name)
+ShaderElement*		CBlender_Compile::_lua_Compile	(const char* namesp, const char* name)
 {
 	ShaderElement		E;
 	SH =				&E;
 	RS.Invalidate		();
 
 	// Compile
-	LPCSTR				t_0		= *L_textures[0]			? *L_textures[0] : "null";
-	LPCSTR				t_1		= (L_textures.size() > 1)	? *L_textures[1] : "null";
-	LPCSTR				t_d		= detail_texture			? detail_texture : "null" ;
+	const char*				t_0		= *L_textures[0]			? *L_textures[0] : "null";
+	const char*				t_1		= (L_textures.size() > 1)	? *L_textures[1] : "null";
+	const char*				t_d		= detail_texture			? detail_texture : "null" ;
 	lua_State*			LSVM	= DEV->LSVM;
 	object				shader	= get_globals(LSVM)[namesp];
 	functor<void>		element	= object_cast<functor<void> >(shader[name]);

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "EScenePuddlesTools.h"
-#include "../../../UI/Tools/UIPuddlesTool.h"
 
 EScenePuddlesTool::EScenePuddlesTool() :
 	ESceneCustomOTool(OBJCLASS_PUDDLES)
@@ -45,7 +44,7 @@ void EScenePuddlesTool::OnControlRenameRemoveClick(ButtonValue* V, bool& bDataMo
 {
 }
 
-void EScenePuddlesTool::FillProp(LPCSTR pref, PropItemVec& items)
+void EScenePuddlesTool::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref, items);
 }
@@ -58,7 +57,6 @@ bool EScenePuddlesTool::Validate(bool full_test)
 void EScenePuddlesTool::CreateControls()
 {
 	inherited::CreateDefaultControls(estDefault);
-	pForm = new UIPuddleTool();
 }
  
 void EScenePuddlesTool::RemoveControls()
@@ -67,7 +65,7 @@ void EScenePuddlesTool::RemoveControls()
 }
 
 
-CCustomObject* EScenePuddlesTool::CreateObject(LPVOID data, LPCSTR name)
+CCustomObject* EScenePuddlesTool::CreateObject(LPVOID data, const char* name)
 {
 	CCustomObject* O = new CPuddle(data, name);
 	O->FParentTools = this;

@@ -27,8 +27,7 @@ IC bool				FaceEqual(Face& F1, Face& F2)
 
 void CBuild::PreOptimize()
 {
-    if (lc_global_data()->GetSkipWeld())
-        return;
+    if (gCompilerMode.LC_skipWeld)  return;
 
     std::unordered_map<size_t, vecVertex> hashTable;
   
@@ -110,7 +109,8 @@ void CBuild::PreOptimize()
 	if (InvalideFaces())	
 	{
 		err_save		();
-		if (lc_global_data()->GetSkipInvalid()) {
+		if (gCompilerMode.LC_SkipInvalidFaces)
+		{
 			clMsg("* Total %d invalid faces. Do something.", InvalideFaces());
 		} else {
 			Debug.fatal(DEBUG_INFO, "* FATAL: %d invalid faces. Compilation aborted", InvalideFaces());
@@ -133,25 +133,13 @@ void CBuild::PreOptimize()
 	lc_global_data()->g_vertices().erase	(std::remove(lc_global_data()->g_vertices().begin(),lc_global_data()->g_vertices().end(),(Vertex*)0),lc_global_data()->g_vertices().end());
 	lc_global_data()->g_faces().erase		(std::remove(lc_global_data()->g_faces().begin(),lc_global_data()->g_faces().end(),(Face*)0),lc_global_data()->g_faces().end());
 	 
-	mem_Compact			();
-	clMsg("%d vertices removed. (%d left)",Vcount-lc_global_data()->g_vertices().size(),lc_global_data()->g_vertices().size());
+ 	clMsg("%d vertices removed. (%d left)",Vcount-lc_global_data()->g_vertices().size(),lc_global_data()->g_vertices().size());
 	clMsg("%d faces removed. (%d left)",   Fcount-lc_global_data()->g_faces().size(),   lc_global_data()->g_faces().size());
 }
 
 #include "../xrLC_Light/xrMU_Model.h"
 #include "../xrLC_Light/xrMU_Model_Reference.h"
-void CBuild::IsolateVertices	(BOOL bProgress)
+void CBuild::IsolateVertices	(bool bProgress)
 {
 	isolate_vertices<Vertex>( bProgress, lc_global_data()->g_vertices() );
- 
-    size_t RealSize  = 0;
-    size_t AllocSize = 0;
-
-    for (auto K : lc_global_data()->mu_refs())
-    {
-        RealSize += K->model->m_vertices.size();
-        AllocSize += K->model->m_vertices.capacity();
-    }
- 
-    Status("RealSize: %u/%u", RealSize, AllocSize);
 }

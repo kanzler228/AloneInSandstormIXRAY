@@ -12,7 +12,7 @@ bool  TUI_ControlObjectAdd::Start(TShiftState Shift)
 	if(!LUI->PickGround(p,UI->m_CurrentRStart,UI->m_CurrentRDir,1,&n)) return false;
     { // pick already executed (see top)
 		ESceneObjectTool* ot = smart_cast<ESceneObjectTool*>(parent_tool);
-    	LPCSTR N;
+    	const char* N;
         if (ot->IsAppendRandomActive()&&ot->m_AppendRandomObjects.size()){
         	N = ot->m_AppendRandomObjects[Random.randI(ot->m_AppendRandomObjects.size())].c_str();  
         }else{
@@ -32,33 +32,26 @@ bool  TUI_ControlObjectAdd::Start(TShiftState Shift)
         	xr_delete(obj);
         	return false;
         }
-/*        if (ref->IsDynamic()){
-            ELog.DlgMsg(mtError,"TUI_ControlObjectAdd:: Can't assign dynamic object.");
-            xr_delete(obj);
-            return false;
-        }
-*/
-        if (ot->IsAppendRandomActive()){
+
+        if (ot->IsAppendRandomActive())
+        {
             Fvector S;
-            if (ot->IsAppendRandomRotationActive()){
-            	Fvector p;
-                p.set(	Random.randF(ot->m_AppendRandomMinRotation.x,ot->m_AppendRandomMaxRotation.x),
-                 		Random.randF(ot->m_AppendRandomMinRotation.y,ot->m_AppendRandomMaxRotation.y),
-                        Random.randF(ot->m_AppendRandomMinRotation.z,ot->m_AppendRandomMaxRotation.z));
-                obj->SetRotation( p);
+            Fvector p;
+            p.set(Random.randF(ot->m_AppendRandomMinRotation.x, ot->m_AppendRandomMaxRotation.x),
+                Random.randF(ot->m_AppendRandomMinRotation.y, ot->m_AppendRandomMaxRotation.y),
+                Random.randF(ot->m_AppendRandomMinRotation.z, ot->m_AppendRandomMaxRotation.z));
+            obj->SetRotation(p);
+            Fvector s;
+            if (ot->IsAppendRandomScaleProportional()) {
+                s.x = Random.randF(ot->m_AppendRandomMinScale.x, ot->m_AppendRandomMaxScale.x);
+                s.set(s.x, s.x, s.x);
             }
-            if (ot->IsAppendRandomScaleActive()){
-            	Fvector s;
-                if (ot->IsAppendRandomScaleProportional()){
-                    s.x		= Random.randF(ot->m_AppendRandomMinScale.x,ot->m_AppendRandomMaxScale.x);
-                    s.set	(s.x,s.x,s.x);
-                }else{
-                    s.set(	Random.randF(ot->m_AppendRandomMinScale.x,ot->m_AppendRandomMaxScale.x),
-                            Random.randF(ot->m_AppendRandomMinScale.y,ot->m_AppendRandomMaxScale.y),
-                            Random.randF(ot->m_AppendRandomMinScale.z,ot->m_AppendRandomMaxScale.z));
-                }
-                obj->SetScale( s);
+            else {
+                s.set(Random.randF(ot->m_AppendRandomMinScale.x, ot->m_AppendRandomMaxScale.x),
+                    Random.randF(ot->m_AppendRandomMinScale.y, ot->m_AppendRandomMaxScale.y),
+                    Random.randF(ot->m_AppendRandomMinScale.z, ot->m_AppendRandomMaxScale.z));
             }
+            obj->SetScale(s);
         }
         obj->MoveTo(p,n);
 

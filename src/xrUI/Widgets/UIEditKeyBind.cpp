@@ -5,6 +5,7 @@
 #include "../../xrEngine/XR_IOConsole.h"
 #include "../UIFontDefines.h"
 #include "../UITextureMaster.h"
+#include "../../xrCore/EngineExternal.h"
 
 CUIEditKeyBind::CUIEditKeyBind(bool bPrim)
 {
@@ -16,7 +17,7 @@ CUIEditKeyBind::CUIEditKeyBind(bool bPrim)
 	m_action					= nullptr;
 }
 
-UI_API u32 cut_string_by_length(CGameFont* pFont, LPCSTR src, LPSTR dst, u32 dst_size, float length)
+UI_API u32 cut_string_by_length(CGameFont* pFont, const char* src, LPSTR dst, u32 dst_size, float length)
 {
 	if ( pFont->IsMultibyte() ) {
 		u16 nPos = pFont->GetCutLengthPos( length, src );
@@ -61,12 +62,18 @@ void CUIEditKeyBind::InitKeyBind(Fvector2 pos, Fvector2 size)
 	CUIStatic::SetWndPos	(pos);
 	CUIStatic::SetWndSize	(size);
 
-	if (CUITextureMaster::ItemExist("ui_listline2")) // cop
+	if (CUITextureMaster::ItemExist("ui_listline2"))
+	{
 		InitTexture("ui_listline2");
-	else if (CUITextureMaster::ItemExist("ui_options_string")) // soc
+	}
+	else if (CUITextureMaster::ItemExist("ui_options_string"))
+	{
 		InitTexture("ui_options_string");
-	else if (CUITextureMaster::ItemExist("ui_options_string_back")) // cs (exists in soc also, that's why it's last)
+	}
+	else
+	{
 		InitTexture("ui_options_string_back");
+	}
 
 	TextItemControl()->SetFont	(UI().Font().GetFont(LETTERICA16_FONT_NAME));
 	SetStretchTexture		(true);
@@ -230,7 +237,7 @@ void CUIEditKeyBind::BindAction2Key()
 	}	
 }
 
-void CUIEditKeyBind::OnMessage(LPCSTR message)
+void CUIEditKeyBind::OnMessage(const char* message)
 {
 	// message = "command=key"
 	int eq	= (int)strcspn(message,"=");

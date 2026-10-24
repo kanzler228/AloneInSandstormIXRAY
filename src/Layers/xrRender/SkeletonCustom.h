@@ -9,8 +9,7 @@
 
 // refs
 class	 CKinematics;
-class	 CInifile;
-class	 CBoneData;
+class CSkeletonX;
 struct	SEnumVerticesCallback;
 
 #pragma warning(push)
@@ -24,46 +23,41 @@ class  CSkeletonWallmark : public intrusive_base // 4+4+4+12+4+16+16 = 60 + 4 = 
 	Fvector3			m_ContactPoint;	// 12		model space
 	float				m_fTimeStart;	// 4
 public:
-#ifdef DEBUG
-	u32					used_in_render;	
-#endif
 	Fsphere				m_LocalBounds;	// 16		model space
-	struct WMFace{
-		Fvector3		vert	[3];
-		Fvector2		uv		[3];
-		u16				bone_id	[3][2];
-		float			weight	[3];
+	struct WMFace
+	{
+		Fvector vert[3];
+		Fvector2 uv[3];
+		u16 bone_id[3][4]
+		{
+			{BI_NONE, BI_NONE, BI_NONE, BI_NONE},
+			{BI_NONE, BI_NONE, BI_NONE, BI_NONE},
+			{BI_NONE, BI_NONE, BI_NONE, BI_NONE}
+		};
+		float weight[3][3]
+		{
+			{0.f, 0.f, 0.f},
+			{0.f, 0.f, 0.f},
+			{0.f, 0.f, 0.f}
+		};
 	};
 
-	using WMFacesVec = xr_vector<WMFace>;
-	using WMFacesVecIt = WMFacesVec::iterator;
-
-	WMFacesVec			m_Faces;		// 16 
+	xr_vector<WMFace>	m_Faces;		// 16 
 public:
 	Fsphere				m_Bounds;		// 16		world space
 public:									
 						CSkeletonWallmark	(CKinematics* p,const Fmatrix* m, ref_shader s, const Fvector& cp, float ts):
 						m_Parent(p),m_XForm(m),m_Shader(s),m_fTimeStart(ts),m_ContactPoint(cp)
-						{
-#ifdef DEBUG
-						used_in_render = u32(-1);
-#endif
-						
-						}
-						~CSkeletonWallmark	()
-#ifdef DEBUG
-							;
-#else
-							{}
-#endif
+						{}
+						~CSkeletonWallmark	(){}
 
-	IC CKinematics*		Parent				(){return m_Parent;}
-	IC u32				VCount				(){return (u32)m_Faces.size()*3;}
-	IC bool				Similar				(ref_shader& sh, const Fvector& cp, float eps){return (m_Shader==sh)&&m_ContactPoint.similar(cp,eps);}
-	IC float			TimeStart			(){return m_fTimeStart;}
-	IC const Fmatrix*	XFORM				(){return m_XForm;}
-	IC const Fvector3&	ContactPoint		(){return m_ContactPoint;}
-	IC ref_shader		Shader				(){return m_Shader;}
+	ICF CKinematics*	Parent				(){return m_Parent;}
+	ICF u32				VCount				(){return (u32)m_Faces.size()*3;}
+	ICF bool			Similar				(ref_shader& sh, const Fvector& cp, float eps){return (m_Shader==sh)&&m_ContactPoint.similar(cp,eps);}
+	ICF float			TimeStart			(){return m_fTimeStart;}
+	ICF const Fmatrix*	XFORM				(){return m_XForm;}
+	ICF const Fvector3&	ContactPoint		(){return m_ContactPoint;}
+	ICF ref_shader		Shader				(){return m_Shader;}
 };
 
 using SkeletonWMVec = xr_vector<intrusive_ptr<CSkeletonWallmark>>;
@@ -82,7 +76,7 @@ private:
 
 public: 
 #ifdef DEBUG
-	BOOL						dbg_single_use_marker;
+	bool						dbg_single_use_marker;
 #endif
 			void				Bone_Calculate		(CBoneData* bd, Fmatrix* parent);
 			void				CLBone				(const CBoneData* bd, CBoneInstance &bi, const Fmatrix *parent, u8 mask_channel = (1<<0));
@@ -120,7 +114,7 @@ protected:
 	accel*						bone_map_N;		// bones  associations	(shared)	- sorted by name
 	accel*						bone_map_P;		// bones  associations	(shared)	- sorted by name-pointer
 
-	BOOL						Update_Visibility		;
+	bool						Update_Visibility		;
 	u32							UCalc_Time				;
 	s32							UCalc_Visibox			;
 	u32							Visibox_frame = 0;
@@ -135,7 +129,7 @@ protected:
 	virtual CBoneData*			CreateBoneData			(u16 ID){return new CBoneData(ID);}
 	virtual void				IBoneInstances_Create	();
 	virtual void				IBoneInstances_Destroy	();
-	void						Visibility_Invalidate	()	{ Update_Visibility=TRUE; };
+	void						Visibility_Invalidate	()	{ Update_Visibility=true; };
 	void						Visibility_Update		()	;
 
     void						LL_Validate				();
@@ -151,15 +145,18 @@ public:
 public:
 				
 				bool			PickBone			(const Fmatrix &parent_xform, IKinematics::pick_result &r, float dist, const Fvector& start, const Fvector& dir, u16 bone_id);
-	virtual		void			EnumBoneVertices	(SEnumVerticesCallback &C, u16 bone_id);
+	virtual		void			EnumBoneVertices	(SEnumVerticesCallback &C, u16 bone_id = u16(-1));
+	virtual		void			EnumBoneVertices	(xr_vector<Fvector>& m_vec, u16 bone_id = u16(-1));
+	virtual		void			EnumBoneVertices	(buffer_vector<Fvector>& m_vec, u16 bone_id = u16(-1));
+	virtual		u32				GetFacesCount		(u16 bone_id = u16(-1));
 public:
 								CKinematics			();
 	virtual						~CKinematics		();
 
 	// Low level interface
-				u16				_BCL	LL_BoneID			(LPCSTR  B);
+				u16				_BCL	LL_BoneID			(const char*  B);
 				u16				_BCL	LL_BoneID			(const shared_str& B);
-				LPCSTR			_BCL	LL_BoneName_dbg		(u16 ID);
+				const char*			_BCL	LL_BoneName_dbg		(u16 ID);
 
 				CInifile*		_BCL	LL_UserData			()						{return pUserData;}
 				accel*					LL_Bones			()						{return bone_map_N;}
@@ -234,7 +231,7 @@ public:
 		result.mulA_43(xform);
 	}
 
-	ICF void CalculateBBox(BOOL bforce = TRUE)
+	ICF void CalculateBBox(bool bforce = true)
 	{
 		if (!bforce && Device.dwFrame == Visibox_frame)
 			return;
@@ -276,21 +273,27 @@ public:
 	Fobb&							LL_GetBox			(u16 bone_id)		{	VERIFY2(bone_id < LL_BoneCount(), make_string<const char*>("visual_name: %s, bone_id: %d", dbg_name.c_str(), bone_id));	return (*bones)[bone_id]->obb;	}
 	const Fbox&				_BCL	GetBox				()const				{	return vis.box ;}
 	void							LL_GetBindTransform (xr_vector<Fmatrix>& matrices);
+	void							LL_GetBindTransform	(buffer_vector<Fmatrix>& matrices);
     int 							LL_GetBoneGroups 	(xr_vector<xr_vector<u16> >& groups);
 
 	u16						_BCL	LL_GetBoneRoot		()					{	return iRoot;													}
 	void							LL_SetBoneRoot		(u16 bone_id)		{ VERIFY2(bone_id < LL_BoneCount(), make_string<const char*>("visual_name: %s, bone_id: %d", dbg_name.c_str(), bone_id));	iRoot=bone_id;					}
 
-    BOOL					_BCL	LL_GetBoneVisible	(u16 bone_id)		{ 
+    bool					_BCL	LL_GetBoneVisible	(u16 bone_id)		{ 
 		VERIFY2(bone_id < LL_BoneCount(), make_string<const char*>("visual_name: %s, bone: %s, bone_id: %d", dbg_name.c_str(), LL_BoneName_dbg(bone_id), bone_id));
 		return visimask.is(bone_id);	}
-	void							LL_SetBoneVisible	(u16 bone_id, BOOL val, BOOL bRecursive);
+	void							LL_SetBoneVisible	(u16 bone_id, bool val, bool bRecursive);
 	VisMask					_BCL	LL_GetBonesVisible	()					{	return visimask;	}
 	void							LL_SetBonesVisible	(VisMask mask);
 	void							LL_SetBonesVisibleAll() { visimask.set_all(); };
 
+	virtual void					LL_SetSimpleBoneVisible	(u16 bone_id, bool val);
+	virtual bool					LL_GetSimpleBoneVisible	(u16 bone_id);
+
+	virtual void					BonesHistory_Invalidate() override;
+
 	// Main functionality
-	virtual void					CalculateBones				(BOOL bForceExact	=	FALSE);		// Recalculate skeleton
+	virtual void					CalculateBones				(bool bForceExact	=	false);		// Recalculate skeleton
 	void							CalculateBones_Invalidate	();
 	void							Callback					(UpdateCallback C, void* Param)		{	Update_Callback	= C; Update_Callback_Param	= Param;	}
 
@@ -318,7 +321,7 @@ public:
 	virtual void					Depart				();
     virtual void 					Release				();
 
-	virtual	IKinematicsAnimated*dcast_PKinematicsAnimated() { return 0;	}
+	virtual	IKinematicsAnimated*dcast_PKinematicsAnimated() { return nullptr;	}
 	virtual IRenderVisual*	_BCL dcast_RenderVisual() { return this; }
 	virtual IKinematics*	_BCL dcast_PKinematics()  { return this; }
 //	virtual	CKinematics*		dcast_PKinematics	()				{ return this;	}
@@ -338,6 +341,6 @@ private:
 	bool						m_is_original_lod;
 
 };
-IC CKinematics* PCKinematics		(dxRender_Visual* V)		{ return V?(CKinematics*)V->dcast_PKinematics():0; }
+IC CKinematics* PCKinematics		(dxRender_Visual* V)		{ return V?(CKinematics*)V->dcast_PKinematics():nullptr; }
 //---------------------------------------------------------------------------
 #endif

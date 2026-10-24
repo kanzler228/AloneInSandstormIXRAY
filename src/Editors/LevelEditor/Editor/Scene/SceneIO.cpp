@@ -37,7 +37,7 @@
 
 void st_LevelOptions::SaveLTX( CInifile& ini )
 {
-	LPCSTR section 	= "level_options";
+	const char* section 	= "level_options";
 	ini.w_u32		(section, "version", CURRENT_LEVELOP_VERSION);
 
 	ini.w_string	(section, "level_path", m_FNLevelPath.c_str());
@@ -100,7 +100,7 @@ void st_LevelOptions::Save( IWriter& F )
 
 void st_LevelOptions::ReadLTX(CInifile& ini)
 {
-	LPCSTR section 	= "level_options";
+	const char* section 	= "level_options";
 
 	u32 vers_op 		= ini.r_u32(section, "version");
 	if( vers_op < 0x00000008 )
@@ -202,7 +202,7 @@ void st_LevelOptions::Read(IReader& F)
 
 // Scene
 
-BOOL EScene::LoadLevelPartLTX(ESceneToolBase* M, LPCSTR mn)
+bool EScene::LoadLevelPartLTX(ESceneToolBase* M, const char* mn)
 {
 	string_path map_name;
 	strcpy(map_name, mn);
@@ -224,7 +224,7 @@ BOOL EScene::LoadLevelPartLTX(ESceneToolBase* M, LPCSTR mn)
 		if(!b_is_inifile)
 			return LoadLevelPartStream(M, map_name);
 
-		M->m_EditFlags.set(ESceneToolBase::flReadonly,FALSE);
+		M->m_EditFlags.set(ESceneToolBase::flReadonly,false);
 
 		CInifile			ini(map_name);
 
@@ -243,10 +243,10 @@ BOOL EScene::LoadLevelPartLTX(ESceneToolBase* M, LPCSTR mn)
 		sprintf(map_name, "%s%d", mn, fnidx);
 	}
 
-	return 					TRUE;
+	return 					true;
 }
 
-BOOL EScene::LoadLevelPart(ESceneToolBase* M, LPCSTR map_name)
+bool EScene::LoadLevelPart(ESceneToolBase* M, const char* map_name)
 {
 	if(M->can_use_inifile())
 		return LoadLevelPartLTX(M, map_name);
@@ -254,12 +254,12 @@ BOOL EScene::LoadLevelPart(ESceneToolBase* M, LPCSTR map_name)
 	
 }
 
-BOOL EScene::LoadLevelPartStream(ESceneToolBase* M, LPCSTR map_name)
+bool EScene::LoadLevelPartStream(ESceneToolBase* M, const char* map_name)
 {
 	if (FS.TryLoad(map_name))
 	{
 		// check locking
-		M->m_EditFlags.set(ESceneToolBase::flReadonly, FALSE);
+		M->m_EditFlags.set(ESceneToolBase::flReadonly, false);
 
 		IReader* R = FS.r_open(map_name);
 		VERIFY(R);
@@ -283,45 +283,45 @@ BOOL EScene::LoadLevelPartStream(ESceneToolBase* M, LPCSTR map_name)
 		{
 			ELog.DlgMsg(mtError, "Skipping corrupted version of level part: '%s\\%s.part'", EFS.ExtractFileName(map_name).c_str(), M->ClassName());
 			FS.r_close(R);
-			return 			FALSE;
+			return 			false;
 		}
 		//success
 		FS.r_close(R);
-		return 				TRUE;
+		return 				true;
 	}
-	return 					TRUE;
+	return 					true;
 }
 
-BOOL EScene::LoadLevelPart(LPCSTR map_name, ObjClassID cls)
+bool EScene::LoadLevelPart(const char* map_name, ObjClassID cls)
 {
 	xr_string pn	= LevelPartName(map_name,cls);
 	if (LoadLevelPart(GetTool(cls),pn.c_str()))
-		return 		TRUE;
+		return 		true;
 	else
-		return 			FALSE;
+		return 			false;
 }
 
-BOOL EScene::UnloadLevelPart(ESceneToolBase* M)
+bool EScene::UnloadLevelPart(ESceneToolBase* M)
 {
 	M->Clear		();
-	return 			TRUE;
+	return 			true;
 }
 
-BOOL EScene::UnloadLevelPart(LPCSTR map_name, ObjClassID cls)
+bool EScene::UnloadLevelPart(const char* map_name, ObjClassID cls)
 {
 	xr_string pn	= LevelPartName(map_name,cls);
 	if (UnloadLevelPart(GetTool(cls)))
-		return 		TRUE;
+		return 		true;
 	else
-		return			FALSE;
+		return			false;
 }
 
-xr_string EScene::LevelPartPath(LPCSTR full_name)
+xr_string EScene::LevelPartPath(const char* full_name)
 {
 	return 			EFS.ExtractFilePath(full_name)+EFS.ExtractFileName(full_name)+"\\";
 }
 
-xr_string EScene::LevelPartName(LPCSTR map_name, ObjClassID cls)
+xr_string EScene::LevelPartName(const char* map_name, ObjClassID cls)
 {
 	xr_string path = LevelPartPath(map_name);
 	xr_string class_name = GetTool(cls)->ClassName();
@@ -344,7 +344,7 @@ xr_string EScene::LevelPartName(LPCSTR map_name, ObjClassID cls)
 }
 
 
-void EScene::SaveLTX(LPCSTR map_name, bool bForUndo, bool bForceSaveAll)
+void EScene::SaveLTX(const char* map_name, bool bForUndo, bool bForceSaveAll)
 {
 	VERIFY			(map_name);
 	R_ASSERT		(!bForUndo);
@@ -368,7 +368,7 @@ void EScene::SaveLTX(LPCSTR map_name, bool bForUndo, bool bForceSaveAll)
 	}
 
 	
-	CInifile ini(full_name.c_str(),FALSE,FALSE,TRUE);
+	CInifile ini(full_name.c_str(),false,false,true);
 
 	if (bSaveMain)
 	{
@@ -456,18 +456,18 @@ void EScene::SaveLTX(LPCSTR map_name, bool bForUndo, bool bForceSaveAll)
 		
 	if (!bForUndo)
 	{
-		m_RTFlags.set	(flRT_Unsaved,FALSE);
+		m_RTFlags.set	(flRT_Unsaved,false);
 		Msg				("Saving time: %3.2f sec",T.GetElapsed_sec());
 	}
 }
 
-void EScene::SaveToolLTX(ObjClassID clsid, LPCSTR fn)
+void EScene::SaveToolLTX(ObjClassID clsid, const char* fn)
 {
 	ESceneToolBase* tool 	= GetTool(clsid);
 	int fc = tool->SaveFileCount();
 	if(fc==1)
 	{
-	  CInifile ini_part		(fn, FALSE, FALSE, FALSE);
+	  CInifile ini_part		(fn, false, false, false);
 	  tool->SaveLTX			(ini_part, 0);
 	  m_GUID.SaveLTX			(ini_part,"guid","guid");
 	  ini_part.save_as		();
@@ -482,7 +482,7 @@ void EScene::SaveToolLTX(ObjClassID clsid, LPCSTR fn)
 			else
 				strcpy				(filename, fn);
 
-			CInifile ini_part		(filename, FALSE, FALSE, FALSE);
+			CInifile ini_part		(filename, false, false, false);
 			tool->SaveLTX			(ini_part, i);
 			m_GUID.SaveLTX			(ini_part,"guid","guid");
 			ini_part.save_as		();
@@ -490,7 +490,7 @@ void EScene::SaveToolLTX(ObjClassID clsid, LPCSTR fn)
 	}
 }
 
-bool EScene::LoadToolLTX(ObjClassID clsid, LPCSTR fn)
+bool EScene::LoadToolLTX(ObjClassID clsid, const char* fn)
 {
 	ESceneToolBase* tool 	= GetTool(clsid);
 	tool->Clear				(true);
@@ -498,7 +498,7 @@ bool EScene::LoadToolLTX(ObjClassID clsid, LPCSTR fn)
 	return 					res;
 }
 
-void EScene::Save(LPCSTR map_name, bool bUndo, bool bForceSaveAll)
+void EScene::Save(const char* map_name, bool bUndo, bool bForceSaveAll)
 {
 	R_ASSERT		(bUndo);
 	VERIFY			(map_name);
@@ -574,7 +574,7 @@ void EScene::Save(LPCSTR map_name, bool bUndo, bool bForceSaveAll)
 }
 
 
-void EScene::SaveObjectLTX(CCustomObject* O, LPCSTR sect_name, CInifile& ini)
+void EScene::SaveObjectLTX(CCustomObject* O, const char* sect_name, CInifile& ini)
 {
 	ini.w_u32	(sect_name,"clsid",O->FClassID);
 	O->SaveLTX	(ini, sect_name);
@@ -591,7 +591,7 @@ void EScene::SaveObjectStream( CCustomObject* O, IWriter& F )
 }
 
 
-void EScene::SaveObjectsLTX(ObjectList& lst, LPCSTR sect_name_parent, LPCSTR sect_name_prefix, CInifile& ini)
+void EScene::SaveObjectsLTX(ObjectList& lst, const char* sect_name_parent, const char* sect_name_prefix, CInifile& ini)
 {
 	u32 i 				= 0;
 	string256			buff;
@@ -636,7 +636,7 @@ bool EScene::ReadObjectStream(IReader& F, CCustomObject*& O)
 	return bRes;
 }
 
-bool EScene::ReadObjectLTX(CInifile& ini, LPCSTR sect_name, CCustomObject*& O)
+bool EScene::ReadObjectLTX(CInifile& ini, const char* sect_name, CCustomObject*& O)
 {
 	if (!ini.section_exist(sect_name))
 		return false;
@@ -653,7 +653,7 @@ bool EScene::ReadObjectLTX(CInifile& ini, LPCSTR sect_name, CCustomObject*& O)
 	return bRes;
 }
 
-bool EScene::ReadObjectsLTX(CInifile& ini,  LPCSTR sect_name_parent, LPCSTR sect_name_prefix, TAppendObject on_append, SPBItem* pb)
+bool EScene::ReadObjectsLTX(CInifile& ini,  const char* sect_name_parent, const char* sect_name_prefix, TAppendObject on_append, SPBItem* pb)
 {
 	string128			buff;
 	R_ASSERT			(on_append);
@@ -668,7 +668,7 @@ bool EScene::ReadObjectsLTX(CInifile& ini,  LPCSTR sect_name_parent, LPCSTR sect
 
 		if (ReadObjectLTX(ini, buff, obj))
 		{
-			LPCSTR obj_name = obj->GetName();
+			const char* obj_name = obj->GetName();
 			CCustomObject* existing = FindObjectByName(obj_name, obj->FClassID);
 			if (existing)
 			{
@@ -737,7 +737,7 @@ bool EScene::ReadObjectsStream(IReader& F, u32 chunk_id, TAppendObject on_append
 			CCustomObject* obj	=NULL;
 			if (ReadObjectStream(*O, obj))
 			{
-				LPCSTR obj_name = obj->GetName();
+				const char* obj_name = obj->GetName();
 				CCustomObject* existing = FindObjectByName(obj_name,obj->FClassID);
 				if(existing)
 				{
@@ -797,7 +797,7 @@ bool EScene::OnLoadAppendObject(CCustomObject* O)
 }
 
 
-bool EScene::LoadLTX(LPCSTR map_name, bool bUndo)
+bool EScene::LoadLTX(const char* map_name, bool bUndo)
 {
 	DWORD version = 0;
 	if (!map_name||(0==map_name[0])) return false;
@@ -811,6 +811,8 @@ bool EScene::LoadLTX(LPCSTR map_name, bool bUndo)
 		SDL_SetWindowTitle(g_AppInfo.Window, Name.c_str());
 	}
 
+	shared_str LevelPath = xr_path(map_name).stem().string().c_str();
+	UI->GeneralTabs[0] = { LevelPath, []()->bool {return Scene->IsUnsaved(); } };
 	full_name = map_name;
 
 	ELog.Msg( mtInformation, "EScene: loading '%s'", map_name);
@@ -885,7 +887,7 @@ bool EScene::LoadLTX(LPCSTR map_name, bool bUndo)
 		SynchronizeObjects();
 
 		if (!bUndo)
-			m_RTFlags.set(flRT_Unsaved|flRT_Modified,FALSE);
+			m_RTFlags.set(flRT_Unsaved|flRT_Modified,false);
 		
 		return true;
 	}else
@@ -895,7 +897,7 @@ bool EScene::LoadLTX(LPCSTR map_name, bool bUndo)
 	return false;
 }
 
-bool EScene::Load(LPCSTR map_name, bool bUndo)
+bool EScene::Load(const char* map_name, bool bUndo)
 {
 	u32 version = 0;
 
@@ -1025,7 +1027,7 @@ bool EScene::Load(LPCSTR map_name, bool bUndo)
 		SynchronizeObjects();
 
 		if (!bUndo)
-			m_RTFlags.set(flRT_Unsaved|flRT_Modified,FALSE);
+			m_RTFlags.set(flRT_Unsaved|flRT_Modified,false);
 		
 		return true;
 	}else
@@ -1038,7 +1040,7 @@ bool EScene::Load(LPCSTR map_name, bool bUndo)
 
 //copy/paste utils
 
-void EScene::SaveSelection( ObjClassID classfilter, LPCSTR fname )
+void EScene::SaveSelection( ObjClassID classfilter, const char* fname )
 {
 	VERIFY			( fname );
 
@@ -1089,7 +1091,7 @@ bool EScene::OnLoadSelectionAppendObject(CCustomObject* obj)
 }
 
 
-bool EScene::LoadSelection( LPCSTR fname )
+bool EScene::LoadSelection( const char* fname )
 {
 	u32 version = 0;
 
@@ -1223,13 +1225,13 @@ void EScene::CutSelection( ObjClassID classfilter )
 }
 
 
-void EScene::LoadCompilerError(LPCSTR fn)
+void EScene::LoadCompilerError(const char* fn)
 {
 	Tools->ClearDebugDraw();
 /*
 	CInifile		ini(fn);
 	string256		buff;
-	LPCSTR			sect;
+	const char*			sect;
 	u32				sz, i;
 
 	sect			= "t-junction";
@@ -1328,12 +1330,12 @@ void EScene::LoadCompilerError(LPCSTR fn)
 
 }
 
-void EScene::SaveCompilerError(LPCSTR fn)
+void EScene::SaveCompilerError(const char* fn)
 {
 /*
-	CInifile		ini(fn,FALSE,FALSE,TRUE);
+	CInifile		ini(fn,false,false,true);
 	string256		buff;
-	LPCSTR			sect;
+	const char*			sect;
 	u32				sz, i;
 
 	sz 				= Tools->m_DebugDraw.m_Points.size();
@@ -1433,7 +1435,7 @@ void EScene::ExportObj(bool b_selected_only)
 
 }
 
-void EScene::LoadXrAICompilerError(LPCSTR fn)
+void EScene::LoadXrAICompilerError(const char* fn)
 {
 	Tools->ClearDebugDraw();
 

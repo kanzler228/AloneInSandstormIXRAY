@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "../../xrUI/UIXmlInit.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
 #include "../../xrUI/Widgets/UIProgressBar.h"
@@ -10,8 +10,8 @@
 #include "../xrEngine/XR_IOConsole.h"
 #include "../xrEngine/string_table.h"
 #include "Level.h"
-#include "demoinfo.h"
-#include "demoplay_control.h"
+#include "DemoInfo.h"
+#include "DemoPlay_Control.h"
 
 CUIDemoPlayControl::CUIDemoPlayControl()
 {
@@ -23,7 +23,7 @@ CUIDemoPlayControl::CUIDemoPlayControl()
 	m_increase_speed_btn	= new CUI3tButton();	AttachChild(m_increase_speed_btn);
 	m_rewind_until_btn		= new CUI3tButton();	AttachChild(m_rewind_until_btn);
 	m_repeat_rewind_btn		= new CUI3tButton();	AttachChild(m_repeat_rewind_btn);
-	m_static_demo_status	= new CUITextWnd();		AttachChild(m_static_demo_status);
+	m_static_demo_status	= new CUIStatic();		AttachChild(m_static_demo_status);
 	
 	m_all_players				= new CUIPropertiesBox();
 	AttachChild					(m_all_players);
@@ -72,7 +72,7 @@ void CUIDemoPlayControl::Init()
 	CUIXmlInit::Init3tButton	(xml_doc, "demo_play_control:btn_rewind_until",		0,	m_rewind_until_btn);
 	CUIXmlInit::Init3tButton	(xml_doc, "demo_play_control:btn_repeat_rewind",	0,	m_repeat_rewind_btn);
 	CUIXmlInit::InitProgressBar	(xml_doc, "demo_play_control:progress",				0,	m_progress_bar);
-	CUIXmlInit::InitTextWnd		(xml_doc, "demo_play_control:static_demo_status",	0,	m_static_demo_status);
+	CUIXmlInit::InitStatic		(xml_doc, "demo_play_control:static_demo_status",	0,	m_static_demo_status);
 	CUIWindow	tmp_prop_boxes_wnd;
 	CUIXmlInit::InitWindow		(xml_doc, "demo_play_control:rewind_property_boxes",0,	&tmp_prop_boxes_wnd);
 
@@ -146,7 +146,7 @@ void CUIDemoPlayControl::InitAllPlayers		()
 	{
 		demo_player_info const*	tmp_player = tmp_demo_info->get_player(i);
 		R_ASSERT(tmp_player);
-		LPCSTR tmp_player_name = tmp_player->get_name();
+		const char* tmp_player_name = tmp_player->get_name();
 		R_ASSERT(tmp_player_name);
 		m_players->push_back(shared_str(tmp_player_name));
 		m_all_players->AddItem(tmp_player_name, nullptr, i + 1);	//warning ! player_index = tag - 1 !!!
@@ -179,11 +179,11 @@ void CUIDemoPlayControl::OnPlayPause(CUIWindow* w, void* d)
 	if (Device.Paused())
 	{
 		//m_play_pause_btn->SetText("Pause");
-		Device.Pause(FALSE, TRUE, TRUE, "mpdemoplay ctrl unpause");
+		Device.Pause(false, true, true, "mpdemoplay ctrl unpause");
 		return;	
 	}
 	//m_play_pause_btn->SetText("Play");
-	Device.Pause(TRUE, TRUE, TRUE, "mpdemoplay ctrl pause");
+	Device.Pause(true, true, true, "mpdemoplay ctrl pause");
 }
 
 void CUIDemoPlayControl::OnRestart(CUIWindow* w, void* d)

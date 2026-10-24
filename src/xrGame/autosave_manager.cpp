@@ -18,22 +18,20 @@
 #include "../xrEngine/string_table.h"
 
 #include "../xrEngine/XR_IOConsole.h"
-extern void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
+extern void execute_console_command_deferred(CConsole* c, const char* string_to_execute);
 
-extern LPCSTR alife_section;
+extern const char* alife_section;
 
 CAutosaveManager::CAutosaveManager			()
 {
 	save_str.printf("save %s - %s", Core.UserName, g_pStringTable->translate("autosave").c_str());
 
 	u32							hours,minutes,seconds;
-	LPCSTR						section = alife_section;
+	const char*						section = alife_section;
 
-	sscanf						(pSettings->r_string(section,"autosave_interval"),"%d:%d:%d",&hours,&minutes,&seconds);
-	m_autosave_interval			= (u32)generate_time(1,1,1,hours,minutes,seconds);
 	m_last_autosave_time		= Device.dwTimeGlobal;
 
-	sscanf						(pSettings->r_string(section,"delay_autosave_interval"),"%d:%d:%d",&hours,&minutes,&seconds);
+	sscanf						(pSettings->r_string(section,"delay_autosave_interval"),"%u:%u:%u",&hours,&minutes,&seconds);
 	m_delay_autosave_interval	= (u32)generate_time(1,1,1,hours,minutes,seconds);
 
 	m_not_ready_count			= 0;
@@ -53,21 +51,28 @@ float CAutosaveManager::shedule_Scale		()
 	return						(.5f);
 }
 
+bool g_autosaves_enabled = true;
+int g_autosaves_interval = 65;
+
 void CAutosaveManager::shedule_Update		(u32 dt)
 {
 	PROF_EVENT("CAutosaveManager::shedule_Update");
 	inherited::shedule_Update	(dt);
 
-	if (!psActorFlags.test(AF_IMPORTANT_SAVE))
+	if (!g_autosaves_enabled)
 	{
 		return;
 	}
 
 	if (!ai().get_alife())
+	{
 		return;
+	}
 
-	if (last_autosave_time() + autosave_interval() >= Device.dwTimeGlobal)
+	if (last_autosave_time() + (g_autosaves_interval * 60 * 1000) >= Device.dwTimeGlobal)
+	{
 		return;
+	}
 
 	if (Device.dwPrecacheFrame || !g_actor || !ready_for_autosave() || !Actor()->g_Alive()) {
 		delay_autosave			();

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "tushkano.h"
 #include "tushkano_state_manager.h"
 #include "../monster_velocity_space.h"
@@ -18,7 +18,7 @@ CTushkano::~CTushkano()
 	xr_delete(StateMan);
 }
 
-void CTushkano::Load(LPCSTR section)
+void CTushkano::Load(const char* section)
 {
 	inherited::Load	(section);
 

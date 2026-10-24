@@ -4,16 +4,16 @@
 //////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include "../../xrUI/Widgets/UIWindow.h"
+#include "../../xrUI/Widgets/UIHint.h"
 
 class CUIFrameWindow;
 class CUICharacterInfo;
 class CInventoryOwner;
 
-class CUIPdaListItem : public CUIWindow
+class CUIPdaListItem : public UIHintWindow
 {
 private:
-	typedef CUIWindow inherited;
+	typedef UIHintWindow inherited;
 public:
 					CUIPdaListItem		();
 	virtual			~CUIPdaListItem		();
@@ -23,6 +23,7 @@ public:
 	virtual CUIWindow* ui_cast_window() { return this; }
 
 	void*					m_data;
+	CUIFrameWindow*			m_frame_selected = nullptr;
 protected:
 	//информация о персонаже
 	CUIFrameWindow*			UIMask;

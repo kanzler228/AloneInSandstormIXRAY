@@ -1,10 +1,10 @@
 #pragma once
-
-#ifdef DEBUG_DRAW
 #include "FVF.h"
 #include "../../Include/xrRender/DebugRender.h"
 
-class dxDebugRender : public IDebugRender
+#ifdef DEBUG_DRAW
+class dxDebugRender :
+	public IDebugRender
 {
 public:
 					dxDebugRender		();
@@ -21,7 +21,7 @@ public:
 	virtual void	OnFrameEnd			();
 	virtual void	SetShader			(const debug_shader &shader);
 	virtual void	CacheSetXformWorld	(const Fmatrix& M);
-	virtual void	CacheSetCullMode	(CullMode);
+	virtual void	CacheSetCullMode	(ERHI_CULLMODE);
 	virtual void	SetAmbient			(u32 colour);
 
 	// Shaders
@@ -44,7 +44,7 @@ public:
 private:
 	ref_shader		m_dbgShaders[dbgShaderCount];
 	ref_geom		m_dbgGeom;
-	ID3DVertexBuffer* m_dbgVB;
+	IRHIBuffer* m_dbgVB;
 };
 
 extern dxDebugRender DebugRenderImpl;

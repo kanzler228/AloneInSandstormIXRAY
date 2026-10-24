@@ -19,20 +19,18 @@ void CRenderTarget::phase_ssao	()
 	u32			Offset = 0;
 
 	// Targets
-	u_setrt									( rt_ssao_temp,nullptr,nullptr,nullptr );		// No need for ZBuffer at all
-	u32		clr4clear					= color_rgba(0,0,0,0);	// 0x00
-	CHK_DX	(RDevice->Clear			( 0L, nullptr, D3DCLEAR_TARGET, clr4clear, 1.0f, 0L));
+	u_setrt( rt_ssao_temp,nullptr,nullptr,nullptr );		// No need for ZBuffer at all
+	GRHI->ClearTarget(RCache.get_RT());
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		false				));
 
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		FALSE				));
-
-	RCache.set_Stencil					(TRUE,D3DCMP_LESSEQUAL,0x01,0xff,0x00);	// stencil should be >= 1
+	RCache.set_Stencil					(true,D3DCMP_LESSEQUAL,0x01,0xff,0x00);	// stencil should be >= 1
 	if (RImplementation.o.nvstencil)	
 	{
-		u_stencil_optimize				(FALSE);
+		u_stencil_optimize				(false);
 		RCache.set_ColorWriteEnable		();
 	}
 
-	RCache.set_Stencil(FALSE);//TODO - disable later
+	RCache.set_Stencil(false);//TODO - disable later
 
 	{
 		Fmatrix	m_v2w;				m_v2w.invert(Device.mView);
@@ -71,32 +69,26 @@ void CRenderTarget::phase_ssao	()
 		//RCache.set_c				("c3", 8.f,               8.f,              1.5f,               0.0f);
 		RCache.set_c				("c4", 0.400009334f,      0.160007462f,       2.49994159f,             _h / _w);
 		
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 
 	// re-enable z-buffer
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	TRUE				));
-	RCache.set_Stencil(FALSE);
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	true				));
+	RCache.set_Stencil(false);
 }
 
 void CRenderTarget::phase_downsamp	()
 {
-	//IDirect3DSurface9 *source, *dest;
-	//rt_Position->pSurface->GetSurfaceLevel(0, &source);
-	//rt_half_depth->pSurface->GetSurfaceLevel(0, &dest);
-	//RDevice->StretchRect(source, nullptr, dest, nullptr, D3DTEXF_POINT);
-
 	Fvector2	p0,p1;
 	u32			Offset = 0;
 
 	// Targets
-	u_setrt								( rt_half_depth,nullptr,nullptr,nullptr );		// No need for ZBuffer at all
-	u32		clr4clear					= color_rgba(0,0,0,0);	// 0x00
-	CHK_DX	(RDevice->Clear			( 0L, nullptr, D3DCLEAR_TARGET, clr4clear, 1.0f, 0L));
+	u_setrt( rt_half_depth,nullptr,nullptr,nullptr );		// No need for ZBuffer at all
+	GRHI->ClearTarget(RCache.get_RT());
 
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		FALSE				));
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,		false				));
 
-	RCache.set_Stencil(FALSE);//TODO - disable later
+	RCache.set_Stencil(false);//TODO - disable later
 
 	{
 		Fmatrix	m_v2w;				m_v2w.invert(Device.mView);
@@ -120,10 +112,10 @@ void CRenderTarget::phase_downsamp	()
 		RCache.set_Geometry			(g_combine_VP		);
 		RCache.set_c				("m_v2w",			m_v2w);
 
-		RCache.Render				(D3DPT_TRIANGLELIST,Offset,0,4,0,2);
+		RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,Offset,0,4,0,2);
 	}
 
 	// re-enable z-buffer
-	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	TRUE				));
-	RCache.set_Stencil(FALSE);
+	CHK_DX		(RDevice->SetRenderState	( D3DRS_ZENABLE,	true				));
+	RCache.set_Stencil(false);
 }

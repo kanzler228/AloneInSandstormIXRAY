@@ -2,7 +2,7 @@
 #include "screenshot_manager.h"
 #include "Level.h"
 #include "game_cl_mp.h"
-#include "../xrCore/ppmd_compressor.h"
+#include "../xrCore/compression/ppmd/ppmd_compressor.h"
 #include "screenshots_writer.h"
 
 #ifdef DEBUG
@@ -126,10 +126,10 @@ void screenshot_manager::make_jpeg_file()
 	RedImageTool::RedImage image;
 	image.Create(width, height, 1, 1, RedImageTool::RedTexturePixelFormat::R8G8B8);
 
-	// копируем RGB-данные
+	// РєРѕРїРёСЂСѓРµРј RGB-РґР°РЅРЅС‹Рµ
 	std::memcpy(image.operator*(), rgb24data, width * height * 3);
 
-	// Подготовка буфера для JPEG в памяти
+	// РџРѕРґРіРѕС‚РѕРІРєР° Р±СѓС„РµСЂР° РґР»СЏ JPEG РІ РїР°РјСЏС‚Рё
 	realloc_jpeg_buffer(m_jpeg_buffer_capacity);
 
 	size_t jpeg_size = 0;
@@ -153,7 +153,7 @@ void screenshot_manager::make_jpeg_file()
 void screenshot_manager::sign_jpeg_file()
 {
 	screenshots::writer	tmp_writer		(m_jpeg_buffer, m_jpeg_buffer_size, m_jpeg_buffer_capacity);
-	game_cl_mp*	tmp_cl_game				= smart_cast<game_cl_mp*>(&Game());
+	game_cl_mp* tmp_cl_game = Game().cast_game_cl_mp();
 	tmp_writer.set_player_name			(tmp_cl_game->local_player->getName());
 	shared_str tmp_cdkey_digest			= Level().get_cdkey_digest();
 	if (tmp_cdkey_digest.size() == 0)
@@ -239,7 +239,7 @@ void screenshot_manager::make_screenshot(complete_callback_t cb)
 	m_complete_callback = cb;
 	if (!is_drawing_downloads())
 	{
-		Engine.Sheduler.Register(this, TRUE);
+		Engine.Sheduler.Register(this, true);
 	}
 	m_state |= making_screenshot;
 	m_defered_ssframe_counter = defer_framescount;
@@ -253,7 +253,7 @@ void screenshot_manager::set_draw_downloads(bool draw)
 	{
 		if (!is_active())
 		{
-			Engine.Sheduler.Register(this, TRUE);
+			Engine.Sheduler.Register(this, true);
 		}
 		m_state |= drawing_download_states;
 	} else
@@ -273,8 +273,8 @@ void screenshot_manager::process_screenshot(bool singlecore)
 		SetEvent(m_make_start_event);
 		return;
 	}
-	m_make_start_event	= CreateEvent(nullptr, FALSE, TRUE, nullptr);
-	m_make_done_event	= CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	m_make_start_event	= CreateEvent(nullptr, false, true, nullptr);
+	m_make_done_event	= CreateEvent(nullptr, false, false, nullptr);
 	thread_spawn	(&screenshot_manager::screenshot_maker_thread, "screenshot_maker", 0, this);
 }
 
@@ -330,7 +330,7 @@ void screenshot_manager::compress_image()
 
 #ifdef DEBUG
 
-void screenshot_manager::timer_begin(LPCSTR comment)
+void screenshot_manager::timer_begin(const char* comment)
 {
 	m_timer_comment = comment;
 	m_debug_timer.Start();

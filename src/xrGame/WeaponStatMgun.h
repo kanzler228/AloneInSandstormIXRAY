@@ -9,14 +9,14 @@ class CCameraBase;
 
 #define DESIRED_DIR 1
 
-class CWeaponStatMgun:	public CPhysicsShellHolder, 
-						public CHolderCustom,
-						public CShootingObject
+class CWeaponStatMgun final : public CPhysicsShellHolder, 
+	public CHolderCustom,
+	public CShootingObject
 {
 private:
-	typedef CPhysicsShellHolder inheritedPH;
-	typedef CHolderCustom		inheritedHolder;
-	typedef CShootingObject		inheritedShooting;
+	using inheritedPH = CPhysicsShellHolder;
+	using inheritedHolder = CHolderCustom;
+	using inheritedShooting = CShootingObject;
 
 private:
 	CCameraBase*			camera;
@@ -30,16 +30,18 @@ private:
 
 //casts
 public:
-	virtual CHolderCustom	*cast_holder_custom	()				{return this;}
+	virtual CHolderCustom*	cast_holder_custom	() override		{return this;}
+	virtual CGameObject*	cast_game_object	() override		{return this;}
+	virtual CPhysicsShellHolder* cast_physics_shell_holder() { return this; }
 
 //general
 public:
 							CWeaponStatMgun		();
 	virtual					~CWeaponStatMgun	();
 
-	virtual void			Load				(LPCSTR section);
+	virtual void			Load				(const char* section);
 
-	virtual BOOL			net_Spawn			(CSE_Abstract* DC);
+	virtual bool			net_Spawn			(CSE_Abstract* DC);
 	virtual void			net_Destroy			();
 	virtual void			net_Export			(NET_Packet& P);	// export to server
 	virtual void			net_Import			(NET_Packet& P);	// import from server
@@ -74,6 +76,10 @@ private:
 	float 					m_overheat_threshold;
 	shared_str				m_overheat_particles;
 	xr_shared_ptr<CParticlesObject>		p_overheat;
+
+	float					m_vibration_time = 0.1f;
+	float					m_vibration_factor_left = 1.0f;
+	float					m_vibration_factor_right = 1.0f;
 protected:
 	void					UpdateBarrelDir		();
 	virtual const Fvector&	get_CurrentFirePoint();
@@ -91,7 +97,11 @@ protected:
 //HolderCustom
 public:
 	virtual bool			Use					(const Fvector& pos,const Fvector& dir,const Fvector& foot_pos) {return !Owner();};
+	virtual void			OnGamepadAxisMove	(int id, Fvector2 value);
+	virtual void			OnGyroscopeMove		(Fvector3 value);
 	virtual void			OnMouseMove			(int x, int y);
+	virtual void			OnGamepadKeyPress	(int id){};
+	virtual void			OnGamepadKeyRelease	(int id){};
 	virtual void			OnKeyboardPress		(int dik);
 	virtual void			OnKeyboardRelease	(int dik);
 	virtual void			OnKeyboardHold		(int dik);

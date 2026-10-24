@@ -8,7 +8,6 @@
 
 #pragma once
 #include "../xrScripts/script_export_space.h"
+#include "../xrSound/ai_sounds.h"
 
-enum ESoundTypes;
-
-typedef enum_exporter_lib<ESoundTypes> SCRIPTS_API CScriptSoundType;
+typedef enum_exporter_lib<ESoundTypes> CScriptSoundType;

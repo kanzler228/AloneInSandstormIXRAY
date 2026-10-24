@@ -40,25 +40,23 @@ typedef vec2Face::iterator			splitIt;
 typedef vecFace						vecAdj;
 typedef vecAdj::iterator			vecAdjIt;
 
-struct XRLC_LIGHT_API DataVertex :
-	public base_Vertex
+struct XRLC_LIGHT_API DataVertex :	public base_Vertex
 {
 public:
 	typedef DataFace DataFaceType;
 
-	IC BOOL similar(Tvertex<DataVertex>& V, float eps);
+	IC bool similar(Tvertex<DataVertex>& V, float eps);
 
 	DataVertex() {};
 	virtual ~DataVertex() {};
 };
 
-struct XRLC_LIGHT_API DataFace:
-	public base_Face
+struct XRLC_LIGHT_API DataFace	: public base_Face
 {
 public:
 
  	Fvector					N;				// face normal
- 	svector<_TCF,2>			tc;				// TC
+ 	FixedVector<_TCF,2>			tc;				// TC
 
 	void*					pDeflector;		// does the face has LM-UV map?
 	CLightmap*				lmap_layer;
@@ -66,10 +64,10 @@ public:
 	virtual Fvector2*		getTC0			( ) { return tc[0].uv; }
 
 
-	BOOL		RenderEqualTo		( Face *F );
+	bool		RenderEqualTo		( Face *F );
 
 	void		AddChannel			( Fvector2 &p1, Fvector2 &p2, Fvector2 &p3 ); 
-	BOOL		hasImplicitLighting	();
+	bool		hasImplicitLighting	();
 
 	DataFace(){};
 	virtual ~DataFace(){};
@@ -79,13 +77,7 @@ class Material;
 class Edge;
 
 // Typedefs
-namespace detail
-{
-	typedef xr_vector<Vertex>::iterator	dummy_compiler_treatment;
-}
-
 #include "xrUVpoint.h"
-
 extern XRLC_LIGHT_API bool g_bUnregister;
 
 #pragma pack(pop)
@@ -95,7 +87,11 @@ extern "C" XRLC_LIGHT_API void destroy_vertex(Vertex* &v, bool unregister);
 
 void destroy_face(Face*& v, bool unregister);
 							
-IC BOOL DataVertex::similar(Vertex& V, float eps)
+IC bool DataVertex::similar(Vertex& V, float eps)
 {
 	return P.similar(V.P, eps);
 }
+
+
+void GetBarycentric(Face* F, Fvector& wP, Fvector& wN, Fvector& B);
+void GetBarycentricNormalized(Face* F, Fvector& wP, Fvector& wN, Fvector& B);

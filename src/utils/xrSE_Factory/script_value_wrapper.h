@@ -19,7 +19,7 @@ protected:
 	_type			m_value;
 
 public:
-	IC				CScriptValueWrapperImpl	(luabind::object object, LPCSTR name);
+	IC				CScriptValueWrapperImpl	(luabind::object object, const char* name);
 	virtual	void	assign					();
 	virtual	_type	*value					();
 };
@@ -30,10 +30,10 @@ private:
 	typedef CScriptValueWrapperImpl<_type> inherited;
 
 public:
-	IC				CScriptValueWrapper		(luabind::object object, LPCSTR name);
+	IC				CScriptValueWrapper		(luabind::object object, const char* name);
 };
 
-template <>
+/*template <>
 class CScriptValueWrapperImpl<bool> : public CScriptValue {
 private:
 	typedef CScriptValue inherited;
@@ -42,7 +42,7 @@ protected:
 	BOOL			m_value;
 
 public:
-	IC				CScriptValueWrapperImpl	(luabind::object object, LPCSTR name) : inherited(object,name)
+	IC				CScriptValueWrapperImpl	(luabind::object object, const char* name) : inherited(object,name)
 	{
 		m_value		= luabind::object_cast<bool>(object[name]);
 	}
@@ -56,7 +56,7 @@ public:
 	{
 		return		(&m_value);
 	}
-};
+};*/
 
 template <>
 class CScriptValueWrapperImpl<shared_str> : public CScriptValue {
@@ -67,9 +67,9 @@ protected:
 	shared_str			m_value;
 
 public:
-	IC				CScriptValueWrapperImpl	(luabind::object object, LPCSTR name) : inherited(object,name)
+	IC				CScriptValueWrapperImpl	(luabind::object object, const char* name) : inherited(object,name)
 	{
-		m_value		= luabind::object_cast<LPCSTR>(object[name]);
+		m_value		= luabind::object_cast<const char*>(object[name]);
 	}
 
 	virtual	void	assign					()

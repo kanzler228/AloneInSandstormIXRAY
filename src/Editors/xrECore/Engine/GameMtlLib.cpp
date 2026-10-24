@@ -15,9 +15,11 @@ SGameMtl* CGameMtlLibrary::GetMaterialByIdx(u16 idx)
     return materials[idx];
 }
 
-void SGameMtl::Load(IReader& fs)
+EGameMtlVersion SGameMtl::Load(IReader& fs)
 {
-	R_ASSERT(fs.find_chunk(GAMEMTL_CHUNK_MAIN));
+    EGameMtlVersion vers{ GAMEMTL_VERSION_SOC };
+    
+    R_ASSERT(fs.find_chunk(GAMEMTL_CHUNK_MAIN));
 	ID						= fs.r_u32();
     fs.r_stringZ			(m_Name);
 
@@ -46,6 +48,22 @@ void SGameMtl::Load(IReader& fs)
 
     if(fs.find_chunk(GAMEMTL_CHUNK_INJURIOUS))
     	fInjuriousSpeed		= fs.r_float();
+    
+	if(fs.find_chunk(GAMEMTL_CHUNK_DENSITY))
+    {
+        fDensityFactor = fs.r_float();
+        vers = GAMEMTL_VERSION_CS;
+    }
+
+    if (fs.find_chunk(GAMEMTL_CHUNK_FACTORS_MP))
+    {
+        fShootFactorMP = fs.r_float();
+        vers = GAMEMTL_VERSION_COP;
+    }
+    else
+        fShootFactorMP = fShootFactor;
+
+    return vers;
 }
 
 
@@ -100,11 +118,12 @@ void CGameMtlLibrary::Load()
     IReader& fs			= *F;
 
     R_ASSERT(fs.find_chunk(GAMEMTLS_CHUNK_VERSION));
-    u16 version			= fs.r_u16();
-    if (GAMEMTL_CURRENT_VERSION!=version){
-        Log				("CGameMtlLibrary: invalid version. Library can't load.");
-		FS.r_close		(F);
-    	return;
+    const auto file_version = static_cast<EGameMtlVersion>(fs.r_u16());
+    if (file_version != GAMEMTL_VERSION_COP)
+    {
+        Msg("CGameMtlLibrary: unsupported version [%u]. Library can't load.", file_version);
+        FS.r_close(F);
+        return;
     }
 
     R_ASSERT(fs.find_chunk(GAMEMTLS_CHUNK_AUTOINC));
@@ -114,16 +133,19 @@ void CGameMtlLibrary::Load()
     materials.clear		();
     material_pairs.clear();
 
+    auto detected_version{ GAMEMTL_VERSION_SOC };
     IReader* OBJ 		= fs.open_chunk(GAMEMTLS_CHUNK_MTLS);
     if (OBJ) {
         u32				count;
         for (IReader* O = OBJ->open_chunk_iterator(count); O; O = OBJ->open_chunk_iterator(count,O)) {
         	SGameMtl*	M = new SGameMtl ();
-	        M->Load		(*O);
-        	materials.push_back(M);
+            const auto version = M->Load(*O);
+            detected_version = std::max(detected_version, version);
+            materials.push_back(M);
         }
         OBJ->close		();
     }
+    m_version = detected_version;
 
     OBJ 				= fs.open_chunk(GAMEMTLS_CHUNK_MTLS_PAIR);
     if (OBJ){
@@ -143,9 +165,6 @@ void CGameMtlLibrary::Load()
 }
 
 #ifdef GM_NON_GAME
-SGameMtlPair::~SGameMtlPair		()
-{
-}                
 void SGameMtlPair::Load(IReader& fs)
 {
 	shared_str				buf;
@@ -173,7 +192,7 @@ void SGameMtlPair::Load(IReader& fs)
 #endif
 
 #ifdef DEBUG
-LPCSTR SGameMtlPair::dbg_Name()
+const char* SGameMtlPair::dbg_Name()
 {
 	static string256 nm;
 	SGameMtl* M0 = GMLib.GetMaterialByID(GetMtl0());
@@ -238,7 +257,7 @@ void SGameMtl::Save(IWriter& fs)
 
 IC SGameMtlPair* GetLastParentValue(SGameMtlPair* who, u32 flag)
 {
-    if (!who)					return 0;
+    if (!who)					return nullptr;
     if ((GAMEMTL_NONE_ID == who->GetParent()) || (who->OwnProps.is(flag))) return who;
     else						return GetLastParentValue(who->m_Owner->GetMaterialPair(who->GetParent()), flag);
 }
@@ -257,25 +276,25 @@ void SGameMtlPair::Save(IWriter& fs)
     // copy from parent
     if (ID_parent != GAMEMTL_NONE_ID) {
         SGameMtlPair* P;
-        if ((0 != (P = GetLastParentValue(this, flBreakingSounds))) && (P != this))
+        if ((nullptr != (P = GetLastParentValue(this, flBreakingSounds))) && (P != this))
             BreakingSounds = P->BreakingSounds;
-        if ((0 != (P = GetLastParentValue(this, flStepSounds))) && (P != this))
+        if ((nullptr != (P = GetLastParentValue(this, flStepSounds))) && (P != this))
             StepSounds = P->StepSounds;
-        if ((0 != (P = GetLastParentValue(this, flCollideSounds))) && (P != this))
+        if ((nullptr != (P = GetLastParentValue(this, flCollideSounds))) && (P != this))
             CollideSounds = P->CollideSounds;
-        if ((0 != (P = GetLastParentValue(this, flCollideParticles))) && (P != this))
+        if ((nullptr != (P = GetLastParentValue(this, flCollideParticles))) && (P != this))
             CollideParticles = P->CollideParticles;
-        if ((0 != (P = GetLastParentValue(this, flCollideMarks))) && (P != this))
+        if ((nullptr != (P = GetLastParentValue(this, flCollideMarks))) && (P != this))
             EditorProp->CollideMarks = P->EditorProp->CollideMarks;
     }
     /*
         else{
             OwnProps.zero();
-            if (!BreakingSounds.IsEmpty())	OwnProps.set(flBreakingSounds,TRUE);
-            if (!StepSounds.IsEmpty())		OwnProps.set(flStepSounds,TRUE);
-            if (!CollideSounds.IsEmpty())	OwnProps.set(flCollideSounds,TRUE);
-            if (!CollideParticles.IsEmpty())OwnProps.set(flCollideParticles,TRUE);
-            if (!CollideMarks.IsEmpty())	OwnProps.set(flCollideMarks,TRUE);
+            if (!BreakingSounds.IsEmpty())	OwnProps.set(flBreakingSounds,true);
+            if (!StepSounds.IsEmpty())		OwnProps.set(flStepSounds,true);
+            if (!CollideSounds.IsEmpty())	OwnProps.set(flCollideSounds,true);
+            if (!CollideParticles.IsEmpty())OwnProps.set(flCollideParticles,true);
+            if (!CollideMarks.IsEmpty())	OwnProps.set(flCollideMarks,true);
         }
     */
     // save    
@@ -303,7 +322,7 @@ GameMtlPairIt CGameMtlLibrary::GetMaterialPairIt(int id)
 SGameMtlPair* CGameMtlLibrary::GetMaterialPair(int id)
 {
     GameMtlPairIt it = GetMaterialPairIt(id);
-    return it != material_pairs.end() ? *it : 0;
+    return it != material_pairs.end() ? *it : nullptr;
 }
 GameMtlPairIt CGameMtlLibrary::GetMaterialPairIt(int mtl0, int mtl1)
 {
@@ -314,20 +333,20 @@ GameMtlPairIt CGameMtlLibrary::GetMaterialPairIt(int mtl0, int mtl1)
 SGameMtlPair* CGameMtlLibrary::GetMaterialPair(int mtl0, int mtl1)
 {
     GameMtlPairIt it = GetMaterialPairIt(mtl0, mtl1);
-    return it != material_pairs.end() ? *it : 0;
+    return it != material_pairs.end() ? *it : nullptr;
 }
-SGameMtlPair* CGameMtlLibrary::GetMaterialPair(LPCSTR name)
+SGameMtlPair* CGameMtlLibrary::GetMaterialPair(const char* name)
 {
     if (name && name[0]) {
         int mtl0, mtl1;
         NameToMtlPair(name, mtl0, mtl1);
         GameMtlPairIt it = GetMaterialPairIt(mtl0, mtl1);
-        return it != material_pairs.end() ? *it : 0;
+        return it != material_pairs.end() ? *it : nullptr;
     }
-    return 0;
+    return nullptr;
 }
 
-void CGameMtlLibrary::NameToMtlPair(LPCSTR name, int& mtl0, int& mtl1)
+void CGameMtlLibrary::NameToMtlPair(const char* name, int& mtl0, int& mtl1)
 {
     string256 		buf0, buf1;
     if (_GetItemCount(name, '\\') < 2) {

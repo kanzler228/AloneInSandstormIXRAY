@@ -13,7 +13,7 @@ void CBlender_accum_point::Compile(CBlender_Compile& C) {
 	IBlender::Compile(C);
 
 	if(C.iElement == SE_L_FILL) {
-		C.r_Pass("null", "copy", false, FALSE, FALSE);
+		C.r_Pass("null", "copy", false, false, false);
 		C.r_Sampler("s_base", C.L_textures[0]);
 		C.r_End();
 
@@ -32,32 +32,17 @@ void CBlender_accum_point::Compile(CBlender_Compile& C) {
 		RImplementation.addShaderOption("USE_LMAP", "1");
 	}
 
-	C.r_Pass("accum_volume", "accum_base", false, FALSE, FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE);
+	C.r_Pass("accum_volume", "accum_base", false, false, false, true, D3DBLEND_ONE, D3DBLEND_ONE);
 
 	C.r_Sampler_rtf("s_position", r2_RT_P);
 	C.r_Sampler_rtf("s_normal", r2_RT_N);
 
 	C.r_Sampler_clw("s_material", r2_material);
+	C.r_Sampler("s_lmap", C.L_textures[0]);
 
-	if(C.iElement != SE_L_TRANSLUENT) {
-		C.r_Sampler_clf("s_lmap", r2_RT_smap_surf);
-	}
-	else {
-		C.r_Sampler("s_lmap", C.L_textures[0]);
-	}
-
-	if(C.iElement != SE_L_UNSHADOWED) {
-		if(RImplementation.o.HW_smap) {
-			if(RImplementation.o.HW_smap_PCF) {
-				C.r_Sampler_clf("s_smap", r2_RT_smap_depth);
-			}
-			else {
-				C.r_Sampler_rtf("s_smap", r2_RT_smap_depth);
-			}
-		}
-		else {
-			C.r_Sampler_rtf("s_smap", r2_RT_smap_surf);
-		}
+	if (C.iElement != SE_L_UNSHADOWED)
+	{
+		C.r_Sampler_clf("s_smap", r2_RT_smap_depth);
 	}
 
 	jitter(C);

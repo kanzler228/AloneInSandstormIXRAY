@@ -14,7 +14,7 @@
 #include "UIGameCustom.h"
 #include "../../xrUI/Widgets/UIDialogHolder.h"
 
-xr_token	game_types		[];
+extern xr_token game_types[];
 
 CUIChangeMap::CUIChangeMap()
 {
@@ -23,7 +23,7 @@ CUIChangeMap::CUIChangeMap()
 	bkgrnd = new CUIStatic(); bkgrnd->SetAutoDelete(true);
 	AttachChild(bkgrnd);
 
-	header = new CUITextWnd(); header->SetAutoDelete(true);
+	header = new CUIStatic(); header->SetAutoDelete(true);
 	AttachChild(header);
 
 	map_pic = new CUIStatic(); map_pic->SetAutoDelete(true);
@@ -32,8 +32,7 @@ CUIChangeMap::CUIChangeMap()
 	map_frame = new CUIStatic(); map_frame->SetAutoDelete(true);
 	AttachChild(map_frame);
 	
-	map_version = new CUITextWnd(); map_version->SetAutoDelete(true);
-	AttachChild(map_version);
+	map_version = nullptr;
 
 	frame = new CUIFrameWindow(); frame->SetAutoDelete(true);
 	AttachChild(frame);
@@ -58,10 +57,18 @@ CUIChangeMap::~CUIChangeMap()
 void CUIChangeMap::InitChangeMap(CUIXml& xml_doc)
 {
 	CUIXmlInit::InitWindow				(xml_doc,			"change_map", 0, this);
-	CUIXmlInit::InitTextWnd				(xml_doc,			"change_map:header", 0, header);
+	CUIXmlInit::InitStatic				(xml_doc,			"change_map:header", 0, header);
 	CUIXmlInit::InitStatic				(xml_doc,			"change_map:background", 0, bkgrnd);
 	CUIXmlInit::InitStatic				(xml_doc,			"change_map:map_frame", 0, map_frame);
-	CUIXmlInit::InitTextWnd				(xml_doc,			"change_map:map_ver_txt", 0, map_version);
+
+	if (xml_doc.NavigateToNode("change_map:map_ver_txt"))
+	{
+		map_version = new CUIStatic(); 
+		map_version->SetAutoDelete(true);
+		AttachChild(map_version);
+		CUIXmlInit::InitStatic(xml_doc, "change_map:map_ver_txt", 0, map_version);
+	}
+
 	CUIXmlInit::InitStatic				(xml_doc,			"change_map:map_pic", 0, map_pic); 
 	CUIXmlInit::InitFrameWindow			(xml_doc,			"change_map:list_back", 0, lst_back, false);
 	CUIXmlInit::InitFrameWindow			(xml_doc,			"change_map:frame", 0, frame, false);
@@ -116,12 +123,13 @@ void CUIChangeMap::OnItemSelect()
 	map_name				+=	name.c_str();
 	xr_string full_name		= map_name + ".dds";
 
-	if (FS.exist("$game_textures$",full_name.c_str()))
+	if (FS.exist(_game_textures_,full_name.c_str()))
 		map_pic->InitTexture(map_name.c_str());
 	else
 		map_pic->InitTexture("ui\\ui_noise");
 	
-	map_version->SetText(map_ver);
+	if (map_version)
+		map_version->SetText(map_ver);
 }
 
 void CUIChangeMap::OnBtnOk()

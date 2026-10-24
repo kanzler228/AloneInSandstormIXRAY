@@ -12,7 +12,7 @@
 #include "ai/stalker/ai_stalker.h"
 #include "script_game_object.h"
 #include "stalker_decision_space.h"
-#include "CustomZone.h"
+#include "AnomalyZone.h"
 #include "space_restriction_manager.h"
 #include "space_restriction_bridge.h"
 #include "space_restriction_base.h"
@@ -38,7 +38,7 @@ using namespace StalkerDecisionSpace;
 // CStalkerActionGetOutOfAnomaly
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionGetOutOfAnomaly::CStalkerActionGetOutOfAnomaly	(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionGetOutOfAnomaly::CStalkerActionGetOutOfAnomaly	(CAI_Stalker *object, const char* action_name) :
 	inherited				(object,action_name)
 {
 }
@@ -77,55 +77,67 @@ void CStalkerActionGetOutOfAnomaly::finalize	()
 	object().sound().set_sound_mask			(0);
 }
 
-void CStalkerActionGetOutOfAnomaly::execute	()
+void CStalkerActionGetOutOfAnomaly::execute()
 {
-	inherited::execute					();
-//
-	object().movement().set_path_type				(MovementManager::ePathTypeLevelPath);
-	object().movement().set_detail_path_type		(DetailPathManager::eDetailPathTypeSmooth);
-	object().movement().set_body_state			(eBodyStateStand);
-	object().movement().set_movement_type			(eMovementTypeWalk);
-	object().movement().set_mental_state			(eMentalStateDanger);
-//
+	inherited::execute();
 
-	m_temp0.clear						();
-	m_temp1.clear						();
+	object().movement().set_path_type(MovementManager::ePathTypeLevelPath);
+	object().movement().set_detail_path_type(DetailPathManager::eDetailPathTypeSmooth);
+	object().movement().set_body_state(eBodyStateStand);
+	object().movement().set_movement_type(eMovementTypeWalk);
+	object().movement().set_mental_state(eMentalStateDanger);
+
+	m_temp0.clear();
+	m_temp1.clear();
 
 	CSE_ALifeDynamicObject const* const base_alife_object = ai().alife().objects().object(object().ID(), true);
-	if ( !base_alife_object )
+	if (base_alife_object == nullptr)
+	{
 		return;
-
-	CSE_ALifeHumanAbstract const* const alife_object = smart_cast<CSE_ALifeHumanAbstract const*>( base_alife_object );
-	if ( !alife_object )
-		return;
-
-	typedef xr_vector<ALife::_OBJECT_ID>	ids_type;
-	ids_type const& restrictions		= alife_object->m_dynamic_in_restrictions;
-
-	xr_vector<CObject*>::const_iterator	I = object().feel_touch.begin();
-	xr_vector<CObject*>::const_iterator	E = object().feel_touch.end();
-	for ( ; I != E; ++I) {
-		CCustomZone						*zone = smart_cast<CCustomZone*>(*I);
-		if ( zone && (zone->restrictor_type() != RestrictionSpace::eRestrictorTypeNone) ) {
-			if (smart_cast<CRadioactiveZone*>(zone))
-				continue;
-
-			if ( std::find( restrictions.begin(), restrictions.end(), zone->ID() ) != restrictions.end() )
-				continue;
-
-			m_temp0.push_back			(zone->ID());
-		}
 	}
-	
-	object().movement().restrictions().add_restrictions	(m_temp1,m_temp0);
-	object().movement().set_nearest_accessible_position	();
+
+	CSE_ALifeHumanAbstract const* const alife_object = smart_cast<CSE_ALifeHumanAbstract const*>(base_alife_object);
+	if (alife_object == nullptr)
+	{
+		return;
+	}
+
+	using ids_type = xr_vector<ALife::_OBJECT_ID>;
+	ids_type const& restrictions = alife_object->m_dynamic_in_restrictions;
+
+	for (CObject* feel_object : object().feel_touch)
+	{
+		CGameObject* game_object = feel_object->cast_game_object();
+
+		if (game_object == nullptr)
+			continue;
+
+		CAnomalyZone* zone = game_object->cast_radioactive_zone();
+
+		if (zone == nullptr)
+			continue;
+
+		if (zone->restrictor_type() == RestrictionSpace::eRestrictorTypeNone)
+			continue;
+
+		if (zone->cast_radioactive_zone())
+			continue;
+
+		if (std::find(restrictions.begin(), restrictions.end(), zone->ID()) != restrictions.end())
+			continue;
+
+		m_temp0.push_back(zone->ID());
+	}
+
+	object().movement().restrictions().add_restrictions(m_temp1, m_temp0);
+	object().movement().set_nearest_accessible_position();
 }
 
 //////////////////////////////////////////////////////////////////////////
 // CStalkerActionDetectAnomaly
 //////////////////////////////////////////////////////////////////////////
 
-CStalkerActionDetectAnomaly::CStalkerActionDetectAnomaly	(CAI_Stalker *object, LPCSTR action_name) :
+CStalkerActionDetectAnomaly::CStalkerActionDetectAnomaly	(CAI_Stalker *object, const char* action_name) :
 	inherited				(object,action_name)
 {
 }

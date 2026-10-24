@@ -10,7 +10,7 @@
 #include "cta_game_artefact.h"
 #include "cta_game_artefact_activation.h"
 #include "game_cl_capture_the_artefact.h"
-#include "xrServer_Objects_Alife_Items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "../xrEngine/xr_level_controller.h"
 
 CtaGameArtefact::CtaGameArtefact()
@@ -57,7 +57,7 @@ bool CtaGameArtefact::Action(s32 cmd, u32 flags)
 	return inherited::Action((u16)cmd, flags);
 }
 
-void CtaGameArtefact::OnStateSwitch(u32 S)
+void CtaGameArtefact::OnStateSwitch(u8 S)
 {
 	inherited::OnStateSwitch(S);
 	/*// just temporary (before we get huds for artefact activation)
@@ -72,7 +72,7 @@ void CtaGameArtefact::OnStateSwitch(u32 S)
 	}*/
 }
 
-void CtaGameArtefact::OnAnimationEnd(u32 state)
+void CtaGameArtefact::OnAnimationEnd(u8 state)
 {
 	if (!H_Parent())
 	{
@@ -142,7 +142,7 @@ void CtaGameArtefact::CreateArtefactActivation()
 	//deactivate_physics_shell();
 }
 
-/*BOOL CtaGameArtefact::net_Relevant()
+/*bool CtaGameArtefact::net_Relevant()
 {
 	return inherited::net_Relevant();
 }*/
@@ -168,7 +168,7 @@ void CtaGameArtefact::PH_A_CrPr()
 		IKinematics *K = object().Visual()->dcast_PKinematics();
 		VERIFY( K );
 		K->CalculateBones_Invalidate();
-		K->CalculateBones(TRUE);
+		K->CalculateBones(true);
 		
 		object().PPhysicsShell()->GetGlobalTransformDynamic(&object().XFORM());
 		object().spatial_move();

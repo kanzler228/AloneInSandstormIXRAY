@@ -12,7 +12,7 @@
 
 //using namespace PS;
 
-EParticlesObject::EParticlesObject(LPVOID data, LPCSTR name):CCustomObject(data,name)
+EParticlesObject::EParticlesObject(LPVOID data, const char* name):CCustomObject(data,name)
 {
 	Construct(data);
 }
@@ -51,7 +51,7 @@ void EParticlesObject::OnUpdateTransform()
 {
 	inherited::OnUpdateTransform	();
 	Fvector v={0.f,0.f,0.f};
-	if (m_Particles) m_Particles->UpdateParent(_Transform(),v,FALSE);
+	if (m_Particles) m_Particles->UpdateParent(_Transform(),v,false);
 }
 
 
@@ -84,7 +84,7 @@ void EParticlesObject::Render(int priority, bool strictB2F)
                 EDevice->SetShader(EDevice->m_WireShader);
 
                 if (!Selected())
-                    DU_impl.DrawCross(GetPosition(), 0.30f, 0.1f, 0.3f, 0.3f, 0.3f, 0.3f, 0xFFFFEBAA, false);
+                    AddCross(GetPosition(), 0.30f, 0.1f, 0.3f, 0.3f, 0.3f, 0.3f, 0xFFFFEBAA, false);
 
                 Fvector p = GetPosition();
                 DU_impl.DrawRomboid(p, 0.1f, 0x0AFFEBAA);
@@ -152,7 +152,7 @@ void EParticlesObject::Stop()
         m_Particles->Stop();
 }
 
-bool EParticlesObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
+bool EParticlesObject::LoadLTX(CInifile& ini, const char* sect_name)
 {
     u32 version = ini.r_u32(sect_name, "version");
 
@@ -175,7 +175,7 @@ bool EParticlesObject::LoadLTX(CInifile& ini, LPCSTR sect_name)
     return true;
 }
 
-void EParticlesObject::SaveLTX(CInifile& ini, LPCSTR sect_name)
+void EParticlesObject::SaveLTX(CInifile& ini, const char* sect_name)
 {
 	CCustomObject::SaveLTX(ini, sect_name);
 
@@ -266,7 +266,7 @@ bool EParticlesObject::ExportGame(SExportStreams* F)
 }
 
 
-bool EParticlesObject::Compile(LPCSTR ref_name)
+bool EParticlesObject::Compile(const char* ref_name)
 {
     auto model = smart_cast<IRenderVisual*>(m_Particles);
     ::Render->model_Delete(model);
@@ -287,10 +287,9 @@ bool EParticlesObject::Compile(LPCSTR ref_name)
 
 void EParticlesObject::OnRefChange(PropValue* V)
 {
-	if (!Compile(*m_RefName)){
-        ELog.Msg( mtError, "Can't compile particle system '%s'", *m_RefName );
-    }else{
-    	ExecCommand(COMMAND_REFRESH_PROPERTIES);
+    if (!Compile(*m_RefName))
+    {
+        ELog.Msg(mtError, "Can't compile particle system '%s'", *m_RefName);
     }
 }
 
@@ -305,7 +304,7 @@ void EParticlesObject::OnControlClick(ButtonValue* sender, bool& bModif, bool& b
     bModif = false;
 }
 
-void EParticlesObject::FillProp(LPCSTR pref, PropItemVec& items)
+void EParticlesObject::FillProp(const char* pref, PropItemVec& items)
 {
 	inherited::FillProp(pref, items);
     PropValue* V;

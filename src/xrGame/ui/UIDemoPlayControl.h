@@ -7,11 +7,10 @@
 class CUI3tButton;
 class CUIProgressBar;
 class CUIPropertiesBox;
-class CUITextWnd;
 class CUIStatic;
 class demoplay_control;
 
-class CUIDemoPlayControl :
+class CUIDemoPlayControl final :
 	public CUIDialogWnd,
 	public CUIWndCallback
 {
@@ -82,7 +81,7 @@ private:
 	CUI3tButton*		m_rewind_until_btn;
 	CUI3tButton*		m_repeat_rewind_btn;
 	CUIProgressBar*		m_progress_bar;
-	CUITextWnd*			m_static_demo_status;
+	CUIStatic*			m_static_demo_status;
 	
 	Fvector2		m_last_curr_pos;
 	demoplay_control*	m_demo_play_control;

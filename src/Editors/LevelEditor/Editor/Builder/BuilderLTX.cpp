@@ -1,13 +1,13 @@
 #include "stdafx.h"
 
 
-BOOL SceneBuilder::ParseLTX(CInifile* pIni, ObjectList& lst, LPCSTR prefix)
+bool SceneBuilder::ParseLTX(CInifile* pIni, ObjectList& lst, const char* prefix)
 {
-    return TRUE;
+    return true;
 }
 
 
-BOOL SceneBuilder::BuildLTX()
+bool SceneBuilder::BuildLTX()
 {
 	bool bResult	= true;
 	int objcount 	= Scene->ObjCount();

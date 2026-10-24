@@ -6,8 +6,8 @@
 #include "game_sv_base.h"
 #include "game_cl_mp.h"
 
-extern BOOL	g_sv_mp_save_proxy_screenshots;
-extern BOOL g_sv_mp_save_proxy_configs;
+extern bool	g_sv_mp_save_proxy_screenshots;
+extern bool g_sv_mp_save_proxy_configs;
 
 clientdata_proxy::clientdata_proxy(file_transfer::server_site * ft_server) :
 	m_ft_server(ft_server)
@@ -54,7 +54,7 @@ void clientdata_proxy::make_screenshot(ClientID const & admin_id, ClientID const
 	ssr_packet.w_u16		(u16(Random.randI(2)));
 	ssr_packet.w_u8			(u8(Random.randI(2)));
 
-	Level().Server->SecureSendTo	(tmp_cheater, ssr_packet, net_flags(TRUE, TRUE));
+	Level().Server->SecureSendTo	(tmp_cheater, ssr_packet, net_flags(true, true));
 	
 	file_transfer::receiving_state_callback_t receiving_cb =
 		fastdelegate::MakeDelegate(this, &clientdata_proxy::download_screenshot_callback);
@@ -93,7 +93,7 @@ void clientdata_proxy::make_config_dump(ClientID const & admin_id, ClientID cons
 	ssr_packet.w_u16		(u16(Random.randI(2)));
 	ssr_packet.w_u8			(u8(Random.randI(2)));
 
-	Level().Server->SecureSendTo	(tmp_cheater, ssr_packet, net_flags(TRUE, TRUE));
+	Level().Server->SecureSendTo	(tmp_cheater, ssr_packet, net_flags(true, true));
 	
 	file_transfer::receiving_state_callback_t receiving_cb =
 		fastdelegate::MakeDelegate(this, &clientdata_proxy::download_config_callback);
@@ -127,13 +127,14 @@ void clientdata_proxy::notify_admin(clientdata_event_t event_for_admin, char con
 	{
 		ssr_packet.w_stringZ	(reason ? reason : "failed to download screenshot");
 	}
-	Level().Server->SendTo	(m_admin_id, ssr_packet, net_flags(TRUE, TRUE));
+	Level().Server->SendTo	(m_admin_id, ssr_packet, net_flags(true, true));
 }
 
 
 void clientdata_proxy::save_proxy_screenshot()
 {
-	game_cl_mp* clgame = smart_cast<game_cl_mp*>(Level().game);
+#ifdef XR_MP_BUILD
+	game_cl_mp* clgame = Level().game != nullptr ? Level().game->cast_game_cl_mp() : nullptr;
 	if (!clgame)
 		return;
 
@@ -159,11 +160,13 @@ void clientdata_proxy::save_proxy_screenshot()
 		my_proxy_mem_file.size(),
 		m_receiver->get_user_param()
 	);
+#endif
 }
 
 void clientdata_proxy::save_proxy_config()
 {
-	game_cl_mp* clgame = smart_cast<game_cl_mp*>(Level().game);
+#ifdef XR_MP_BUILD
+	game_cl_mp* clgame = Level().game != nullptr ? Level().game->cast_game_cl_mp() : nullptr;
 	if (!clgame)
 		return;
 
@@ -186,12 +189,14 @@ void clientdata_proxy::save_proxy_config()
 		my_proxy_mem_file.pointer(),
 		my_proxy_mem_file.size());
 	FS.w_close					(tmp_writer);
+#endif
 }
 
 void clientdata_proxy::download_screenshot_callback(file_transfer::receiving_status_t status, 
 													u32 downloaded, 
 													u32 total)
 {
+#ifdef XR_MP_BUILD
 	switch (status)
 	{
 	case file_transfer::receiving_data:
@@ -229,7 +234,7 @@ void clientdata_proxy::download_screenshot_callback(file_transfer::receiving_sta
 		}break;
 	case file_transfer::receiving_timeout:
 		{
-			LPCSTR error_msg = "* download screenshot incomplete - timeout";
+			const char* error_msg = "* download screenshot incomplete - timeout";
 			Msg(error_msg);
 			notify_admin(e_screenshot_error_notif, error_msg);
 		}break;
@@ -257,12 +262,14 @@ void clientdata_proxy::download_screenshot_callback(file_transfer::receiving_sta
 			}
 		}break;
 	};
+#endif
 }
 
 void clientdata_proxy::download_config_callback(file_transfer::receiving_status_t status, 
 													u32 downloaded, 
 													u32 total)
 {
+#ifdef XR_MP_BUILD
 	switch (status)
 	{
 	case file_transfer::receiving_data:
@@ -300,7 +307,7 @@ void clientdata_proxy::download_config_callback(file_transfer::receiving_status_
 		}break;
 	case file_transfer::receiving_timeout:
 		{
-			LPCSTR error_msg = "* download config incomplete - timeout";
+			const char* error_msg = "* download config incomplete - timeout";
 			Msg(error_msg);
 			notify_admin(e_configs_error_notif, error_msg);
 		}break;
@@ -328,6 +335,7 @@ void clientdata_proxy::download_config_callback(file_transfer::receiving_status_
 			}
 		}break;
 	};
+#endif
 }
 
 void clientdata_proxy::upload_file_callback(file_transfer::sending_status_t status,
@@ -338,7 +346,7 @@ void clientdata_proxy::upload_file_callback(file_transfer::sending_status_t stat
 	{
 	case file_transfer::sending_data:
 		{
-			Msg("* uploaded %d from %d bytes to client [%d]", uploaded, total, m_admin_id);
+			Msg("* uploaded %d from %d bytes to client [%u]", uploaded, total, m_admin_id.value());
 		}break;
 	case file_transfer::sending_aborted_by_user:
 		{
@@ -346,11 +354,11 @@ void clientdata_proxy::upload_file_callback(file_transfer::sending_status_t stat
 		}break;
 	case file_transfer::sending_rejected_by_peer:
 		{
-			Msg("* upload file terminated by peer [%d]", m_admin_id);
+			Msg("* upload file terminated by peer [%u]", m_admin_id.value());
 		}break;
 	case file_transfer::sending_complete:
 		{
-			Msg("* upload file to admin [%d] complete !", m_admin_id);
+			Msg("* upload file to admin [%u] complete !", m_admin_id.value());
 		}break;
 	};
 }

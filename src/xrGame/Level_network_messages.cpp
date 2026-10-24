@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "Entity.h"
-#include "xrserver_objects.h"
+#include "xrServer_Objects.h"
 #include "Level.h"
 #include "xrMessages.h"
 #include "game_cl_base.h"
@@ -17,10 +17,10 @@
 #include "Message_Filter.h"
 #include "../xrPhysics/IPHWorld.h"
 
-extern LPCSTR map_ver_string;
-LPSTR remove_version_option(LPCSTR opt_str, LPSTR new_opt_str, u32 new_opt_str_size)
+extern const char* map_ver_string;
+LPSTR remove_version_option(const char* opt_str, LPSTR new_opt_str, u32 new_opt_str_size)
 {
-	LPCSTR temp_substr = strstr(opt_str, map_ver_string);
+	const char* temp_substr = strstr(opt_str, map_ver_string);
 	if (!temp_substr)
 	{
 		xr_strcpy(new_opt_str, new_opt_str_size, opt_str);
@@ -231,7 +231,7 @@ void CLevel::ClientReceive()
 			break;
 		case M_SV_CONFIG_FINISHED:
 			{
-				game_configured			= TRUE;
+				game_configured			= true;
 				if (IsDemoPlayStarted() && !m_current_spectator)
 				{
 					SpawnDemoSpectator();

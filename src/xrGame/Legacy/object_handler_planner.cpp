@@ -6,7 +6,7 @@
 //	Description : Object handler action planner
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #if USE_OLD_OBJECT_PLANNER
 #include "object_handler_planner.h"
 #include "object_property_evaluators.h"
@@ -93,9 +93,9 @@ void CObjectHandlerPlanner::set_goal	(MonsterSpace::EObjectAction object_action,
 		m_max_queue_interval	= max_queue_interval;
 
 		if (m_max_queue_size == m_min_queue_size)
-			m_queue_size		= _max(1,m_min_queue_size);
+			m_queue_size		= std::max(1,m_min_queue_size);
 		else
-			m_queue_size		= _max(1,::Random.randI(m_min_queue_size,m_max_queue_size));
+			m_queue_size		= std::max(1,::Random.randI(m_min_queue_size,m_max_queue_size));
 
 		if (m_max_queue_interval == m_min_queue_interval)
 			m_queue_interval	= m_min_queue_interval;
@@ -111,7 +111,7 @@ void CObjectHandlerPlanner::set_goal	(MonsterSpace::EObjectAction object_action,
 }
 
 #ifdef LOG_ACTION
-LPCSTR CObjectHandlerPlanner::action2string(const _action_id_type &id)
+const char* CObjectHandlerPlanner::action2string(const _action_id_type &id)
 {
 	LPSTR S = m_temp_string;
 	if (action_object_id(id) != 0xffff)
@@ -163,7 +163,7 @@ LPCSTR CObjectHandlerPlanner::action2string(const _action_id_type &id)
 	return		(S);
 }
 
-LPCSTR CObjectHandlerPlanner::property2string(const _condition_type &id)
+const char* CObjectHandlerPlanner::property2string(const _condition_type &id)
 {
 	if (action_object_id(id) != 0xffff)
 		if (Level().Objects.net_Find(action_object_id(id)))

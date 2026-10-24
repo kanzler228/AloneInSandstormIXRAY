@@ -3,9 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-
 #include <d3dcompiler.h>
-
 #include "../xrRenderDX9/dx9ShaderUtils.h"
 
 #include "../../xrEngine/IGame_Persistent.h"
@@ -20,15 +18,26 @@
 #include "../xrRender/dxWallMarkArray.h"
 #include "../xrRender/dxUIShader.h"
 #include "../../xrCore/git_version.h"
-
-#include "../../xrParticles/ParticlesAsyncManager.h"
+#include "../../xrEngine/IGame_Actor.h"
+#include "../xrRender/RenderInterfaceShared.h"
+#include "../xrRender/dxUIRender.h"
 using namespace R_dsgraph;
 
-CRender													RImplementation;
+CRender RImplementation;
 
 //////////////////////////////////////////////////////////////////////////
-ShaderElement*			CRender::rimp_select_sh_dynamic	(dxRender_Visual	*pVisual, float cdist_sq)
+ShaderElement*			CRender::rimp_select_sh_dynamic	(dxRender_Visual	*pVisual, float cdist_sq, bool is_hud)
 {
+	if (!!RImplementation.val_bUI)
+	{
+		if (auto pSh = pVisual->shader->E[SE_R1_UI]._get())
+		{
+			return pSh;
+		}
+
+		return pVisual->shader->E[SE_R1_NORMAL_LQ]._get();
+	}
+
 	switch (phase)		{
 	case PHASE_NORMAL:	return (RImplementation.L_Projector->shadowing()?pVisual->shader->E[SE_R1_NORMAL_HQ]:pVisual->shader->E[SE_R1_NORMAL_LQ])._get();
 	case PHASE_POINT:	return pVisual->shader->E[SE_R1_LPOINT]._get();
@@ -43,7 +52,7 @@ ShaderElement*			CRender::rimp_select_sh_dynamic	(dxRender_Visual	*pVisual, floa
 ShaderElement*			CRender::rimp_select_sh_static	(dxRender_Visual	*pVisual, float cdist_sq)
 {
 	switch (phase)		{
-	case PHASE_NORMAL:	return (((_sqrt(cdist_sq) - pVisual->vis.sphere.R)<44)?pVisual->shader->E[SE_R1_NORMAL_HQ]:pVisual->shader->E[SE_R1_NORMAL_LQ])._get();
+	case PHASE_NORMAL:	return (((_sqrt(cdist_sq) - pVisual->vis.sphere.R)<200)?pVisual->shader->E[SE_R1_NORMAL_HQ]:pVisual->shader->E[SE_R1_NORMAL_LQ])._get();
 	case PHASE_POINT:	return pVisual->shader->E[SE_R1_LPOINT]._get();
 	case PHASE_SPOT:	return pVisual->shader->E[SE_R1_LSPOT]._get();
 	default:			NODEFAULT;
@@ -54,7 +63,7 @@ ShaderElement*			CRender::rimp_select_sh_static	(dxRender_Visual	*pVisual, float
 }
 
 //////////////////////////////////////////////////////////////////////////
-void					CRender::create					()
+void CRender::create()
 {
 	L_DB				= 0;
 	L_Shadows			= 0;
@@ -67,17 +76,10 @@ void					CRender::create					()
 	dxRenderDeviceRender::Instance().Resources->RegisterConstantSetup("L_dynamic_color",	&r1_dlight_binder_color);
 	dxRenderDeviceRender::Instance().Resources->RegisterConstantSetup("L_dynamic_xform",	&r1_dlight_binder_xform);
 
-
-	// distortion
-	u32 v_dev	= CAP_VERSION(Caps.raster_major, Caps.raster_minor);
-	u32 v_need	= CAP_VERSION(1,4);
-
-	o.distortion = v_dev >= v_need && !Core.ParamsData.test(ECoreParams::nodistort);
-	Msg("* distortion: %s, dev(%d),need(%d)", o.distortion ? "used" : "unavailable", v_dev, v_need);
+	o.distortion = true;
 
 	//	Color mapping
-	o.color_mapping = v_dev >= v_need && !Core.ParamsData.test(ECoreParams::nocolormap);
-	Msg("* color_mapping: %s, dev(%d),need(%d)", o.color_mapping ? "used" : "unavailable", v_dev, v_need);
+	o.color_mapping = true;
 
 	Engine.External.SetSkinningMode();
 
@@ -89,14 +91,10 @@ void					CRender::create					()
 
 	m_bMakeAsyncSS				= false;
 
-//---------
 	Target						= new CRenderTarget		();
-//---------
-	//
 	Models						= new CModelPool		();
 	L_Dynamic					= new CLightR_Manager	();
 	PSLibrary.OnCreate			();
-//.	HWOCC.occq_create			(occq_size);
 
 	xrRender_apply_tf			();
 	::PortalTraverser.initialize();
@@ -168,10 +166,13 @@ void					CRender::ros_destroy			(IRender_ObjectSpecific* &p)			{ xr_delete(p);		
 IRenderVisual*			CRender::model_Create			(LPCSTR name, IReader* data)			{ return Models->Create(name,data);		}
 IRenderVisual*			CRender::model_CreateChild		(LPCSTR name, IReader* data)			{ return Models->CreateChild(name,data);}
 IRenderVisual*			CRender::model_Duplicate		(IRenderVisual* V)						{ return Models->Instance_Duplicate((dxRender_Visual*)V);	}
-void					CRender::model_Delete			(IRenderVisual* &V, BOOL bDiscard)		
+void					CRender::model_Delete			(IRenderVisual* &V, bool bDiscard)		
 { 
 	dxRender_Visual* pVisual = (dxRender_Visual*)V;
-	Models->Delete(pVisual, bDiscard);
+	if (Models != nullptr)
+	{
+		Models->Delete(pVisual, bDiscard);
+	}
 	V = 0;
 }
 void					CRender::model_Delete_Deffered			(IRenderVisual* &V)		
@@ -211,25 +212,17 @@ IRenderVisual*			CRender::model_CreateParticles	(LPCSTR name)
 		return			Models->CreatePG	(SG);
 	}
 }
-void					CRender::models_Prefetch		()					{ Models->Prefetch	();}
-void					CRender::models_Clear			(BOOL b_complete)	{ Models->ClearPool	(b_complete);}
 
-ref_shader				CRender::getShader				(int id)			{ VERIFY(id<int(Shaders.size()));	return Shaders[id];	}
-IRender_Portal*			CRender::getPortal				(int id)			{ VERIFY(id<int(Portals.size()));	return Portals[id];	}
-IRender_Sector*			CRender::getSector				(int id)			{ VERIFY(id<int(Sectors.size()));	return Sectors[id];	}
-IRender_Sector*			CRender::getSectorActive		()					{ return pLastSector;									}
-IRenderVisual*			CRender::getVisual				(int id)			{ VERIFY(id<int(Visuals.size()));	return Visuals[id];	}
-D3DVERTEXELEMENT9*		CRender::getVB_Format			(int id)			{ VERIFY(id<int(DCL.size()));		return DCL[id].begin();	}
-IDirect3DVertexBuffer9*	CRender::getVB					(int id)			{ VERIFY(id<int(VB.size()));		return VB[id];		}
-IDirect3DIndexBuffer9*	CRender::getIB					(int id)			{ VERIFY(id<int(IB.size()));		return IB[id];		}
-IRender_Target*			CRender::getTarget				()					{ return Target;										}
+RHIInputElementDesc* CRender::getVB_Format(int id, size_t* Count) { *Count = DCL[id].size(); return DCL[id].begin(); }
+IRHIBuffer*	CRender::getVB					(int id)			{ VERIFY(id<int(VB.size()));		return VB[id];		}
+IRHIBuffer*	CRender::getIB					(int id)			{ VERIFY(id<int(IB.size()));		return IB[id];		}
 FSlideWindowItem*		CRender::getSWI					(int id)			{ VERIFY(id<int(SWIs.size()));		return &SWIs[id];	}
 
 CRender::SurfaceParams CRender::getSurface(const char* nameTexture)
 {
 	auto texture = DEV->_CreateTexture(nameTexture);
 	SurfaceParams surface = {};
-	surface.Surface = texture->pSurface;
+	surface.Surface = texture->pSurface->GetRawTexture();
 	surface.w = texture->get_Width();
 	surface.h = texture->get_Height();
 
@@ -237,75 +230,15 @@ CRender::SurfaceParams CRender::getSurface(const char* nameTexture)
 }
 
 IRender_Light*			CRender::light_create			()					{ return L_DB->Create();								}
-
 IRender_Glow*			CRender::glow_create			()					{ return new CGlow();								}
 
-void					CRender::flush					()					{ r_dsgraph_render_graph	(0);						}
-
-BOOL					CRender::occ_visible			(vis_data& P)		{ return HOM.visible(P);								}
-BOOL					CRender::occ_visible			(sPoly& P)			{ return HOM.visible(P);								}
-BOOL					CRender::occ_visible			(Fbox& P)			{ return HOM.visible(P);								}
 ENGINE_API	extern xr_atomic_bool g_bRendering;
-void					CRender::add_Visual				(IRenderVisual* V)
-{
-	VERIFY				(g_bRendering);
-	add_leafs_Dynamic	((dxRender_Visual*)V);
-}
-void					CRender::add_Geometry			(IRenderVisual* V ){ add_Static((dxRender_Visual*)V,View->getMask());						}
 
-void CRender::add_StaticWallmark(ref_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* verts, bool UseCameraDirection)
-{
-	if (T->suppress_wm)	return;
-	VERIFY2(_valid(P) && _valid(s) && T && verts && (s > EPS_L), "Invalid static wallmark params");
-	Wallmarks->AddStaticWallmark(T, verts, P, &*S, s, UseCameraDirection);
-}
-
-void CRender::add_StaticWallmark(IWallMarkArray* pArray, const Fvector& P, float s, CDB::TRI* T, Fvector* V, bool UseCameraDirection)
-{
-	dxWallMarkArray* pWMA = (dxWallMarkArray*)pArray;
-	ref_shader* pShader = pWMA->dxGenerateWallmark();
-	if (pShader) add_StaticWallmark(*pShader, P, s, T, V, UseCameraDirection);
-}
-
-void CRender::add_StaticWallmark(const wm_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* V)
-{
-	dxUIShader* pShader = (dxUIShader*)&*S;
-	add_StaticWallmark(pShader->hShader, P, s, T, V);
-}
-
-void					CRender::clear_static_wallmarks	()
-{
-	if (Wallmarks)
-		Wallmarks->clear				();
-}
-
-void					CRender::add_SkeletonWallmark	(intrusive_ptr<CSkeletonWallmark> wm)
-{
-	Wallmarks->AddSkeletonWallmark				(wm);
-}
-void					CRender::add_SkeletonWallmark	(const Fmatrix* xf, CKinematics* obj, ref_shader& sh, const Fvector& start, const Fvector& dir, float size)
-{
-	Wallmarks->AddSkeletonWallmark				(xf, obj, sh, start, dir, size);
-}
-void					CRender::add_SkeletonWallmark	(const Fmatrix* xf, IKinematics* obj, IWallMarkArray *pArray, const Fvector& start, const Fvector& dir, float size)
-{
-	dxWallMarkArray *pWMA = (dxWallMarkArray *)pArray;
-	ref_shader *pShader = pWMA->dxGenerateWallmark();
-	if (pShader) add_SkeletonWallmark(xf, (CKinematics*)obj, *pShader, start, dir, size);
-}
-void					CRender::add_Occluder			(Fbox2&	bb_screenspace	)
-{
-	VERIFY					(_valid(bb_screenspace));
-	HOM.occlude				(bb_screenspace);
-}
-
-#include "../../xrEngine/PS_instance.h"
 void					CRender::set_Object				(IRenderable*		O )	
 {
 	VERIFY					(g_bRendering);
 	val_pObject				= O;		// nullptr is OK, trust me :)
 	if (val_pObject)		{
-		VERIFY(dynamic_cast<CObject*>(O)||dynamic_cast<CPS_Instance*>(O));
 		if (O->renderable.pROS) { VERIFY(dynamic_cast<CROS_impl*>(O->renderable.pROS)); }
 	}
 	if (PHASE_NORMAL==phase)	{
@@ -327,7 +260,6 @@ void					CRender::apply_object			(IRenderable*		O )
 	if (0==O)			return	;
 	if (PHASE_NORMAL==phase	&& O->renderable_ROS())		{
 		CROS_impl& LT		= *((CROS_impl*)O->renderable.pROS);
-		VERIFY(dynamic_cast<CObject*>(O)||dynamic_cast<CPS_Instance*>(O));
 		VERIFY(dynamic_cast<CROS_impl*>(O->renderable.pROS));
 		float o_hemi		= 0.5f*LT.get_hemi						();
 		float o_sun			= 0.5f*LT.get_sun						();
@@ -340,9 +272,9 @@ void					CRender::apply_object			(IRenderable*		O )
 
 // Misc
 float					g_fSCREEN;
-static	BOOL			gm_Nearer	= 0;
+static	bool			gm_Nearer	= 0;
 
-IC		void			gm_SetNearer		(BOOL bNearer)
+IC		void			gm_SetNearer		(bool bNearer)
 {
 	if (bNearer	!= gm_Nearer)
 	{
@@ -399,7 +331,7 @@ void CRender::Calculate				()
 		HOM.Enable									();
 		HOM.Render									(ViewBase);
 	}
-	gm_SetNearer					(FALSE);
+	gm_SetNearer					(false);
 	phase							= PHASE_NORMAL;
 
 	// Detect camera-sector
@@ -423,7 +355,7 @@ void CRender::Calculate				()
 		for (int K=0; K<Sectors_xrc.r_count(); K++)
 		{
 			CPortal*	pPortal		= (CPortal*) Portals[rmPortals->get_tris()[Sectors_xrc.r_begin()[K].id].dummy];
-			pPortal->bDualRender	= TRUE;
+			pPortal->bDualRender	= true;
 		}
 	}
 	//
@@ -464,7 +396,7 @@ void CRender::Calculate				()
 			(
 			lstRenderables,
 			ISpatial_DB::O_ORDERED,
-			STYPE_RENDERABLE + STYPE_PARTICLE + STYPE_LIGHTSOURCE,
+				ESPATIAL_TYPE::RENDERABLE | ESPATIAL_TYPE::PARTICLE | ESPATIAL_TYPE::LIGHTSOURCE,
 			ViewBase);//nearest sorting
 
 			// Determine visibility for dynamic part of scene
@@ -487,22 +419,44 @@ void CRender::Calculate				()
 					if (R)		R->update			(O);
 				}
 			}
+
+			const bool use_full_detail_distance = ps_r1_full_detail_distance_scale < 1.f;
+			const float full_detail_distance = use_full_detail_distance ? std::max(100.f, g_pGamePersistent->Environment().CurrentEnv->far_plane * ps_r1_full_detail_distance_scale) : 0.f;
+		
 			for (u32 o_it=0; o_it<lstRenderables.size(); o_it++)
 			{
-				ISpatial*	spatial		= lstRenderables[o_it].get();		spatial->spatial_updatesector	();
-				CSector*	sector		= (CSector*)spatial->spatial.sector	;
-				if	(0==sector)										
-					continue;	// disassociated from S/P structure
+				ISpatial* spatial = lstRenderables[o_it].get();
+				if (0 == spatial)
+				{
+					continue;
+				}
+
+				if (use_full_detail_distance &&
+					Device.vCameraPosition.distance_to_sqr(spatial->sphere.P) > _sqr(full_detail_distance + spatial->sphere.R))
+				{
+					light* L = (spatial->type & ESPATIAL_TYPE::LIGHTSOURCE) != ESPATIAL_TYPE::NONE ? (light*)spatial->dcast_Light() : nullptr;
+					if (!L || !L->flags.bHudMode)
+					{
+						continue;
+					}
+				}
+
+				spatial->spatial_updatesector();
+				CSector* sector = (CSector*)spatial->sector;
+				if (0 == sector)
+				{
+					continue;
+				}
 
 				// Filter only not light spatial
-				if	(PortalTraverser.i_marker != sector->r_marker && (spatial->spatial.type&STYPE_RENDERABLE || spatial->spatial.type&STYPE_PARTICLE) )	continue;	// inactive (untouched) sector
+				if (PortalTraverser.i_marker != sector->r_marker && ((spatial->type & ESPATIAL_TYPE::RENDERABLE) != ESPATIAL_TYPE::NONE || (spatial->type & ESPATIAL_TYPE::PARTICLE) != ESPATIAL_TYPE::NONE))	continue;	// inactive (untouched) sector
 
-				if(spatial->spatial.type&STYPE_RENDERABLE || spatial->spatial.type&STYPE_PARTICLE)
+				if ((spatial->type & ESPATIAL_TYPE::RENDERABLE) != ESPATIAL_TYPE::NONE || (spatial->type & ESPATIAL_TYPE::PARTICLE) != ESPATIAL_TYPE::NONE)
 				{
 					for (u32 v_it=0; v_it<sector->r_frustums.size(); v_it++)
 					{
 						set_Frustum			(&(sector->r_frustums[v_it]));
-						if (!View->testSphere_dirty(spatial->spatial.sphere.P,spatial->spatial.sphere.R)) continue;
+						if (!View->testSphere_dirty(spatial->sphere.P,spatial->sphere.R)) continue;
 						// renderable
 						IRenderable*	renderable		= spatial->dcast_Renderable	();
 						if (renderable)
@@ -511,7 +465,7 @@ void CRender::Calculate				()
 							vis_data&		v_orig			= renderable->renderable.visual->getVisData();
 							vis_data		v_copy			= v_orig;
 							v_copy.box.xform				(renderable->renderable.xform);
-							BOOL			bVisible		= HOM.visible(v_copy);
+							auto bVisible = HOM.visible(v_copy);
 							v_orig.accept_frame				= v_copy.accept_frame;
 							v_orig.marker					= v_copy.marker;
 							v_orig.hom_frame				= v_copy.hom_frame;
@@ -537,15 +491,14 @@ void CRender::Calculate				()
 					}
 				}
 
-				if (spatial->spatial.type & STYPE_LIGHTSOURCE)
+				if ((spatial->type & ESPATIAL_TYPE::LIGHTSOURCE) != ESPATIAL_TYPE::NONE)
 				{
-					if ( ViewBase.testSphere_dirty(spatial->spatial.sphere.P,spatial->spatial.sphere.R) )
+					if ( ViewBase.testSphere_dirty(spatial->sphere.P,spatial->sphere.R) )
 					{
-						VERIFY(spatial->spatial.type & STYPE_LIGHTSOURCE);
 						// lightsource
 						if (light* L = (light*)spatial->dcast_Light())
 						{
-							if (L->SpatialComponent->spatial.sector)
+							if (L->SpatialComponent->sector)
 							{
 								vis_data& vis = L->get_homdata();
 								if (HOM.visible(vis))	L_DB->add_light(L);
@@ -563,54 +516,52 @@ void CRender::Calculate				()
 	else
 	{
 		set_Object											(0);
-		/*
-		g_pGameLevel->pHUD->Render_First					();	
-		g_pGameLevel->pHUD->Render_Last						();	
-
-		// Calculate miscelaneous stuff
-		L_Shadows->calculate								();
-		L_Projector->calculate								();
-		*/
 	}
 
 	// End calc
 	Device.Statistic->RenderCALC.End	();
 }
 
-void	CRender::rmNear		()
+void CRender::RenderUI(Fcolor* color)
 {
-	IRender_Target* T	=	getTarget	();
-	D3DVIEWPORT9 VP		=	{0,0,T->get_width(),T->get_height(),0,0.02f };
-	CHK_DX				(RDevice->SetViewport(&VP));
-}
-void	CRender::rmFar		()
-{
-	IRender_Target* T	=	getTarget	();
-	D3DVIEWPORT9 VP		=	{0,0,T->get_width(),T->get_height(),0.99999f,1.f };
-	CHK_DX				(RDevice->SetViewport(&VP));
-}
-void	CRender::rmNormal	()
-{
-	IRender_Target* T	=	getTarget	();
-	D3DVIEWPORT9 VP		= {0,0,T->get_width(),T->get_height(),0,1.f };
-	CHK_DX				(RDevice->SetViewport(&VP));
+	Target->u_setrt(RCache.get_width(), RCache.get_height(), RTarget, nullptr, nullptr, RDepth);
+	rmNormal();
+
+	CHK_DX(RDevice->Clear(0L, nullptr, D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, 0x0, 1.0f, 0L));
+
+	r_dsgraph_render_ui();
+	r_dsgraph_render_sorted_ui();
+
+	marker++;
+	Target->u_setrt(RCache.get_width(), RCache.get_height(), RTarget, nullptr, nullptr, nullptr);
+
+	rmNormal();
+
+	mapDistort.clear();
 }
 
-extern u32 g_r;
-void	CRender::Render		()
+void CRender::Render()
 {
-	RDevice->SetRenderTarget(0, RTarget);
+	GRHI->SetRenderTargetView(RTarget, 0);
+
 	if( m_bFirstFrameAfterReset )
 	{
 		m_bFirstFrameAfterReset = false;
 		return;
 	}
 
-	g_r											= 1;
 	Device.Statistic->RenderDUMP.Begin();
+
+	if (GActorInterface)
+	{
+		Target->set_ui_target();
+		GActorInterface->RenderItemUI();							// render ui in world
+		Target->set_default_target();
+	}
+
 	// Begin
 	Target->Begin								();
-	o.vis_intersect								= FALSE			;
+	o.vis_intersect								= false			;
 	phase										= PHASE_NORMAL	;
 	r_dsgraph_render_hud						();				// hud
 	r_dsgraph_render_graph						(0);			// normal level
@@ -621,19 +572,18 @@ void	CRender::Render		()
 	g_pGamePersistent->Environment().RenderClouds	();				// clouds
 
 	r_pmask										(true,false);	// disable priority "1"
-	o.vis_intersect								= TRUE			;
+	o.vis_intersect								= true			;
 	L_Dynamic->render							(0);				// addititional light sources
 	if(Wallmarks){
-		g_r										= 0;
 		Wallmarks->Render						();				// wallmarks has priority as normal geometry
 	}
 	HOM.Enable									();
-	o.vis_intersect								= FALSE			;
+	o.vis_intersect								= false			;
 	phase										= PHASE_NORMAL	;
 	r_pmask										(true,true);	// enable priority "0" and "1"
 	if(L_Shadows)L_Shadows->render				();				// ... and shadows
 	r_dsgraph_render_lods						(false,true);	// lods - FB
-	CParticlesAsync::Wait();
+
 	r_dsgraph_render_graph						(1);			// normal level, secondary priority
 	L_Dynamic->render							(1);			// addititional light sources, secondary priority
 	phase = PHASE_NORMAL;
@@ -744,10 +694,10 @@ public:
 	HRESULT __stdcall Open(D3D_INCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData, LPCVOID* ppData, UINT* pBytes) {
 		string_path pname;
 		xr_strconcat(pname, ::Render->getShaderPath(), pFileName);
-		IReader* R = FS.r_open("$game_shaders$", pname);
+		IReader* R = FS.r_open(_game_shaders_, pname);
 		if (0 == R) {
 			// possibly in shared directory or somewhere else - open directly
-			R = FS.r_open("$game_shaders$", pFileName);
+			R = FS.r_open(_game_shaders_, pFileName);
 			if (0 == R) {
 				return E_FAIL;
 			}
@@ -826,18 +776,7 @@ static HRESULT create_shader				(
 		}
 	}
 
-	if (disasm) {
-		ID3DBlob* disasm_ = 0;
-		D3DDisassemble(buffer, buffer_size, FALSE, 0, &disasm_);
-		string_path dname;
-		xr_strconcat(dname, "disasm\\", file_name, ('v' == pTarget[0]) ? ".vs.hlsl" : ".ps.hlsl");
-		IWriter* W = FS.w_open("$logs$", dname);
-		W->w(disasm_->GetBufferPointer(), disasm_->GetBufferSize());
-		FS.w_close(W);
-		_RELEASE(disasm_);
-	}
-
-	return				_result;
+	return _result;
 }
 
 HRESULT	CRender::shader_compile			(
@@ -967,36 +906,33 @@ HRESULT	CRender::shader_compile			(
 
 	if (FAILED(_result))
 	{
-		includer					Includer;
-		LPD3DBLOB					pShaderBuf = nullptr;
-		LPD3DBLOB					pErrorBuf = nullptr;
+		includer Includer;
+		xr_vector<u8> pShaderBuf;
+		xr_vector<u8> pErrorBuf;
 
-		_result = D3DCompile(pSrcData, SrcDataLen,
-				"",//nullptr, //LPCSTR pFileName,	//	NVPerfHUD bug workaround.
-				defines, &Includer, pFunctionName,
-				pTarget,
-				Flags, 0,
-				&pShaderBuf,
-				&pErrorBuf
-			);
+		_result = GRHI->BuildShader("r1", pSrcData, SrcDataLen, "", defines, &Includer, pFunctionName, pTarget, Flags, 0, pShaderBuf, pErrorBuf);
 
-		if (SUCCEEDED(_result)) {
-			if (ps_r__common_flags.test(RFLAG_USE_CACHE)) {
+		if (SUCCEEDED(_result))
+		{
+			if (ps_r__common_flags.test(RFLAG_USE_CACHE))
+			{
 				IWriter* file = FS.w_open(file_name);
-				u32 const crc = crc32(pShaderBuf->GetBufferPointer(), pShaderBuf->GetBufferSize());
+				u32 const crc = crc32(pShaderBuf.data(), pShaderBuf.size());
 				file->w_u32(crc);
 				file->w_u32(RealCodeCRC);
-				file->w(pShaderBuf->GetBufferPointer(), pShaderBuf->GetBufferSize());
+				file->w(pShaderBuf.data(), pShaderBuf.size());
 				FS.w_close				(file);
 			}
-			_result					= create_shader(pTarget, (DWORD*)pShaderBuf->GetBufferPointer(), pShaderBuf->GetBufferSize(), file_name, result, o.disasm);
+
+			_result = create_shader(pTarget, (DWORD*)pShaderBuf.data(), pShaderBuf.size(), file_name, result, o.disasm);
 		}
-		else {
+		else
+		{
 			Msg("! %s", file_name);
-			if ( pErrorBuf )
-				Msg("! error: %s",(LPCSTR)pErrorBuf->GetBufferPointer());
+			if (!pErrorBuf.empty())
+				Msg("! error: %s", (LPCSTR)pErrorBuf.data());
 			else
-				Msg					("Can't compile shader hr=0x%08x", _result);
+				Msg("Can't compile shader hr=0x%08x", _result);
 		}
 	}
 

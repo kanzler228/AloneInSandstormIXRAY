@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "snork.h"
 #include "snork_state_manager.h"
 #include "../../../detail_path_manager_space.h"
@@ -39,7 +39,7 @@ CSnork::~CSnork()
 	xr_delete		(StateMan);
 }
 
-void CSnork::Load(LPCSTR section)
+void CSnork::Load(const char* section)
 {
 	inherited::Load			(section);
 
@@ -103,7 +103,6 @@ void CSnork::reinit()
 {
 	inherited::reinit	();
 	
-	if(CCustomMonster::use_simplified_visual() ) return;
 	move().load_velocity(*cNameSect(), "Velocity_JumpGround",MonsterMovement::eSnorkVelocityParameterJumpGround);
 	com_man().load_jump_data("stand_attack_2_0",0, "stand_attack_2_1", "stand_somersault_0", u32(-1), MonsterMovement::eSnorkVelocityParameterJumpGround,0);
 
@@ -290,7 +289,7 @@ void CSnork::HitEntityInJump(const CEntity *pEntity)
 
 				if (device != nullptr)
 				{
-					device->SetDropManual(TRUE);
+					device->SetDropManual(true);
 					need_kick_animator = true;
 				}
 			}
@@ -300,13 +299,13 @@ void CSnork::HitEntityInJump(const CEntity *pEntity)
 			need_kick_animator = true;
 		}
 
-		if (need_kick_animator && !Actor()->HudAnimator()->IsActive())
+		if (need_kick_animator && !Actor()->HudAnimator()->IsAnyAnimatorActive())
 		{
 			Actor()->inventory().SetActiveSlot(NO_ACTIVE_SLOT);
 			const shared_str& front_kick_animator = Actor()->m_sFrontKickAnimator;
 			if (front_kick_animator.size() > 0)
 			{
-				Actor()->HudAnimator()->StartAnimator(front_kick_animator);
+				Actor()->HudAnimator()->ItemAnimator()->StartAnimator(front_kick_animator);
 			}
 		}
 	}
@@ -349,8 +348,12 @@ void CSnork::on_activate_control(ControlCom::EControlType type)
 #ifdef _DEBUG
 void CSnork::debug_on_key(int key)
 {
-	CActor *actor = smart_cast<CActor *>(Level().CurrentEntity());
-	if (!actor) return;
+	CObject* current_entity = Level().CurrentEntity();
+	CActor* actor = current_entity != nullptr ? current_entity->cast_actor() : nullptr;
+	if (actor == nullptr)
+	{
+		return;
+	}
 
 	switch (key){
 	case SDL_SCANCODE_1:

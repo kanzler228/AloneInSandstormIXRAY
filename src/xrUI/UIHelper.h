@@ -4,12 +4,12 @@
 //	Author		: Evgeniy Sokolov
 //	Description : UI Helper class
 ////////////////////////////////////////////////////////////////////////////
-#pragma once 
+#pragma once
 
 class CUIXml;
 class CUIWindow;
 class CUIStatic;
-class CUITextWnd;
+class CUI3dStatic;
 class CUIProgressBar;
 class CUIProgressShape;
 class CUIFrameLineWnd;
@@ -20,8 +20,13 @@ class UIHint;
 class CUIDragDropListEx;
 class CUIDragDropReferenceList;
 class CUIEditBox;
+class CUITrackBar;
+class CUIScrollView;
+class CUIStackPanel;
+class CUIGamepadLegend;
 
 #include "Widgets/UIStackPanel.h"
+#include "Widgets/UI3dStatic.h"
 
 class UI_API UIHelper
 {
@@ -29,17 +34,20 @@ public:
 	UIHelper		() {};
 	~UIHelper		() {};
 
-	static	CUIStatic*			CreateStatic		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIStackPanel*		CreateStackPanel	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUITextWnd*			CreateTextWnd		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIProgressBar*		CreateProgressBar	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIProgressShape*	CreateProgressShape	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIFrameLineWnd*	CreateFrameLine		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical = true );
-	static	CUIFrameWindow*		CreateFrameWindow	( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent, bool critical = true );
-	static	CUI3tButton*		Create3tButton		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUICheckButton*		CreateCheck			( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
-	static	CUIEditBox*			CreateEditBox		( CUIXml& xml, LPCSTR ui_path, CUIWindow* parent );
+	static	CUIStatic*			CreateStatic		( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true, int node_index = 0 );
+    static	CUI3dStatic*        Create3dStatic      ( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true, int node_index = 0 );
+	static	CUIStackPanel*		CreateStackPanel	( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
+	static	CUIGamepadLegend*	CreateGamepadLegend	( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
+	static	CUIProgressBar*		CreateProgressBar	( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
+	static	CUIProgressShape*	CreateProgressShape	( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUIFrameLineWnd*	CreateFrameLine		( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
+	static	CUIFrameWindow*		CreateFrameWindow	( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
+	static	CUI3tButton*		Create3tButton		( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUICheckButton*		CreateCheck			( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUIEditBox*			CreateEditBox		( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUITrackBar*		CreateTrackBar		( CUIXml& xml, const char* ui_path, CUIWindow* parent );
+	static	CUIScrollView*		CreateScrollView	( CUIXml& xml, const char* ui_path, CUIWindow* parent, bool critical = true );
 
-	static	UIHint*				CreateHint			( CUIXml& xml, LPCSTR ui_path /*, CUIWindow* parent*/ );
+	static	UIHint*				CreateHint			( CUIXml& xml, const char* ui_path /*, CUIWindow* parent*/ );
 
 }; // class UIHelper

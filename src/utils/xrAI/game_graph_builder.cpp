@@ -599,7 +599,7 @@ void CGameGraphBuilder::create_tripples		(const float &start, const float &amoun
 
 			m_tripples.push_back	(
 				std::make_pair(
-					_min(
+					std::min(
 						(*i).weight(),
 						edge ? edge->weight() : (*i).weight()
 					),
@@ -630,8 +630,8 @@ void CGameGraphBuilder::process_tripple		(const TRIPPLE &tripple)
 
 		edge					= vertex1.edge((*I).vertex_id());
 		if (edge) {
-			VERIFY				(_min((*I).weight(),graph().edge((*I).vertex_id(),tripple.second.first) ? graph().edge((*I).vertex_id(),tripple.second.first)->weight() : (*I).weight()) <= tripple.first);
-			VERIFY				(_min(edge->weight(),graph().edge(edge->vertex_id(),tripple.second.second) ? graph().edge(edge->vertex_id(),tripple.second.second)->weight() : (*I).weight()) <= tripple.first);
+			VERIFY				(std::min((*I).weight(),graph().edge((*I).vertex_id(),tripple.second.first) ? graph().edge((*I).vertex_id(),tripple.second.first)->weight() : (*I).weight()) <= tripple.first);
+			VERIFY				(std::min(edge->weight(),graph().edge(edge->vertex_id(),tripple.second.second) ? graph().edge(edge->vertex_id(),tripple.second.second)->weight() : (*I).weight()) <= tripple.first);
 			if (vertex0.edge(tripple.second.second))
 				graph().remove_edge	(tripple.second.first,tripple.second.second);
 			if (vertex1.edge(tripple.second.first))
@@ -641,7 +641,7 @@ void CGameGraphBuilder::process_tripple		(const TRIPPLE &tripple)
 
 		edge					= graph().vertex((*I).vertex_id())->edge(tripple.second.second);
 		if (edge) {
-			VERIFY				(_min((*I).weight(),graph().edge((*I).vertex_id(),tripple.second.first) ? graph().edge((*I).vertex_id(),tripple.second.first)->weight() : (*I).weight()) <= tripple.first);
+			VERIFY				(std::min((*I).weight(),graph().edge((*I).vertex_id(),tripple.second.first) ? graph().edge((*I).vertex_id(),tripple.second.first)->weight() : (*I).weight()) <= tripple.first);
 			VERIFY				(edge->weight() <= tripple.first);
 			if (vertex0.edge(tripple.second.second))
 				graph().remove_edge	(tripple.second.first,tripple.second.second);
@@ -772,9 +772,9 @@ void CGameGraphBuilder::build_graph			(const float &start, const float &amount)
 }
 
 void CGameGraphBuilder::build_graph			(
-		LPCSTR graph_name,
-		LPCSTR cross_table_name,
-		LPCSTR level_name
+		const char* graph_name,
+		const char* cross_table_name,
+		const char* level_name
 	)
 {
 	Phase					("Building level game graph");

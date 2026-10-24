@@ -2,7 +2,6 @@
 //
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
-#include <magic_enum/magic_enum.hpp>
 
 #include "DDSTextureLoader9.h"
 using namespace DirectX;
@@ -23,7 +22,7 @@ void fix_texture_name(LPSTR fn) {
 		*_ext = 0;
 }
 
-int get_texture_load_lod(LPCSTR fn) {
+int get_texture_load_lod(const char* fn) {
 	auto& sect = pSettings->r_section("reduce_lod_texture_list");
 
 	for (const auto& data : sect.Data) {
@@ -103,7 +102,7 @@ ID3DTexture2D* TW_LoadTextureFromTexture(ID3DTexture2D* t_from, int levels_2_ski
 	R_CHK(RDevice->CreateTexture(
 		top_width, top_height,
 		levels_exist, 0, t_from_desc.Format,
-		D3DPOOL_DEFAULT, &t_dest, 0
+		D3DPOOL_DEFAULT, &t_dest, nullptr
 	));
 
 	// Copy surfaces & destroy temporary
@@ -132,7 +131,7 @@ ID3DTexture2D* TW_LoadTextureFromTexture(ID3DTexture2D* t_from, int levels_2_ski
 
 #include <string>
 #include <unordered_map>
-#include <ddraw.h>
+//#include <ddraw.h>
 
 shared_str D3DFormatToString(D3DFORMAT format)
 {
@@ -144,6 +143,10 @@ shared_str D3DFormatToString(D3DFORMAT format)
 
 	return "D3DFMT_UNKNOWN";
 }
+
+#ifndef DDPF_FOURCC
+    #define DDPF_FOURCC 0x4
+#endif
 
 void PrintTextureError(HRESULT hr, const char* fname, const void* ddsData, size_t ddsSize, IDirect3DBaseTexture9* pTexture = nullptr, bool PrintMem = true)
 {
@@ -241,7 +244,67 @@ void PrintTextureError(HRESULT hr, const char* fname, const void* ddsData, size_
 	Msg("4. Check mipmap chain consistency");
 }
 
-ID3DBaseTexture* CRender::texture_load(LPCSTR fRName, u32& ret_msize)
+#include <DirectXTex.h>
+bool CRender::get_texture_metadata(const char* absolute_path, RHITextureMetadata* p_data)
+{
+	bool status = false;
+
+	if (absolute_path == nullptr)
+		return status;
+
+	if (FS.exist(absolute_path) == nullptr)
+		return status;
+
+	IReader* pReader = FS.r_open(absolute_path);
+
+	if (p_data == nullptr)
+		return status;
+
+	if (pReader == nullptr)
+		return status;
+
+	DirectX::TexMetadata metadata;
+	HRESULT hr = DirectX::GetMetadataFromDDSMemory( static_cast<const uint8_t*>(pReader->pointer()), pReader->length(), DirectX::DDS_FLAGS::DDS_FLAGS_NONE, metadata);
+
+	if (SUCCEEDED(hr))
+	{
+		p_data->width = metadata.width;
+		p_data->height = metadata.height;
+		p_data->format = metadata.format;
+		p_data->mipmap_count = (u32)metadata.mipLevels;
+
+		status = true;
+	}
+
+	if (pReader)
+		pReader->close();
+
+	return status;
+}
+
+IRHISurface* CRender::load_texture(const char* fname, u32& msize, bool bStaging /*= false*/)
+{
+	ID3DBaseTexture* pTexture = this->texture_load(fname, msize);
+	IRHISurface* pResult = nullptr;
+	if (pTexture) {
+		// Create RHITextureDesc for the loaded texture
+		RHITextureDesc rhiDesc;
+		rhiDesc.Width = 1;  // Will be set properly by the texture
+		rhiDesc.Height = 1;
+		rhiDesc.Depth = 1;
+		rhiDesc.MipLevels = 1;
+		rhiDesc.Format = ERHI_FORMAT::B8G8R8A8_UNORM;
+		rhiDesc.CPUAccessFlags = 0;
+		rhiDesc.MiscFlags = 0;
+
+		// Use GRHI to create the surface from loaded texture
+		pResult = GRHI->CreateTextureFromMemory(pTexture, 0, rhiDesc);
+	}
+
+	return pResult;
+}
+
+ID3DBaseTexture* CRender::texture_load(const char* fRName, u32& ret_msize)
 {
 	ID3DBaseTexture* pTexture3D = nullptr;
 	ID3DTexture2D* pTexture2D = nullptr;
@@ -265,9 +328,9 @@ ID3DBaseTexture* CRender::texture_load(LPCSTR fRName, u32& ret_msize)
 		goto _DDS;
 	if (FS.exist(fn, "$game_saves$", fname, ".dds"))
 		goto _DDS;
-	if (FS.exist(fn, "$game_textures$", fname, ".dds"))
+	if (FS.exist(fn, _game_textures_, fname, ".dds"))
 		goto _DDS;
-	if (!FS.exist(fn, "$game_textures$", fname, ".dds") && strstr(fname, "_bump"))
+	if (!FS.exist(fn, _game_textures_, fname, ".dds") && strstr(fname, "_bump"))
 		goto _BUMP_from_base;
 	if (FS.TryLoad(xr_string(fname) + ".dds"))
 	{
@@ -277,7 +340,7 @@ ID3DBaseTexture* CRender::texture_load(LPCSTR fRName, u32& ret_msize)
 	}
 	Msg("! Can't find texture '%s'", fname);
 
-	R_ASSERT(FS.exist(fn, "$game_textures$", "ed\\ed_not_existing_texture", ".dds"));
+	R_ASSERT(FS.exist(fn, _game_textures_, "ed\\ed_not_existing_texture", ".dds"));
 	goto _DDS;
 
 _DDS:
@@ -318,7 +381,7 @@ _DDS:
 				R_ASSERT3(false, errMsg, fname);
 			}
 
-			const u32 maxTextureDimension = _max(d3dCaps.MaxTextureWidth, d3dCaps.MaxTextureHeight);
+			const u32 maxTextureDimension = std::max(d3dCaps.MaxTextureWidth, d3dCaps.MaxTextureHeight);
 
 			if (header && (header->width > maxTextureDimension || header->height > maxTextureDimension))
 			{
@@ -353,7 +416,7 @@ _DDS:
 			FS.r_close(S);
 
 			string_path temp;
-			R_ASSERT(FS.exist(temp, "$game_textures$", "ed\\ed_not_existing_texture", ".dds"));
+			R_ASSERT(FS.exist(temp, _game_textures_, "ed\\ed_not_existing_texture", ".dds"));
 			R_ASSERT(xr_strcmp(temp, fn));
 			xr_strcpy(fn, temp);
 			goto _DDS;
@@ -393,7 +456,7 @@ _DDS:
 				PrintTextureError(result, fname, &bitData, bitSize, pTexture3D);
 
 				string_path temp;
-				R_ASSERT(FS.exist(temp, "$game_textures$", "ed\\ed_not_existing_texture", ".dds"));
+				R_ASSERT(FS.exist(temp, _game_textures_, "ed\\ed_not_existing_texture", ".dds"));
 				R_ASSERT(xr_strcmp(temp, fn));
 				xr_strcpy(fn, temp);
 				goto _DDS;
@@ -420,7 +483,7 @@ _DDS:
 					Image.GetMips(), 0, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &T_sysmem, nullptr
 				);
 
-				if (SUCCEEDED(result) && T_sysmem)
+				if (SUCCEEDED(TextureApplyResult) && T_sysmem)
 				{
 					for (u32 level = 0; level < Image.GetMips(); ++level)
 					{
@@ -487,13 +550,14 @@ _DDS:
 				PrintTextureError(TextureApplyResult, fname, bitData, bitSize, pTexture2D, T_sysmem != nullptr);
 
 				string_path temp;
-				R_ASSERT(FS.exist(temp, "$game_textures$", "ed\\ed_not_existing_texture", ".dds"));
+				R_ASSERT(FS.exist(temp, _game_textures_, "ed\\ed_not_existing_texture", ".dds"));
 				R_ASSERT(xr_strcmp(temp, fn));
 				xr_strcpy(fn, temp);
 				goto _DDS;
 			}
-			_RELEASE(T_sysmem);
-
+			T_sysmem->Release();
+			T_sysmem = nullptr;
+			
 			ret_msize = calc_texture_size(img_loaded_lod, mip_cnt, img_size);
 			return pTexture2D;
 		}
@@ -503,7 +567,7 @@ _BUMP_from_base:
 		//Msg("! Fallback to default bump map: %s", fname);
 		if (strstr(fname, "_bump#"))
 		{
-			R_ASSERT2(FS.exist(fn, "$game_textures$", "ed\\ed_dummy_bump#", ".dds"), "ed_dummy_bump#");
+			R_ASSERT2(FS.exist(fn, _game_textures_, "ed\\ed_dummy_bump#", ".dds"), "ed_dummy_bump#");
 			S = FS.r_open(fn);
 			R_ASSERT2(S, fn);
 			img_size = S->length();
@@ -513,7 +577,7 @@ _BUMP_from_base:
 		Msg("! Fallback to default bump map: %s", fname);
 		if (strstr(fname, "_bump"))
 		{
-			R_ASSERT2(FS.exist(fn, "$game_textures$", "ed\\ed_dummy_bump", ".dds"), "ed_dummy_bump");
+			R_ASSERT2(FS.exist(fn, _game_textures_, "ed\\ed_dummy_bump", ".dds"), "ed_dummy_bump");
 			S = FS.r_open(fn);
 			R_ASSERT2(S, fn);
 			img_size = S->length();

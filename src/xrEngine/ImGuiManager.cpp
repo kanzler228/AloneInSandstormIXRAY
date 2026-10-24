@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ImGuiManager.h"
 #include "IGame_Persistent.h"
+#include "XR_IOConsole.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -52,15 +53,18 @@ float GetWindowScale(SDL_Window* window)
 
 void CImGuiManager::InitPlatform()
 {
+#ifdef IXR_WINDOWS
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+
+#ifdef DEBUG_DRAW
+	Console->RegisterImGuiConsoleSettingsHandler();
+#endif
+
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
 	//io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-
-	ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 
 	ImGuiStyle& Style = ImGui::GetStyle();
 	XRay::ImGui::MakeEditorTheme();
@@ -71,7 +75,6 @@ void CImGuiManager::InitPlatform()
 		Style.Colors[ImGuiCol_WindowBg].w = 1.0f;
 	}
 
-	float ddpi, hdpi, vdpi;
 	float scale = GetWindowScale(g_AppInfo.Window);
 
 	LoadImGuiFont(ImGui::RegularFont, "rus\\RobotoMono.ttf", scale);
@@ -87,37 +90,30 @@ void CImGuiManager::InitPlatform()
 #endif
 
 	PlatformInitCallback();
+#endif
 }
 
 void CImGuiManager::InitHardware()
 {
-	HardwareInitCallback();
+	RHIUtils::ImGui::Init();
 }
 
 void CImGuiManager::Reset()
 {
-	if (HardwareResetCallback)
-	{
-		HardwareResetCallback();
-	}
+	RHIUtils::ImGui::Reset();
 }
 
 void CImGuiManager::Destroy(bool HardwareOnly)
 {
 	if (HardwareOnly)
 	{
-		HardwareDestroyCallback();
-
-		HardwareInitCallback = nullptr;
-		HardwareResetCallback = nullptr;
-		HardwareDestroyCallback = nullptr;
-		HardwareNewFrameCallback = nullptr;
-		HardwareDrawDataCallback = nullptr;
-
+		RHIUtils::ImGui::Destroy();
 		return;
 	}
 
+#ifdef IXR_WINDOWS
 	PlatformDestroyCallback();
+#endif
 
 	for (IReader* FontPtr : ImGuiFontsPtr)
 	{
@@ -174,11 +170,12 @@ void CImGuiManager::Unsubscribe(shared_str Name)
 
 void CImGuiManager::BeginRender()
 {
-	HardwareNewFrameCallback();
+	RHIUtils::ImGui::NewFrame();
 }
 
 void CImGuiManager::AfterRender()
 {
+#ifdef IXR_WINDOWS
 	ImGuiIO& io = ImGui::GetIO();
 
 	// Update and Render additional Platform Windows
@@ -187,14 +184,16 @@ void CImGuiManager::AfterRender()
 		ImGui::UpdatePlatformWindows();
 		ImGui::RenderPlatformWindowsDefault();
 	}
+#endif
 }
 
 void CImGuiManager::Render()
 {
+#ifdef IXR_WINDOWS
 	ImGui::NewFrame();
 
 #ifdef DEBUG_DRAW
-	if (DrawUIRender)
+	if (DrawUIRender && !psDeviceFlags.test(rsClearBB))
 	{
 		for (const auto& [Id, CommandData] : RenderFrameData)
 		{
@@ -218,8 +217,9 @@ void CImGuiManager::Render()
 #endif
 
 	ImGui::Render();
+#endif
 
-	HardwareDrawDataCallback();
+	RHIUtils::ImGui::DrawData();
 }
 
 void CImGuiManager::UpdateCapture()
@@ -270,12 +270,19 @@ bool CImGuiManager::IsCapturingInputs() const
 
 void CImGuiManager::NewPlatformFrame() const
 {
+#ifdef IXR_WINDOWS
 	PlatformNewFrameCallback();
+#endif
 }
 
 void CImGuiManager::NewHardwareFrame() const
 {
-	HardwareNewFrameCallback();
+	RHIUtils::ImGui::NewFrame();
+}
+
+bool CImGuiManager::IsGUIRendering() const
+{
+	return DrawUIRender;
 }
 
 CImGuiManager& CImGuiManager::Instance()

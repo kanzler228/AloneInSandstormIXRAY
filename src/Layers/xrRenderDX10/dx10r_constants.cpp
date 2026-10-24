@@ -15,7 +15,7 @@ IC bool	p_sort		(ref_constant C1, ref_constant C2)
 	return xr_strcmp(C1->name,C2->name)<0;
 }
 
-BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable, u32 destination)
+bool R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable, u32 destination)
 {
 	//VERIFY(_desc);
 	//ID3D10ShaderReflectionConstantBuffer *pTable = (ID3D10ShaderReflectionConstantBuffer *)_desc;
@@ -42,8 +42,8 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 		pType->GetDesc(&TypeDesc);
 
 		// Name
-		//LPCSTR	name		=	LPCSTR(ptr+it->Name);
-		LPCSTR	name		=	VarDesc.Name;
+		//const char*	name		=	const char*(ptr+it->Name);
+		const char*	name		=	VarDesc.Name;
 
 		// Type
 		//u16		type		=	RC_float;
@@ -72,7 +72,7 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 
 		// TypeInfo + class
 		//D3DXSHADER_TYPEINFO*	T	= (D3DXSHADER_TYPEINFO*)(ptr+it->TypeInfo);
-		BOOL bSkip					= FALSE;
+		bool bSkip					= false;
 		//switch (T->Class)
 		switch (TypeDesc.Class)
 		{
@@ -160,18 +160,18 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 				// We have determined all valuable info, search if constant already created
 				ref_constant	C		=	get	(name);
 				if (!C)	{
-				C					=	new R_constant();//.g_constant_allocator.create();
+				C					=	new RHIShaderConstant();//.g_constant_allocator.create();
 				C->name				=	name;
 				C->destination		=	RC_dest_sampler;
 				C->type				=	RC_sampler;
-				R_constant_load& L	=	C->samp;
+				RHIShaderConstant::Loader& L	=	C->samp;
 				L.index				=	u16(r_index	+ ( (destination&1)? 0 : D3DVERTEXTEXTURESAMPLER0 ));
 				L.cls				=	RC_sampler	;
 				table.push_back		(C);
 				} else {
 				R_ASSERT			(C->destination	==	RC_dest_sampler);
 				R_ASSERT			(C->type		==	RC_sampler);
-				R_constant_load& L	=	C->samp;
+				RHIShaderConstant::Loader& L	=	C->samp;
 				R_ASSERT			(L.index		==	r_index);
 				R_ASSERT			(L.cls			==	RC_sampler);
 				}
@@ -183,10 +183,10 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 				}
 				*/
 			}
-			bSkip		= TRUE;
+			bSkip		= true;
 			break;
 		default:
-			bSkip		= TRUE;
+			bSkip		= true;
 			break;
 		}
 		if (bSkip)			continue;
@@ -194,12 +194,12 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 		// We have determined all valuable info, search if constant already created
 		ref_constant	C		=	get	(name);
 		if (!C)	{
-			C					=	new R_constant();//.g_constant_allocator.create();
+			C					=	new RHIShaderConstant();//.g_constant_allocator.create();
 			C->name				=	name;
 			C->destination		=	destination;
 			C->type				=	type;
-			//R_constant_load& L	=	(destination&1)?C->ps:C->vs;
-			R_constant_load& L	=	C->get_load(destination);/*((destination&RC_dest_pixel)
+			//RHIShaderConstant::Loader& L	=	(destination&1)?C->ps:C->vs;
+			RHIShaderConstant::Loader& L	=	C->get_load(destination);/*((destination&RC_dest_pixel)
 									? C->ps : (destination&RC_dest_vertex)
 									? C->vs : C->gs);*/
 			L.index				=	r_index;
@@ -208,18 +208,18 @@ BOOL R_constant_table::parseConstants(ID3DShaderReflectionConstantBuffer* pTable
 		} else {
 			C->destination		|=	destination;
 			VERIFY	(C->type	==	type);
-			//R_constant_load& L	=	(destination&1)?C->ps:C->vs;
-			R_constant_load& L	=	C->get_load(destination);/*((destination&RC_dest_pixel)
+			//RHIShaderConstant::Loader& L	=	(destination&1)?C->ps:C->vs;
+			RHIShaderConstant::Loader& L	=	C->get_load(destination);/*((destination&RC_dest_pixel)
 									? C->ps : (destination&RC_dest_vertex)
 									? C->vs : C->gs);*/
 			L.index				=	r_index;
 			L.cls				=	r_type;
 		}
 	}
-	return TRUE;
+	return true;
 }
 
-BOOL R_constant_table::parseResources(ID3DShaderReflection* pReflection, int ResNum, u32 destination)
+bool R_constant_table::parseResources(ID3DShaderReflection* pReflection, int ResNum, u32 destination)
 {
 	for (int i=0; i<ResNum; ++i)
 	{
@@ -281,11 +281,11 @@ BOOL R_constant_table::parseResources(ID3DShaderReflection* pReflection, int Res
 		ref_constant	C		=	get	(ResDesc.Name);
 		if (!C)	
 		{
-			C					=	new R_constant();//.g_constant_allocator.create();
+			C					=	new RHIShaderConstant();//.g_constant_allocator.create();
 			C->name				=	ResDesc.Name;
 			C->destination		=	RC_dest_sampler;
 			C->type				=	type;
-			R_constant_load& L	=	C->samp;
+			RHIShaderConstant::Loader& L	=	C->samp;
 			L.index				=	r_index;
 			L.cls				=	type;
 			table.push_back		(C);
@@ -294,13 +294,13 @@ BOOL R_constant_table::parseResources(ID3DShaderReflection* pReflection, int Res
 		{
 			R_ASSERT			(C->destination	==	RC_dest_sampler);
 			R_ASSERT			(C->type		==	type);
-			R_constant_load& L	=	C->samp;
+			RHIShaderConstant::Loader& L	=	C->samp;
 			R_ASSERT			(L.index		==	r_index);
 			R_ASSERT			(L.cls			==	type);
 		}
 		
 	}
-	return TRUE;
+	return true;
 }
 
 IC u32 dest_to_shift_value(u32 destination)
@@ -347,7 +347,7 @@ IC u32 dest_to_cbuf_type(u32 destination)
 	return 0;
 }
 
-BOOL	R_constant_table::parse	(void* _desc, u32 destination)
+bool	R_constant_table::parse	(void* _desc, u32 destination)
 {
 	ID3DShaderReflection *pReflection = (ID3DShaderReflection *)_desc;
 
@@ -390,5 +390,5 @@ BOOL	R_constant_table::parse	(void* _desc, u32 destination)
 	}
 
 	std::sort	(table.begin(),table.end(),p_sort);
-	return		TRUE;
+	return		true;
 }

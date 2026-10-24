@@ -16,19 +16,25 @@ public:
 
 	virtual void Show							(bool status);
 
-	virtual bool OnKeyboardAction						(int dik, EUIMessages keyboard_action);
+	virtual bool OnKeyboardAction				(int dik, EUIMessages keyboard_action);
 	virtual bool OnKeyboardHold					(int dik);
+
+	virtual bool OnGamepadKeyAction				(int key, EUIMessages gamepad_action);
+	virtual bool OnGamepadStickAction			(int key, Fvector2 value, EUIMessages gamepad_action);
+	virtual bool OnGyroscopeAction				(Fvector3 value);
+	virtual bool OnTouchpadAction				(Fvector2 value);
 
 	CDialogHolder* GetHolder					()								{return m_pParentHolder;};
 			void SetHolder						(CDialogHolder* h)				{m_pParentHolder = h;};
 	virtual bool StopAnyMove					()								{return true;}
 	virtual bool NeedCursor						()const							{return true;}
+	virtual bool ForceCursorInput				()								{return false;}
 	virtual bool NeedCenterCursor				()const							{return true;}
 	virtual bool WorkInPause					()const							{return m_bWorkInPause;}
 	virtual bool Dispatch						(int cmd, int param)			{return true;}
     virtual void ShowOrHideDialog				(bool bDoHideIndicators);
 			void ShowDialog						(bool bDoHideIndicators);
-			void HideDialog						();
+	virtual void HideDialog						();
 
 	virtual bool IR_process						();
 

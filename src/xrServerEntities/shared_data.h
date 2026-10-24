@@ -11,7 +11,7 @@ public:
 	//otherwise user should call DestroySingleton() manually
 	static bool _on_self_delete;
 public:
-					CSingleton			()	{}
+					CSingleton			() = default;
 	virtual			~CSingleton			()	{_self=NULL;}
 	
 	static			void DestroySingleton	()	{
@@ -48,7 +48,7 @@ template<class SHARED_TYPE, class KEY_TYPE> class CSharedObj : public CSingleton
 	typedef typename xr_map<KEY_TYPE, SHARED_TYPE*>::iterator SHARED_DATA_MAP_IT;
 
 public:
-				CSharedObj	() {};
+				CSharedObj	() = default;
 	virtual		~CSharedObj	() {
 		for (SHARED_DATA_MAP_IT it = _shared_tab.begin(); it != _shared_tab.end(); ++it){
 			xr_delete(it->second);
@@ -93,7 +93,7 @@ public:
 		CSharedObj<SHARED_TYPE, KEY_TYPE>::DestroySingleton();
 	}
 
-	void			load_shared		(KEY_TYPE key, LPCSTR section) {
+	void			load_shared		(KEY_TYPE key, const char* section) {
 		_sd = pSharedObj->get_shared(key);
 
 		if (!get_sd()->IsLoaded()) {
@@ -102,7 +102,7 @@ public:
 		}
 	}
 
-	virtual void	load_shared	(LPCSTR section) {}
+	virtual void	load_shared	(const char* section) {}
 
 	SHARED_TYPE				*get_sd			()			{return _sd;}
 	const SHARED_TYPE		*get_sd			() const	{return _sd;}
@@ -135,12 +135,12 @@ public:
 //public:
 //
 //	//3. call shared load on Load
-//	virtual void Load			(LPCSTR section) {
+//	virtual void Load			(const char* section) {
 //		inherited_shared::load_shared(class_id(), section);
 //	}
 //	
 //	//4. load shared data
-//	virtual void load_shared	(LPCSTR section) {
+//	virtual void load_shared	(const char* section) {
 //		a = pSettings->r_u8(section, "smth1");
 //		b = pSettings->r_u8(section, "smth2");
 //	}

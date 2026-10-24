@@ -12,8 +12,6 @@ protected:
     	flAppendRandomUpdateProps		= (1<<27),
     	flAppendRandomScaleProportional	= (1<<28),
     	flAppendRandom					= (1<<29),
-    	flAppendRandomScale				= (1<<30),
-    	flAppendRandomRotation			= (1<<31),
     };
 	bool 				ExportBreakableObjects	(SExportStreams* F);
 	bool 				ExportClimableObjects	(SExportStreams* F);
@@ -38,8 +36,8 @@ public:
 	virtual void		OnFrame					();
 
 	// definition
-    IC LPCSTR			ClassName				(){return "scene_object";}
-    IC LPCSTR			ClassDesc				(){return "Scene Object";}
+    IC const char*			ClassName				(){return "scene_object";}
+    IC const char*			ClassDesc				(){return "Scene Object";}
     IC int				RenderPriority			(){return 1;}
 
     bool				GetBox					(Fbox& bb);
@@ -57,19 +55,17 @@ public:
     virtual void		SaveSelection      		(IWriter&);
 
     // append random
-   	void			    FillAppendRandomPropertiesBegin	(bool bUpdateOnly=false);
+   	void			    FillAppendRandomPropertiesBegin	(UIPropertiesForm& Prop);
     bool			    FillAppendRandomPropertiesEnd   ();
-    void				ActivateAppendRandom		(BOOL val){m_Flags.set(flAppendRandom,val);}
-    BOOL				IsAppendRandomActive		(){return m_Flags.is(flAppendRandom);}
-    BOOL				IsAppendRandomScaleActive	(){return m_Flags.is(flAppendRandomScale);}
-    BOOL				IsAppendRandomRotationActive(){return m_Flags.is(flAppendRandomRotation);}
-    BOOL				IsAppendRandomScaleProportional(){return m_Flags.is(flAppendRandomScaleProportional);}
+    void				ActivateAppendRandom		(bool val){m_Flags.set(flAppendRandom,val);}
+    bool				IsAppendRandomActive		(){return m_Flags.is(flAppendRandom);}
+    bool				IsAppendRandomScaleProportional(){return m_Flags.is(flAppendRandomScaleProportional);}
 
     // tools
     virtual bool		ExportGame         		(SExportStreams* F);
     virtual void		GetStaticDesc			(int& v_cnt, int& f_cnt, bool b_selected_only, bool b_cform);
 
-    virtual CCustomObject* CreateObject			(LPVOID data, LPCSTR name);
+    virtual CCustomObject* CreateObject			(LPVOID data, const char* name);
 
-	virtual void 		HighlightTexture		(LPCSTR tex_name, bool allow_ratio, u32 t_width, u32 t_height, BOOL mark);
+	virtual void 		HighlightTexture		(const char* tex_name, bool allow_ratio, u32 t_width, u32 t_height, bool mark);
 };

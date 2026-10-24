@@ -7,21 +7,20 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
 #include "alife_space.h"
 #include "xr_graph_merge.h"
-#include "../xrForms/xrThread.h"
 #include "graph_abstract.h"
 #include "xrServer_Object_Base.h"
-#include "spawn_constructor_space.h"
 #include "server_entity_wrapper.h"
+#include "level_spawn_constructor.h"
 
 class CSE_Abstract;
 class CLevelSpawnConstructor;
 class CSE_ALifeCreatureAbstract;
 class CPatrolPathStorage;
 
-class CGameSpawnConstructor {
+class CGameSpawnConstructor
+{
 	friend class CSpawnMerger;
 public:
 	typedef SpawnConstructorSpace::LEVEL_POINT_STORAGE								LEVEL_POINT_STORAGE;
@@ -31,7 +30,8 @@ public:
 	typedef xr_set<CLevelInfo>														LEVEL_INFO_STORAGE;
 
 public:
-	struct CSpawnHeader {
+	struct CSpawnHeader
+	{
 		u32							m_version;
 		xrGUID						m_guid;
 		xrGUID						m_graph_guid;
@@ -40,10 +40,8 @@ public:
 	};
 
 private:
-	xrCriticalSection				m_critical_section;
-	ALife::_SPAWN_ID				m_spawn_id;
-	CThreadManager					m_thread_manager;
-	CSpawnHeader					m_spawn_header;
+ 	ALife::_SPAWN_ID				m_spawn_id;
+ 	CSpawnHeader					m_spawn_header;
 	ALife::STORY_P_MAP				m_story_objects;
 	LEVEL_INFO_STORAGE				m_levels;
 	LEVEL_SPAWN_STORAGE				m_level_spawns;
@@ -68,27 +66,27 @@ private:
 
 private:
 	IC		shared_str				actor_level_name		();
-	IC		shared_str				spawn_name				(LPCSTR output);
-			void					save_spawn				(LPCSTR name, LPCSTR output);
+	IC		shared_str				spawn_name				(const char* output);
+			void					save_spawn				(const char* output);
 			void					verify_level_changers	();
 			void					verify_spawns			(ALife::_SPAWN_ID spawn_id);
 			void					verify_spawns			();
 			void					process_spawns			();
-			void					load_spawns				(LPCSTR name, bool no_separator_check);
+			void					load_spawns				(const char* name, bool no_separator_check);
 	IC		SPAWN_GRAPH				&spawn_graph			();
 	IC		ALife::_SPAWN_ID		spawn_id				();
 	IC		void					process_spawns			(xr_vector<ALife::_SPAWN_ID> &spawns);
-			void					process_actor			(LPCSTR start_level_name);
+			void					process_actor			(const char* start_level_name);
 
 public:
-									CGameSpawnConstructor	(LPCSTR name, LPCSTR output, LPCSTR start, bool no_separator_check);
+									CGameSpawnConstructor	(const char* name, const char* output, const char* start, bool no_separator_check);
 	virtual							~CGameSpawnConstructor	();
-			void					add_story_object		(ALife::_STORY_ID id,CSE_ALifeDynamicObject *object, LPCSTR level_name);
+			void					add_story_object		(ALife::_STORY_ID id,CSE_ALifeDynamicObject *object, const char* level_name);
 			void					add_object				(CSE_Abstract *object);
 			void					remove_object			(CSE_Abstract *object);
 	IC		void					add_level_changer		(CSE_ALifeLevelChanger *level_changer);
 	IC		void					add_level_points		(const LEVEL_POINT_STORAGE &level_points);
-	IC		u32						level_id				(LPCSTR level_name);
+	IC		u32						level_id				(const char* level_name);
 	IC		CGameGraph				&game_graph				() const;
 	IC		CInifile				&game_info				();
 	IC		void					add_edge				(ALife::_SPAWN_ID id0, ALife::_SPAWN_ID id1, float weight);

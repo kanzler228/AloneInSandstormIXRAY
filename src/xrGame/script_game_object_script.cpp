@@ -11,6 +11,7 @@
 #include "script_game_object.h"
 #include "game_object_space.h"
 #include "sight_manager_space.h"
+#include "ScriptsSubsystems/Compability/EnhancementEditionLuaLayer.h"
 #include "../xrScripts/exports/script_ini_file.h"
 
 using namespace luabind;
@@ -48,11 +49,11 @@ void CScriptGameObject::script_register(lua_State *L)
 			.def_readonly("m_vector",		&CSightParams::m_vector)
 			.def_readonly("m_sight_type",	&CSightParams::m_sight_type),
 		
-		script_register_game_object2(
+		script_register_game_object_ee(script_register_game_object2(
 			script_register_game_object1(
 				script_register_game_object_trader(std::move(instance))
 			)
-		),
+		)),
 
 		class_<enum_exporter<GameObject::ECallbackType> >("callback")
 			.enum_("callback_types")
@@ -83,7 +84,6 @@ void CScriptGameObject::script_register(lua_State *L)
 				value("action_sound",				int(GameObject::eActionTypeSound)),
 				value("action_particle",			int(GameObject::eActionTypeParticle)),
 				value("action_object",				int(GameObject::eActionTypeObject)),
-				value("actor_sleep",				int(GameObject::eActorSleep)),
                 value("actor_before_death", 		int(GameObject::eActorBeforeDeath)),
 				value("hud_animation_end",			int(GameObject::eActorHudAnimationEnd)),
 				value("helicopter_on_point",		int(GameObject::eHelicopterOnPoint)),
@@ -94,7 +94,11 @@ void CScriptGameObject::script_register(lua_State *L)
 				value("task_state",					int(GameObject::eTaskStateChange)),
 				value("take_item_from_box",			int(GameObject::eInvBoxItemTake)),
 				value("weapon_no_ammo",				int(GameObject::eWeaponNoAmmoAvailable)),
-		
+
+				value("on_actor_hit_fall",			int(GameObject::eFallHit)),
+				value("on_actor_jump_begin",		int(GameObject::eOnActorJumpBegin)),
+				value("on_actor_jump_end",			int(GameObject::eOnActorJumpEnd)),
+
 				//weapon
 				value("weapon_fired",				int(GameObject::eOnWeaponFired)),
 				value("weapon_jammed",				int(GameObject::eOnWeaponJammed)),
@@ -124,9 +128,9 @@ void CScriptGameObject::script_register(lua_State *L)
 				value("map_location_added",			int(GameObject::eMapLocationAdded))
 			],
 
-		def("buy_condition",				(void (*)(CScriptIniFile*,LPCSTR))(&::buy_condition)),
+		def("buy_condition",				(void (*)(CScriptIniFile*,const char*))(&::buy_condition)),
 		def("buy_condition",				(void (*)(float,float))(&::buy_condition)),
-		def("sell_condition",				(void (*)(CScriptIniFile*,LPCSTR))(&::sell_condition)),
+		def("sell_condition",				(void (*)(CScriptIniFile*,const char*))(&::sell_condition)),
 		def("sell_condition",				(void (*)(float,float))(&::sell_condition)),
 		def("show_condition",				&::show_condition)
 	];

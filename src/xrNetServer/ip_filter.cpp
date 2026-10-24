@@ -2,9 +2,7 @@
 #include "ip_filter.h"
 #include "../xrCore/xr_ini.h"
 
-ip_filter::ip_filter()
-{
-}
+ip_filter::ip_filter() = default;
 ip_filter::~ip_filter()
 {
 	for (subnets_coll_t::iterator i = m_all_subnets.begin(),
@@ -57,8 +55,8 @@ u32 ip_filter::load()
 	for (u32 i = 0, line_count = ini.line_count(SUBNET_LIST_SECT_NAME);
 		i != line_count; ++i)
 	{
-		LPCSTR address;
-		LPCSTR line;
+		const char* address;
+		const char* line;
 		ini.r_line(SUBNET_LIST_SECT_NAME, i, &address, &line);
 		if (!xr_strlen(address))
 			continue;

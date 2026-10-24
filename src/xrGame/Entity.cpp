@@ -32,10 +32,8 @@ CEntity::CEntity()
 }
 
 CEntity::~CEntity()
-{	
-	xr_delete				(m_entity_condition);
+{
 }
-
 
 CEntityConditionSimple *CEntity::create_entity_condition(CEntityConditionSimple* ec)
 {
@@ -97,15 +95,8 @@ float CEntity::CalcCondition(float hit)
 	return hit;
 }
 
-
-
-
-//void CEntity::Hit			(float perc, Fvector &dir, CObject* who, s16 element,Fvector position_in_object_space, float impulse, ALife::EHitType hit_type) 
-void	CEntity::Hit		(SHit* pHDS)
+void CEntity::Hit(SHit* pHDS)
 {
-
-//	if (bDebug)				Log("Process HIT: ", *cName());
-
 	// *** process hit calculations
 	// Calc impulse
 	Fvector					vLocalDir;
@@ -135,11 +126,11 @@ void	CEntity::Hit		(SHit* pHDS)
 	inherited::Hit(pHDS);
 }
 
-void CEntity::Load		(LPCSTR section)
+void CEntity::Load		(const char* section)
 {
 	inherited::Load		(section);
 
-	setVisible			(FALSE);
+	setVisible			(false);
 	
 	// Team params
 	id_Team				= READ_IF_EXISTS(pSettings,r_s32,section,"team",-1);
@@ -154,7 +145,7 @@ void CEntity::Load		(LPCSTR section)
 	//////////////////////////////////////
 }
 
-BOOL CEntity::net_Spawn		(CSE_Abstract* DC)
+bool CEntity::net_Spawn		(CSE_Abstract* DC)
 {
 	m_level_death_time		= 0;
 	m_game_death_time		= 0;
@@ -216,20 +207,29 @@ BOOL CEntity::net_Spawn		(CSE_Abstract* DC)
 	}
 
 	if (!inherited::net_Spawn(DC))
-		return				(FALSE);
+		return				(false);
 
 //	SetfHealth			(E->fHealth);
 	IKinematics* pKinematics = PKinematics(Visual());
 	CInifile* ini = nullptr;
 
-	if(pKinematics) ini = pKinematics->LL_UserData();
-	if (ini) {
-		if (ini->section_exist("damage_section") && !use_simplified_visual())
-			CDamageManager::reload(pSettings->r_string("damage_section","damage"),ini);
-
-		CParticlesPlayer::LoadParticles(pKinematics);
+	if (pKinematics)
+	{
+		ini = pKinematics->LL_UserData();
 	}
-	return					TRUE;
+	
+	if (ini)
+	{
+		if (ini->section_exist("damage_section"))
+		{
+			TDamageManager* DmgManager = GetComponent<TDamageManager>();
+			DmgManager->reload(pSettings->r_string("damage_section", "damage"), ini);
+		}
+
+		TParticlesPlayer* PPlayer = GetOrCreateComponent<TParticlesPlayer>();
+		PPlayer->LoadParticles(pKinematics);
+	}
+	return					true;
 }
 
 void CEntity::net_Destroy()
@@ -261,6 +261,7 @@ void CEntity::KillEntity(u16 whoID, bool bypass_actor_check /*AVO: added for act
 		}
 #endif // MASTER_GOLD
 
+		Actor()->RegisterPlayerDeath();
 		Actor()->use_HolderEx(nullptr, true);
 		Actor()->callback(GameObject::eActorBeforeDeath)(whoID);
 		return;
@@ -298,27 +299,21 @@ void CEntity::KillEntity(u16 whoID, bool bypass_actor_check /*AVO: added for act
 		P.w_u16			(u16(whoID));
 		P.w_u32			(0);
 		if (OnServer())
-			u_EventSend	(P, net_flags(TRUE, TRUE, FALSE, TRUE));
+			u_EventSend	(P, net_flags(true, true, false, true));
 	}
 };
 
-//void CEntity::KillEntity(CObject* who)
-//{
-//	VERIFY			(who);
-//	if (who) KillEntity(who->ID());	
-//}
-
-void CEntity::reinit			()
+void CEntity::reinit()
 {
-	inherited::reinit			();
+	inherited::reinit();
 }
 
-
-void CEntity::reload			(LPCSTR section)
+void CEntity::reload(const char* section)
 {
-	inherited::reload			(section);
-	if (!use_simplified_visual())
-		CDamageManager::reload	(section,"damage",pSettings);
+	inherited::reload(section);
+
+	TDamageManager* DmgManager = GetComponent<TDamageManager>();
+	DmgManager->reload(section, "damage", pSettings);
 }
 
 void CEntity::set_death_time	()
@@ -327,19 +322,18 @@ void CEntity::set_death_time	()
 	m_game_death_time	= ai().get_alife() ? ai().alife().time_manager().game_time() : Level().GetGameTime();
 }
 
-bool CEntity::IsFocused			()const	{ return (smart_cast<const CEntity*>(g_pGameLevel->CurrentEntity())==this);		}
-bool CEntity::IsMyCamera		()const	{ return (smart_cast<const CEntity*>(g_pGameLevel->CurrentViewEntity())==this);	}
-
 void CEntity::set_ready_to_save	()
 {
 }
 
-DLL_Pure *CEntity::_construct	()
+DLL_Pure* CEntity::_construct()
 {
-	inherited::_construct		();
-	CDamageManager::_construct	();
-	m_entity_condition			= create_entity_condition(nullptr);
-	return						(this);
+	inherited::_construct();
+	m_entity_condition = create_entity_condition(nullptr);
+	TDamageManager& DmgManager = CreateComponent<TDamageManager>();
+	DmgManager.m_object = this;
+
+	return (this);
 }
 
 const u32 FORGET_KILLER_TIME = 180000;

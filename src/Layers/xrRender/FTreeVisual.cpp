@@ -30,11 +30,12 @@ void FTreeVisual::Release	()
 	dxRender_Visual::Release	();
 }
 
-void FTreeVisual::Load		(const char* N, IReader *data, u32 dwFlags)
+void FTreeVisual::Load(const char* N, IReader* data, u32 dwFlags)
 {
-	dxRender_Visual::Load		(N,data,dwFlags);
+	dxRender_Visual::Load(N, data, dwFlags);
 
-	D3DVERTEXELEMENT9*	vFormat	= nullptr;
+	RHIInputElementDesc* vFormat	= nullptr;
+	size_t FormatSize = 0;
 
 	// read vertices
 	bool FoundedChunk = !!data->find_chunk(OGF_GCONTAINER);
@@ -45,7 +46,7 @@ void FTreeVisual::Load		(const char* N, IReader *data, u32 dwFlags)
 		u32 ID				= data->r_u32				();
 		vBase				= data->r_u32				();
 		vCount				= data->r_u32				();
-		vFormat				= RImplementation.getVB_Format	(ID);
+		vFormat				= RImplementation.getVB_Format	(ID, &FormatSize);
 		
 		VERIFY				(nullptr==p_rm_Vertices);
 
@@ -76,7 +77,7 @@ void FTreeVisual::Load		(const char* N, IReader *data, u32 dwFlags)
 	}
 
 	// Geom
-	rm_geom.create			(vFormat,p_rm_Vertices,p_rm_Indices);
+	rm_geom.create			(vFormat, FormatSize, p_rm_Vertices,p_rm_Indices);
 
 	// Get constants
 	m_xform				= "m_xform";
@@ -109,7 +110,7 @@ struct	FTreeVisual_setup
 
 		// Calc wind-vector3, scale
 		float	tm_rot			= PI_MUL_2 * Device.fTimeGlobal / currentEnv->trees_rotation;
-		wind.set				(_sin(tm_rot),0,_cos(tm_rot),0);	wind.normalize	();	wind.mul(currentEnv->trees_amplitude);	// dir1*amplitude
+		wind.set				(std::sin(tm_rot),0, std::cos(tm_rot),0);	wind.normalize	();	wind.mul(currentEnv->trees_amplitude);	// dir1*amplitude
 		scale					= 1.f/float(FTreeVisual_quant);
 
 		// setup constants
@@ -204,7 +205,7 @@ void FTreeVisual_ST::Render		(float LOD)
 {
 	inherited::Render			(LOD);
 	RCache.set_Geometry			(rm_geom);
-	RCache.Render				(D3DPT_TRIANGLELIST,vBase,0,vCount,iBase,dwPrimitives);
+	RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vBase,0,vCount,iBase,dwPrimitives);
 	RCache.stat.r.s_flora.add	(vCount);
 }
 void FTreeVisual_ST::Copy		(dxRender_Visual *pSrc)
@@ -250,7 +251,7 @@ void FTreeVisual_PM::Render		(float LOD)
 	VERIFY						(lod_id>=0 && lod_id<int(pSWI->count));
 	FSlideWindow& SW			= pSWI->sw[lod_id];
 	RCache.set_Geometry			(rm_geom);
-	RCache.Render				(D3DPT_TRIANGLELIST,vBase,0,SW.num_verts,iBase+SW.offset,SW.num_tris);
+	RCache.Render				(ERHI_PRIMITIVE_TOPOLOGY::TRIANGLE_LIST,vBase,0,SW.num_verts,iBase+SW.offset,SW.num_tris);
 	RCache.stat.r.s_flora.add	(SW.num_verts);
 }
 void FTreeVisual_PM::Copy		(dxRender_Visual *pSrc)

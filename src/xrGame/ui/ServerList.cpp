@@ -12,7 +12,7 @@
 #include "../gamespy/GameSpy_Browser.h"
 
 
-LPCSTR GameTypeToString(EGameIDs gt, bool bShort);
+const char* GameTypeToString(EGameIDs gt, bool bShort);
 CGameSpy_Browser* g_gs_browser = nullptr;
 
 CServerList::CServerList()
@@ -387,7 +387,10 @@ void CServerList::UpdateSizes()
 	float height = m_bShowServerInfo ? m_fListH[1] : m_fListH[0];
 	m_list[LST_SERVER].SetHeight(height);
 	int page_size = (m_list[LST_SERVER].GetSize()*m_list[LST_SERVER].GetItemHeight() < height) ? 0 : int(height);
-	m_list[LST_SERVER].ScrollBar()->SetPageSize(page_size);
+	if (CUIScrollBar* bar = m_list[LST_SERVER].ScrollBar())
+	{
+		bar->SetPageSize(page_size);
+	}
 	m_list[LST_SERVER].ForceUpdate();
 
 	m_frame[LST_SERVER].SetHeight	(height+2.0f);
@@ -413,7 +416,7 @@ void CServerList::SetFilters(SServerFilters& sf)
 	RefreshList();
 }
 
-void CServerList::SetPlayerName(LPCSTR name)
+void CServerList::SetPlayerName(const char* name)
 {
 	m_playerName = name;
 }
@@ -432,7 +435,7 @@ bool CServerList::IsValidItem(ServerInfo& item)
 	return result;
 }
 
-void CServerList::InitFromXml(CUIXml& xml_doc, LPCSTR path)
+void CServerList::InitFromXml(CUIXml& xml_doc, const char* path)
 {
 	CUIXmlInit::InitWindow			(xml_doc, path, 0, this);
 	string256 buf;

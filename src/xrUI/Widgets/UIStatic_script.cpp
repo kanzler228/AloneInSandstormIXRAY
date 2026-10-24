@@ -30,10 +30,12 @@ void CUIStatic::script_register(lua_State *L)
 		.def("GetStretchTexture", 	&CUIStatic::GetStretchTexture)														  
 		.def("TextControl",			&CUIStatic::TextItemControl)
 			
-       .def("SetText",				(void (CUIStatic::*)(LPCSTR)) (&CUIStatic::SetText))
-       .def("SetTextST",			(void (CUIStatic::*)(LPCSTR)) (&CUIStatic::SetTextST))
+       .def("SetText",				(void (CUIStatic::*)(const char*)) (&CUIStatic::SetText))
+       .def("SetTextST",			(void (CUIStatic::*)(const char*)) (&CUIStatic::SetTextST))
 
        .def("GetText",				&CUIStatic::GetText)
+
+		.def("SetFont",				&CUIStatic::SetFont)
 
        .def("SetTextX",				&CUIStatic::SetTextX)
        .def("SetTextY",				&CUIStatic::SetTextY)
@@ -44,11 +46,13 @@ void CUIStatic::script_register(lua_State *L)
        .def("GetColor",				&CUIStatic::GetTextureColor)
 
         .def("SetTextColor",		&CUIStatic::SetTextColor_script)
+		.def("SetTextColor",		&CUIStatic::SetTextColor)
+		.def("GetTextColor",		&CUIStatic::GetTextColor)
 
-        .def("InitTexture",			&CUIStatic::InitTexture)
-        .def("InitTexture",			+[](CUIStatic* self, pcstr texture) { self->InitTexture(texture); })
+        .def("InitTexture",			(bool (CUIStatic::*)(const char*, bool)) &CUIStatic::InitTexture)
+        .def("InitTexture",			+[](CUIStatic* self, const char* texture) { self->InitTexture(texture); })
         .def("InitTextureEx",		&CUIStatic::InitTextureEx)
-        .def("InitTextureEx",		+[](CUIStatic* self, pcstr texture, pcstr shader) { self->InitTextureEx(texture, shader); })
+        .def("InitTextureEx",		+[](CUIStatic* self, const char* texture, const char* shader) { self->InitTextureEx(texture, shader); })
         .def("ResetOriginalRect", &CUIStatic::ResetOriginalRect)
 
 		.def("SetTextureOffset",	&CUIStatic::SetTextureOffset)
@@ -68,27 +72,12 @@ void CUIStatic::script_register(lua_State *L)
         .def("SetHeading",			&CUIStatic::SetHeading)
         .def("GetHeading",			&CUIStatic::GetHeading)
 
-        .def("SetElipsis",			&CUIStatic::SetEllipsis),
-
-		class_<CUITextWnd, CUIWindow>("CUITextWnd")
-		.def(						constructor<>())
-		.def("AdjustHeightToText",	&CUITextWnd::AdjustHeightToText)
-		.def("AdjustWidthToText",	&CUITextWnd::AdjustWidthToText)
-		.def("SetText",				&CUITextWnd::SetText)
-		.def("SetTextST",			&CUITextWnd::SetTextST)
-		.def("GetText",				&CUITextWnd::GetText)
-		.def("SetFont",				&CUITextWnd::SetFont)
-		.def("GetFont",				&CUITextWnd::GetFont)
-		.def("SetTextColor",		&CUITextWnd::SetTextColor)
-		.def("GetTextColor",		&CUITextWnd::GetTextColor)
-		.def("SetTextComplexMode",	&CUITextWnd::SetTextComplexMode)
-		.def("SetTextAlignment",	&CUITextWnd::SetTextAlignment)
-		.def("SetVTextAlignment",	&CUITextWnd::SetVTextAlignment)
-		.def("SetEllipsis",			&CUITextWnd::SetEllipsis)
-		.def("SetTextOffset",		&CUITextWnd::SetTextOffset),
-//		.def("",					&CUITextWnd::)
-
-		class_<CUISleepStatic, CUIStatic>("CUISleepStatic")
-		.def(						constructor<>())
+        .def("SetElipsis",			&CUIStatic::SetEllipsis)
+        .def("SetEllipsis",			&CUIStatic::SetEllipsis_script)
+		.def("SetTextAlignment",	&CUIStatic::SetTextAlignment)
+		.def("SetVTextAlignment",	&CUIStatic::SetVTextAlignment)
+		.def("SetTextComplexMode",	&CUIStatic::SetTextComplexMode)
+		.def("GetFont",				&CUIStatic::GetFont)
+		.def("SetTextOffset",		&CUIStatic::SetTextOffset)
 	];
 }

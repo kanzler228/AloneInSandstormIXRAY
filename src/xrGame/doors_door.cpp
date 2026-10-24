@@ -45,12 +45,14 @@ door::door( CPhysicObject* object ) :
 	m_open_vector.mul			( length );
 	m_closed_vector.mul			( length );
 
-	m_object.SpatialComponent->spatial.type		|=	STYPE_VISIBLEFORAI;
+	m_object.SpatialComponent->type |= ESPATIAL_TYPE::VISIBLEFORAI;
+	m_object.SpatialComponent->type |= ESPATIAL_TYPE::AI_DOOR;
 }
 
 door::~door( )
 {
-	m_object.SpatialComponent->spatial.type		&=	~STYPE_VISIBLEFORAI;
+	m_object.SpatialComponent->type &= ~ESPATIAL_TYPE::VISIBLEFORAI;
+	m_object.SpatialComponent->type &= ~ESPATIAL_TYPE::AI_DOOR;
 
 	if ( m_initiators.empty() )
 		return;
@@ -121,7 +123,7 @@ bool door::is_blocked(door_state const state, CObject* Initiator) const
 }
 
 #ifdef DEBUG
-extern BOOL g_debug_doors;
+extern bool g_debug_doors;
 #endif // #ifdef DEBUG
 
 void door::lock					( )
@@ -268,7 +270,7 @@ void door::on_change_state		( door_state const state )
 }
 
 #ifdef DEBUG
-LPCSTR door::get_name			( ) const
+const char* door::get_name			( ) const
 {
 	return						m_object.cName().c_str();
 }
@@ -284,14 +286,12 @@ shared_str door::get_initiators_ids	( ) const
 	LPSTR const result			= (LPSTR)_alloca(buffer_size);
 	*result						= 0;
 	LPSTR j						= result;
-	u32 left_size				= buffer_size;
 	for ( i = m_initiators.begin(); i != e; ++i ) {
 		u32 const length		= xr_strlen((*i)->get_name());
 		Memory.mem_copy			( j, (*i)->get_name(), length );
 		j						+= length;
 		*j++					= ',';
 		*j++					= ' ';
-		left_size				= buffer_size - (j - result);
 	}
 
 	if ( buffer_size > 1 )

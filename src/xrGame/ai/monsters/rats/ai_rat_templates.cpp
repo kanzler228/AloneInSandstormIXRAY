@@ -6,7 +6,7 @@
 //	Description : Templates for monster "Rat"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_rat.h"
 #include "../../ai_monsters_misc.h"
 #include "../../../game_graph.h"
@@ -57,7 +57,7 @@ void CAI_Rat::fire	(bool const &bFire)
 void CAI_Rat::movement_type	(float const &fSpeed)
 {
 //	StandUp();
-	m_bMoving = _abs(fSpeed) > EPS_L;
+	m_bMoving = std::abs(fSpeed) > EPS_L;
 	m_fSpeed = m_fCurSpeed = fSpeed;
 }
 
@@ -74,7 +74,7 @@ void CAI_Rat::select_speed	()
 	clamp					(fAngle,-.99999f,.99999f);
 	fAngle					= acosf(fAngle);
 	
-	if (_abs(m_fSpeed - m_fMinSpeed) <= EPS_L)	{
+	if (std::abs(m_fSpeed - m_fMinSpeed) <= EPS_L)	{
 		if (fAngle >= 2*PI_DIV_3) {
 			m_fSpeed = 0;
 			m_fASpeed = m_fNullASpeed;
@@ -87,7 +87,7 @@ void CAI_Rat::select_speed	()
 		}
 	}
 	else
-		if (_abs(m_fSpeed - m_fMaxSpeed) <= EPS_L)	{
+		if (std::abs(m_fSpeed - m_fMaxSpeed) <= EPS_L)	{
 			if (fAngle >= 2*PI_DIV_3) {
 				m_fSpeed = 0;
 				m_fASpeed = m_fNullASpeed;
@@ -103,33 +103,30 @@ void CAI_Rat::select_speed	()
 					m_fASpeed = m_fMaxASpeed;
 				}
 		}
+		else if (std::abs(m_fSpeed - m_fAttackSpeed) <= EPS_L)
+		{
+			if (fAngle >= PI_DIV_2)
+			{
+				m_fSpeed = m_fMinSpeed;
+				m_fASpeed = m_fMinASpeed;
+			}
+			else if (fAngle >= PI_DIV_4)
+			{
+				m_fSpeed = m_fMaxSpeed;
+				m_fASpeed = m_fMaxASpeed;
+			}
+			else
+			{
+				m_fSpeed = m_fAttackSpeed;
+				m_fASpeed = m_fAttackASpeed;
+			}
+		}
 		else
-			if (_abs(m_fSpeed - m_fAttackSpeed) <= EPS_L)	{
-//				if (fAngle >= 2*PI_DIV_3) {
-//					m_fSpeed = 0;
-//					m_fASpeed = m_fNullASpeed;
-//					movement().m_body.target.yaw = -y;
-//				}
-//				else
-					if (fAngle >= PI_DIV_2) {
-						m_fSpeed = m_fMinSpeed;
-						m_fASpeed = m_fMinASpeed;
-					}
-					else
-						if (fAngle >= PI_DIV_4) {
-							m_fSpeed = m_fMaxSpeed;
-							m_fASpeed = m_fMaxASpeed;
-						}
-						else {
-							m_fSpeed = m_fAttackSpeed;
-							m_fASpeed = m_fAttackASpeed;
-						}
-			}
-			else {
-				movement().m_body.target.yaw = -y;
-				m_fSpeed = 0;
-				m_fASpeed = m_fNullASpeed;
-			}
+		{
+			movement().m_body.target.yaw = -y;
+			m_fSpeed = 0;
+			m_fASpeed = m_fNullASpeed;
+		}
 	
 	tTemp2 = XFORM().k;
 	tTemp2.normalize_safe();
@@ -138,7 +135,7 @@ void CAI_Rat::select_speed	()
 	tTemp1.mad(tTemp2,1*m_fSpeed*m_fTimeUpdateDelta);
 	if (bfCheckIfOutsideAIMap(tTemp1)) {
 		tTemp1 = Position();
-		if (_abs(m_fSpeed - m_fAttackSpeed) < EPS_L) {
+		if (std::abs(m_fSpeed - m_fAttackSpeed) < EPS_L) {
 			tTemp1.mad(tTemp2,1*m_fMaxSpeed*m_fTimeUpdateDelta);
 			if (bfCheckIfOutsideAIMap(tTemp1)) {
 				m_fSpeed = m_fMinSpeed;
@@ -207,8 +204,7 @@ bool CAI_Rat::calc_node(Fvector const &next_position)
 
 Fvector CAI_Rat::calc_position()
 {
-	Fvector				tSavedPosition = Position();
-	SRotation			tSavedTorsoTarget = movement().m_body.target;
+	Fvector tSavedPosition = Position();
 
 	// Update position and orientation of the planes
 	float fAT = m_fASpeed * m_fTimeUpdateDelta;
@@ -424,66 +420,70 @@ void CAI_Rat::select_next_home_position	()
 
 bool CAI_Rat::can_stand_in_position()
 {
-	xr_vector<CObject*>					tpNearestList								; 
-	//float m_radius = Radius();
-	Level().ObjectSpace.GetNearest		(tpNearestList, Position(), 0.2f, this)	; 
-	if (tpNearestList.empty())
-		return							(true);
+	g_SpatialSpace->q_sphere(m_nearest,0, ESPATIAL_TYPE::COLLIDEABLE, Position(), 0.2f);
+	if (m_nearest.empty())
+		return (true);
 
-	Fvector								c, d, C2;
-	Visual()->getVisData().box.get_CD			(c,d);
-	Fmatrix								M = XFORM();
-	M.transform_tiny					(C2,c);
-	M.c									= C2;
-	MagicBox3							box(M,d);
+	Fvector c, d, C2;
+	Visual()->getVisData().box.get_CD(c,d);
+	Fmatrix M = XFORM();
+	M.transform_tiny(C2,c);
+	M.c = C2;
+	MagicBox3 box(M,d);
 
-	xr_vector<CObject*>::iterator		I = tpNearestList.begin();
-	xr_vector<CObject*>::iterator		E = tpNearestList.end();
-	for ( ; I != E; ++I) {
-		if (!smart_cast<CAI_Rat*>(*I))
+	for (ISpatialShared& SS : m_nearest)
+	{
+		ISpatial* S = SS.get();
+		if (!S) continue;
+		CObject* O = S->dcast_CObject();
+		if (!O || O->getDestroy()) continue;
+
+		if (O == this || !smart_cast<CAI_Rat*>(O))
 			continue;
 
-		(*I)->Visual()->getVisData().box.get_CD	(c,d);
-		M								= (*I)->XFORM();
-		M.transform_tiny				(C2,c);
-		M.c								= C2;
+		O->Visual()->getVisData().box.get_CD(c,d);
+		M = O->XFORM();
+		M.transform_tiny(C2,c);
+		M.c = C2;
 
 		if (box.intersects(MagicBox3(M,d)))
-			return						(false);
+			return (false);
 	}
-	return								(true);
+	return (true);
 }
 
-bool CAI_Rat::can_stand_here	()
+bool CAI_Rat::can_stand_here()
 {
-	xr_vector<CObject*>					tpNearestList								; 
-	Level().ObjectSpace.GetNearest		(tpNearestList, Position(),Radius(),this)	; 
-	//xr_vector<CObject*>				&tpNearestList = Level().ObjectSpace.q_nearest; 
-	if (tpNearestList.empty())
+	g_SpatialSpace->q_sphere(m_nearest, 0, ESPATIAL_TYPE::COLLIDEABLE, Position(), Radius());
+	if (m_nearest.empty())
 		return							(true);
 
-	Fvector								c, d, C2;
-	Visual()->getVisData().box.get_CD			(c,d);
-	Fmatrix								M = XFORM();
-	M.transform_tiny					(C2,c);
-	M.c									= C2;
-	MagicBox3							box(M,d);
+	Fvector c, d, C2;
+	Visual()->getVisData().box.get_CD(c,d);
+	Fmatrix M = XFORM();
+	M.transform_tiny (C2,c);
+	M.c = C2;
+	MagicBox3 box(M,d);
 
-	xr_vector<CObject*>::iterator		I = tpNearestList.begin();
-	xr_vector<CObject*>::iterator		E = tpNearestList.end();
-	for ( ; I != E; ++I) {
-		if (!smart_cast<CAI_Rat*>(*I))
+	for (ISpatialShared& SS : m_nearest)
+	{
+		ISpatial* S = SS.get();
+		if (!S) continue;
+		CObject* O = S->dcast_CObject();
+		if (!O || O->getDestroy()) continue;
+
+		if (O == this || !smart_cast<CAI_Rat*>(O))
 			continue;
 		
-		(*I)->Visual()->getVisData().box.get_CD	(c,d);
-		M								= (*I)->XFORM();
-		M.transform_tiny				(C2,c);
-		M.c								= C2;
+		O->Visual()->getVisData().box.get_CD(c,d);
+		M = O->XFORM();
+		M.transform_tiny(C2,c);
+		M.c = C2;
 		
 		if (box.intersects(MagicBox3(M,d)))
-			return						(false);
+			return (false);
 	}
-	return								(true);
+	return (true);
 }
 
 Fvector CAI_Rat::get_next_target_point()

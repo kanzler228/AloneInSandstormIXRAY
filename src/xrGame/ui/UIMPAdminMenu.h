@@ -14,7 +14,7 @@ class CUIWindow;
 class CUI3tButton;
 class CUIMessageBoxEx;
 
-class CUIMpAdminMenu :	public CUIDialogWnd, public CUIWndCallback 
+class CUIMpAdminMenu final :	public CUIDialogWnd, public CUIWndCallback
 {
 private:
 		typedef CUIWindow	inherited;
@@ -40,7 +40,7 @@ public:
 		virtual bool		OnKeyboardAction(int dik, EUIMessages keyboard_action);
 				void		SetActiveSubdialog	(const shared_str& section);
 		void		RemoteAdminLogin(CUIWindow*, void*);
-				void		ShowMessageBox(CUIMessageBox::E_MESSAGEBOX_STYLE style, LPCSTR reason="");
+				void		ShowMessageBox(CUIMessageBox::E_MESSAGEBOX_STYLE style, const char* reason="");
 
 		virtual CUIWindow* ui_cast_window() { return this; }
 };

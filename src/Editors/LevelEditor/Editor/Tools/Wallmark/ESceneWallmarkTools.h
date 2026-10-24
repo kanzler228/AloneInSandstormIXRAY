@@ -1,4 +1,5 @@
 #pragma once
+#include "Editor/Tools/Base/ESceneCustomMTools.h"
 
 class ESceneWallmarkTool: public ESceneToolBase
 {
@@ -11,7 +12,9 @@ public:
 	struct wallmark 
 	{
     	enum{
-        	flSelected	= (1<<0)
+    		flSelected	= (1<<0),
+			flRemoved	= (1<<1),
+			flTemporary = (1<<2),
         };
         wm_slot*		parent;
         float			w,h,r;
@@ -54,7 +57,6 @@ private:
 
     void 				RecurseTri				(u32 t, Fmatrix &mView, wallmark &W);
 	void 				BuildMatrix				(Fmatrix &mView, float inv_w, float inv_h, float angle, const Fvector& from);
-	BOOL 				AddWallmark_internal	(const Fvector& S, const Fvector& D, shared_str s, shared_str t, float w, float h, float r);
 
 	void				RefiningSlots			();
 private:
@@ -64,6 +66,8 @@ private:
     // controls
     virtual void 		CreateControls			();
 	virtual void 		RemoveControls			();
+
+	void FilterTempWallmarks(WMSVec& OutVec);
 public:
 	enum{
     	flDrawWallmark	= (1<<0),
@@ -83,14 +87,14 @@ public:
 	virtual        	 	~ESceneWallmarkTool 	();
 
 	virtual	bool		AllowEnabling    		(){return true;}
-    virtual BOOL 		AllowMouseStart			(){return true;}
+    virtual bool 		AllowMouseStart			(){return true;}
 
     virtual void		OnObjectRemove			(CCustomObject* O, bool bDeleting){}
     virtual	void		UpdateSnapList			(){}
 	virtual ObjectList*	GetSnapList				(){return 0;}
 
 	// selection manipulate
-	virtual int			RaySelect				(int flag, float& distance, const Fvector& start, const Fvector& direction, BOOL bDistanceOnly);
+	virtual int			RaySelect				(int flag, float& distance, const Fvector& start, const Fvector& direction, bool bDistanceOnly);
 	virtual int	   		FrustumSelect			(int flag, const CFrustum& frustum);
 	virtual void   		SelectObjects           (bool flag);
 	virtual void   		InvertSelection         ();
@@ -101,8 +105,8 @@ public:
     virtual void		Clear					(bool bOnlyNodes=false); 
 
 	// definition
-    IC LPCSTR			ClassName				(){return "wallmark";}
-    IC LPCSTR			ClassDesc				(){return "Wallmarks";}
+    IC const char*			ClassName				(){return "wallmark";}
+    IC const char*			ClassDesc				(){return "Wallmarks";}
     IC int				RenderPriority			(){return 10;}
 
     // validation
@@ -122,7 +126,7 @@ public:
     virtual bool		can_use_inifile			() {return false;}
     virtual bool		LoadSelection      		(IReader&);
     virtual void		SaveSelection      		(IWriter&);
-    virtual bool   		Export          		(LPCSTR fn);
+    virtual bool   		Export          		(const char* fn);
 	virtual bool 		ExportStatic			(SceneBuilder* B, bool b_selected_only);
 	virtual void 		GetStaticDesc			(int& v_cnt, int& f_cnt, bool b_selected_only, bool b_cform);
 
@@ -136,11 +140,40 @@ public:
 
 	// properties
 
-	virtual void		FillPropObjects(LPCSTR pref, PropItemVec& items);
-	virtual void		FillProp(LPCSTR pref, PropItemVec& items) {}
+	virtual void		FillPropObjects(const char* pref, PropItemVec& items);
+	virtual void		FillProp(const char* pref, PropItemVec& items) {}
 
     // utils
     virtual void		GetBBox 				(Fbox& bb, bool bSelOnly);
-	BOOL 				AddWallmark				(const Fvector& start, const Fvector& dir);
-	BOOL 				MoveSelectedWallmarkTo	(const Fvector& start, const Fvector& dir);
+	bool 				AddWallmark				(const Fvector& start, const Fvector& dir);
+	bool 				AddWallmark_internal	(const Fvector& S, const Fvector& D, shared_str s, shared_str t, float w, float h, float r, wallmark** out_wm = nullptr);
+	bool 				MoveSelectedWallmarkTo	(const Fvector& start, const Fvector& dir);
+};
+
+class EWallmarkWrapper
+{
+public:
+	struct WMData
+	{
+		Fvector Pos;
+		Fvector Dir;
+		shared_str Shader;
+		shared_str Texture;
+		float w;
+		float h;
+		float r;
+	};
+private:
+	ESceneWallmarkTool::wallmark* m_wallmark = nullptr;
+	WMData m_data;
+
+public:
+	EWallmarkWrapper(const WMData& data);
+	~EWallmarkWrapper();
+
+	WMData& GetData() {return m_data;}
+
+	void Update();
+	void Detach();
+	
 };

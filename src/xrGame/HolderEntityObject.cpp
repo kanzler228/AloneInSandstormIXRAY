@@ -34,15 +34,15 @@ CHolderEntityObject::~CHolderEntityObject()
 
 void CHolderEntityObject::SetBoneCallbacks()
 {
-	m_pPhysicsShell->EnabledCallbacks(FALSE);
+	m_pPhysicsShell->EnabledCallbacks(false);
 }
 
 void CHolderEntityObject::ResetBoneCallbacks()
 {
-	m_pPhysicsShell->EnabledCallbacks(TRUE);
+	m_pPhysicsShell->EnabledCallbacks(true);
 }
 
-void CHolderEntityObject::Load(LPCSTR section)
+void CHolderEntityObject::Load(const char* section)
 {
 	inheritedPH::Load(section);
 	m_bAllowWeapon = !!pSettings->r_bool(section,"allow_weapon");
@@ -55,9 +55,9 @@ void CHolderEntityObject::Load(LPCSTR section)
 	m_sUseAction = READ_IF_EXISTS(pSettings, r_string, section, "use_action_hint", NULL);
 }
 
-BOOL CHolderEntityObject::net_Spawn(CSE_Abstract* DC)
+bool CHolderEntityObject::net_Spawn(CSE_Abstract* DC)
 {
-	if(!inheritedPH::net_Spawn	(DC)) return FALSE;
+	if(!inheritedPH::net_Spawn	(DC)) return false;
 
 	IKinematics* K = smart_cast<IKinematics*>(Visual());
 	U16Vec fixed_bones;
@@ -65,9 +65,9 @@ BOOL CHolderEntityObject::net_Spawn(CSE_Abstract* DC)
 	PPhysicsShell()	= P_build_Shell(this,false,fixed_bones);
 
 	processing_activate();
-	setVisible(TRUE);
-	setEnabled(TRUE);
-	return TRUE;
+	setVisible(true);
+	setEnabled(true);
+	return true;
 }
 
 void CHolderEntityObject::net_Destroy()
@@ -169,16 +169,84 @@ void CHolderEntityObject::detach_Actor()
 
 void CHolderEntityObject::OnMouseMove(int dx, int dy)
 {
-	if (Remote())	return;
-	CCameraBase* C = camera;
-	float scale = (C->f_fov / g_base_fov)*psMouseSens * psMouseSensScale / 50.f;
-	if (dx){
-		float d = float(dx)*scale;
-		C->Move((d<0) ? kLEFT : kRIGHT, _abs(d));
+	if (Remote())	
+	{
+		return;
 	}
-	if (dy){
-		float d = ((psMouseInvert.test(1)) ? -1 : 1)*float(dy)*scale*3.f / 4.f;
-		C->Move((d>0) ? kUP : kDOWN, _abs(d));
+
+	CCameraBase* C = camera;
+	float scale = (C->f_fov / g_base_fov) * psMouseSens * psMouseSensScale / 50.f;
+
+	if (dx)
+	{
+		float d = float(dx) * scale;
+		C->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
+	}
+
+	if (dy) 
+	{
+		float d = (psMouseInvert ? -1 : 1) * float(dy) * scale * 3.f / 4.f;
+		C->Move((d > 0) ? kUP : kDOWN, std::abs(d));
+	}
+}
+
+void CHolderEntityObject::OnGamepadAxisMove(int id, Fvector2 value)
+{
+	if (Remote())
+	{
+		return;
+	}
+
+	// left stick
+	if (id == 0)
+	{
+
+	}
+	// right stick
+	else if (id == 1)
+	{
+		CCameraBase* C = camera;
+		float scale = (C->f_fov / g_fov) * psGamepadSens * Device.fTimeDelta * psMouseSensScale;
+		if (value.x)
+		{
+			float d = value.x * scale * 8;
+			C->Move((d < 0) ? kLEFT : kRIGHT, std::abs(d));
+		}
+
+		if (value.y)
+		{
+			float d = (psGamepadInvert ? -1 : 1) * value.y * scale * 3.f / 4.f;
+			d *= 8;
+			C->Move((d > 0) ? kUP : kDOWN, std::abs(d));
+		}
+	}
+	// triggers
+	else if (id == 2)
+	{
+
+	}
+}
+
+void CHolderEntityObject::OnGyroscopeMove(Fvector3 value)
+{
+	if (Remote())
+	{
+		return;
+	}
+
+	CCameraBase* C = camera;
+	float scale = (C->f_fov / g_fov) * Device.fTimeDelta * psMouseSensScale;
+	if (value.x)
+	{
+		float d = (psGyroscopeInvertY ? -1 : 1) * value.x * scale;
+		d *= 8;
+		C->Move((d < 0) ? kUP : kDOWN, std::abs(d));
+	}
+
+	if (value.y)
+	{
+		float d = (psGyroscopeInvertY ? -1 : 1) * value.y * scale * 8;
+		C->Move((d > 0) ? kLEFT : kRIGHT, std::abs(d));
 	}
 }
 
@@ -193,14 +261,31 @@ void CHolderEntityObject::OnKeyboardPress(int dik)
 	};
 }
 
-void CHolderEntityObject::OnKeyboardRelease	(int dik)
+void CHolderEntityObject::OnGamepadKeyPress(int id)
 {
 	if (Remote())							return;
-	switch (dik)	
+
+	switch (get_binded_action(id))
 	{
 	case kWPN_FIRE:
 		break;
 	};
+}
+
+void CHolderEntityObject::OnKeyboardRelease	(int dik)
+{
+	if (Remote())							return;
+	switch (get_binded_action(dik))	
+	{
+	case kWPN_FIRE:
+		break;
+	};
+}
+
+void CHolderEntityObject::OnGamepadKeyRelease(int id)
+{
+	if (Remote())							
+		return;
 }
 
 void CHolderEntityObject::OnKeyboardHold		(int dik)

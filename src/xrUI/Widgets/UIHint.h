@@ -11,9 +11,9 @@
 #include "UIWindow.h"
 
 class CUIStatic;
-class CUITextWnd;
 class CUIFrameWindow;
 class CUIXml;
+class UIHintWindow;
 
 class UI_API UIHint : 
 	public CUIWindow
@@ -31,10 +31,10 @@ public:
 	IC		void	set_rect	( Frect const& rect )	{ m_rect.set( rect ); }
 	IC Frect const& get_rect	() const				{ return m_rect; }
 
-			void	init_from_xml( CUIXml& xml, LPCSTR path );
+			void	init_from_xml( CUIXml& xml, const char* path );
 	
-			void	set_text	( LPCSTR text );
-			LPCSTR	get_text	() const;
+			void	set_text	( const char* text );
+			const char*	get_text	() const;
 	
 //	virtual void	Update		();
 	virtual void	Draw		();
@@ -43,7 +43,7 @@ public:
 
 protected:
 	CUIFrameWindow*	m_background;
-	CUITextWnd*		m_text;
+	CUIStatic*		m_text;
 
 	bool			m_visible;
 	float			m_border;
@@ -78,7 +78,7 @@ public:
 
 	virtual CUIWindow* ui_cast_window() { return this; }
 
-private:
+protected:
 	UIHint*			m_hint_wnd;
 	u32				m_hint_delay;
 	shared_str		m_hint_text;

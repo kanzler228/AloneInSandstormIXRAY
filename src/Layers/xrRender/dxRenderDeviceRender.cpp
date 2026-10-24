@@ -1,43 +1,48 @@
 #include "stdafx.h"
 #include "dxRenderDeviceRender.h"
+#include "SVGStorage.h"
 
-#ifdef DEBUG_DRAW
 #include "dxDebugRender.h"
-#endif
 
 #include "ResourceManager.h"
 #ifndef _EDITOR
 #include "imgui.h"
-#endif
-
-#ifdef USE_DX11
-#include "imgui_impl_dx11.h"
-#else
-#include "../xrRenderDX9/imgui_impl_dx9.h"
+#include "../../xrEngine/Autotest.h"
 #endif
 
 dxRenderDeviceRender::dxRenderDeviceRender()
 #ifndef _EDITOR
 	:	Resources(0)
 {
-	CImGuiManager& ImUI = CImGuiManager::Instance();
-
-#ifdef USE_DX11
-	ImUI.HardwareInitCallback		= []() { ImGui_ImplDX11_Init(RDevice, RContext); };
-	ImUI.HardwareDrawDataCallback	= []() { ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); };
-	ImUI.HardwareDestroyCallback	= ImGui_ImplDX11_Shutdown;
-	ImUI.HardwareNewFrameCallback	= ImGui_ImplDX11_NewFrame;
-#else
-	ImUI.HardwareInitCallback		= []() { ImGui_ImplDX9_Init(RDevice); };
-	ImUI.HardwareDrawDataCallback	= []() { ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData()); };
-	ImUI.HardwareDestroyCallback	= ImGui_ImplDX9_Shutdown;
-	ImUI.HardwareNewFrameCallback	= ImGui_ImplDX9_NewFrame;
-	ImUI.HardwareResetCallback		= []() { ImGui_ImplDX9_InvalidateDeviceObjects(); /*ImGui_ImplDX9_CreateDeviceObjects(); */};
-#endif
 }
 #else
 {}
 #endif
+
+#ifdef USE_DX11
+#include "..\xrRenderPC_R4\OverlayAPI\DLSSWrapper.h"
+#include "..\xrRenderPC_R4\OverlayAPI\FSR3Wrapper.h"
+#endif
+
+void dxRenderDeviceRender::GetRenderScale(float& RenderScale)
+{
+#ifdef USE_DX11
+	switch(ps_r_scale_mode)
+	{
+		case 2:
+		{
+			g_DLSSWrapper.GetRenderScale(RenderScale);
+		}
+		case 3:
+		{
+			g_Fsr3Wrapper.GetRenderScale(RenderScale);
+		}
+		break;
+	}
+#else
+	RenderScale = 1.0f;
+#endif
+}
 
 void dxRenderDeviceRender::Copy(IRenderDeviceRender &_in)
 {
@@ -72,7 +77,7 @@ void dxRenderDeviceRender::updateGamma()
 #endif
 }
 
-void dxRenderDeviceRender::OnDeviceDestroy( BOOL bKeepTextures)
+void dxRenderDeviceRender::OnDeviceDestroy( bool bKeepTextures)
 {
 #ifndef _EDITOR
 #ifdef USE_DX11
@@ -101,24 +106,32 @@ void dxRenderDeviceRender::DestroyHW()
 #endif
 }
 
-void  dxRenderDeviceRender::Reset(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, float &fWidth_2, float &fHeight_2)
+xr_task_group thm_reload_task;
+
+void  dxRenderDeviceRender::Reset(SDL_Window* window, u32 &dwWidth, u32 &dwHeight)
 {
 #ifndef _EDITOR
 	Resources->reset_begin	();
 	Memory.mem_compact		();
+
+	thm_reload_task.run
+	(
+		[this]()
+		{
+			OnAssetsChanged();
+		}
+	);
+
 	ResourcesDeferredUnload();
 
 	CImGuiManager::Instance().Reset();
-	
 	Device.ResizeWindow(psCurrentVidMode[0], psCurrentVidMode[1]);
+
+	thm_reload_task.wait();
 	ResourcesDeferredUpload();
 
 	dwWidth = Device.GetSwapchainWidth();
 	dwHeight = Device.GetSwapchainHeight();
-
-	fWidth_2 = Device.HalfTargetWidth;
-	fHeight_2 = Device.HalfTargetHeight;
-
 	Resources->reset_end();
 #endif
 }
@@ -140,27 +153,27 @@ void dxRenderDeviceRender::SetupStates()
 		CHK_DX(RDevice->SetSamplerState	( i, D3DSAMP_MAGFILTER,	D3DTEXF_LINEAR 		));
 		CHK_DX(RDevice->SetSamplerState	( i, D3DSAMP_MIPFILTER,	D3DTEXF_LINEAR		));
 	}
-	CHK_DX(RDevice->SetRenderState( D3DRS_DITHERENABLE,		TRUE				));
-	CHK_DX(RDevice->SetRenderState( D3DRS_COLORVERTEX,		TRUE				));
-	CHK_DX(RDevice->SetRenderState( D3DRS_ZENABLE,			TRUE				));
+	CHK_DX(RDevice->SetRenderState( D3DRS_DITHERENABLE,		true				));
+	CHK_DX(RDevice->SetRenderState( D3DRS_COLORVERTEX,		true				));
+	CHK_DX(RDevice->SetRenderState( D3DRS_ZENABLE,			true				));
 	CHK_DX(RDevice->SetRenderState( D3DRS_SHADEMODE,			D3DSHADE_GOURAUD	));
 	CHK_DX(RDevice->SetRenderState( D3DRS_CULLMODE,			D3DCULL_CCW			));
 	CHK_DX(RDevice->SetRenderState( D3DRS_ALPHAFUNC,			D3DCMP_GREATER		));
-	CHK_DX(RDevice->SetRenderState( D3DRS_LOCALVIEWER,		TRUE				));
+	CHK_DX(RDevice->SetRenderState( D3DRS_LOCALVIEWER,		true				));
 
 	CHK_DX(RDevice->SetRenderState( D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL	));
 	CHK_DX(RDevice->SetRenderState( D3DRS_SPECULARMATERIALSOURCE,D3DMCS_MATERIAL	));
 	CHK_DX(RDevice->SetRenderState( D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL	));
 	CHK_DX(RDevice->SetRenderState( D3DRS_EMISSIVEMATERIALSOURCE,D3DMCS_COLOR1	));
-	CHK_DX(RDevice->SetRenderState( D3DRS_MULTISAMPLEANTIALIAS,	FALSE			));
-	CHK_DX(RDevice->SetRenderState( D3DRS_NORMALIZENORMALS,		TRUE			));
+	CHK_DX(RDevice->SetRenderState( D3DRS_MULTISAMPLEANTIALIAS,	false			));
+	CHK_DX(RDevice->SetRenderState( D3DRS_NORMALIZENORMALS,		true			));
 
 	if (psDeviceFlags.test(rsWireframe))	{ CHK_DX(RDevice->SetRenderState( D3DRS_FILLMODE,			D3DFILL_WIREFRAME	)); }
 	else									{ CHK_DX(RDevice->SetRenderState( D3DRS_FILLMODE,			D3DFILL_SOLID		)); }
 
 	// ******************** Fog parameters
 	CHK_DX(RDevice->SetRenderState( D3DRS_FOGCOLOR,			0					));
-	CHK_DX(RDevice->SetRenderState( D3DRS_RANGEFOGENABLE,	FALSE				));
+	CHK_DX(RDevice->SetRenderState( D3DRS_RANGEFOGENABLE,	false				));
 	if (Caps.bTableFog)	{
 		CHK_DX(RDevice->SetRenderState( D3DRS_FOGTABLEMODE,	D3DFOG_LINEAR		));
 		CHK_DX(RDevice->SetRenderState( D3DRS_FOGVERTEXMODE,	D3DFOG_NONE			));
@@ -173,13 +186,9 @@ void dxRenderDeviceRender::SetupStates()
 #endif
 }
 
-void dxRenderDeviceRender::OnDeviceCreate(LPCSTR shName)
+void dxRenderDeviceRender::OnDeviceCreate(const char* shName)
 {
 #ifndef _EDITOR
-//#ifndef USE_DX11
-//	Caps.Update();
-//#endif
-
 	// Signal everyone - device created
 	RCache.OnDeviceCreate		();
 	m_Gamma.Update				();
@@ -187,25 +196,20 @@ void dxRenderDeviceRender::OnDeviceCreate(LPCSTR shName)
 	::Render->create			();
 	Device.Statistic->OnDeviceCreate	();
 
-//#ifndef DEDICATED_SERVER
 	if (!g_dedicated_server)
 	{
 		m_WireShader.create			("editor\\wire");
 		m_SelectionShader.create	("editor\\selection");
 
 		DUImpl.OnDeviceCreate			();
-#ifdef USE_DX11
-#ifdef DEBUG_DRAW
+#if defined(USE_DX11) && defined(DEBUG_DRAW)
 		DebugRenderImpl.Init();
-#endif // DEBUG_DRAW
-#endif // USE_DX11
-
+#endif
 	}
-//#endif
 #endif
 }
 
-void dxRenderDeviceRender::Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, float &fWidth_2, float &fHeight_2, bool move_window)
+void dxRenderDeviceRender::Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeight, bool move_window)
 {
 #ifndef _EDITOR
 	CImGuiManager::Instance().InitHardware();
@@ -213,14 +217,11 @@ void dxRenderDeviceRender::Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeigh
 	dwWidth = Device.GetSwapchainWidth();
 	dwHeight = Device.GetSwapchainHeight();
 
-	fWidth_2 = Device.HalfTargetWidth;
-	fHeight_2 = Device.HalfTargetHeight;
-
 	Resources = new CResourceManager();
 #endif
 }
 
-void dxRenderDeviceRender::SetupGPU( BOOL bForceGPU_SW, BOOL bForceGPU_NonPure, BOOL bForceGPU_REF)
+void dxRenderDeviceRender::SetupGPU( bool bForceGPU_SW, bool bForceGPU_NonPure, bool bForceGPU_REF)
 {
 }
 
@@ -232,7 +233,7 @@ void dxRenderDeviceRender::overdrawBegin()
 	VERIFY(!"dxRenderDeviceRender::overdrawBegin not implemented.");
 #else //USE_DX11
 	// Turn stenciling
-	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILENABLE,		TRUE			));
+	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILENABLE,		true			));
 	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILFUNC,		D3DCMP_ALWAYS	));
 	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILREF,		0				));
 	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILMASK,		0x00000000		));
@@ -286,12 +287,12 @@ void dxRenderDeviceRender::overdrawEnd()
 		CHK_DX(RDevice->SetRenderState	( D3DRS_STENCILREF,		I	));
 		CHK_DX(RDevice->DrawPrimitiveUP	( D3DPT_TRIANGLESTRIP,	2,	pv, sizeof(FVF::TL) ));
 	}
-	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILENABLE,		FALSE ));
+	CHK_DX(RDevice->SetRenderState( D3DRS_STENCILENABLE,		false ));
 #endif
 #endif
 }
 
-void dxRenderDeviceRender::DeferredLoad(BOOL E)
+void dxRenderDeviceRender::DeferredLoad(bool E)
 {
 #ifndef _EDITOR
 	Resources->DeferredLoad(E);
@@ -359,7 +360,7 @@ dxRenderDeviceRender::DeviceState dxRenderDeviceRender::GetDeviceState()
 	return dsOK;
 }
 
-BOOL dxRenderDeviceRender::GetForceGPU_REF()
+bool dxRenderDeviceRender::GetForceGPU_REF()
 {
 	return false;
 }
@@ -373,51 +374,51 @@ u32 dxRenderDeviceRender::GetCacheStatPolys()
 #endif
 }
 
+void dxRenderDeviceRender::GetCacheStats(u32& calls, u32& verts, u32& polys, u32& static_dips)
+{
+#ifndef _EDITOR
+	calls		= RCache.stat.calls;
+	verts		= RCache.stat.verts;
+	polys		= RCache.stat.polys;
+	static_dips	= RCache.stat.r.s_static.dips;
+#else
+	calls = verts = polys = static_dips = 0;
+#endif
+}
+
 void dxRenderDeviceRender::Begin()
 {
 #ifndef _EDITOR
 #ifndef USE_DX11
-	CHK_DX					(RDevice->BeginScene());
+	CHK_DX(RDevice->BeginScene());
 #else
 #endif //USE_DX11
-	
-	RCache.OnFrameBegin		();
-	RCache.set_CullMode		(CULL_CW);
-	RCache.set_CullMode		(CULL_CCW);
-	RCache.set_Z			(TRUE);
+
+	RCache.OnFrameBegin();
+	GRHI->StateManager->SetCullMode(ERHI_CULLMODE::BACK);
+	RCache.set_Z(true);
 #endif
 
-#if defined(USE_DX11) && defined(DEBUG_DRAW)
-	if (Engine.External.EditorStates[static_cast<std::uint8_t>(EditorUI::Shaders)])
+	if (Resources)
 	{
-		GPUEvents_BeginRendering();
+		CSVGStorage* svg = Resources->GetSVGStorage();
+		if (svg)
+			svg->BeginRasterFrameCache();
 	}
-#endif
+
+	GRHI->GPUStatsBegin();
 }
 
 void dxRenderDeviceRender::Clear()
 {
 #ifndef _EDITOR
-#ifdef USE_DX11
-	RContext->ClearDepthStencilView(RCache.get_ZB(), 
-		D3D_CLEAR_DEPTH|D3D_CLEAR_STENCIL, 1.0f, 0);
+	GRHI->ClearDepthStencil(GRHI->GetDepthStencilView(), ERHI_CLEAR_TARGET::DEPTH | ERHI_CLEAR_TARGET::STENCIL, 1.f, 0);
 
 	if (psDeviceFlags.test(rsClearBB))
 	{
-		FLOAT ColorRGBA[4] = {0.0f,0.0f,0.0f,0.0f};
-		RContext->ClearRenderTargetView(RCache.get_RT(), ColorRGBA);
+		GRHI->ClearTarget(RCache.get_RT());
 	}
-#else //USE_DX11
-	CHK_DX(RDevice->Clear(0,0,
-		D3DCLEAR_ZBUFFER|
-		(psDeviceFlags.test(rsClearBB)?D3DCLEAR_TARGET:0)|
-		(Caps.bStencil?D3DCLEAR_STENCIL:0),
-		color_xrgb(0,0,0),1,0
-		));
 #endif
-#endif
-
-
 }
 
 void DoAsyncScreenshot();
@@ -425,8 +426,6 @@ void DoAsyncScreenshot();
 void dxRenderDeviceRender::End()
 {
 #ifndef _EDITOR
-
-	VERIFY	(RDevice);
 
 #ifdef USE_DX11
 	{
@@ -440,48 +439,40 @@ void dxRenderDeviceRender::End()
 		PROF_EVENT("Async Screenshot");
 		DoAsyncScreenshot();
 	}
-#ifdef DEBUG_DRAW
+#if defined(DEBUG_DRAW) && defined(IXR_WINDOWS)
 	{
 		PROF_EVENT("ImGui EndRender");
 		CImGuiManager& MyImGui = CImGuiManager::Instance();
 		MyImGui.BeginRender();
 
-#ifdef USE_DX11
-		ID3D11RenderTargetView* RTV = RSwapchainTarget;
-		RContext->OMSetRenderTargets(1, &RTV, nullptr);
-#else
-		RDevice->SetRenderTarget(0, RSwapchainTarget);
-#endif
+		//GRHI->SetDepthStencilView(RDepth);
+		GRHI->SetRenderTargetView(RSwapchainTarget, 0, true);
 
 		MyImGui.Render();
 		MyImGui.AfterRender();
 
 		DebugRenderImpl.m_lines.resize(0);
-#if defined(USE_DX11) && defined(DEBUG_DRAW)
-		if (Engine.External.EditorStates[static_cast<std::uint8_t>(EditorUI::Shaders)])
-		{
-			GPUEvents_EndRendering();
-		}
-#endif
+		GRHI->GPUStatsEnd();
 	}
 #else
 
 #ifdef USE_DX11
-	ID3D11RenderTargetView* RTV = RTarget;
-	RContext->OMSetRenderTargets(1, &RTV, RDepth);
-#else
-	RDevice->SetRenderTarget(0, RTarget);
+	//GRHI->SetDepthStencilView(RDepth);
+	GRHI->SetRenderTargetView(RTarget, 0, true);
 #endif
 
 #endif
+
+	if (Autotest::Active())
+		Autotest::FrameEnd();
 
 	PROF_EVENT("Present");
-#ifdef USE_DX11
-	RSwapchain->Present(psDeviceFlags.test(rsVSync) ? 1 : 0, 0);
-#else
-	CHK_DX				(RDevice->EndScene());
-	RDevice->Present( nullptr, nullptr, nullptr, nullptr );
+
+#if defined(IXRAY_PROFILER_TRACY) && defined(USE_DX11)
+	PROF_GPU_CTX_COLLECT();
 #endif
+
+	GRHI->Present();
 #endif
 }
 
@@ -495,12 +486,7 @@ void dxRenderDeviceRender::ResourcesDestroyNecessaryTextures()
 void dxRenderDeviceRender::ClearTarget()
 {
 #ifndef _EDITOR
-#ifdef USE_DX11
-	FLOAT ColorRGBA[4] = {0.0f,0.0f,0.0f,0.0f};
-	RContext->ClearRenderTargetView(RCache.get_RT(), ColorRGBA);
-#else //USE_DX11
-	CHK_DX(RDevice->Clear(0, 0, D3DCLEAR_TARGET, color_xrgb(0,0,0), 1, 0));
-#endif
+	GRHI->ClearTarget(RCache.get_RT());
 #endif
 }
 
@@ -512,7 +498,7 @@ void dxRenderDeviceRender::SetupDefaultTarget()
 #else
 	RCache.set_RT(RTarget);
 #endif
-	RCache.set_ZB(nullptr);
+	GRHI->SetDepthStencilView(nullptr);
 #endif
 }
 
@@ -541,4 +527,70 @@ void  dxRenderDeviceRender::OnAssetsChanged()
 	Resources->m_textures_description.UnLoad();
 	Resources->m_textures_description.Load();
 #endif
+}
+
+void dxRenderDeviceRender::PostCreate()
+{
+	R_ASSERT2(Resources, "must be valid or early calling");
+
+	if (Resources)
+	{
+		Resources->Initialize_SVGStorage();
+	}
+}
+
+const FactoryPtr<IUIShader>& dxRenderDeviceRender::GetSVGShader(const std::string_view& subpath, float width, float height, SVGTintRGBA tint)
+{
+	if (Resources)
+	{
+		R_ASSERT(subpath.empty() == false && "must be not empty path");
+
+		CSVGStorage* pStorage = Resources->GetSVGStorage();
+
+		R_ASSERT(pStorage && "must be valid!");
+
+		if (pStorage)
+		{
+			return pStorage->get_shader(subpath, width, height, tint);
+		}
+	}
+
+	return m_empty_default_shader;
+}
+
+const FactoryPtr<IUIShader>& dxRenderDeviceRender::GetSVGShader(const char* pSubpath, float width, float height, SVGTintRGBA tint)
+{
+	R_ASSERT(pSubpath && "invalid string (nullptr)");
+	R_ASSERT(pSubpath[0] != '\0' && "empty string");
+
+	return GetSVGShader(std::string_view(pSubpath), width, height, tint);
+}
+
+const FactoryPtr<IUIShader>& dxRenderDeviceRender::GetSVGDefaultShader()
+{
+	if (Resources)
+	{
+
+	}
+
+	return m_empty_default_shader;
+}
+
+Frect dxRenderDeviceRender::GetSVGUV(const std::string_view& subpath, float requested_width, float requested_height, SVGTintRGBA tint)
+{
+	if (Resources)
+	{
+		R_ASSERT(subpath.empty() == false && "must be not empty path");
+
+		CSVGStorage* pStorage = Resources->GetSVGStorage();
+
+		R_ASSERT(pStorage && "must be valid!");
+
+		if (pStorage)
+		{
+			return pStorage->get_uv(subpath, requested_width, requested_height, tint);
+		}
+	}
+
+	return Frect();
 }

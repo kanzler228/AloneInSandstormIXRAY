@@ -73,21 +73,20 @@ EScene::~EScene()
 
 void EScene::OnCreate()
 {
-	CreateSceneTools		();
-	
-	m_LastAvailObject 		= 0;
-	m_LevelOp.Reset			();
-	ELog.Msg				( mtInformation, "Scene: initialized" );
-	m_Valid 				= true;
-	m_RTFlags.zero			();
-	ExecCommand				(COMMAND_UPDATE_CAPTION);
+	CreateSceneTools();
+
+	m_LastAvailObject = 0;
+	m_LevelOp.Reset();
+	ELog.Msg(mtInformation, "Scene: initialized");
+	m_Valid = true;
+	m_RTFlags.zero();
 }
 
 void EScene::OnDestroy()
 {
 	g_scene_physics.DestroyAll();
 
-	Unload					(FALSE);
+	Unload					(false);
 	UndoClear				();
 	ELog.Msg				( mtInformation, "Scene: cleared" );
 	m_LastAvailObject 		= 0;
@@ -104,7 +103,7 @@ void EScene::AppendObject( CCustomObject* object, bool bUndo )
 	switch (object->FClassID)
 	{
 	case OBJCLASS_SCENEOBJECT:
-		m_RTFlags.set(flIsBuildedCForm, FALSE);
+		m_RTFlags.set(flIsBuildedCForm, false);
 		UI->RedrawScene();
 		break;
 
@@ -112,7 +111,7 @@ void EScene::AppendObject( CCustomObject* object, bool bUndo )
 		CSpawnPoint* Spawn = smart_cast<CSpawnPoint*>(object);
 		if (Spawn && Spawn->IsGraphPoint())
 		{
-			m_RTFlags.set(flIsBuildedGameGraph, FALSE);
+			m_RTFlags.set(flIsBuildedGameGraph, false);
 			UI->RedrawScene();
 			break;
 		}
@@ -139,14 +138,14 @@ bool EScene::RemoveObject(CCustomObject* object, bool bUndo, bool bDeleting)
 	switch (object->FClassID)
 	{
 	case OBJCLASS_SCENEOBJECT:
-		m_RTFlags.set(flIsBuildedCForm, FALSE);
+		m_RTFlags.set(flIsBuildedCForm, false);
 		UI->RedrawScene();
 		break;
 	case OBJCLASS_SPAWNPOINT:
 		CSpawnPoint* Spawn = smart_cast<CSpawnPoint*>(object);
 		if (Spawn && Spawn->IsGraphPoint())
 		{
-			m_RTFlags.set(flIsBuildedGameGraph, FALSE);
+			m_RTFlags.set(flIsBuildedGameGraph, false);
 			UI->RedrawScene();
 			break;
 		}
@@ -245,17 +244,17 @@ void EScene::OnFrame( float dT )
 				pInput->unacquire();
 				pInput->KeyboardButtonUpdate(SDL_SCANCODE_LALT, false);
 				UI->IsEnableInput = true;
-				ShowCursor(TRUE);
+				ShowCursor(true);
 			}
 		}
 	}
 
 	if(m_RTFlags.test(flIsStopPlayInEditor))
 	{
-		m_RTFlags.set(flIsStopPlayInEditor, FALSE);
+		m_RTFlags.set(flIsStopPlayInEditor, false);
 		if(IsPlayInEditor())
 		{
-			ShowCursor(TRUE);
+			ShowCursor(true);
 			pInput->unacquire();
 			SDL_WarpMouseInWindow(g_AppInfo.Window, 
 			Device.TargetWidth / 2, Device.TargetHeight / 2);
@@ -274,7 +273,7 @@ void EScene::OnFrame( float dT )
 void EScene::Reset()
 {
 	// unload scene
-	Unload(FALSE);
+	Unload(false);
 	full_name.clear();
 
 	// reset tools
@@ -287,15 +286,17 @@ void EScene::Reset()
 	g_scene_physics.UpdateLevelCollision();
 }
 
-void EScene::Unload(BOOL bEditableOnly)
+void EScene::Unload(bool bEditableOnly)
 {
 	m_LastAvailObject = 0;
 	Clear(bEditableOnly);
 }
 
 ECORE_API xrGUID generate_guid();
-void EScene::Clear(BOOL bEditableToolsOnly)
+void EScene::Clear(bool bEditableToolsOnly)
 {
+	Device.details_task.wait();
+
 	// clear snap
 	ClearSnapList(false);
 	// clear scene tools
@@ -314,7 +315,7 @@ void EScene::Clear(BOOL bEditableToolsOnly)
 
 	Tools->ClearDebugDraw();
 
-	m_RTFlags.set(flRT_Unsaved | flRT_Modified, FALSE);
+	m_RTFlags.set(flRT_Unsaved | flRT_Modified, false);
 
 	m_GUID = generate_guid();
 	string256 Data = {};
@@ -327,10 +328,11 @@ void EScene::Clear(BOOL bEditableToolsOnly)
 	m_cform_builder.clear();
 	m_level_graph.clear();
 	m_game_graph.clear();
-	m_RTFlags.set(flIsBuildedAIMap | flIsBuildedGameGraph | flIsBuildedCForm, FALSE);
+	m_RTFlags.set(flIsBuildedAIMap | flIsBuildedGameGraph | flIsBuildedCForm, false);
 
 	if (!bEditableToolsOnly)
 	{
+		UI->GeneralTabs[0] = { "Scene View", []()->bool {return Scene->IsUnsaved(); }};
 		SDL_SetWindowTitle(g_AppInfo.Window, "IX-Ray Level Editor");
 	}
 }
@@ -375,7 +377,7 @@ bool EScene::GetBox(Fbox& box, ObjectList& lst)
 
 void EScene::Modified()
 {
-	switch (LTools->CurrentClassID())
+	switch ((ESceneItemsGuids)LTools->CurrentClassID())
 	{
 	case OBJCLASS_SPAWNPOINT:
 	{
@@ -387,7 +389,7 @@ void EScene::Modified()
 				CSpawnPoint* Spawn = smart_cast<CSpawnPoint*>(Obj);
 				if (Spawn&&Spawn->IsGraphPoint())
 				{
-					m_RTFlags.set(flIsBuildedGameGraph, FALSE);
+					m_RTFlags.set(flIsBuildedGameGraph, false);
 					break;
 				}
 			}
@@ -395,20 +397,19 @@ void EScene::Modified()
 	}
 		break;
 	case OBJCLASS_AIMAP:
-		m_RTFlags.set(flIsBuildedAIMap, FALSE);
+		m_RTFlags.set(flIsBuildedAIMap, false);
 		break;
 	case OBJCLASS_SCENEOBJECT:
-		m_RTFlags.set(flIsBuildedCForm, FALSE);
+		m_RTFlags.set(flIsBuildedCForm, false);
 		break;
 	case OBJCLASS_DUMMY:
-		m_RTFlags.set(flIsBuildedCForm, FALSE);
-		m_RTFlags.set(flIsBuildedAIMap, FALSE);
-		m_RTFlags.set(flIsBuildedGameGraph, FALSE);
+		m_RTFlags.set(flIsBuildedCForm, false);
+		m_RTFlags.set(flIsBuildedAIMap, false);
+		m_RTFlags.set(flIsBuildedGameGraph, false);
 		break;
 	}
-	m_RTFlags.set(flRT_Modified|flRT_Unsaved,TRUE);
+	m_RTFlags.set(flRT_Modified|flRT_Unsaved,true);
 	g_scene_physics.OnSceneModified();
-	ExecCommand(COMMAND_UPDATE_CAPTION);
 	UIObjectList::Refresh();
 }
 
@@ -432,8 +433,7 @@ bool EScene::IfModified()
 		switch(mr){
 		case mrYes: if (!ExecCommand(COMMAND_SAVE)) return false; break;
 		case mrNo:{ 
-			m_RTFlags.set(flRT_Unsaved,FALSE); 
-			ExecCommand	(COMMAND_UPDATE_CAPTION);
+			m_RTFlags.set(flRT_Unsaved,false); 
 		}break;
 		case mrCancel: return false;
 		}
@@ -628,7 +628,7 @@ void EScene::SelectLightsForObject(CCustomObject* obj)
 	lt->SelectLightsForObject	(obj);
 }
 
-void EScene::HighlightTexture(LPCSTR t_name, bool allow_ratio, u32 t_width, u32 t_height, bool leave_previous)
+void EScene::HighlightTexture(const char* t_name, bool allow_ratio, u32 t_width, u32 t_height, bool leave_previous)
 {
 	if (!leave_previous)
 		Tools->ClearDebugDraw();
@@ -651,7 +651,8 @@ xr_token		js_token	[ ]={
 
 void EScene::OnBuildControlClick	(ButtonValue* V, bool& bModif, bool& bSafe)
 {
-	switch (V->btn_num){
+	switch (V->btn_num)
+	{
 	case 0: m_LevelOp.SetDraftQuality();	break;
 	case 1: m_LevelOp.SetHighQuality();		break;
 	case 2: m_LevelOp.SetCustomQuality();	break;
@@ -671,7 +672,7 @@ void EScene::OnNameChange(PropValue* sender)
 }
 
 // TODO: Fix this shit (it doesn't show up in LE props)
-void EScene::FillProp(LPCSTR pref, PropItemVec& items, ObjClassID cls_id)
+void EScene::FillProp(const char* pref, PropItemVec& items, ObjClassID cls_id)
 {
 	PHelper().CreateCaption		(items,PrepareKey(pref,"Scene\\Name"),			LTools->m_LastFileName.c_str());
 
@@ -690,7 +691,7 @@ void EScene::FillProp(LPCSTR pref, PropItemVec& items, ObjClassID cls_id)
 	B=PHelper().CreateButton	(items,PrepareKey(pref,"Scene\\Build options\\Quality"), "Draft,High,Custom",0);
 	B->OnBtnClickEvent.bind		(this,&EScene::OnBuildControlClick);
 
-	BOOL enabled				= (m_LevelOp.m_BuildParams.m_quality==ebqCustom);
+	bool enabled				= (m_LevelOp.m_BuildParams.m_quality==ebqCustom);
 	V=PHelper().CreateU8		(items,PrepareKey(pref,"Scene\\Build options\\Lighting\\Hemisphere quality [0-3]"),	&m_LevelOp.m_LightHemiQuality,	0,3);		V->Owner()->Enable(enabled);
 	V=PHelper().CreateU8		(items,PrepareKey(pref,"Scene\\Build options\\Lighting\\Sun shadow quality [0-3]"),	&m_LevelOp.m_LightSunQuality,	0,3);       V->Owner()->Enable(enabled);
 
@@ -720,7 +721,7 @@ void EScene::FillProp(LPCSTR pref, PropItemVec& items, ObjClassID cls_id)
 	}
 }
 
-void EScene::FillPropObjects(LPCSTR pref, PropItemVec& items, ObjClassID cls_id)
+void EScene::FillPropObjects(const char* pref, PropItemVec& items, ObjClassID cls_id)
 {
 	if (OBJCLASS_DUMMY == cls_id)
 	{
@@ -782,7 +783,7 @@ void EScene::Play()
 
 	Device.seqFrameMT.Add(this);
 
-	ShowCursor(FALSE);
+	ShowCursor(false);
 }
 
 bool EScene::IsPlayInEditor()
@@ -802,7 +803,7 @@ void EScene::Stop()
 	::Sound->set_geometry_som(nullptr);
 
 	Console->Hide();
-	m_RTFlags.set(flIsStopPlayInEditor, TRUE);
+	m_RTFlags.set(flIsStopPlayInEditor, true);
 
 	g_pGamePersistent->Environment().Invalidate();
 	Device.seqFrameMT.Remove(this);
@@ -841,8 +842,8 @@ bool EScene::BuildAIMap()
 			return false;;
 		}
 		m_game_graph.clear();
-		m_RTFlags.set(flIsBuildedAIMap, TRUE);
-		m_RTFlags.set(flIsBuildedGameGraph, FALSE);
+		m_RTFlags.set(flIsBuildedAIMap, true);
+		m_RTFlags.set(flIsBuildedGameGraph, false);
 		UI->RedrawScene();
 	}
 	return true;
@@ -863,7 +864,7 @@ bool EScene::BuildGameGraph()
 			return false;
 		}
 
-		m_RTFlags.set(flIsBuildedGameGraph, TRUE);
+		m_RTFlags.set(flIsBuildedGameGraph, true);
 		UI->RedrawScene();
 	}
 	return true;
@@ -878,7 +879,7 @@ bool EScene::BuildCForm()
 			Msg("! CForm is empty!");
 			return false;
 		}
-		m_RTFlags.set(flIsBuildedCForm, TRUE);
+		m_RTFlags.set(flIsBuildedCForm, true);
 		UI->RedrawScene();
 	}
 
@@ -892,7 +893,7 @@ bool EScene::BuildCForm()
 		if (LSndLib->MakeEnvGeometry(stream, false))
 			stream.save_to(lev_sound_env.c_str());
 
-		m_RTFlags.set(flIsBuildedSndEnv, TRUE);
+		m_RTFlags.set(flIsBuildedSndEnv, true);
 	}
 	return true;
 }
@@ -956,7 +957,7 @@ void EScene::OnFrame()
 			string128 Command = {};
 			xr_sprintf(Command, "set_actor_position %.3f, %.3f, %.3f", ActorNewPos.x, ActorNewPos.y, ActorNewPos.z);
 			Console->Execute(Command);
-			g_pIGameActor->cam_Active()->Set(-ActorNewDir.x, 0, 0);
+			GActorInterface->cam_Active()->Set(-ActorNewDir.x, 0, 0);
 
 			IsAppliedPos = true;
 		}

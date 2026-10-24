@@ -3,8 +3,11 @@
 #include "../../../../xrScripts/script_export_space.h"
 
 class CPsyDogPhantom;
+class CPsyDogAura;
 
-class CPsyDog : public CAI_PseudoDog {
+class CPsyDog final : 
+	public CAI_PseudoDog 
+{
 	typedef CAI_PseudoDog inherited;
 
 	friend class CPsyDogPhantom;
@@ -30,10 +33,10 @@ public:
 						CPsyDog				();
 		virtual			~CPsyDog			();
 
-		virtual void	Load				(LPCSTR section);
-		virtual BOOL	net_Spawn			(CSE_Abstract *dc);
+		virtual void	Load				(const char* section);
+		virtual bool	net_Spawn			(CSE_Abstract *dc);
 		virtual void	reinit				();
-		virtual void	reload				(LPCSTR section);
+		virtual void	reload				(const char* section);
 		virtual void	net_Destroy			();
 		virtual void	Die					(CObject* who);
 
@@ -64,7 +67,7 @@ private:
 // Phantom Psy Dog
 //////////////////////////////////////////////////////////////////////////
 
-class CPsyDogPhantom : public CAI_PseudoDog {
+class CPsyDogPhantom final : public CAI_PseudoDog {
 	typedef CAI_PseudoDog inherited;
 	
 	CPsyDog			*m_parent;
@@ -76,8 +79,8 @@ class CPsyDogPhantom : public CAI_PseudoDog {
 
 	SAttackEffector m_appear_effector;
 
-	LPCSTR			m_particles_appear;
-	LPCSTR			m_particles_disappear;
+	const char*			m_particles_appear;
+	const char*			m_particles_disappear;
 
 	u16				m_parent_id;
 		
@@ -86,7 +89,7 @@ class CPsyDogPhantom : public CAI_PseudoDog {
 public:
 					CPsyDogPhantom		();
 	virtual			~CPsyDogPhantom		();
-	virtual BOOL	net_Spawn			(CSE_Abstract *dc);
+	virtual bool	net_Spawn			(CSE_Abstract *dc);
 	virtual void	Think				();
 	virtual	void	Hit					(SHit* pHDS);
 

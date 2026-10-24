@@ -2,19 +2,19 @@
 #include "flare.h"
 #include "player_hud.h"
 #include "../xrEngine/LightAnimLibrary.h"
-
-void CFlare::Load(LPCSTR section)
+#include "ParticlesObject.h"
+void CFlare::Load(const char* section)
 {
 	inherited::Load			(section);
 	m_work_time_sec			= pSettings->r_float(section, "work_time_sec");
 }
 
-BOOL CFlare::net_Spawn(CSE_Abstract* DC)
+bool CFlare::net_Spawn(CSE_Abstract* DC)
 {
 	inherited::net_Spawn	(DC);
 	SwitchState				(eFlareHidden);
 	m_pFlareParticles		= nullptr;
-	return					TRUE;
+	return					true;
 }
 
 void CFlare::net_Destroy()
@@ -41,7 +41,7 @@ bool CFlare::IsFlareActive()
 	return ( GetState()==eFlareIdle );
 }
 
-void CFlare::OnStateSwitch(u32 S)
+void CFlare::OnStateSwitch(u8 S)
 {
 	inherited::OnStateSwitch(S);
 
@@ -51,31 +51,31 @@ void CFlare::OnStateSwitch(u32 S)
 		{
 			g_player_hud->attach_item	(this);
 			PlayHUDMotion				("anm_show", EHudMixType::eMixAll, GetState());
-			SetPending					(TRUE);
+			SetPending					(true);
 		}break;
 	case eFlareHiding:
 		{
 			PlayHUDMotion				("anm_hide", EHudMixType::eMixAll, GetState());
-			SetPending					(TRUE);
+			SetPending					(true);
 		}break;
 	case eFlareIdle:
 		{
 			light_lanim					= LALib.FindItem("flare_lanim_idle");
-			SetPending					(FALSE);
+			SetPending					(false);
 		}break;
 	case eFlareHidden:
 		{
-			SetPending					(FALSE);
+			SetPending					(false);
 		}break;
 	case eFlareDropping:
 		{
 			PlayHUDMotion				("anm_drop", EHudMixType::eMixAll, GetState());
-			SetPending					(TRUE);
+			SetPending					(true);
 		}break;
 	};
 }
 
-void CFlare::OnAnimationEnd(u32 state)
+void CFlare::OnAnimationEnd(u8 state)
 {
 	switch (state)
 	{
@@ -86,7 +86,7 @@ void CFlare::OnAnimationEnd(u32 state)
 		}break;
 	case eFlareDropping:
 		{
-			SetDropManual				(TRUE);
+			SetDropManual				(true);
 			SwitchState					(eFlareHidden);
 			processing_activate			();
 		}break;
@@ -104,7 +104,7 @@ void CFlare::SwitchOn()
 
 	light_render->set_active	(true);
 
-	m_pFlareParticles			= Particles::Details::Create(pSettings->r_string(cNameSect(), "working_particles"), FALSE);
+	m_pFlareParticles			= Particles::Details::Create(pSettings->r_string(cNameSect(), "working_particles"), false);
 	m_pFlareParticles->Play		(true);
 
 }

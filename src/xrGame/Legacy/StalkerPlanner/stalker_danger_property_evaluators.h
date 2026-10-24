@@ -28,8 +28,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangers	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate							();
+						CStalkerPropertyEvaluatorDangers	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate							();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -41,8 +41,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangerUnknown	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate								();
+						CStalkerPropertyEvaluatorDangerUnknown	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate								();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -54,8 +54,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangerInDirection	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate									();
+						CStalkerPropertyEvaluatorDangerInDirection	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate									();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -67,8 +67,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangerWithGrenade	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate									();
+						CStalkerPropertyEvaluatorDangerWithGrenade	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate									();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -80,8 +80,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangerBySound	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate								();
+						CStalkerPropertyEvaluatorDangerBySound	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate								();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -96,8 +96,8 @@ private:
 	Fvector				m_cover_selection_position;
 
 public:
-						CStalkerPropertyEvaluatorDangerUnknownCoverActual	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate											();
+						CStalkerPropertyEvaluatorDangerUnknownCoverActual	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate											();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -109,8 +109,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorDangerGrenadeExploded	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate										();
+						CStalkerPropertyEvaluatorDangerGrenadeExploded	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate										();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -122,8 +122,8 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorGrenadeToExplode	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate									();
+						CStalkerPropertyEvaluatorGrenadeToExplode	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate									();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -135,6 +135,6 @@ protected:
 	typedef CStalkerPropertyEvaluator inherited;
 
 public:
-						CStalkerPropertyEvaluatorEnemyWounded	(CAI_Stalker *object = 0, LPCSTR evaluator_name = "");
-	virtual _value_type	evaluate								();
+						CStalkerPropertyEvaluatorEnemyWounded	(CAI_Stalker *object = 0, const char* evaluator_name = "");
+	virtual bool	evaluate								();
 };

@@ -21,15 +21,14 @@ class CMissile;
 class CPropertyStorage;
 class CStalkerAnimationData;
 
-class CStalkerAnimationManager {
+class CStalkerAnimationManager
+{
 public:
-	typedef xr_deque<CStalkerAnimationScript>					SCRIPT_ANIMATIONS;
-	typedef MonsterSpace::EMovementDirection					EMovementDirection;
-	typedef MonsterSpace::EBodyState							EBodyState;
-	typedef GraphEngineSpace::_solver_value_type				_value_type;
-	typedef GraphEngineSpace::_solver_condition_type			_condition_type;
-	typedef CStalkerAnimationPair::BLEND_ID						BLEND_ID;
-	typedef BLEND_ID											ANIMATION_ID;
+	using SCRIPT_ANIMATIONS		= xr_deque<CStalkerAnimationScript>;
+	using EMovementDirection	= MonsterSpace::EMovementDirection;
+	using EBodyState			= MonsterSpace::EBodyState;
+	using BLEND_ID				= CStalkerAnimationPair::BLEND_ID;
+	using ANIMATION_ID			= BLEND_ID;
 
 private:
 	const CStalkerAnimationData		*m_data_storage;
@@ -55,26 +54,20 @@ private:
 private:
 	int								m_crouch_state_config;
 	int								m_crouch_state;
-	bool							m_no_move_actual;
 
-private:
 	CAI_Stalker						*m_object;
 	IRenderVisual					*m_visual;
 	IKinematicsAnimated				*m_skeleton_animated;
-
-private:
 	CWeapon							*m_weapon;
 	CMissile						*m_missile;
 
-private:
 	bool							m_call_script_callback;
 	bool							m_call_global_callback;
 	bool							m_start_new_script_animation;
+	bool							m_no_move_actual;
 
-#ifdef USE_HEAD_BONE_PART_FAKE
 private:
 	u32								m_script_bone_part_mask;
-#endif // USE_HEAD_BONE_PART_FAKE
 
 private:
 	float							m_previous_speed;
@@ -84,7 +77,7 @@ private:
 
 public:
 	typedef xr_delegate<MotionID (bool&)>	AnimationSelector;
-	typedef xr_delegate<void ()>				AnimationCallback;
+	typedef xr_delegate<void ()>			AnimationCallback;
 	typedef xr_delegate<void (CBlend*)>		AnimationModifier;
 
 private:
@@ -190,6 +183,7 @@ private:
 
 public:
 									CStalkerAnimationManager(CAI_Stalker *object);
+	virtual							~CStalkerAnimationManager() = default;
 	virtual	void					reinit					();
 	virtual	void					reload					();
 	virtual void					update					();
@@ -197,8 +191,8 @@ public:
 			void 					play_delayed_callbacks	();
 
 public:
-			void					add_script_animation	(LPCSTR animation, bool hand_usage = false, bool use_movement_controller = false);
-			void					add_script_animation	(LPCSTR animation, bool hand_usage, Fvector position, Fvector rotation, bool local_animation);
+			void					add_script_animation	(const char* animation, bool hand_usage = false, bool use_movement_controller = false);
+			void					add_script_animation	(const char* animation, bool hand_usage, Fvector position, Fvector rotation, bool local_animation);
 	IC		void					clear_script_animations	();
 	IC		void					pop_script_animation	();
 	IC		const SCRIPT_ANIMATIONS	&script_animations		() const;

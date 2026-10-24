@@ -20,8 +20,6 @@
 #include "../xrRender/R_Backend.h"
 #include "../xrRender/R_Backend_Runtime.h"
 
-#include "../xrRender/Debug/dxGPUEventWrapper.h"
-
 #define		R_R1	1
 #define		R_R2	2
 #define		R_R4	4
@@ -35,7 +33,7 @@
 #include "../../xrEngine/IGame_Level.h"
 #include "../xrRender/blenders/Blender.h"
 #include "../xrRender/blenders/Blender_CLSID.h"
-#include "../../xrParticles/psystem.h"
+#include "../xrRender/particle_core/psystem.h"
 #include "../xrRender/xrRender_console.h"
 #include "r2.h"
 #include "../xrRender/dxRenderDeviceRender.h"

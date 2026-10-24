@@ -8,6 +8,7 @@
 #include "Actor.h"
 #include "script_game_object.h"
 #include "../xrScripts/script_callback_ex.h"
+#include "Weapons/Components/WeaponAmmoBones.h"
 
 CWeaponAutomaticShotgun::CWeaponAutomaticShotgun()
 {
@@ -19,7 +20,7 @@ CWeaponAutomaticShotgun::~CWeaponAutomaticShotgun()
 {
 }
 
-void CWeaponAutomaticShotgun::Load(LPCSTR section)
+void CWeaponAutomaticShotgun::Load(const char* section)
 {
 	if (pSettings->line_exist(section, "tri_state_reload"))
 	{
@@ -29,7 +30,7 @@ void CWeaponAutomaticShotgun::Load(LPCSTR section)
 	inherited::Load(section);
 }
 
-void CWeaponAutomaticShotgun::LoadSounds(LPCSTR section)
+void CWeaponAutomaticShotgun::LoadSounds(const char* section)
 {
 	inherited::LoadSounds(section);
 
@@ -66,9 +67,9 @@ void CWeaponAutomaticShotgun::LoadSounds(LPCSTR section)
 	}
 }
 
-void CWeaponAutomaticShotgun::OnAnimationEnd(u32 state) 
+void CWeaponAutomaticShotgun::OnAnimationEnd(u8 state) 
 {
-	if (!m_bTriStateReload || state != eReload || state == eReload && IsMisfire() && (HudAnimationExist("anm_reload_jammed") || HudAnimationExist("anm_reload_misfire")))
+	if (!m_bTriStateReload || state != eReload || state == eReload && (bMisfireReload || bReloadEmptyByScheme))
 	{
 		bStopReloadSignal = false;
 		return inherited::OnAnimationEnd(state);
@@ -109,6 +110,10 @@ void CWeaponAutomaticShotgun::OnAnimationEnd(u32 state)
 		}break;
 		case eSubstateReloadEnd:
 		{
+			if (iAmmoChamberElapsed == 0 && m_bNeedPumpReloadEnd)
+			{
+				m_bNeedPumpState = true;
+			}
 			bStopReloadSignal = false;
 			SwitchState(eIdle);
 		}break;
@@ -118,6 +123,9 @@ void CWeaponAutomaticShotgun::OnAnimationEnd(u32 state)
 
 void CWeaponAutomaticShotgun::Reload() 
 {
+	bMisfireReload = false;
+	bReloadEmptyByScheme = false;
+
 	bool is_misfire = IsMisfire() && (HudAnimationExist("anm_reload_jammed") || HudAnimationExist("anm_reload_misfire"));
 
 	if (is_misfire)
@@ -125,7 +133,14 @@ void CWeaponAutomaticShotgun::Reload()
 		bMisfireReload = true;
 	}
 
-	if (m_bTriStateReload && !is_misfire)
+	bool empty_reload = m_bUseMosinScheme && !IsScopeAttached() && iAmmoChamberElapsed + AmmoElapsed.MagazineElapsed == 0 && HaveCartridgeInInventory(GetMagCapacity());
+
+	if (empty_reload)
+	{
+		bReloadEmptyByScheme = true;
+	}
+
+	if (m_bTriStateReload && !is_misfire && !empty_reload)
 		TriStateReload();
 	else
 		inherited::Reload();
@@ -142,10 +157,9 @@ void CWeaponAutomaticShotgun::TriStateReload()
 	SwitchState	(eReload);
 }
 
-void CWeaponAutomaticShotgun::OnStateSwitch	(u32 S)
+void CWeaponAutomaticShotgun::OnStateSwitch	(u8 S)
 {
-	bool is_misfire = S == eReload && IsMisfire() && (HudAnimationExist("anm_reload_jammed") || HudAnimationExist("anm_reload_misfire"));
-	if (!m_bTriStateReload || S != eReload || is_misfire)
+	if (!m_bTriStateReload || S != eReload || S == eReload && (bMisfireReload || bReloadEmptyByScheme))
 	{
 		bStopReloadSignal = false;
 		m_bIsPreloaded = false;
@@ -191,13 +205,21 @@ void CWeaponAutomaticShotgun::OnStateSwitch	(u32 S)
 void CWeaponAutomaticShotgun::switch2_StartReload()
 {
 	u8 type_to_update = m_bUseLastAmmoType && m_LastShotAmmoType != undefined_ammo_type ? m_LastShotAmmoType : GetTargetAmmoType();
-	UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, type_to_update);
-	UpdateMagAmmoBones(m_mag_bone_type, type_to_update);
+
+	if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+	{
+		AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, type_to_update);
+	}
+
+	if (TMagAmmoBones* MagAmmoBones = GetComponent<TMagAmmoBones>())
+	{
+		MagAmmoBones->UpdateMagAmmoBones(this, type_to_update);
+	}
 
 	PlayAnimOpenWeapon();
-	SetPending(TRUE);
+	SetPending(true);
 
-	if (ParentIsActor() && m_sounds.FindSoundItem("sndOpenEmpty", false) && iAmmoElapsed + iAmmoChamberElapsed == 0)
+	if (ParentIsActor() && m_sounds.FindSoundItem("sndOpenEmpty", false) && AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed == 0)
 	{
 		PlaySound("sndOpenEmpty", get_LastFP());
 	}
@@ -209,11 +231,18 @@ void CWeaponAutomaticShotgun::switch2_StartReload()
 
 void CWeaponAutomaticShotgun::switch2_AddCartgidge()
 {
-	UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, GetTargetAmmoType());
-	UpdateMagAmmoBones(m_mag_bone_type, GetTargetAmmoType());
+	if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+	{
+		AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, GetTargetAmmoType());
+	}
+
+	if (TMagAmmoBones* MagAmmoBones = GetComponent<TMagAmmoBones>())
+	{
+		MagAmmoBones->UpdateMagAmmoBones(this, GetTargetAmmoType());
+	}
 	m_bIsReloaded = false;
 
-	if (ParentIsActor() && m_sounds.FindSoundItem("sndAddCartridgeEmpty", false) && iAmmoElapsed + iAmmoChamberElapsed == 0)
+	if (ParentIsActor() && m_sounds.FindSoundItem("sndAddCartridgeEmpty", false) && AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed == 0)
 	{
 		PlaySound("sndAddCartridgeEmpty", get_LastFP());
 	}
@@ -226,19 +255,26 @@ void CWeaponAutomaticShotgun::switch2_AddCartgidge()
 		PlaySound("sndAddCartridge", get_LastFP());
 	}
 
-	SetPending(TRUE);
+	SetPending(true);
 	PlayAnimAddOneCartridgeWeapon();
 }
 
 void CWeaponAutomaticShotgun::switch2_EndReload()
 {
-	UpdateAmmoBones(m_ammo_bones_mag, iAmmoElapsed, GetTargetAmmoType());
-	UpdateMagAmmoBones(m_mag_bone_type, GetTargetAmmoType());
-	SetPending(TRUE);
+	if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+	{
+		AmmoBones->UpdateAmmoBones(this, AmmoElapsed.MagazineElapsed, GetTargetAmmoType());
+	}
+
+	if (TMagAmmoBones* MagAmmoBones = GetComponent<TMagAmmoBones>())
+	{
+		MagAmmoBones->UpdateMagAmmoBones(this, GetTargetAmmoType());
+	}
+	SetPending(true);
 
 	PlayAnimCloseWeapon();
 
-	if (ParentIsActor() && m_sounds.FindSoundItem("sndCloseEmpty", false) && iAmmoElapsed + iAmmoChamberElapsed == 0)
+	if (ParentIsActor() && m_sounds.FindSoundItem("sndCloseEmpty", false) && AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed == 0)
 	{
 		PlaySound("sndCloseEmpty", get_LastFP());
 	}
@@ -258,7 +294,7 @@ shared_str CWeaponAutomaticShotgun::SelectOpenWeaponAnimation()
 
 	if (ParentIsActor())
 	{
-		if (iAmmoElapsed + iAmmoChamberElapsed == 0)
+		if (AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed == 0)
 		{
 			AddSuffixName(anim, "_empty");
 			m_bIsPreloaded = true;
@@ -290,7 +326,7 @@ shared_str CWeaponAutomaticShotgun::SelectAddCartridgeWeaponAnimation()
 
 	if (ParentIsActor())
 	{
-		if (iAmmoElapsed + iAmmoChamberElapsed == 0)
+		if (AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed == 0)
 		{
 			AddSuffixName(anim, "_empty");
 		}
@@ -322,7 +358,7 @@ shared_str CWeaponAutomaticShotgun::SelectCloseWeaponAnimation()
 			m_bIsPreloaded = false;
 		}
 
-		if (iAmmoElapsed + iAmmoChamberElapsed >= GetMagCapacity() && AddSuffixName(anim, "_final"))
+		if (AmmoElapsed.MagazineElapsed + iAmmoChamberElapsed >= GetMagCapacity() && AddSuffixName(anim, "_final"))
 		{
 			m_bJustAfterReload = true;
 		}
@@ -338,9 +374,9 @@ void CWeaponAutomaticShotgun::PlayAnimCloseWeapon()
 	PlayHUDMotion(SelectCloseWeaponAnimation(), EHudMixType::eNoMix, eReload);
 }
 
-BOOL CWeaponAutomaticShotgun::net_Spawn(CSE_Abstract* DC)
+bool CWeaponAutomaticShotgun::net_Spawn(CSE_Abstract* DC)
 {
-	BOOL bResult = inherited::net_Spawn(DC);
+	bool bResult = inherited::net_Spawn(DC);
 
 	CSE_ALifeItemWeaponShotGun* E = smart_cast<CSE_ALifeItemWeaponShotGun*>(DC);
 
@@ -404,7 +440,7 @@ void CWeaponAutomaticShotgun::net_Import(NET_Packet& P)
 	}
 }
 
-void CWeaponAutomaticShotgun::OnMotionMark(u32 state, const motion_marks& mark)
+void CWeaponAutomaticShotgun::OnMotionMark(u8 state, const motion_marks& mark)
 {
 	inherited::OnMotionMark(state, mark);
 
@@ -412,7 +448,7 @@ void CWeaponAutomaticShotgun::OnMotionMark(u32 state, const motion_marks& mark)
 	{
 		if (m_sub_state == EWeaponSubStates::eSubstateReloadBegin)
 		{
-			if (iAmmoElapsed < GetMagCapacity())
+			if (AmmoElapsed.MagazineElapsed < GetMagCapacity())
 			{
 				m_bIsReloaded = true;
 				AddCartridge(1);
@@ -420,7 +456,7 @@ void CWeaponAutomaticShotgun::OnMotionMark(u32 state, const motion_marks& mark)
 		}
 		else if (m_sub_state == EWeaponSubStates::eSubstateReloadInProcess)
 		{
-			if (iAmmoElapsed < GetMagCapacity())
+			if (AmmoElapsed.MagazineElapsed < GetMagCapacity())
 			{
 				m_bIsReloaded = true;
 				AddCartridge(1);
@@ -430,10 +466,26 @@ void CWeaponAutomaticShotgun::OnMotionMark(u32 state, const motion_marks& mark)
 
 	if (ParentIsActor() && state == eReload && m_bTriStateReload && mark.name == "Left")
 	{
-		u32 current_configuration = iAmmoElapsed + iAmmoChamberElapsed + 1;
-		bool for_grenade = IsGrenadeMode();
-		UpdateAmmoBones(for_grenade ? m_ammo_bones_gl : m_ammo_bones_mag, current_configuration, GetTargetAmmoType(for_grenade));
-		UpdateLiteAmmoBones(current_configuration);
-		UpdateMagAmmoBones(m_mag_bone_type, GetTargetAmmoType(for_grenade));
+		u32 current_configuration = AmmoElapsed.MagazineElapsed + 1;
+
+		if (TAmmoBones* AmmoBones = GetComponent<TAmmoBones>())
+		{
+			AmmoBones->UpdateAmmoBones(this, current_configuration, GetTargetAmmoType());
+		}
+
+		if (TLiteAmmoBones* LiteAmmoBones = GetComponent<TLiteAmmoBones>())
+		{
+			LiteAmmoBones->UpdateLiteAmmoBones(this, current_configuration);
+		}
+
+		if (TGrenadeLauncherAmmoBones* GLAmmoBones = GetComponent<TGrenadeLauncherAmmoBones>())
+		{
+			GLAmmoBones->UpdateGLAmmoBones(this, GetTargetAmmoType(true));
+		}
+
+		if (TMagAmmoBones* MagAmmoBones = GetComponent<TMagAmmoBones>())
+		{
+			MagAmmoBones->UpdateMagAmmoBones(this, GetTargetAmmoType(IsGrenadeMode()));
+		}
 	}
 }

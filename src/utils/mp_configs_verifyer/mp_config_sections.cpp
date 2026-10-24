@@ -33,7 +33,7 @@ static const char* important_sections[] =
 };
 
 mp_config_sections::mp_config_sections() :
-	m_tmp_dumper(NULL, FALSE, FALSE, FALSE)
+	m_tmp_dumper(NULL, false, false, false)
 {
 	u32		gcount	=  pSettings->line_count("mp_item_groups");
 	LPCSTR	line;
@@ -72,7 +72,7 @@ bool mp_config_sections::dump_one	(CMemoryWriter & dest)
 	R_ASSERT(pSettings->section_exist(m_current_dump_sect->c_str()));
 	CInifile::Sect & tmp_sect = pSettings->r_section(m_current_dump_sect->c_str());
 
-	m_tmp_dumper.sections().push_back(&tmp_sect);
+	m_tmp_dumper.sections().push_back(tmp_sect);
 	m_tmp_dumper.save_as(dest);
 	m_tmp_dumper.sections().pop_back();
 

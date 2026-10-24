@@ -35,13 +35,23 @@ Texture2D s_dn_gX;
 Texture2D s_dn_bX;
 Texture2D s_dn_aX;
 
+Texture2D s_dt_spec_r;
+Texture2D s_dt_spec_g;
+Texture2D s_dt_spec_b;
+Texture2D s_dt_spec_a;
+
 Texture2D s_refl;
+
 TextureCube s_env;
+TextureCube s_env_dist;
 
 TextureCube env_s0;
 TextureCube env_s1;
+
 TextureCube sky_s0;
 TextureCube sky_s1;
+
+Texture3D s_blue_noise;
 
 // Lighting/shadowing phase                     //
 
@@ -63,5 +73,8 @@ Texture2D s_bloom; //
 Texture2D s_image; // used in various post-processing
 Texture2D s_velocity; // used in various post-processing
 Texture2D s_tonemap; // actually MidleGray / exp(Lw + eps)
+
+Texture2D n_bloom; // new papa_doenitz bloom
+Texture2D s_adapt; // new adaptation texture
 
 #endif //	#ifndef	common_samplers_h_included

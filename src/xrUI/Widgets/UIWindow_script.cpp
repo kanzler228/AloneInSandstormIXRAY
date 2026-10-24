@@ -12,6 +12,7 @@
 #include <luabind/adopt_policy.hpp>
 #include "UIHint.h"
 #include "UIStackPanel.h"
+#include "UIGamepadLegend.h"
 
 CFontManager& mngr()
 {
@@ -74,6 +75,24 @@ const Fvector2 get_wnd_pos(CUIWindow* w)
 	return w->GetWndPos();
 }
 
+Frect	get_texture_rect(const char* icon_name)
+{
+	return CUITextureMaster::GetTextureRect(icon_name);
+}
+
+const char*	get_texture_name(const char* icon_name)
+{
+	return CUITextureMaster::GetTextureFileName(icon_name);
+}
+
+TEX_INFO	get_texture_info(const char* name, const char* def_name)
+{
+	if (CUITextureMaster::ItemExist(name))
+		return CUITextureMaster::FindItem(name);
+	else
+		return CUITextureMaster::FindItem(def_name);
+}
+
 Fvector2 GetCursorPosition_script()
 {
 	return GetUICursor().GetCursorPosition();
@@ -83,6 +102,8 @@ void SetCursorPosition_script(Fvector2& pos)
 {
 	GetUICursor().SetUICursorPosition(pos);
 }
+
+
 using namespace luabind;
 #pragma optimize("s",on)
 void CUIWindow::script_register(lua_State *L)
@@ -107,7 +128,15 @@ void CUIWindow::script_register(lua_State *L)
 		def("FitInRect",					&fit_in_rect),
 		def("SetARGB", &SetARGB),
 
-		class_<CUIWindow>("CUIWindow")
+		class_<TEX_INFO>("TEX_INFO")
+		.def("get_file_name",	 			&TEX_INFO::get_file_name)
+		.def("get_rect",					&TEX_INFO::get_rect),
+
+		def("GetTextureName",			&get_texture_name),
+		def("GetTextureRect",			&get_texture_rect),
+		def("GetTextureInfo",			&get_texture_info),
+
+		class_<CUIWindow, CUIActionRepeatersOwner>("CUIWindow")
 		.def(							constructor<>())
 		.def("AttachChild",				&CUIWindow::AttachChild, adopt<2>())
 		.def("DetachChild",				&CUIWindow::DetachChild)
@@ -118,9 +147,33 @@ void CUIWindow::script_register(lua_State *L)
 		.def("FocusReceiveTime",		&CUIWindow::FocusReceiveTime)
 		.def("GetAbsoluteRect",			&CUIWindow::GetAbsoluteRect)
 
+		.def("Init", +[](CUIWindow* self, float x, float y, float width, float height)
+			{
+				self->SetWndPos(Fvector2().set(x, y));
+				self->SetWndSize(Fvector2().set(width, height));
+			})
+		.def("Init",					(void (CUIWindow::*)(Frect)) & CUIWindow::SetWndRect_script)
+
 		.def("SetWndRect",				(void (CUIWindow::*)(Frect))	&CUIWindow::SetWndRect_script)
+		.def("SetWndRect", +[](CUIWindow* self, float x, float y, float width, float height)
+			{
+				const Frect rect{ x, y, width, height };
+				self->SetWndRect(rect);
+			})
+
 		.def("SetWndPos",				(void (CUIWindow::*)(Fvector2)) &CUIWindow::SetWndPos_script)
 		.def("SetWndSize",				(void (CUIWindow::*)(Fvector2)) &CUIWindow::SetWndSize_script)
+
+		.def("SetWndPos", +[](CUIWindow* self, float x, float y)
+			{
+				const Fvector2 pos{ x, y };
+				self->SetWndPos(pos);
+			})
+		.def("SetWndSize", +[](CUIWindow* self, float width, float height)
+			{
+				const Fvector2 size{ width, height };
+				self->SetWndSize(size);
+			})
 		.def("GetWndPos",				&get_wnd_pos)
 		.def("GetWidth",				&CUIWindow::GetWidth)
 		.def("SetWidth",				&CUIWindow::SetWidth)
@@ -138,7 +191,10 @@ void CUIWindow::script_register(lua_State *L)
 		.def("SetWindowName",			&CUIWindow::SetWindowName)
 		.def("SetPPMode",				&CUIWindow::SetPPMode)
 		.def("ResetPPMode",				&CUIWindow::ResetPPMode)
-	];
+		.def("GetParent",				&CUIWindow::GetParent)
+		.def("FindWindow",				&CUIWindow::FindChild_script<CUIWindow>)
+		.def("FindStatic",				&CUIWindow::FindChild_script<CUIStatic>)
+];
 
 	module(L)
 	[
@@ -173,6 +229,10 @@ void CUIWindow::script_register(lua_State *L)
 		.def("SetRightAlign",			&CUIStackPanel::SetRightAlign)
 		.def("IsAlignRight",			&CUIStackPanel::IsAlignRight),
 
+		class_<CUIGamepadLegend, CUIWindow>("CUIGamepadLegend")
+		.def(							constructor<>())
+		.def("ReloadLegend",			&CUIGamepadLegend::ReloadLegend),
+
 		class_<UIHint, CUIWindow>("UIHint")
 		.def(							constructor<>())
 		.def("SetWidth",				&UIHint::SetWidth)
@@ -190,8 +250,14 @@ void CUIWindow::script_register(lua_State *L)
 		.def("GetMinScrollPos",			&CUIScrollView::GetMinScrollPos)
 		.def("GetMaxScrollPos",			&CUIScrollView::GetMaxScrollPos)
 		.def("GetCurrentScrollPos",		&CUIScrollView::GetCurrentScrollPos)
-		.def("SetFixedScrollBar", 		&CUIScrollView::SetFixedScrollBar)																
-		.def("SetScrollPos",			&CUIScrollView::SetScrollPos),
+		.def("SetFixedScrollBar", 		&CUIScrollView::SetFixedScrollBar)
+		.def("SetScrollBarProfile",		&CUIScrollView::SetScrollBarProfile)
+		.def("ScrollBar",				&CUIScrollView::ScrollBar)
+		.def("ReinitScrollBar",			&CUIScrollView::ReinitScrollBar)
+		.def("SetScrollPos",			&CUIScrollView::SetScrollPos)
+		.def("GetPadSize",				&CUIScrollView::GetPadSize)
+		.def("HasWindow",				&CUIScrollView::HasWindow)
+		.def("ScrollToItem",			&CUIScrollView::ScrollToItem),
 
 		class_<enum_exporter<EUIMessages> >("ui_events")
 			.enum_("events")

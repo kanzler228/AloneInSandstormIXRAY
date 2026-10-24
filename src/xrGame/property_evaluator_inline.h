@@ -12,18 +12,7 @@
 #define CEvaluator				CPropertyEvaluator<_object_type>
 
 TEMPLATE_SPECIALIZATION
-IC	CEvaluator::CPropertyEvaluator	(_object_type *object, LPCSTR evaluator_name)
-{
-	init				(object,evaluator_name);
-}
-
-TEMPLATE_SPECIALIZATION
-IC	CEvaluator::~CPropertyEvaluator	()
-{
-}
-
-TEMPLATE_SPECIALIZATION
-IC	void CEvaluator::init			(_object_type *object, LPCSTR evaluator_name)
+IC	void CEvaluator::init			(_object_type *object, const char* evaluator_name)
 {
 	m_object			= object;
 #ifdef LOG_ACTION
@@ -40,21 +29,21 @@ void CEvaluator::setup				(_object_type *object, CPropertyStorage *storage)
 }
 
 TEMPLATE_SPECIALIZATION
-void CEvaluator::Load				(LPCSTR section)
+void CEvaluator::Load				(const char* section)
 {
 }
 
 TEMPLATE_SPECIALIZATION
-typename CEvaluator::_value_type CEvaluator::evaluate	()
+bool CEvaluator::evaluate	()
 {
 	return				(0);
 }
 
 TEMPLATE_SPECIALIZATION
-IC	const typename CEvaluator::_value_type &CEvaluator::property	(const _condition_type &condition_id) const
+IC const bool& CEvaluator::property(const u32& condition_id) const
 {
-	VERIFY				(m_storage);
-	return				(m_storage->property(condition_id));
+	VERIFY(m_storage);
+	return (m_storage->property(condition_id));
 }
 
 #undef TEMPLATE_SPECIALIZATION

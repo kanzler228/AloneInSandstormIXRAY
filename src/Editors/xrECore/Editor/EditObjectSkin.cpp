@@ -12,7 +12,7 @@
 #include "ui_main.h"
 
 // FX: link sphere symbols 
-#include <freemagic/MgcSphere.h>
+#include "../../3rd-party/MagicSoftware/FreeMagic/Include/MgcSphere.h"
 
 const u32 color_bone_sel_color	=0xFFFFFFFF;
 const u32 color_bone_norm_color	=0xFFFFFF00;
@@ -40,7 +40,7 @@ bool CEditableObject::LoadBoneData(IReader& F)
 	BoneVec	load_bones;
     int count=0;
 	IReader* R;
-    while(0!=(R=F.open_chunk(count++)))
+    while(nullptr!=(R=F.open_chunk(count++)))
     {
     	CBone* nBone = new CBone();
     	load_bones.push_back(nBone);
@@ -178,8 +178,8 @@ void CEditableObject::RenderBones(const Fmatrix& parent)
                 if ((*b_it)->shape.Valid()){
                     switch ((*b_it)->shape.type){
                     case SBoneShape::stBox: 	DU_impl.DrawOBB		(mat,(*b_it)->shape.box,c,c);	break;
-                    case SBoneShape::stSphere:	DU_impl.DrawSphere   (mat,(*b_it)->shape.sphere,c,c,TRUE,TRUE);break;
-                    case SBoneShape::stCylinder:DU_impl.DrawCylinder (mat,(*b_it)->shape.cylinder.m_center,(*b_it)->shape.cylinder.m_direction,(*b_it)->shape.cylinder.m_height,(*b_it)->shape.cylinder.m_radius,c,c,TRUE,TRUE);break;
+                    case SBoneShape::stSphere:	DU_impl.DrawSphere   (mat,(*b_it)->shape.sphere,c,c,true,true);break;
+                    case SBoneShape::stCylinder:DU_impl.DrawCylinder (mat,(*b_it)->shape.cylinder.m_center,(*b_it)->shape.cylinder.m_direction,(*b_it)->shape.cylinder.m_height,(*b_it)->shape.cylinder.m_radius,c,c,true,true);break;
 	                }
                 }
             }
@@ -191,7 +191,7 @@ CBone* CEditableObject::PickBone(const Fvector& S, const Fvector& D, const Fmatr
 {
     BoneVec& lst 	= m_Bones;
     float dist 		= 10000.f;
-    CBone* sel	 	= 0;
+    CBone* sel	 	= nullptr;
     for(BoneIt b_it=lst.begin(); b_it!=lst.end(); b_it++){
     	if ((*b_it)->Pick(dist,S,D,parent))
         	sel 	= *b_it;
@@ -220,15 +220,14 @@ int CEditableObject::GetSelectedBones(BoneVec& sel_bones)
 }
 
 //----------------------------------------------------
-
-#include <freemagic/MgcCont3DMinSphere.h>
+#include "../../3rd-party/MagicSoftware/FreeMagic/Include/MgcCont3DMinSphere.h"
 #include "ExportSkeleton.h"
 
-BOOL	f_valid		(float f)
+bool	f_valid		(float f)
 {
 	return _finite(f) && !_isnan(f);
 }
-BOOL	SphereValid	(FvectorVec& geom, Fsphere& test)
+bool	SphereValid	(FvectorVec& geom, Fsphere& test)
 {
 	if (!f_valid(test.P.x) || !f_valid(test.R))	{
 		Msg	("*** Attention ***: invalid sphere: %f,%f,%f - %f",test.P.x,test.P.y,test.P.z,test.R);
@@ -236,9 +235,14 @@ BOOL	SphereValid	(FvectorVec& geom, Fsphere& test)
 
 	Fsphere	S	=	test;
 	S.R			+=	EPS_L;
-	for (FvectorIt I = geom.begin(); I!=geom.end(); I++)
-		if (!S.contains(*I))	return FALSE;
-	return TRUE;
+	for (auto& I : geom)
+	{
+		if (!S.contains(I))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 void ComputeSphere(Fsphere &B, FvectorVec& V)
 {
@@ -247,7 +251,7 @@ void ComputeSphere(Fsphere &B, FvectorVec& V)
 	// 1: calc first variation
 	Fsphere	S1;
     Fsphere_compute		(S1,V.data(),V.size());
-	BOOL B1				= SphereValid(V,S1);
+	bool B1				= SphereValid(V,S1);
     
 	// 2: calc ordinary algorithm (2nd)
 	Fsphere	S2;
@@ -261,15 +265,15 @@ void ComputeSphere(Fsphere &B, FvectorVec& V)
 		float d = S2.P.distance_to_sqr(*I);
 		if (d>S2.R) S2.R=d;
 	}
-	S2.R = _sqrt (_abs(S2.R));
-	BOOL B2				= SphereValid(V,S2);
+	S2.R = _sqrt (std::abs(S2.R));
+	bool B2				= SphereValid(V,S2);
 
 	// 3: calc magic-fm
 	Mgc::Sphere _S3 = Mgc::MinSphere(V.size(), (const Mgc::Vector3*) V.data());
 	Fsphere	S3;
 	S3.P.set			(_S3.Center().x,_S3.Center().y,_S3.Center().z);
 	S3.R				= _S3.Radius();
-	BOOL B3				= SphereValid(V,S3);
+	bool B3				= SphereValid(V,S3);
 
 	// select best one
 	if (B1 && (S1.R<S2.R)){		// miniball or FM
@@ -288,8 +292,7 @@ void ComputeSphere(Fsphere &B, FvectorVec& V)
 	}
 }
 //----------------------------------------------------
-
-#include <freemagic/MgcCont3DCylinder.h>
+#include "../../3rd-party/MagicSoftware/FreeMagic/Include/MgcCont3DCylinder.h"
 void ComputeCylinder(Fcylinder& C, Fobb& B, FvectorVec& V)
 {
     if (V.size()<3) 	{ C.invalidate(); return; }
@@ -316,22 +319,22 @@ void ComputeCylinder(Fcylinder& C, Fobb& B, FvectorVec& V)
     	Fvector pt_c;	pt_c.sub(pt,c);
 
     	float pI		= axisI.dotproduct(pt);
-        min_hI			= _min(min_hI,pI);
-        max_hI			= _max(max_hI,pI);
+        min_hI			= std::min(min_hI,pI);
+        max_hI			= std::max(max_hI,pI);
         tmp.mad			(c,axisI,axisI.dotproduct(pt_c));
-        max_rI			= _max(max_rI,tmp.distance_to(pt));
+        max_rI			= std::max(max_rI,tmp.distance_to(pt));
         
     	float pJ		= axisJ.dotproduct(pt);
-        min_hJ			= _min(min_hJ,pJ);
-        max_hJ			= _max(max_hJ,pJ);
+        min_hJ			= std::min(min_hJ,pJ);
+        max_hJ			= std::max(max_hJ,pJ);
         tmp.mad			(c,axisJ,axisJ.dotproduct(pt_c));
-        max_rJ			= _max(max_rJ,tmp.distance_to(pt));
+        max_rJ			= std::max(max_rJ,tmp.distance_to(pt));
 
     	float pK		= axisK.dotproduct(pt);
-        min_hK			= _min(min_hK,pK);
-        max_hK			= _max(max_hK,pK);
+        min_hK			= std::min(min_hK,pK);
+        max_hK			= std::max(max_hK,pK);
         tmp.mad			(c,axisK,axisK.dotproduct(pt_c));
-        max_rK			= _max(max_rK,tmp.distance_to(pt));
+        max_rK			= std::max(max_rK,tmp.distance_to(pt));
     }
 
     float hI			= (max_hI-min_hI);
@@ -340,12 +343,7 @@ void ComputeCylinder(Fcylinder& C, Fobb& B, FvectorVec& V)
     float vI			= hI*M_PI*_sqr(max_rI);
     float vJ			= hJ*M_PI*_sqr(max_rJ);
     float vK			= hK*M_PI*_sqr(max_rK);
-//    vI					= pow(2*M_PI*max_rI*hI+2*M_PI*_sqr(max_rI),3/2)/vI;
-//    vJ					= pow(2*M_PI*max_rJ*hJ+2*M_PI*_sqr(max_rJ),3/2)/vJ;
-//    vK					= pow(2*M_PI*max_rK*hK+2*M_PI*_sqr(max_rK),3/2)/vK;
-    // pow(area,(3/2))/volume
-    // 2*Pi*R*H+2*Pi*R*R
-    
+
     if (vI<vJ){
     	if (vI<vK){
         	//vI;

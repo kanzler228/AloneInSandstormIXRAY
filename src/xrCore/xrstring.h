@@ -53,11 +53,11 @@ public:
 	xr_string(const xr_string& other) = default;
 	xr_string(xr_string&& other) noexcept = default;
 
-	xr_string(LPCSTR Str);
-	xr_string(LPCSTR Str, u32 Size);
+	xr_string(const char* Str);
+	xr_string(const char* Str, u32 Size);
 	xr_string(Super&& other);
 
-	xr_string& operator=(LPCSTR Str);
+	xr_string& operator=(const char* Str);
 	xr_string& operator=(const Super& other);
 
 	xr_string& operator=(const xr_string& other) = default;
@@ -66,12 +66,13 @@ public:
 	template <size_t ArrayLenght>
 	xr_string(char* (&InArray)[ArrayLenght]);
 
-	xr_vector<xr_string> Split(char splitCh) const;
+	xr_vector<xr_string> Split(char splitCh = ',') const;
+	void Split(xr_vector<xr_string>& splitted_vec, char splitCh = ',') const;
 	xr_vector<xr_string> Split(u32 NumberOfSplits, ...) const;
 
 	bool StartWith(const xr_string& Other) const;
-	bool StartWith(LPCSTR Str) const;
-	bool StartWith(LPCSTR Str, size_t Size) const;
+	bool StartWith(const char* Str) const;
+	bool StartWith(const char* Str, size_t Size) const;
 
 	bool Contains(const xr_string& SubStr) const;
 	bool EqualWithCaseInsensitive(const xr_string& SubStr) const;
@@ -113,7 +114,13 @@ namespace std
 	};
 }
 
-IC void	xr_strlwr(xr_string& src) { for (xr_string::iterator it = src.begin(); it != src.end(); it++) *it = xr_string::value_type(tolower(*it)); }
+IC void	xr_strlwr(xr_string& src)
+{
+	for (xr_string::iterator it = src.begin(); it != src.end(); it++)
+	{
+		*it = xr_string::value_type(tolower(*it));
+	}
+}
 
 // Функция для преобразования русских символов в нижний регистр
 IC xr_string xr_strlwr_rus(const xr_string& str)
@@ -157,3 +164,9 @@ IC String make_string(const char* format, Args... args)
 // Support: xr_string and shared_str
 template<typename Key, typename Value>
 using xr_string_map = std::unordered_map<Key, Value, std::hash<Key>, std::equal_to<>>;
+
+namespace XRay::Concepts
+{
+	template <typename T>
+	concept XRayString = std::same_as<std::remove_cvref_t<T>, xr_string> || std::same_as<std::remove_cvref_t<T>, shared_str>;
+}

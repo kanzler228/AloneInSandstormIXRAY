@@ -20,7 +20,7 @@
 #include "../xrEProps/stdafx.h"
 #include "../../xrCore/Collision/xrCDB.h"
 #include "../../xrSound/Sound.h"
-#include "../../xrParticles/psystem.h"
+#include "../../Layers/xrRender/particle_core/psystem.h"
 
 #include "../../xrEngine/Fmesh.h"
 #include "../../xrEngine/_d3d_extensions.h"
@@ -73,7 +73,7 @@ using LPAStringIt = LPAStringVec::iterator;
 
 struct str_pred 
 {
-    IC bool operator()(LPCSTR x, LPCSTR y) const
+    IC bool operator()(const char* x, const char* y) const
     {	return strcmp(x,y)<0;	}
 };
 struct astr_pred
@@ -129,7 +129,7 @@ using RStrVecIt = RStrVec::iterator;
 #define		TEX_POINT_ATT	"internal\\internal_light_attpoint"
 #define		TEX_SPOT_ATT	"internal\\internal_light_attclip"
 
-#include "../../Layers/xrRender/ETextureParams.h"
+#include "../../xrEngine/ETextureParams.h"
 #include "../../Layers/xrRender/ResourceManager.h"
 
 #include "../../Layers/xrRender/blenders/Blender_Recorder.h"

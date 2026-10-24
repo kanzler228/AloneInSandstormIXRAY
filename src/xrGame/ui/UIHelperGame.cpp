@@ -7,11 +7,10 @@
 
 #include "StdAfx.h"
 #include "UIHelperGame.h"
-#include "../xrUI/UIXmlInit.h"
+#include "../../xrUI/UIXmlInit.h"
+#include "UIDragDropReferenceList.h"
 
-#include "ui/UIDragDropReferenceList.h"
-
-CUIDragDropListEx* UIHelperGame::CreateDragDropListEx(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent)
+CUIDragDropListEx* UIHelperGame::CreateDragDropListEx(CUIXml& xml, const char* ui_path, CUIWindow* parent)
 {
 	CUIDragDropListEx* ui = new CUIDragDropListEx();
 	parent->AttachChild(ui);
@@ -20,7 +19,7 @@ CUIDragDropListEx* UIHelperGame::CreateDragDropListEx(CUIXml& xml, LPCSTR ui_pat
 	return ui;
 }
 
-CUIDragDropReferenceList* UIHelperGame::CreateDragDropReferenceList(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent)
+CUIDragDropReferenceList* UIHelperGame::CreateDragDropReferenceList(CUIXml& xml, const char* ui_path, CUIWindow* parent)
 {
 	CUIDragDropReferenceList* ui = new CUIDragDropReferenceList();
 	parent->AttachChild(ui);
@@ -29,7 +28,7 @@ CUIDragDropReferenceList* UIHelperGame::CreateDragDropReferenceList(CUIXml& xml,
 	return ui;
 }
 
-bool CUIXmlInitGame::InitDragDropListEx(CUIXml& xml_doc, LPCSTR path, int index, CUIDragDropListEx* pWnd)
+bool CUIXmlInitGame::InitDragDropListEx(CUIXml& xml_doc, const char* path, int index, CUIDragDropListEx* pWnd)
 {
 	bool ValidNode = xml_doc.NavigateToNode(path, index);
 	R_ASSERT4(ValidNode, "XML node not found", path, xml_doc.m_xml_file_name);

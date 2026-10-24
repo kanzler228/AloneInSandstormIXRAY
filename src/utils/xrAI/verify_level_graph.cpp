@@ -65,7 +65,7 @@ bool verify_invalid_links	(const CLevelGraph &graph)
 	return								(result);
 }
 
-void verify_level_graph	(LPCSTR name, bool verbose)
+void verify_level_graph	(const char* name, bool verbose)
 {
 	Msg				("Verifying level %s",name);
 	Phase			("Verifying level graph");
@@ -124,7 +124,7 @@ void verify_level_graph	(LPCSTR name, bool verbose)
 			for ( ; I != E; ++I)
 				Msg					("Vertex %d[%f][%f][%f] is single linked!",*I,VPUSH(level_graph->vertex_position(*I)));
 		}
-		Msg							("There are %d single linked nodes!",single_links.size());
+		Msg							("There are %zu single linked nodes!",single_links.size());
 	}
 
 	Progress						(0.15f);

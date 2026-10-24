@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+#include "stdafx.h"
 
 #include "UITrackBar.h"
 #include "UI3tButton.h"
@@ -8,6 +8,7 @@
 #include "../string_table.h"
 #include <sstream> // for std::ostringstream
 #include <iomanip> // for std::setprecision
+#include "../UICursor.h"
 
 #define DEF_CONTROL_HEIGHT		16.0f
 
@@ -40,8 +41,19 @@ bool CUITrackBar::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		{
 			if(m_bCursorOverWindow && m_b_mouse_capturer)
 			{
-				if (pInput->iGetAsyncBtnState(0))
+				if (pInput->LeftMouseButtonPressed())
+				{
 					UpdatePosRelativeToMouse();
+				}
+			}
+
+			if (m_pSlider->GetBtnStatic() && m_pSlider->CursorOverWindow())
+			{
+				GetUICursor().m_static_text->SetText(m_pSlider->GetBtnStatic()->GetText());
+			}
+			else
+			{
+				GetUICursor().m_static_text->SetText("");
 			}
 		}break;
 	case WINDOW_LBUTTON_DOWN:
@@ -58,57 +70,66 @@ bool CUITrackBar::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		break;
 	case WINDOW_MOUSE_WHEEL_UP:
 		{
-			if (IsFltMode())
-			{
-				m_f_val -= GetInvert() ? -m_f_step : m_f_step;
-				clamp(m_f_val, m_f_min, m_f_max);
-			}
-			else
-			{
-				if (IsIntMode())
-					m_i_val -= GetInvert() ? -m_i_step : m_i_step;
-				else
-					m_i_val -= GetInvert() ? -1 : 1; // for bool and token it will be 1 always
-				clamp(m_i_val, m_i_min, m_i_max);
-			}
-			GetMessageTarget()->SendMessage(this, BUTTON_CLICKED, nullptr);
-			UpdatePos			();
-			OnChangedOptValue	();
+			StepLeft();
 		}
 		break;
 	case WINDOW_MOUSE_WHEEL_DOWN:
 		{
-			if (IsFltMode())
-			{
-				m_f_val += GetInvert() ? -m_f_step : m_f_step;
-				clamp(m_f_val, m_f_min, m_f_max);
-			}
-			else
-			{
-				if (IsIntMode())
-					m_i_val += GetInvert() ? -m_i_step : m_i_step;
-				else
-					m_i_val += GetInvert() ? -1 : 1;  // for bool and token it will be 1 always
-				clamp(m_i_val, m_i_min, m_i_max);
-			}
-			GetMessageTarget()->SendMessage(this, BUTTON_CLICKED, nullptr);
-			UpdatePos();
-			OnChangedOptValue	();
+			StepRight();
 		}
 		break;
 	};
 	return true;
 }
 
+void CUITrackBar::StepLeft()
+{
+	if (IsFltMode())
+	{
+		m_f_val -= GetInvert() ? -m_f_step : m_f_step;
+		clamp(m_f_val, m_f_min, m_f_max);
+	}
+	else
+	{
+		if (IsIntMode())
+			m_i_val -= GetInvert() ? -m_i_step : m_i_step;
+		else
+			m_i_val -= GetInvert() ? -1 : 1; // for bool and token it will be 1 always
+		clamp(m_i_val, m_i_min, m_i_max);
+	}
+	GetMessageTarget()->SendMessage(this, BUTTON_CLICKED, nullptr);
+	UpdatePos();
+	OnChangedOptValue();
+}
+
+void CUITrackBar::StepRight()
+{
+	if (IsFltMode())
+	{
+		m_f_val += GetInvert() ? -m_f_step : m_f_step;
+		clamp(m_f_val, m_f_min, m_f_max);
+	}
+	else
+	{
+		if (IsIntMode())
+			m_i_val += GetInvert() ? -m_i_step : m_i_step;
+		else
+			m_i_val += GetInvert() ? -1 : 1;  // for bool and token it will be 1 always
+		clamp(m_i_val, m_i_min, m_i_max);
+	}
+	GetMessageTarget()->SendMessage(this, BUTTON_CLICKED, nullptr);
+	UpdatePos();
+	OnChangedOptValue();
+
+}
+
 void CUITrackBar::InitTrackBar(Fvector2 pos, Fvector2 size)
 {
-	const float EditBoxSize = 20.f * UI().get_current_kx();
-
 	CUIXml xml_doc;
 	xml_doc.Load			(CONFIG_PATH, UI_PATH, "backend\\trackbar.xml");
 
-	LPCSTR nodevalue_button = xml_doc.Read("button_texture_name", 0, "ui_inGame2_opt_slider_box");
-	LPCSTR nodevalue_track	= xml_doc.Read("track_texture_name", 0, "ui_inGame2_opt_slider_bar");
+	const char* nodevalue_button = xml_doc.Read("button_texture_name", 0, "ui_inGame2_opt_slider_box");
+	const char* nodevalue_track	= xml_doc.Read("track_texture_name", 0, "ui_inGame2_opt_slider_bar");
 	float size_custom		= xml_doc.ReadFlt("size", 0, 1.0f);
 
 	float					item_height;
@@ -132,7 +153,7 @@ void CUITrackBar::InitTrackBar(Fvector2 pos, Fvector2 size)
 
 	m_pSlider->InitButton	(Fvector2().set(0.0f, 0.0f), Fvector2().set(item_width, item_height));			//size
 	m_pSlider->InitTexture	(nodevalue_button);
-	m_pSlider->m_background->SetStretchTexture(xml_doc.ReadInt("stretch", 0, TRUE));
+	m_pSlider->m_background->SetStretchTexture(xml_doc.ReadInt("stretch", 0, true));
 
 	if (m_b_draw_value)
 	{
@@ -157,22 +178,22 @@ void CUITrackBar::Draw()
 	m_pSlider->Draw();
 }
 
-// Форматирование текущего значения
+// Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ С‚РµРєСѓС‰РµРіРѕ Р·РЅР°С‡РµРЅРёСЏ
 static std::string FormatFloatWithStep(float value, int num_of_signs)
 {
-	// Вычисляем множитель на основе количества знаков после запятой
+	// Р’С‹С‡РёСЃР»СЏРµРј РјРЅРѕР¶РёС‚РµР»СЊ РЅР° РѕСЃРЅРѕРІРµ РєРѕР»РёС‡РµСЃС‚РІР° Р·РЅР°РєРѕРІ РїРѕСЃР»Рµ Р·Р°РїСЏС‚РѕР№
 	float multiplier = std::pow(10.0f, num_of_signs);
 
-	// Округляем значение с учетом заданной точности
+	// РћРєСЂСѓРіР»СЏРµРј Р·РЅР°С‡РµРЅРёРµ СЃ СѓС‡РµС‚РѕРј Р·Р°РґР°РЅРЅРѕР№ С‚РѕС‡РЅРѕСЃС‚Рё
 	float rounded_value = std::round(value * multiplier) / multiplier;
 
-	// Проверяем, является ли округлённое значение целым
+	// РџСЂРѕРІРµСЂСЏРµРј, СЏРІР»СЏРµС‚СЃСЏ Р»Рё РѕРєСЂСѓРіР»С‘РЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ С†РµР»С‹Рј
 	if (std::fabs(std::floor(rounded_value) - rounded_value) < 0.00001f)
 	{
-		return std::to_string(static_cast<int>(rounded_value)); // Преобразуем в строку как целое число
+		return std::to_string(static_cast<int>(rounded_value)); // РїСЂРµРѕР±СЂР°Р·СѓРµРј РІ СЃС‚СЂРѕРєСѓ РєР°Рє С†РµР»РѕРµ С‡РёСЃР»Рѕ
 	}
 
-	// Если дробная часть есть, форматируем с указанной точностью
+	// Р•СЃР»Рё РґСЂРѕР±РЅР°СЏ С‡Р°СЃС‚СЊ РµСЃС‚СЊ, С„РѕСЂРјР°С‚РёСЂСѓРµРј СЃ СѓРєР°Р·Р°РЅРЅРѕР№ С‚РѕС‡РЅРѕСЃС‚СЊСЋ
 	std::ostringstream oss;
 	oss << std::fixed << std::setprecision(num_of_signs) << rounded_value;
 	return oss.str();
@@ -184,8 +205,10 @@ void CUITrackBar::Update()
 
 	if (m_b_mouse_capturer)
 	{
-		if (!pInput->iGetAsyncBtnState(0))
+		if (!pInput->LeftMouseButtonPressed())
+		{
 			m_b_mouse_capturer = false;
+		}
 	}
 }
 
@@ -193,7 +216,7 @@ void CUITrackBar::UpdateText()
 {
 	CUIStatic* pUIStatic = m_pSlider->GetBtnStatic();
 	std::string out_str = "";
-	if (pUIStatic && m_b_draw_value)
+	if (m_b_draw_value)
 	{
 		switch (m_mode)
 		{
@@ -208,16 +231,20 @@ void CUITrackBar::UpdateText()
 			case eTrackBarModeToken:
 			{
 				xr_token* tok = GetOptToken();
-				LPCSTR cur_val = get_token_name(tok, m_i_val - 1);
-				out_str = *CStringTable().translate(cur_val);
-			}break;
+				const char* cur_val = get_token_name(tok, m_i_val - 1);
+				out_str = g_pStringTable->translate(cur_val).c_str();
+			}
+			break;
 			case eTrackBarModeBool:
 			{
-				out_str = m_i_val == m_i_min ? *CStringTable().translate("st_track_opt_off") : *CStringTable().translate("st_track_opt_on");
-			}break;
+				out_str = m_i_val == m_i_min ? g_pStringTable->translate("st_track_opt_off").c_str() : g_pStringTable->translate("st_track_opt_on").c_str();
+			}
+			break;
 		}
-		pUIStatic->SetText(out_str.c_str());
 	}
+
+	if (pUIStatic)
+		pUIStatic->SetText(out_str.c_str());
 }
 
 void CUITrackBar::SetCurrentOptValue()
@@ -225,7 +252,7 @@ void CUITrackBar::SetCurrentOptValue()
 	CUIOptionsItem::SetCurrentOptValue();
 	if (IsTokenMode())
 	{
-		LPCSTR val = GetOptStringValue();
+		const char* val = GetOptStringValue();
 		for (xr_token* tok = GetOptToken(); tok->name; ++tok)
 		{
 			if (stricmp(tok->name, val) == 0)
@@ -276,7 +303,7 @@ void CUITrackBar::SaveOptValue()
 		if (strcmp("not_an_option", GetEntry()))
 		{
 			xr_token* tok = GetOptToken();
-			LPCSTR cur_val = get_token_name(tok, m_i_val - 1);
+			const char* cur_val = get_token_name(tok, m_i_val - 1);
 			SaveOptStringValue(cur_val);
 		}
 	}
@@ -440,7 +467,7 @@ void CUITrackBar::SetTokenValues(xr_token* tokens)
 		m_i_max = count;
 	}
 
-	LPCSTR current_value = GetOptStringValue();
+	const char* current_value = GetOptStringValue();
 	m_i_val = m_i_min;
 
 	if (!GetInvert())
@@ -499,7 +526,7 @@ void CUITrackBar::UpdatePos()
 	UpdateText();
 }
 
-void CUITrackBar::OnMessage(LPCSTR message)
+void CUITrackBar::OnMessage(const char* message)
 {
 	if (0 == xr_strcmp(message, "set_default_value"))
 	{
@@ -546,4 +573,15 @@ void CUITrackBar::SetOptFBounds(float fmin, float fmax)
 		OnChangedOptValue	();
 		GetMessageTarget()->SendMessage(this, TRACK_VALUE_CHANGED, &m_f_val);
 	}
+}
+
+void CUITrackBar::OnFocusLost()
+{
+	CUIWindow::OnFocusLost();
+	GetUICursor().m_static_text->SetText("");
+}
+
+void CUITrackBar::SetHighlighted(bool value)
+{
+	m_pSlider->SetHighlighted(value);
 }

@@ -15,10 +15,15 @@
 #include "ui/UICDkey.h"
 #include "object_factory.h"
 
+// lua to cpp
+#include "ScriptsSubsystems/Condlist/script_xr_conditions.h"
+#include "ScriptsSubsystems/Condlist/script_xr_effects.h"
+#include "ScriptsSubsystems/Condlist/script_xr_logic.h"
+
 int		g_cl_save_demo = 0;
 extern XRCORE_API bool g_allow_heap_min;
 
-shared_str CLevel::OpenDemoFile(LPCSTR demo_file_name)
+shared_str CLevel::OpenDemoFile(const char* demo_file_name)
 {
 	PrepareToPlayDemo(demo_file_name);
 	return m_demo_server_options;
@@ -28,12 +33,12 @@ void CLevel::net_StartPlayDemo()
 	net_Start(m_demo_server_options.c_str(), "localhost");
 }
 
-BOOL CLevel::net_Start	( LPCSTR op_server, LPCSTR op_client )
+bool CLevel::net_Start	( const char* op_server, const char* op_client )
 {
 	PROF_EVENT("CLevel::net_Start");
 	object_factory();
 
-	net_start_result_total				= TRUE;
+	net_start_result_total				= true;
 
 	pApp->LoadBegin				();
 
@@ -47,7 +52,7 @@ BOOL CLevel::net_Start	( LPCSTR op_server, LPCSTR op_client )
 	VERIFY( xr_strlen(player_name) );
 
 	//make Client Name if options doesn't have it
-	LPCSTR	NameStart	= strstr(op_client,"/name=");
+	const char*	NameStart	= strstr(op_client,"/name=");
 	if (!NameStart)
 	{
 		string512 tmp;
@@ -57,8 +62,8 @@ BOOL CLevel::net_Start	( LPCSTR op_server, LPCSTR op_client )
 		m_caClientOptions			= tmp;
 	} else {
 		string1024	ret="";
-		LPCSTR		begin	= NameStart + xr_strlen("/name="); 
-		sscanf			(begin, "%[^/]",ret);
+		const char*		begin	= NameStart + xr_strlen("/name="); 
+		sscanf			(begin, "%1023[^/]",ret);
 		if (!xr_strlen(ret))
 		{
 			string1024 tmpstr;
@@ -73,13 +78,13 @@ BOOL CLevel::net_Start	( LPCSTR op_server, LPCSTR op_client )
 		else
 		{
 			m_caClientOptions			= op_client;
-		};		
+		};
 	};
 	m_caServerOptions			    = op_server;
 	//---------------------------------------------------------------------
 	if (!IsDemoPlay())
 	{
-		LPCSTR pdemosave = strstr(op_client, "/mpdemosave=");
+		const char* pdemosave = strstr(op_client, "/mpdemosave=");
 		bool is_single = m_caServerOptions.size() != 0 ? 
 			(strstr(m_caServerOptions.c_str(), "single") != nullptr) :
 			false;
@@ -106,7 +111,7 @@ BOOL CLevel::net_Start	( LPCSTR op_server, LPCSTR op_client )
 	g_loading_events.push_back	(LOADING_EVENT(this,&CLevel::net_start4));
 	g_loading_events.push_back	(LOADING_EVENT(this,&CLevel::net_start5));
 	g_loading_events.push_back	(LOADING_EVENT(this,&CLevel::net_start6));
-	
+
 	return net_start_result_total;
 }
 
@@ -135,9 +140,9 @@ bool CLevel::net_start1				()
 		if (xr_strcmp(p.m_alife,"alife"))
 		{
 			shared_str l_ver			= game_sv_GameState::parse_level_version(m_caServerOptions);
-			
+
 			map_data.m_name				= game_sv_GameState::parse_level_name(m_caServerOptions);
-			
+
 			if (!g_dedicated_server)
 				g_pGamePersistent->LoadTitle(true, map_data.m_name);
 
@@ -145,7 +150,7 @@ bool CLevel::net_start1				()
 
 			if (id<0) {
 				Msg("! Can't find level: %s", map_data.m_name.c_str());
-				net_start_result_total	= FALSE;
+				net_start_result_total	= false;
 				return true;
 			}
 		}
@@ -189,7 +194,7 @@ bool CLevel::net_start3				()
 		string4096	tmp;
 		xr_strcpy(tmp, m_caClientOptions.c_str());
 		xr_strcat(tmp, PortStr);
-		
+
 		m_caClientOptions = tmp;
 	}
 	//add password string to client, if don't have one
@@ -198,7 +203,7 @@ bool CLevel::net_start3				()
 		{
 			string64	PasswordStr = "";
 			const char* PSW = strstr(m_caServerOptions.c_str(), "psw=") + 4;
-			if (strchr(PSW, '/')) 
+			if (strchr(PSW, '/'))
 				strncpy_s(PasswordStr, PSW, strchr(PSW, '/') - PSW);
 			else
 				xr_strcpy(PasswordStr, PSW);
@@ -211,9 +216,9 @@ bool CLevel::net_start3				()
 	//setting players GameSpy CDKey if it comes from command line
 	if (strstr(m_caClientOptions.c_str(), "/cdkey="))
 	{
-		string64 CDKey;
+		string64 CDKey = {};
 		const char* start = strstr(m_caClientOptions.c_str(),"/cdkey=") +xr_strlen("/cdkey=");
-		sscanf			(start, "%[^/]",CDKey);
+		sscanf			(start, "%63[^/]",CDKey);
 		string128 cmd;
 		xr_sprintf(cmd, "cdkey %s", _strupr(CDKey));
 		Console->Execute			(cmd);
@@ -245,8 +250,8 @@ bool CLevel::net_start5				()
 	{
 		NET_Packet		NP;
 		NP.w_begin		(M_CLIENTREADY);
-		Game().local_player->net_Export(NP, TRUE);
-		Send			(NP,net_flags(TRUE,TRUE));
+		Game().local_player->net_Export(NP, true);
+		Send			(NP,net_flags(true,true));
 
 		if (OnClient() && Server)
 		{
@@ -266,14 +271,15 @@ bool CLevel::net_start6				()
 
 	if(net_start_result_total){
 		if (strstr(Core.Params,"-$")) {
-			string256				buf,cmd,param;
-			sscanf					(strstr(Core.Params,"-$")+2,"%[^ ] %[^ ] ",cmd,param);
+			string512 buf;
+			string256 cmd = {}, param = {};
+			sscanf					(strstr(Core.Params,"-$")+2,"%255[^ ] %255[^ ] ",cmd,param);
 			xr_strconcat(buf,cmd," ",param);
 			Console->Execute		(buf);
 		}
 	}else{
 		Msg				("! Failed to start client. Check the connection or level existance.");
-		
+
 		if (m_connect_server_err==xrServer::ErrConnect&&!psNET_direct_connect && !g_dedicated_server) 
 		{
 			DEL_INSTANCE	(g_pGameLevel);
@@ -286,8 +292,8 @@ bool CLevel::net_start6				()
 		{
 			string256 level_id_string = {};
 			string256 dialog_string = {};
-			LPCSTR download_url = !!map_data.m_map_download_url ? map_data.m_map_download_url.c_str() : "";
-			LPCSTR tmp_map_ver = !!map_data.m_map_version ? map_data.m_map_version.c_str() : "";
+			const char* download_url = !!map_data.m_map_download_url ? map_data.m_map_download_url.c_str() : "";
+			const char* tmp_map_ver = !!map_data.m_map_version ? map_data.m_map_version.c_str() : "";
 			
 			xr_strconcat(level_id_string, g_pStringTable->translate("st_level").c_str(), ":",
 				map_data.m_name.c_str(), "(", tmp_map_ver, "). ");
@@ -307,8 +313,8 @@ bool CLevel::net_start6				()
 		{
 			string256 level_id_string = {};
 			string256 dialog_string = {};
-			LPCSTR download_url = !!map_data.m_map_download_url ? map_data.m_map_download_url.c_str() : "";
-			LPCSTR tmp_map_ver = !!map_data.m_map_version ? map_data.m_map_version.c_str() : "";
+			const char* download_url = !!map_data.m_map_download_url ? map_data.m_map_download_url.c_str() : "";
+			const char* tmp_map_ver = !!map_data.m_map_version ? map_data.m_map_version.c_str() : "";
 
 			xr_strconcat(level_id_string, g_pStringTable->translate("st_level").c_str(), ":",
 				map_data.m_name.c_str(), "(", tmp_map_ver, "). ");
@@ -323,7 +329,7 @@ bool CLevel::net_start6				()
 				MainMenu()->Show_DownloadMPMap(dialog_string, download_url);
 			}
 		}
-		else 
+		else
 		{
 			DEL_INSTANCE	(g_pGameLevel);
 			Console->Execute("main_menu on");
@@ -348,7 +354,7 @@ void CLevel::InitializeClientGame	(NET_Packet& P)
 	P.r_stringZ(game_type_name);
 	if(game && !xr_strcmp(game_type_name, game->type_name()) )
 		return;
-	
+
 	xr_delete(game);
 #ifdef DEBUG
 	Msg("- Game configuring : Started ");
@@ -357,13 +363,31 @@ void CLevel::InitializeClientGame	(NET_Packet& P)
 	game					= smart_cast<game_cl_GameState*> ( NEW_INSTANCE ( clsid ) );
 	game->set_type_name		(game_type_name);
 	game->Init				();
-	m_bGameConfigStarted	= TRUE;
+	m_bGameConfigStarted	= true;
+
+#if defined(IXRAY_USE_LUA_AND_CPP_IMPLEMENTATION) || \
+	defined(IXRAY_USE_CPP_ONLY_IMPLEMENTATION)
+	if (m_pScriptXRCondition)
+	{
+		m_pScriptXRCondition->initialize(this);
+	}
+
+	if (m_pScriptXREffects)
+	{
+		m_pScriptXREffects->initialize(this);
+	}
+
+	if (m_pScriptXRParser)
+	{
+		m_pScriptXRParser->initialize(this, m_pScriptXRCondition, m_pScriptXREffects);
+	}
+#endif
 
 	if (!IsGameTypeSingle())
 	{
 		init_compression();
 	}
-	
+
 	R_ASSERT				(Load_GameSpecific_After ());
 }
 

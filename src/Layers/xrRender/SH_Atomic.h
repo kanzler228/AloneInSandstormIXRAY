@@ -25,8 +25,8 @@ struct ECORE_API SInputSignature : public xr_resource_flagged
 };
 typedef	resptr_core<SInputSignature,resptr_base<SInputSignature> >	ref_input_sign;
 #endif //USE_DX11
-//////////////////////////////////////////////////////////////////////////
-struct ECORE_API SVS : public xr_resource_named							
+
+struct ECORE_API SVS : public xr_resource_uniq
 {
 	ID3DVertexShader*					vs;
 	R_constant_table					constants;
@@ -39,7 +39,7 @@ struct ECORE_API SVS : public xr_resource_named
 typedef	resptr_core<SVS,resptr_base<SVS> >	ref_vs;
 
 //////////////////////////////////////////////////////////////////////////
-struct ECORE_API SPS : public xr_resource_named
+struct ECORE_API SPS : public xr_resource_uniq
 {
 	ID3DPixelShader*					ps;
 	R_constant_table					constants;
@@ -49,7 +49,7 @@ typedef	resptr_core<SPS,resptr_base<SPS> > ref_ps;
 
 #ifdef USE_DX11
 //////////////////////////////////////////////////////////////////////////
-struct ECORE_API SGS : public xr_resource_named
+struct ECORE_API SGS : public xr_resource_uniq
 {
 	ID3DGeometryShader*					gs;
 	R_constant_table					constants;
@@ -57,7 +57,7 @@ struct ECORE_API SGS : public xr_resource_named
 };
 typedef	resptr_core<SGS,resptr_base<SGS> > ref_gs;
 
-struct ECORE_API SHS : public xr_resource_named
+struct ECORE_API SHS : public xr_resource_uniq
 {
 	ID3D11HullShader*					sh;
 	R_constant_table					constants;
@@ -65,7 +65,7 @@ struct ECORE_API SHS : public xr_resource_named
 };
 typedef	resptr_core< SHS, resptr_base<SHS> >	ref_hs;
 
-struct ECORE_API SDS : public xr_resource_named
+struct ECORE_API SDS : public xr_resource_uniq
 {
 	ID3D11DomainShader*					sh;
 	R_constant_table					constants;
@@ -73,7 +73,7 @@ struct ECORE_API SDS : public xr_resource_named
 };
 typedef	resptr_core< SDS, resptr_base<SDS> >	ref_ds;
 
-struct ECORE_API SCS : public xr_resource_named
+struct ECORE_API SCS : public xr_resource_uniq
 {
 	ID3D11ComputeShader*					sh;
 	R_constant_table					constants;
@@ -97,8 +97,8 @@ struct ECORE_API SDeclaration : public xr_resource_flagged
 {
 #ifdef USE_DX11
 	//	Maps input signature to input layout
-	xr_map<ID3DBlob*, ID3DInputLayout*>		vs_to_layout;
-	xr_vector<D3D_INPUT_ELEMENT_DESC>		dx10_dcl_code;
+	xr_map<ID3DBlob*, ID3DInputLayout*> vs_to_layout;
+	xr_vector<RHIInputElementDesc> dx10_dcl_code;
 #else //USE_DX11	//	Don't need it: use ID3DInputLayout instead
 					//	which is per ( declaration, VS input layout) pair
 	IDirect3DVertexDeclaration9*		dcl;

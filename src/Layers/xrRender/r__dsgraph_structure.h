@@ -22,9 +22,11 @@ class	R_dsgraph_structure										: public IRender_interface, public pureFrame
 public:
 	IRenderable*												val_pObject;
 	Fmatrix*													val_pTransform;
-	BOOL														val_bHUD;
-	BOOL														val_bInvisible;
-	BOOL														val_bRecordMP;		// record nearest for multi-pass
+	Fmatrix*													val_pLocalTransform;
+	bool														val_bHUD;
+	bool														val_bUI;
+	bool														val_bInvisible;
+	bool														val_bRecordMP;		// record nearest for multi-pass
 
 	R_feedback*													val_feedback;		// feedback for geometry being rendered
 	u32															val_feedback_breakp;// breakpoint
@@ -44,7 +46,10 @@ public:
 	R_dsgraph::mapSorted_T										mapDistort;
 	R_dsgraph::mapHUD_T											mapHUDSorted;
 
+	R_dsgraph::mapHUD_T											mapUI;
+	R_dsgraph::mapHUD_T											mapUISorted;
 #if RENDER!=R_R1
+	R_dsgraph::mapSorted_T										mapUIEmissive;
 	R_dsgraph::mapSorted_T										mapWmark;			// sorted
 	R_dsgraph::mapSorted_T										mapEmissive;
 	R_dsgraph::mapSorted_T										mapHUDEmissive;
@@ -63,28 +68,34 @@ public:
 
 	u32															counter_S	;
 	u32															counter_D	;
-	BOOL														b_loaded	;
+	bool														b_loaded	;
 public:
 	virtual		void					set_Transform			(Fmatrix*	M	)				{ VERIFY(M);	val_pTransform = M;	}
-	virtual		void					set_HUD					(BOOL 		V	)				{ val_bHUD		= V;				}
-	virtual		BOOL					get_HUD					()								{ return		val_bHUD;			}
-	virtual		void					set_Invisible			(BOOL 		V	)				{ val_bInvisible= V;				}
+	virtual		void					set_LocalTransform		(Fmatrix*	M	)				{ VERIFY(M);	val_pLocalTransform = M;	}
+	virtual		void					set_UI					(bool 		V	)				{ val_bUI		= V;				}
+	virtual		void					set_HUD					(bool 		V	)				{ val_bHUD		= V;				}
+	virtual		bool					get_HUD					()								{ return		val_bHUD;			}
+	virtual		void					set_Invisible			(bool 		V	)				{ val_bInvisible= V;				}
 				void					set_Feedback			(R_feedback*V, u32	id)			{ val_feedback_breakp = id; val_feedback = V;		}
 				void					get_Counters			(u32&	s,	u32& d)				{ s=counter_S; d=counter_D;			}
 				void					clear_Counters			()								{ counter_S=counter_D=0; 			}
+
+				virtual CDB::MODEL* GetHOMModel();
+				virtual xr_vector<u32>* GetHOMInvaltids();
 public:
 	R_dsgraph_structure	()
 	{
 		val_pObject			= NULL	;
 		val_pTransform		= NULL	;
-		val_bHUD			= FALSE	;
-		val_bInvisible		= FALSE	;
-		val_bRecordMP		= FALSE	;
+		val_bHUD			= false	;
+		val_bUI				= false	;
+		val_bInvisible		= false	;
+		val_bRecordMP		= false	;
 		val_feedback		= 0;
 		val_feedback_breakp	= 0;
 		marker				= 0;
 		r_pmask				(true,true);
-		b_loaded			= FALSE	;
+		b_loaded			= false	;
 	};
 
 	void		r_dsgraph_destroy()
@@ -110,17 +121,23 @@ public:
 		}
 		mapSorted.destroy		();
 		mapHUD.destroy			();
+		mapUI.destroy			();
 		mapLOD.destroy			();
 		mapDistort.destroy		();
 		mapHUDSorted.destroy();
 		mapHUDDistort.destroy();
+		mapUISorted.destroy		();
 
 #if RENDER!=R_R1
 		mapWmark.destroy		();
 		mapEmissive.destroy		();
 		mapHUDEmissive.destroy	();
+		mapUIEmissive.destroy	();
 #endif
 	}
+
+	void		add_Static(dxRender_Visual* pVisual, u32 planes);
+	void		add_leafs_Dynamic(dxRender_Visual* pVisual, bool IgnoreObject = false); // if detected node's full visibility
 
 	void		r_pmask											(bool deffered = false, bool forward = false, bool wallmarks = false) { pmask[0] = deffered; pmask[1] = forward; pmask[2] = wallmarks; }
 
@@ -128,6 +145,8 @@ public:
 	void		r_dsgraph_insert_static							(dxRender_Visual	*pVisual);
 
 	void		r_dsgraph_render_graph							(u32	_priority,	bool _clear=true);
+	void		r_dsgraph_render_ui								();
+	void		r_dsgraph_render_sorted_ui						();
 	void		r_dsgraph_render_hud							();
 	void		r_dsgraph_render_hud_ui							();
 	void		r_dsgraph_render_lods							(bool	_setup_zb,	bool _clear);
@@ -137,10 +156,10 @@ public:
 	void		r_dsgraph_render_scope							();
 	void		r_dsgraph_render_wmarks							();
 	void		r_dsgraph_render_distort						();
-	void		r_dsgraph_render_subspace						(IRender_Sector* _sector, CFrustum* _frustum, Fmatrix& mCombined, Fvector& _cop, BOOL _dynamic, BOOL _precise_portals=FALSE, CObject*O=nullptr );
-	void		r_dsgraph_render_subspace						(IRender_Sector* _sector, Fmatrix& mCombined, Fvector& _cop, BOOL _dynamic, BOOL _precise_portals=FALSE, CObject*O=nullptr );
+	void		r_dsgraph_render_subspace						(IRender_Sector* _sector, CFrustum* _frustum, Fmatrix& mCombined, Fvector& _cop, bool _dynamic, bool _precise_portals=false, CObject*O=nullptr );
+	void		r_dsgraph_render_subspace						(IRender_Sector* _sector, Fmatrix& mCombined, Fvector& _cop, bool _dynamic, bool _precise_portals=false, CObject*O=nullptr );
 	void		r_dsgraph_render_R1_box							(IRender_Sector* _sector, Fbox& _bb, int _element);
-
+	void renderImGuiDebugWindow_SVGStorage() override;
 
 	void detectSectors_sphere(CSector* sector, xr_vector<IRender_Sector*>& m_sectors, const Fsphere& sphere);
 	void detectSectors_frustum(CSector* sector, xr_vector<IRender_Sector*>& m_sectors, CFrustum* _frustum);

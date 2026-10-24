@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "base_monster.h"
 #include "../../../../xrPhysics/PhysicsShell.h"
 #include "../../../Hit.h"
@@ -40,7 +40,7 @@
 #include "../../../ai_object_location.h"
 #include "../../../ai_space.h"
 #include "../../../../xrScripts/script_engine.h"
-
+#include "../../../ParticlesObject.h"
 #include "../anti_aim_ability.h"
 
 // Lain: added 
@@ -144,7 +144,7 @@ void CBaseMonster::update_pos_by_grouping_behaviour ()
 		return;
 	}
 
-	Fvector acc = get_steer_manager()->calc_acceleration();
+	Fvector acc = m_steer_manager->calc_acceleration();
 
 	acc.y = 0; // remove vertical component
 
@@ -248,7 +248,7 @@ bool enemy_inaccessible (CBaseMonster * const object)
 	Fvector const enemy_vert_pos	=	ai().level_graph().vertex_position(enemy->ai_location().level_vertex_id());
 	
 	float const xz_dist_to_vertex	=	enemy_vert_pos.distance_to_xz(enemy_pos);
-	float const y_dist_to_vertex	=	_abs(enemy_vert_pos.y - enemy_pos.y);
+	float const y_dist_to_vertex	= std::abs(enemy_vert_pos.y - enemy_pos.y);
 
 	if ( xz_dist_to_vertex > 0.5f && y_dist_to_vertex > 3.f )
 		return							true;
@@ -295,37 +295,40 @@ bool CBaseMonster::at_home ()
 												(Device.dwTimeGlobal < m_first_tick_object_not_at_home + 4000);
 }
 
-void CBaseMonster::update_enemy_accessible_and_at_home_info	()
+void CBaseMonster::update_enemy_accessible_and_at_home_info()
 {
-	if ( !Home->at_home() )
+	if (!Home->at_home())
 	{
-		if ( !m_first_tick_object_not_at_home )
-			m_first_tick_object_not_at_home	=	Device.dwTimeGlobal;
+		if (!m_first_tick_object_not_at_home)
+		{
+			m_first_tick_object_not_at_home = Device.dwTimeGlobal;
+		}
 	}
 	else
-		m_first_tick_object_not_at_home		=	0;
-
-	if ( !EnemyMan.get_enemy() )
 	{
-		m_first_tick_enemy_inaccessible		=	0;
-		m_last_tick_enemy_inaccessible		=	0;
+		m_first_tick_object_not_at_home = 0;
+	}
+
+	if (!EnemyMan.get_enemy())
+	{
+		m_first_tick_enemy_inaccessible = 0;
+		m_last_tick_enemy_inaccessible = 0;
 		return;
 	}
 
-	if ( ::enemy_inaccessible(this) )
+	if (::enemy_inaccessible(this))
 	{
-		if ( !m_first_tick_enemy_inaccessible )
-			m_first_tick_enemy_inaccessible	=	Device.dwTimeGlobal;
-
-		m_last_tick_enemy_inaccessible		=	Device.dwTimeGlobal;
-	}
-	else
-	{
-		if ( m_last_tick_enemy_inaccessible && Device.dwTimeGlobal - m_last_tick_enemy_inaccessible > 3000 )
+		if (!m_first_tick_enemy_inaccessible)
 		{
-			m_first_tick_enemy_inaccessible	=	0;
-			m_last_tick_enemy_inaccessible	=	0;
+			m_first_tick_enemy_inaccessible = Device.dwTimeGlobal;
 		}
+
+		m_last_tick_enemy_inaccessible = Device.dwTimeGlobal;
+	}
+	else if (m_last_tick_enemy_inaccessible && Device.dwTimeGlobal - m_last_tick_enemy_inaccessible > 3000)
+	{
+		m_first_tick_enemy_inaccessible = 0;
+		m_last_tick_enemy_inaccessible = 0;
 	}
 }
 
@@ -419,6 +422,9 @@ void CBaseMonster::shedule_Update(u32 dt)
 
 void CBaseMonster::Die(CObject* who)
 {
+	SpatialComponent->type &= ~ESPATIAL_TYPE::MONSTER_ALIVE;
+	SpatialComponent->type |= ESPATIAL_TYPE::MONSTER_DEAD;
+
 	if (StateMan) StateMan->critical_finalize();
 
 	m_psy_aura.on_monster_death();
@@ -462,7 +468,7 @@ void CBaseMonster::Hit(SHit* pHDS)
 		if(!critically_wounded()) 
 			update_critical_wounded(pHDS->boneID,pHDS->power);
 	
-	if(pHDS->hit_type == ALife::eHitTypeFireWound && !EngineExternal().ClearSkyMode())
+	if(pHDS->hit_type == ALife::eHitTypeFireWound && has_protections_sect)
 	{
 		float &hit_power = pHDS->power;
 		float ap = pHDS->armor_piercing;
@@ -523,7 +529,9 @@ bool CBaseMonster::useful(const CItemManager *manager, const CGameObject *object
 		return false;
 	}
 
-	const CEntityAlive *pCorpse = smart_cast<const CEntityAlive *>(object); 
+	CGameObject* obj = const_cast<CGameObject*>(object);
+
+	const CEntityAlive *pCorpse = obj != nullptr ? obj->cast_entity_alive() : nullptr;
 	if ( !pCorpse ) 
 	{
 		return false;
@@ -640,12 +648,12 @@ void CBaseMonster::set_state_sound(u32 type, bool once)
 	m_prev_sound_type	= type;
 }
 
-BOOL CBaseMonster::feel_touch_on_contact	(CObject *O)
+bool CBaseMonster::feel_touch_on_contact	(CObject *O)
 {
 	return		(inherited::feel_touch_on_contact(O));
 }
 
-BOOL CBaseMonster::feel_touch_contact(CObject *O)
+bool CBaseMonster::feel_touch_contact(CObject *O)
 {
 	m_anomaly_detector->on_contact(O);
 	return inherited::feel_touch_contact(O);
@@ -754,7 +762,8 @@ u32 CBaseMonster::get_attack_rebuild_time()
 
 void CBaseMonster::on_kill_enemy(const CEntity *obj)
 {
-	const CEntityAlive *entity	= smart_cast<const CEntityAlive *>(obj);
+	CEntity* ent = const_cast<CEntity*>(obj);
+	const CEntityAlive* entity = ent != nullptr ? ent->cast_entity_alive() : nullptr;
 	
 	// добавить в список трупов	
 	CorpseMemory.add_corpse		(entity);
@@ -800,28 +809,25 @@ void CBaseMonster::net_Relcase(CObject *O)
 {
 	inherited::net_Relcase(O);
 	
-	if (OnServer() && O->cast_entity_alive())
+	if (OnServer())
 	{
 		StateMan->remove_links(O);
 		com_man().remove_links(O);
 	}
 	 
 	// TODO: do not clear, remove only object O
-	if (g_Alive() && OnServer()) 
+	if (OnServer()) 
 	{
-		if (O->cast_entity_alive())
-		{
-			EnemyMemory.remove_links(O);
-			SoundMemory.remove_links(O);
-			HitMemory.remove_hit_info(O);
- 			EnemyMan.remove_links(O);
-			CorpseMan.remove_links(O);
- 			monster_squad().remove_links(O);
-		}
+		EnemyMemory.remove_links(O);
+		SoundMemory.remove_links(O);
+		HitMemory.remove_hit_info(O);
+ 		EnemyMan.remove_links(O);
+		CorpseMan.remove_links(O);
+ 		monster_squad().remove_links(O);
 	}
 
-	if (OnServer() && O->cast_entity_alive())
-		CorpseMemory.remove_links		(O);
+	if (OnServer())
+		CorpseMemory.remove_links(O);
 
 	m_pPhysics_support->in_NetRelcase(O);
 }
@@ -839,7 +845,7 @@ void CBaseMonster::set_action(EAction action)
 	anim().m_tAction		= action;
 }
 
-CParticlesObject* CBaseMonster::PlayParticles(const shared_str& name, const Fvector &position, const Fvector &dir, BOOL auto_remove, BOOL xformed)
+CParticlesObject* CBaseMonster::PlayParticles(const shared_str& name, const Fvector &position, const Fvector &dir, bool auto_remove, bool xformed)
 {
 	CParticlesObject* ps = Particles::Details::Create(name.c_str(),auto_remove).get();
 	
@@ -864,9 +870,9 @@ void CBaseMonster::on_restrictions_change()
 	if (StateMan) StateMan->reinit();
 }
 
-void CBaseMonster::load_effector(LPCSTR section, LPCSTR line, SAttackEffector &effector)
+void CBaseMonster::load_effector(const char* section, const char* line, SAttackEffector &effector)
 {
-	LPCSTR ppi_section = pSettings->r_string(section, line);
+	const char* ppi_section = pSettings->r_string(section, line);
 	effector.ppi.duality.h			= pSettings->r_float(ppi_section,"duality_h");
 	effector.ppi.duality.v			= pSettings->r_float(ppi_section,"duality_v");
 	effector.ppi.gray				= pSettings->r_float(ppi_section,"gray");
@@ -936,8 +942,8 @@ void CBaseMonster::OnEvent(NET_Packet& P, u16 type)
 			CObject		*O	= Level().Objects.net_Find	(id);
 			VERIFY		(O);
 
-			CGameObject			*GO = smart_cast<CGameObject*>(O);
-			CInventoryItem		*pIItem = smart_cast<CInventoryItem*>(GO);
+			CGameObject			*GO = O->cast_game_object();
+			CInventoryItem		*pIItem = GO->cast_inventory_item();
 			VERIFY				(inventory().CanTakeItem(pIItem));
 			pIItem->m_ItemCurrPlace.type = eItemPlaceRuck;
 
@@ -956,7 +962,7 @@ void CBaseMonster::OnEvent(NET_Packet& P, u16 type)
 			bool dont_create_shell			= (type==GE_TRADE_SELL) || just_before_destroy;
 
 			O->SetTmpPreDestroy				(just_before_destroy);
-			if (inventory().DropItem(smart_cast<CGameObject*>(O), just_before_destroy, dont_create_shell) && !O->getDestroy())
+			if (inventory().DropItem(O->cast_game_object(), just_before_destroy, dont_create_shell) && !O->getDestroy())
 			{
 				//O->H_SetParent	(0,just_before_destroy); //moved to DropItem
 				feel_touch_deny	(O,2000);
@@ -969,7 +975,7 @@ void CBaseMonster::OnEvent(NET_Packet& P, u16 type)
 		CObject* O	= Level().Objects.net_Find	(id);
 
 		if (O)  {
-			CEntity *pEntity = smart_cast<CEntity*>(O);
+			CEntity *pEntity = O->cast_entity();
 			if (pEntity) on_kill_enemy(pEntity);
 		}
 			
@@ -1077,7 +1083,7 @@ void CBaseMonster::update_eyes_visibility ()
 		return;
 	}
 
-	IKinematics* const skeleton	=	smart_cast<IKinematics*>(Visual());
+	IKinematics* const skeleton	=	PKinematics(Visual());
 	if ( !skeleton )
 	{
 		return;
@@ -1114,10 +1120,10 @@ float CBaseMonster::get_screen_space_coverage_diagonal()
 		Fvector p;
 		b.getpoint		(k,p);
 		xform.transform	(p);
-		mn.x			= _min(mn.x,p.x);
-		mn.y			= _min(mn.y,p.y);
-		mx.x			= _max(mx.x,p.x);
-		mx.y			= _max(mx.y,p.y);
+		mn.x			= std::min(mn.x,p.x);
+		mn.y			= std::min(mn.y,p.y);
+		mx.x			= std::max(mx.x,p.x);
+		mx.y			= std::max(mx.y,p.y);
 	}
 
 	float const width	=	mx.x - mn.x;

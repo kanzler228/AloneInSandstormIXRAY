@@ -30,10 +30,10 @@ CMaterialManager::~CMaterialManager	()
 {
 }
 #ifdef	DEBUG
-BOOL debug_character_material_load = FALSE;
+bool debug_character_material_load = false;
 #endif
 
-void CMaterialManager::Load			(LPCSTR section)
+void CMaterialManager::Load			(const char* section)
 {
 	R_ASSERT3				(pSettings->line_exist(section,"material"),"Material not found in the section ",*(m_object->cNameSect()));
 	m_my_material_idx		= GMLib.GetMaterialIdx(READ_IF_EXISTS(pSettings, r_string, section, "material", "default_object"));
@@ -48,7 +48,7 @@ void CMaterialManager::Load			(LPCSTR section)
 				SGameMtl *m = GMLib.GetMaterialByIdx( m_my_material_idx );
 
 				VERIFY( m );
-				Msg( "(CMaterialManager::Load(LPCSTR section)) material: %s loaded for %s, from section: %s ", m->m_Name.c_str(), entity_alive->cName().c_str(), section ); 
+				Msg( "(CMaterialManager::Load(const char* section)) material: %s loaded for %s, from section: %s ", m->m_Name.c_str(), entity_alive->cName().c_str(), section ); 
 			}
 		}
 #endif
@@ -60,15 +60,11 @@ void CMaterialManager::reinit		()
 	m_step_id				= 0;
 	m_run_mode				= false;
 
-	CEntityAlive			*entity_alive = smart_cast<CEntityAlive*>(m_object);
-	if (entity_alive) {
+	CEntityAlive* entity_alive = m_object != nullptr ? m_object->cast_entity_alive() : nullptr;
+	if (entity_alive)
+	{
 		//VERIFY( entity_alive->character_physics_support()->movement()->CharacterExist() );
 		entity_alive->character_physics_support()->movement()->SetPLastMaterialIDX	(&m_last_material_idx);
-
-//		if (entity_alive->use_simplified_visual()) {
-//			IKinematics			*kinematics = smart_cast<IKinematics*>(entity_alive->Visual());
-//			m_my_material_idx	= kinematics->LL_GetData(kinematics->LL_GetBoneRoot()).game_mtl_idx;
-//		}
 
 		entity_alive->character_physics_support()->movement()->SetMaterial		(m_my_material_idx);
 #ifdef	DEBUG
@@ -83,7 +79,7 @@ void CMaterialManager::reinit		()
 	}
 }
 
-void CMaterialManager::reload		(LPCSTR section)
+void CMaterialManager::reload		(const char* section)
 {
 }
 
@@ -111,21 +107,13 @@ void CMaterialManager::update		(float time_delta, float volume, float step_time,
 				m_step_id								= ::Random.randI(0, (u32)snd_array.size());
 				m_time_to_step							= step_time;
 
-				m_step_sound[m_step_id]					= snd_array[m_step_id];
-				m_step_sound[m_step_id].play_at_pos	(m_object,position);
+				snd_array[m_step_id].play_no_feedback(m_object, 0, 0.0f, &position, &volume);
 			}
 		}
 		m_time_to_step								-= time_delta;
 	}
 	else
 		m_time_to_step								= 0;
-
-
-	for(int i=0; i<4; i++)
-		if (m_step_sound[i]._feedback())		{
-			m_step_sound[i].set_position	(position    );
-			m_step_sound[i].set_volume		(1.f * volume);
-		}
 }
 
 void CMaterialManager::set_run_mode			(bool run_mode)

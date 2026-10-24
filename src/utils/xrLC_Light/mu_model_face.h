@@ -3,8 +3,7 @@
 #include "base_face.h"
 #include "MeshStructure.h"
 
-struct XRLC_LIGHT_API data_face :
-	public base_Face
+struct XRLC_LIGHT_API data_face :	public base_Face
 {
 public:
 	Fvector2 tc[3];
@@ -17,14 +16,19 @@ public:
 	virtual ~data_face() {};
 };
 
-struct XRLC_LIGHT_API data_vertex :
-	public base_Vertex
+struct XRLC_LIGHT_API data_vertex :	public base_Vertex
 {
 	using DataFaceType = data_face;
 public:
 	data_vertex()			{ };
 	virtual ~data_vertex()	{ };
 };
+
+template<>
+inline Tface<data_vertex>::Tface() = default;
+
+template<>
+inline Tvertex<data_vertex>::Tvertex() = default;
 
 using _vertex = Tvertex<data_vertex>;
 using _face = Tface<data_vertex>;

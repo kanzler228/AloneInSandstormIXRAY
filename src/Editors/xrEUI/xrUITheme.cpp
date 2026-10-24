@@ -1,15 +1,12 @@
 #include "stdafx.h"
 #include "xrUITheme.h"
 #include "imgui_user.h"
-
-#define _game_fonts_ "$game_fonts$"
-
-#include <fstream>
-#include <json/json.hpp>
-using json = nlohmann::json;
+#include "../xrEUI/ModernUI.h"
 
 void LoadImGuiFont(const char* Font);
 extern xr_string ImCurrentFont;
+
+using namespace XRay::ImGui;
 
 CUIThemeManager::CUIThemeManager()
 {
@@ -35,6 +32,23 @@ void CUIThemeManager::Draw()
 
 		ImVec4* colors = ImGui::GetStyle().Colors;
 		ImVec2 button_size = ImVec2(100.0f, 20.0f);
+
+		if (ImGui::Button("Dark Blue"))
+		{
+			InitDefault(0);
+		}
+		ImGui::SameLine();
+
+		if (ImGui::Button("Visual Studio"))
+		{
+			InitDefault(1);
+		}
+		ImGui::SameLine();
+
+		if (ImGui::Button("Dark Orange"))
+		{
+			InitDefault(2);
+		}
 
 		ImGui::BeginChild("Theme", ImVec2(0, -ImGui::GetFrameHeightWithSpacing() - 10), true);
 		{
@@ -199,6 +213,8 @@ void CUIThemeManager::Draw()
 			ImGui::SliderFloat("Cell Padding X", &style.CellPadding.x, 0.f, 10.f, "%.1f");
 			ImGui::SliderFloat("Cell Padding Y", &style.CellPadding.y, 0.f, 10.f, "%.1f");
 
+			ImGui::SliderFloat("DockingSeparatorSize", &style.DockingSeparatorSize, 0.f, 10.f, "%.1f");
+
 
 			if (!IsDocked)
 				IsDocked = ImGui::IsWindowDocked();
@@ -207,37 +223,95 @@ void CUIThemeManager::Draw()
 		}
 		ImGui::EndChild();
 		ImGui::Spacing();
-
-		if (ImGui::Button("Default", button_size))
-		{
-			InitDefault(true);
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Save to...", button_size))
-		{
-			SaveTo();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Load from...", button_size))
-		{
-			LoadFrom();
-		}
 	}
 	ImGui::End();
 }
 
-void CUIThemeManager::InitDefault(bool Forced)
+void CUIThemeManager::InitDefault(int InThemeID)
 {
-	ImVec4* colors = ImGui::GetStyle().Colors;
-
-	Load();
-	if (!Forced && IsLoaded)
+	if (InThemeID >= 0)
 	{
-		IsLoaded = true;
-		return;
+		ThemeID = InThemeID;
 	}
 
+	float ScreenDPI = GUIManager->GetScaleDpi();
 	XRay::ImGui::MakeEditorTheme();
+	XRay::ImGui::SetupColorsList(ThemeID);
+	XRay::ImGui::SetupSizesList(0);
+	XRay::ImGui::InitSizes();
+
+	ImGuiStyle& style = ImGui::GetStyle();
+	//style.ScaleAllSizes(ScreenDPI);
+	ImVec4* colors = style.Colors;
+	colors[ImGuiCol_MenuBarBg]				= GetEditorColor(EEditorColors::BackgroundTint);
+	colors[ImGuiCol_FrameBg]				= GetEditorColor(EEditorColors::TableTint);
+	colors[ImGuiCol_WindowBg]				= GetEditorColor(EEditorColors::PanelTint);
+	colors[ImGuiCol_Border]					= GetEditorColor(EEditorColors::PanelBorderTint);
+	colors[ImGuiCol_ChildBg]				= GetEditorColor(EEditorColors::PanelTint);
+	colors[ImGuiCol_TableRowBg]				= GetEditorColor(EEditorColors::PanelTint);
+	colors[ImGuiCol_TableRowBgAlt]			= GetEditorColor(EEditorColors::PanelTint);
+	colors[ImGuiCol_TableBorderLight]		= GetEditorColor(EEditorColors::BackgroundTint);
+	colors[ImGuiCol_TableBorderStrong]		= GetEditorColor(EEditorColors::BackgroundTint);
+	colors[ImGuiCol_TableHeaderBg]			= GetEditorColor(EEditorColors::ButtonTint);
+
+	colors[ImGuiCol_Tab]					= GetEditorColor(EEditorColors::TabBarTint);
+	colors[ImGuiCol_TabSelected]			= GetEditorColor(EEditorColors::PanelBorderTint);
+
+	colors[ImGuiCol_TabActive]				= GetEditorColor(EEditorColors::PanelBorderTint);
+	colors[ImGuiCol_TabHovered]				= GetEditorColor(EEditorColors::TabHover);
+
+	colors[ImGuiCol_TabDimmed]				= GetEditorColor(EEditorColors::TabBarTint);
+	colors[ImGuiCol_TabDimmedSelected]		= GetEditorColor(EEditorColors::PanelBorderTint);
+
+	colors[ImGuiCol_TitleBg]				= GetEditorColor(EEditorColors::BackgroundTint);
+	colors[ImGuiCol_TitleBgActive]			= GetEditorColor(EEditorColors::BackgroundTint);
+	colors[ImGuiCol_BorderShadow]			= ImVec4(0.f, 0.f, 0.f, 0.f);
+
+	colors[ImGuiCol_Button]					= GetEditorColor(EEditorColors::ButtonTint);
+	colors[ImGuiCol_ButtonHovered]			= GetEditorColor(EEditorColors::ButtonHover);
+	colors[ImGuiCol_ButtonActive]			= GetEditorColor(EEditorColors::ButtonActive);
+
+	colors[ImGuiCol_Header]					= GetEditorColor(EEditorColors::PanelBorderTint);
+	colors[ImGuiCol_HeaderHovered]			= GetEditorColor(EEditorColors::TabHover);
+	colors[ImGuiCol_HeaderActive]			= GetEditorColor(EEditorColors::TabActive);
+	colors[ImGuiCol_DockingEmptyBg]			= GetEditorColor(EEditorColors::BackgroundTint);
+
+	colors[ImGuiCol_Separator]				= GetEditorColor(EEditorColors::PanelBorderTint);
+
+	colors[ImGuiCol_ScrollbarBg]			= GetEditorColor(EEditorColors::TableTint);
+	colors[ImGuiCol_ScrollbarGrab]			= GetEditorColor(EEditorColors::ButtonTint);
+	colors[ImGuiCol_ScrollbarGrabHovered]	= GetEditorColor(EEditorColors::ButtonHover);
+	colors[ImGuiCol_ScrollbarGrabActive]	= GetEditorColor(EEditorColors::ButtonActive);
+	//colors[ImGuiCol_SeparatorHovered]		= GetEditorColor(EEditorColors::Accent);
+	//colors[ImGuiCol_SeparatorActive]		= GetEditorColor(EEditorColors::Accent);
+
+
+	//style.ChildBorderSize = 0.0f;
+	//style.PopupBorderSize = 0.0f;
+	style.TabBorderSize = 0.0f;
+	//style.WindowBorderSize					= 1.0f;
+	style.WindowBorderSize					= 1.0f;
+	style.ChildBorderSize					= 0.0f;
+
+	style.WindowPadding						= { GetEditorSize(EEditorSizes::WindowPadding),  GetEditorSize(EEditorSizes::WindowPadding) };
+	style.FrameBorderSize					= 0.0f;
+	style.FramePadding						= { GetEditorSize(EEditorSizes::ButtonPaddingW), (GetEditorSize(EEditorSizes::ButtonSize) - GetEditorSize(EEditorSizes::FontSize)) / 2 };
+	style.FrameRounding						= GetEditorSize(EEditorSizes::ButtonRadius);
+	style.TabRounding						= GetEditorSize(EEditorSizes::ButtonRadius);
+	style.ChildRounding						= 0.0f;
+	style.ItemSpacing						= ImVec2(4.f, 2.f);
+	style.ItemInnerSpacing					= ImVec2(2.f, 2.f);
+	style.DockingSeparatorSize				= GetEditorSize(EEditorSizes::DockingGap);
+	style.ScrollbarSize						= GetEditorSize(EEditorSizes::ButtonSize) / 2;
+	style.ScrollbarRounding					= GetEditorSize(EEditorSizes::ButtonSize) / 4;
+	style.GrabRounding						= GetEditorSize(EEditorSizes::ButtonRadius);
+	style.GrabMinSize						= style.GrabRounding * 2;
+	style.IndentSpacing						= 8.0f;
+	style.SeparatorTextBorderSize			= 2.0f;
+	style.SeparatorTextBorderSize			= 2.0f;
+	style.WindowMenuButtonPosition			= ImGuiDir_Right;
+
+	style.CellPadding						= { GetEditorSize(ButtonTextPaddingY), GetEditorSize(TableTextPaddingY) };
 
 	log_color_default = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 	log_color_error = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
@@ -251,459 +325,3 @@ void CUIThemeManager::Show(bool value)
 {
 	bOpen = value;
 }
-
-#define FastJSonReadImColor(color) \
-{ \
-	if (!JSONData["Theme"].contains(#color))\
-		return; \
-	\
-	float r = JSONData["Theme"][#color]["r"];\
-	float g = JSONData["Theme"][#color]["g"];\
-	float b = JSONData["Theme"][#color]["b"];\
-	float a = JSONData["Theme"][#color]["a"];\
-	\
-	colors[color].x = r; \
-	colors[color].y = g; \
-	colors[color].z = b; \
-	colors[color].w = a; \
-} \
-
-#define FastJSonReadImColorAlt(color) \
-{ \
-	if (!JSONData["Theme"].contains(#color))\
-		return; \
-	\
-	float r = JSONData["Theme"][#color]["r"];\
-	float g = JSONData["Theme"][#color]["g"];\
-	float b = JSONData["Theme"][#color]["b"];\
-	float a = JSONData["Theme"][#color]["a"];\
-	\
-	color.x = r; \
-	color.y = g; \
-	color.z = b; \
-	color.w = a; \
-} \
-
-#define FastJSonWriteImColor(color) \
-{ \
-	JSONData["Theme"][#color]["r"] = colors[color].x;\
-	JSONData["Theme"][#color]["g"] = colors[color].y;\
-	JSONData["Theme"][#color]["b"] = colors[color].z;\
-	JSONData["Theme"][#color]["a"] = colors[color].w;\
-} \
-
-#define FastJSonWriteImColorAlt(color) \
-{ \
-	JSONData["Theme"][#color]["r"] = color.x;\
-	JSONData["Theme"][#color]["g"] = color.y;\
-	JSONData["Theme"][#color]["b"] = color.z;\
-	JSONData["Theme"][#color]["a"] = color.w;\
-} \
-
-void CUIThemeManager::Save()
-{
-	if (!IsLoaded)
-		return;
-
-	json JSONData = {};
-	ImGuiStyle& style = ImGui::GetStyle();
-	ImVec4* colors = style.Colors;
-	// Original order with additions
-	FastJSonWriteImColor(ImGuiCol_WindowBg);
-	FastJSonWriteImColor(ImGuiCol_ChildBg);
-	FastJSonWriteImColor(ImGuiCol_MenuBarBg);
-	FastJSonWriteImColor(ImGuiCol_Text);
-	FastJSonWriteImColor(ImGuiCol_TextDisabled);
-	FastJSonWriteImColor(ImGuiCol_TextSelectedBg);
-	FastJSonWriteImColor(ImGuiCol_TextLink);
-	FastJSonWriteImColor(ImGuiCol_TableHeaderBg);
-	FastJSonWriteImColor(ImGuiCol_TableBorderStrong);
-	FastJSonWriteImColor(ImGuiCol_TableBorderLight);
-	FastJSonWriteImColor(ImGuiCol_TableRowBg);
-	FastJSonWriteImColor(ImGuiCol_TableRowBgAlt);
-	FastJSonWriteImColor(ImGuiCol_FrameBg);
-	FastJSonWriteImColor(ImGuiCol_FrameBgHovered);
-	FastJSonWriteImColor(ImGuiCol_FrameBgActive);
-	FastJSonWriteImColor(ImGuiCol_CheckMark);
-	FastJSonWriteImColor(ImGuiCol_Border);
-	FastJSonWriteImColor(ImGuiCol_BorderShadow);
-	FastJSonWriteImColor(ImGuiCol_TitleBg);
-	FastJSonWriteImColor(ImGuiCol_TitleBgActive);
-	FastJSonWriteImColor(ImGuiCol_TitleBgCollapsed);
-	FastJSonWriteImColor(ImGuiCol_Tab);
-	FastJSonWriteImColor(ImGuiCol_TabHovered);
-	FastJSonWriteImColor(ImGuiCol_TabActive);
-	FastJSonWriteImColor(ImGuiCol_TabUnfocused);
-	FastJSonWriteImColor(ImGuiCol_TabUnfocusedActive);
-	FastJSonWriteImColor(ImGuiCol_TabSelected);
-	FastJSonWriteImColor(ImGuiCol_TabSelectedOverline);
-	FastJSonWriteImColor(ImGuiCol_TabDimmed);
-	FastJSonWriteImColor(ImGuiCol_TabDimmedSelected);
-	FastJSonWriteImColor(ImGuiCol_TabDimmedSelectedOverline);
-	FastJSonWriteImColor(ImGuiCol_Button);
-	FastJSonWriteImColor(ImGuiCol_ButtonHovered);
-	FastJSonWriteImColor(ImGuiCol_ButtonActive);
-	FastJSonWriteImColor(ImGuiCol_Header);
-	FastJSonWriteImColor(ImGuiCol_HeaderHovered);
-	FastJSonWriteImColor(ImGuiCol_HeaderActive);
-	FastJSonWriteImColor(ImGuiCol_PopupBg);
-	FastJSonWriteImColor(ImGuiCol_Separator);
-	FastJSonWriteImColor(ImGuiCol_SeparatorHovered);
-	FastJSonWriteImColor(ImGuiCol_SeparatorActive);
-	FastJSonWriteImColor(ImGuiCol_ResizeGrip);
-	FastJSonWriteImColor(ImGuiCol_ResizeGripHovered);
-	FastJSonWriteImColor(ImGuiCol_ResizeGripActive);
-	FastJSonWriteImColor(ImGuiCol_ScrollbarBg);
-	FastJSonWriteImColor(ImGuiCol_ScrollbarGrab);
-	FastJSonWriteImColor(ImGuiCol_ScrollbarGrabHovered);
-	FastJSonWriteImColor(ImGuiCol_ScrollbarGrabActive);
-	FastJSonWriteImColor(ImGuiCol_SliderGrab);
-	FastJSonWriteImColor(ImGuiCol_SliderGrabActive);
-	FastJSonWriteImColor(ImGuiCol_InputTextCursor);
-	FastJSonWriteImColor(ImGuiCol_DockingPreview);
-	FastJSonWriteImColor(ImGuiCol_DockingEmptyBg);
-	FastJSonWriteImColor(ImGuiCol_PlotLines);
-	FastJSonWriteImColor(ImGuiCol_PlotLinesHovered);
-	FastJSonWriteImColor(ImGuiCol_PlotHistogram);
-	FastJSonWriteImColor(ImGuiCol_PlotHistogramHovered);
-	FastJSonWriteImColor(ImGuiCol_TreeLines);
-	FastJSonWriteImColor(ImGuiCol_DragDropTarget);
-	FastJSonWriteImColor(ImGuiCol_NavCursor);
-	FastJSonWriteImColor(ImGuiCol_NavWindowingHighlight);
-	FastJSonWriteImColor(ImGuiCol_NavWindowingDimBg);
-	FastJSonWriteImColor(ImGuiCol_ModalWindowDimBg);
-	FastJSonWriteImColorAlt(log_color_default);
-	FastJSonWriteImColorAlt(log_color_error);
-	FastJSonWriteImColorAlt(log_color_warning);
-	FastJSonWriteImColorAlt(log_color_debug);
-
-	JSONData["Theme"]["ActiveAlpha"] = TransparentDefault;
-	JSONData["Theme"]["InactiveAlpha"] = TransparentUnfocused;
-	JSONData["Theme"]["Font"] = ImCurrentFont;
-	JSONData["Theme"]["CellPadding"] = { style.CellPadding.x, style.CellPadding.y };
-
-	string_path jfn;
-	FS.update_path(jfn, "$app_data_root$", EFS.ChangeFileExt("editor_theme", ".json").c_str());
-
-	std::ofstream o(jfn);
-	o << JSONData;
-}
-
-
-void CUIThemeManager::SaveTo()
-{
-	if (!IsLoaded)
-		return;
-
-	xr_string jfn;
-	if (EFS.GetSaveName("$themes$", jfn, 0, 6, "*.json"))
-	{
-		json JSONData = {};
-		ImGuiStyle& style = ImGui::GetStyle();
-		ImVec4* colors = style.Colors;
-		// Original order with additions
-		FastJSonWriteImColor(ImGuiCol_WindowBg);
-		FastJSonWriteImColor(ImGuiCol_ChildBg);
-		FastJSonWriteImColor(ImGuiCol_MenuBarBg);
-		FastJSonWriteImColor(ImGuiCol_Text);
-		FastJSonWriteImColor(ImGuiCol_TextDisabled);
-		FastJSonWriteImColor(ImGuiCol_TextSelectedBg);
-		FastJSonWriteImColor(ImGuiCol_TextLink);
-		FastJSonWriteImColor(ImGuiCol_TableHeaderBg);
-		FastJSonWriteImColor(ImGuiCol_TableBorderStrong);
-		FastJSonWriteImColor(ImGuiCol_TableBorderLight);
-		FastJSonWriteImColor(ImGuiCol_TableRowBg);
-		FastJSonWriteImColor(ImGuiCol_TableRowBgAlt);
-		FastJSonWriteImColor(ImGuiCol_FrameBg);
-		FastJSonWriteImColor(ImGuiCol_FrameBgHovered);
-		FastJSonWriteImColor(ImGuiCol_FrameBgActive);
-		FastJSonWriteImColor(ImGuiCol_CheckMark);
-		FastJSonWriteImColor(ImGuiCol_Border);
-		FastJSonWriteImColor(ImGuiCol_BorderShadow);
-		FastJSonWriteImColor(ImGuiCol_TitleBg);
-		FastJSonWriteImColor(ImGuiCol_TitleBgActive);
-		FastJSonWriteImColor(ImGuiCol_TitleBgCollapsed);
-		FastJSonWriteImColor(ImGuiCol_Tab);
-		FastJSonWriteImColor(ImGuiCol_TabHovered);
-		FastJSonWriteImColor(ImGuiCol_TabActive);
-		FastJSonWriteImColor(ImGuiCol_TabUnfocused);
-		FastJSonWriteImColor(ImGuiCol_TabUnfocusedActive);
-		FastJSonWriteImColor(ImGuiCol_TabSelected);
-		FastJSonWriteImColor(ImGuiCol_TabSelectedOverline);
-		FastJSonWriteImColor(ImGuiCol_TabDimmed);
-		FastJSonWriteImColor(ImGuiCol_TabDimmedSelected);
-		FastJSonWriteImColor(ImGuiCol_TabDimmedSelectedOverline);
-		FastJSonWriteImColor(ImGuiCol_Button);
-		FastJSonWriteImColor(ImGuiCol_ButtonHovered);
-		FastJSonWriteImColor(ImGuiCol_ButtonActive);
-		FastJSonWriteImColor(ImGuiCol_Header);
-		FastJSonWriteImColor(ImGuiCol_HeaderHovered);
-		FastJSonWriteImColor(ImGuiCol_HeaderActive);
-		FastJSonWriteImColor(ImGuiCol_PopupBg);
-		FastJSonWriteImColor(ImGuiCol_Separator);
-		FastJSonWriteImColor(ImGuiCol_SeparatorHovered);
-		FastJSonWriteImColor(ImGuiCol_SeparatorActive);
-		FastJSonWriteImColor(ImGuiCol_ResizeGrip);
-		FastJSonWriteImColor(ImGuiCol_ResizeGripHovered);
-		FastJSonWriteImColor(ImGuiCol_ResizeGripActive);
-		FastJSonWriteImColor(ImGuiCol_ScrollbarBg);
-		FastJSonWriteImColor(ImGuiCol_ScrollbarGrab);
-		FastJSonWriteImColor(ImGuiCol_ScrollbarGrabHovered);
-		FastJSonWriteImColor(ImGuiCol_ScrollbarGrabActive);
-		FastJSonWriteImColor(ImGuiCol_SliderGrab);
-		FastJSonWriteImColor(ImGuiCol_SliderGrabActive);
-		FastJSonWriteImColor(ImGuiCol_InputTextCursor);
-		FastJSonWriteImColor(ImGuiCol_DockingPreview);
-		FastJSonWriteImColor(ImGuiCol_DockingEmptyBg);
-		FastJSonWriteImColor(ImGuiCol_PlotLines);
-		FastJSonWriteImColor(ImGuiCol_PlotLinesHovered);
-		FastJSonWriteImColor(ImGuiCol_PlotHistogram);
-		FastJSonWriteImColor(ImGuiCol_PlotHistogramHovered);
-		FastJSonWriteImColor(ImGuiCol_TreeLines);
-		FastJSonWriteImColor(ImGuiCol_DragDropTarget);
-		FastJSonWriteImColor(ImGuiCol_NavCursor);
-		FastJSonWriteImColor(ImGuiCol_NavWindowingHighlight);
-		FastJSonWriteImColor(ImGuiCol_NavWindowingDimBg);
-		FastJSonWriteImColor(ImGuiCol_ModalWindowDimBg);
-		FastJSonWriteImColorAlt(log_color_default);
-		FastJSonWriteImColorAlt(log_color_error);
-		FastJSonWriteImColorAlt(log_color_warning);
-		FastJSonWriteImColorAlt(log_color_debug);
-
-		JSONData["Theme"]["ActiveAlpha"] = TransparentDefault;
-		JSONData["Theme"]["InactiveAlpha"] = TransparentUnfocused;
-		JSONData["Theme"]["Font"] = ImCurrentFont;
-		JSONData["Theme"]["CellPadding"] = { style.CellPadding.x, style.CellPadding.y };
-
-
-		std::ofstream o(jfn.c_str());
-		o << JSONData;
-	}
-}
-
-
-void CUIThemeManager::LoadFrom()
-{
-	json JSONData = {};
-	xr_string jfn;
-	if (EFS.GetOpenName("$themes$", jfn, false, NULL, 6, "*.json"))
-	{
-		std::ifstream f(jfn.c_str());
-		f >> JSONData;
-
-		if (!JSONData.contains("Theme"))
-		{
-			return;
-		}
-
-		ImGuiStyle& style = ImGui::GetStyle();
-		ImVec4* colors = style.Colors;
-
-		FastJSonReadImColor(ImGuiCol_WindowBg);
-		FastJSonReadImColor(ImGuiCol_ChildBg);
-		FastJSonReadImColor(ImGuiCol_PopupBg);
-		FastJSonReadImColor(ImGuiCol_MenuBarBg);
-		FastJSonReadImColor(ImGuiCol_Text);
-		FastJSonReadImColor(ImGuiCol_TextDisabled);
-		FastJSonReadImColor(ImGuiCol_TextSelectedBg);
-		FastJSonReadImColor(ImGuiCol_TextLink);
-		FastJSonReadImColor(ImGuiCol_FrameBg);
-		FastJSonReadImColor(ImGuiCol_FrameBgHovered);
-		FastJSonReadImColor(ImGuiCol_FrameBgActive);
-		FastJSonReadImColor(ImGuiCol_Border);
-		FastJSonReadImColor(ImGuiCol_BorderShadow);
-		FastJSonReadImColor(ImGuiCol_TitleBg);
-		FastJSonReadImColor(ImGuiCol_TitleBgActive);
-		FastJSonReadImColor(ImGuiCol_TitleBgCollapsed);
-		FastJSonReadImColor(ImGuiCol_ScrollbarBg);
-		FastJSonReadImColor(ImGuiCol_ScrollbarGrab);
-		FastJSonReadImColor(ImGuiCol_ScrollbarGrabHovered);
-		FastJSonReadImColor(ImGuiCol_ScrollbarGrabActive);
-		FastJSonReadImColor(ImGuiCol_SliderGrab);
-		FastJSonReadImColor(ImGuiCol_SliderGrabActive);
-		FastJSonReadImColor(ImGuiCol_CheckMark);
-		FastJSonReadImColor(ImGuiCol_Button);
-		FastJSonReadImColor(ImGuiCol_ButtonHovered);
-		FastJSonReadImColor(ImGuiCol_ButtonActive);
-		FastJSonReadImColor(ImGuiCol_Header);
-		FastJSonReadImColor(ImGuiCol_HeaderHovered);
-		FastJSonReadImColor(ImGuiCol_HeaderActive);
-		FastJSonReadImColor(ImGuiCol_Separator);
-		FastJSonReadImColor(ImGuiCol_SeparatorHovered);
-		FastJSonReadImColor(ImGuiCol_SeparatorActive);
-		FastJSonReadImColor(ImGuiCol_ResizeGrip);
-		FastJSonReadImColor(ImGuiCol_ResizeGripHovered);
-		FastJSonReadImColor(ImGuiCol_ResizeGripActive);
-		FastJSonReadImColor(ImGuiCol_InputTextCursor);
-		FastJSonReadImColor(ImGuiCol_Tab);
-		FastJSonReadImColor(ImGuiCol_TabHovered);
-		FastJSonReadImColor(ImGuiCol_TabActive);
-		FastJSonReadImColor(ImGuiCol_TabUnfocused);
-		FastJSonReadImColor(ImGuiCol_TabUnfocusedActive);
-		FastJSonReadImColor(ImGuiCol_TabSelected);
-		FastJSonReadImColor(ImGuiCol_TabSelectedOverline);
-		FastJSonReadImColor(ImGuiCol_TabDimmed);
-		FastJSonReadImColor(ImGuiCol_TabDimmedSelected);
-		FastJSonReadImColor(ImGuiCol_TabDimmedSelectedOverline);
-		FastJSonReadImColor(ImGuiCol_DockingPreview);
-		FastJSonReadImColor(ImGuiCol_DockingEmptyBg);
-		FastJSonReadImColor(ImGuiCol_TableHeaderBg);
-		FastJSonReadImColor(ImGuiCol_TableBorderStrong);
-		FastJSonReadImColor(ImGuiCol_TableBorderLight);
-		FastJSonReadImColor(ImGuiCol_TableRowBg);
-		FastJSonReadImColor(ImGuiCol_TableRowBgAlt);
-		FastJSonReadImColor(ImGuiCol_PlotLines);
-		FastJSonReadImColor(ImGuiCol_PlotLinesHovered);
-		FastJSonReadImColor(ImGuiCol_PlotHistogram);
-		FastJSonReadImColor(ImGuiCol_PlotHistogramHovered);
-		FastJSonReadImColor(ImGuiCol_TreeLines);
-		FastJSonReadImColor(ImGuiCol_DragDropTarget);
-		FastJSonReadImColor(ImGuiCol_NavCursor);
-		FastJSonReadImColor(ImGuiCol_NavWindowingHighlight);
-		FastJSonReadImColor(ImGuiCol_NavWindowingDimBg);
-		FastJSonReadImColor(ImGuiCol_ModalWindowDimBg);
-		FastJSonReadImColorAlt(log_color_default);
-		FastJSonReadImColorAlt(log_color_error);
-		FastJSonReadImColorAlt(log_color_warning);
-		FastJSonReadImColorAlt(log_color_debug);
-
-
-		if (JSONData["Theme"].contains("ActiveAlpha"))
-		{
-			TransparentDefault = JSONData["Theme"]["ActiveAlpha"];
-		}
-
-		if (JSONData["Theme"].contains("InactiveAlpha"))
-		{
-			TransparentUnfocused = JSONData["Theme"]["InactiveAlpha"];
-		}
-
-		if (JSONData["Theme"].contains("Font"))
-		{
-			ImCurrentFont = JSONData["Theme"]["Font"];
-		}
-		
-		if (JSONData["Theme"].contains("CellPadding"))
-		{
-			style.CellPadding.x = JSONData["Theme"]["CellPadding"][0];
-			style.CellPadding.y = JSONData["Theme"]["CellPadding"][1];
-		}
-
-		IsLoaded = true;
-	}
-}
-
-void CUIThemeManager::Load()
-{
-	json JSONData = {};
-	string_path jfn;
-	FS.update_path(jfn, "$app_data_root$", EFS.ChangeFileExt("editor_theme", ".json").c_str());
-
-	if (std::filesystem::exists(jfn))
-	{
-		std::ifstream f(jfn);
-		f >> JSONData;
-	}
-
-	if (!JSONData.contains("Theme"))
-	{
-		return;
-	}
-
-	ImGuiStyle& style = ImGui::GetStyle();
-	ImVec4* colors = style.Colors;
-
-	FastJSonReadImColor(ImGuiCol_WindowBg);
-	FastJSonReadImColor(ImGuiCol_ChildBg);
-	FastJSonReadImColor(ImGuiCol_PopupBg);
-	FastJSonReadImColor(ImGuiCol_MenuBarBg);
-	FastJSonReadImColor(ImGuiCol_Text);
-	FastJSonReadImColor(ImGuiCol_TextDisabled);
-	FastJSonReadImColor(ImGuiCol_TextSelectedBg);
-	FastJSonReadImColor(ImGuiCol_TextLink);
-	FastJSonReadImColor(ImGuiCol_FrameBg);
-	FastJSonReadImColor(ImGuiCol_FrameBgHovered);
-	FastJSonReadImColor(ImGuiCol_FrameBgActive);
-	FastJSonReadImColor(ImGuiCol_Border);
-	FastJSonReadImColor(ImGuiCol_BorderShadow);
-	FastJSonReadImColor(ImGuiCol_TitleBg);
-	FastJSonReadImColor(ImGuiCol_TitleBgActive);
-	FastJSonReadImColor(ImGuiCol_TitleBgCollapsed);
-	FastJSonReadImColor(ImGuiCol_ScrollbarBg);
-	FastJSonReadImColor(ImGuiCol_ScrollbarGrab);
-	FastJSonReadImColor(ImGuiCol_ScrollbarGrabHovered);
-	FastJSonReadImColor(ImGuiCol_ScrollbarGrabActive);
-	FastJSonReadImColor(ImGuiCol_SliderGrab);
-	FastJSonReadImColor(ImGuiCol_SliderGrabActive);
-	FastJSonReadImColor(ImGuiCol_CheckMark);
-	FastJSonReadImColor(ImGuiCol_Button);
-	FastJSonReadImColor(ImGuiCol_ButtonHovered);
-	FastJSonReadImColor(ImGuiCol_ButtonActive);
-	FastJSonReadImColor(ImGuiCol_Header);
-	FastJSonReadImColor(ImGuiCol_HeaderHovered);
-	FastJSonReadImColor(ImGuiCol_HeaderActive);
-	FastJSonReadImColor(ImGuiCol_Separator);
-	FastJSonReadImColor(ImGuiCol_SeparatorHovered);
-	FastJSonReadImColor(ImGuiCol_SeparatorActive);
-	FastJSonReadImColor(ImGuiCol_ResizeGrip);
-	FastJSonReadImColor(ImGuiCol_ResizeGripHovered);
-	FastJSonReadImColor(ImGuiCol_ResizeGripActive);
-	FastJSonReadImColor(ImGuiCol_InputTextCursor);
-	FastJSonReadImColor(ImGuiCol_Tab);
-	FastJSonReadImColor(ImGuiCol_TabHovered);
-	FastJSonReadImColor(ImGuiCol_TabActive);
-	FastJSonReadImColor(ImGuiCol_TabUnfocused);
-	FastJSonReadImColor(ImGuiCol_TabUnfocusedActive);
-	FastJSonReadImColor(ImGuiCol_TabSelected);
-	FastJSonReadImColor(ImGuiCol_TabSelectedOverline);
-	FastJSonReadImColor(ImGuiCol_TabDimmed);
-	FastJSonReadImColor(ImGuiCol_TabDimmedSelected);
-	FastJSonReadImColor(ImGuiCol_TabDimmedSelectedOverline);
-	FastJSonReadImColor(ImGuiCol_DockingPreview);
-	FastJSonReadImColor(ImGuiCol_DockingEmptyBg);
-	FastJSonReadImColor(ImGuiCol_TableHeaderBg);
-	FastJSonReadImColor(ImGuiCol_TableBorderStrong);
-	FastJSonReadImColor(ImGuiCol_TableBorderLight);
-	FastJSonReadImColor(ImGuiCol_TableRowBg);
-	FastJSonReadImColor(ImGuiCol_TableRowBgAlt);
-	FastJSonReadImColor(ImGuiCol_PlotLines);
-	FastJSonReadImColor(ImGuiCol_PlotLinesHovered);
-	FastJSonReadImColor(ImGuiCol_PlotHistogram);
-	FastJSonReadImColor(ImGuiCol_PlotHistogramHovered);
-	FastJSonReadImColor(ImGuiCol_TreeLines);
-	FastJSonReadImColor(ImGuiCol_DragDropTarget);
-	FastJSonReadImColor(ImGuiCol_NavCursor);
-	FastJSonReadImColor(ImGuiCol_NavWindowingHighlight);
-	FastJSonReadImColor(ImGuiCol_NavWindowingDimBg);
-	FastJSonReadImColor(ImGuiCol_ModalWindowDimBg);
-	FastJSonReadImColorAlt(log_color_default);
-	FastJSonReadImColorAlt(log_color_error);
-	FastJSonReadImColorAlt(log_color_warning);
-	FastJSonReadImColorAlt(log_color_debug);
-
-	if (JSONData["Theme"].contains("ActiveAlpha"))
-	{
-		TransparentDefault = JSONData["Theme"]["ActiveAlpha"];
-	}
-
-	if (JSONData["Theme"].contains("InactiveAlpha"))
-	{
-		TransparentUnfocused = JSONData["Theme"]["InactiveAlpha"];
-	}
-
-	if (JSONData["Theme"].contains("Font"))
-	{
-		ImCurrentFont = JSONData["Theme"]["Font"];
-	}
-
-	if (JSONData["Theme"].contains("CellPadding"))
-	{
-		style.CellPadding.x = JSONData["Theme"]["CellPadding"][0];
-		style.CellPadding.y = JSONData["Theme"]["CellPadding"][1];
-	}
-
-	IsLoaded = true;
-}
-
-#undef FastJSonReadImColor
-#undef FastJSonWriteImColor

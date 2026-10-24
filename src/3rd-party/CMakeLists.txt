@@ -5,12 +5,14 @@ set(IXRAY_FOLDER_3RD FOLDER "3rd Party")
 if(NOT IXRAY_COMPRESSOR_ONLY)
     add_subdirectory("ode")
     add_subdirectory("crypto")
+    add_subdirectory("NvTriStrip")
+    add_subdirectory("IKAN")
 endif()
 
 add_subdirectory("imgui")
 add_subdirectory("opcode")
 
-if(WIN32)
+if(WIN32 AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_subdirectory("dxerr")
 endif()
 
@@ -31,12 +33,16 @@ endif()
 # Move 3rd
 if(NOT IXRAY_COMPRESSOR_ONLY)
     set_target_properties(ODE PROPERTIES ${IXRAY_FOLDER_3RD})
+    set_target_properties(IKAN PROPERTIES ${IXRAY_FOLDER_3RD})
+    set_target_properties(NvTriStrip PROPERTIES ${IXRAY_FOLDER_3RD})
     set_target_properties(crypto PROPERTIES ${IXRAY_FOLDER_3RD})
+    set_target_properties(lunasvg PROPERTIES ${IXRAY_FOLDER_3RD})
+    set_target_properties(plutovg PROPERTIES ${IXRAY_FOLDER_3RD})
 endif()
 
 set_target_properties(imgui PROPERTIES ${IXRAY_FOLDER_3RD})
 set_target_properties(opcode-prosectors PROPERTIES ${IXRAY_FOLDER_3RD})
 
-if(WIN32)
+if(WIN32 AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set_target_properties(dxerr PROPERTIES ${IXRAY_FOLDER_3RD})
 endif()

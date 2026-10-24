@@ -110,8 +110,12 @@ IC	const ILevelGraph::CPosition &ILevelGraph::vertex_position	(ILevelGraph::CPos
 
 IC  const Fvector ILevelGraph::vertex_position(u32 vertex_id) const
 {
-	Fvector				t = vertex_position(vertex(vertex_id));
-	return				(t);
+	if (vertex_id == u32(-1))
+	{
+		return {};
+	}
+	Fvector t = vertex_position(vertex(vertex_id));
+	return t;
 }
 
 IC  const Fvector ILevelGraph::vertex_position(const ILevelGraph::CVertex &vertex) const
@@ -167,7 +171,7 @@ IC bool ILevelGraph::inside				(const u32 vertex_id, const Fvector &position) co
 
 IC bool	ILevelGraph::inside				(const ILevelGraph::CVertex &vertex, const ILevelGraph::CPosition &_vertex_position, const float epsilon) const
 {
-	return				(inside(vertex,_vertex_position) && (_abs(vertex_position(vertex).y - vertex_position(_vertex_position).y) <= epsilon));
+	return				(inside(vertex,_vertex_position) && (std::abs(vertex_position(vertex).y - vertex_position(_vertex_position).y) <= epsilon));
 }
 
 IC bool	ILevelGraph::inside				(const ILevelGraph::CVertex &vertex, const Fvector &position, const float epsilon) const
@@ -308,17 +312,17 @@ ICF const ILevelGraph::CPosition &ILevelGraph::CVertex::position() const
 	return (UncompressedNode.p);
 }
 
-ICF bool ILevelGraph::CVertex::operator<	(const ILevelGraph::CVertex &vertex) const
+ICF bool ILevelGraph::CVertex::operator<(const CVertex& vertex) const
 {
 	return				(position().xz() < vertex.position().xz());
 }
 
-ICF bool ILevelGraph::CVertex::operator>	(const ILevelGraph::CVertex &vertex) const
+ICF bool ILevelGraph::CVertex::operator>(const CVertex& vertex) const
 {
 	return				(position().xz() > vertex.position().xz());
 }
 
-ICF bool ILevelGraph::CVertex::operator==	(const ILevelGraph::CVertex &vertex) const
+ICF bool ILevelGraph::CVertex::operator==(const CVertex& vertex) const
 {
 	return				(position().xz() == vertex.position().xz());
 }
@@ -503,22 +507,26 @@ IC	bool	ILevelGraph::create_straight_path	(u32 start_vertex_id, const Fvector2 &
 				VERIFY			(_valid(tIntersectPoint.z));
 #endif
 
-				clamp			(tIntersectPoint.x,_min(next1.x,next2.x),_max(next1.x,next2.x));
-				clamp			(tIntersectPoint.z,_min(next1.y,next2.y),_max(next1.y,next2.y));
+				clamp			(tIntersectPoint.x,std::min(next1.x,next2.x),std::max(next1.x,next2.x));
+				clamp			(tIntersectPoint.z,std::min(next1.y,next2.y),std::max(next1.y,next2.y));
 				if (bAssignY)
 					tIntersectPoint.y = vertex_plane_y(vertex(cur_vertex_id),tIntersectPoint.x,tIntersectPoint.z);
 				path_node.set_position(tIntersectPoint);
 				path_node.set_vertex_id(next_vertex_id);
 				tpaOutputPoints.push_back(path_node);
 
-				if (dest_xz == v->position().xz()/**box.contains(dest)/**/) {
+				if (dest_xz == v->position().xz())
+				{
 					tIntersectPoint = v3d(dest);
 					if (bAssignY)
+					{
 						tIntersectPoint.y = vertex_plane_y(vertex(cur_vertex_id),tIntersectPoint.x,tIntersectPoint.z);
+					}
+
 					path_node.set_position(tIntersectPoint);
 					path_node.set_vertex_id(next_vertex_id);
 					tpaOutputPoints.push_back(path_node);
-					return		(true);
+					return true;
 				}
 				found			= true;
 				prev_vertex_id	= cur_vertex_id;

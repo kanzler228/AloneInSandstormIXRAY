@@ -1,31 +1,30 @@
 #pragma once
 #pragma warning(push)
 #pragma warning(disable: 4715)
+#include "ExportDefines.h"
 #include "../xrCore/guid.h"
 
 enum fsL_Chunks
 {
-	fsL_HEADER = 1,
-	//*
-	fsL_SHADERS = 2,
-	//*
-	fsL_VISUALS = 3,
-	//*
-	fsL_PORTALS = 4,
-	//*		- Portal polygons
-	fsL_LIGHT_DYNAMIC = 6,
-	//*
-	fsL_GLOWS = 7,
-	//*		- All glows inside level
-	fsL_SECTORS = 8,
-	//*		- All sectors on level
-	fsL_VB = 9,
-	//*		- Static geometry
-	fsL_IB = 10,
-	//*
-	fsL_SWIS = 11,
-	//*		- collapse info, usually for trees
+	fsL_HEADER = 1, //*
+	fsL_SHADERS = 2, //*
+	fsL_VISUALS = 3, //*
+	fsL_PORTALS = 4, //* - Portal polygons
+	fsL_LIGHT_DYNAMIC = 6, //*
+	fsL_GLOWS = 7, //* - All glows inside level
+	fsL_SECTORS = 8, //* - All sectors on level
+	fsL_VB = 9, //* - Static geometry
+	fsL_IB = 10, //*
+	fsL_SWIS = 11, //* - collapse info, usually for trees
+	fsL_TYPECHUNKS = 12, //* - identifier if we use fully vanilla type or with some custom data
 	fsL_forcedword = 0xFFFFFFFF
+};
+
+enum class GeomVanillaType : u8
+{
+	Vanilla = 0,
+	Chunked,
+	ChunkedData,
 };
 
 enum fsESectorChunks
@@ -53,6 +52,13 @@ enum EBuildQuality
 	ebq_force_u16 = u16(-1)
 };
 
+enum class CFormVersions : u32 // because old CForm version was just an 4-b int
+{
+	Vanilla = 4,
+	VanillaChunked,
+	VanillaChunkedData
+};
+
 #pragma pack(push,8)
 struct hdrLEVEL
 {
@@ -62,7 +68,7 @@ struct hdrLEVEL
 
 struct hdrCFORM
 {
-	u32 version;
+	CFormVersions version;
 	u32 vertcount;
 	u32 facecount;
 	Fbox aabb;
@@ -363,7 +369,7 @@ struct SNodePositionOld
 
 constexpr u32 XRCL_CURRENT_VERSION = 18; //17;	// input
 constexpr u32 XRCL_PRODUCTION_VERSION = 14; // output 
-constexpr u32 CFORM_CURRENT_VERSION = 4;
+//constexpr u32 CFORM_CURRENT_VERSION = 4;
 
 constexpr u32 MAX_AI_NODES = NodeCompressed::LINK_MASK_0;
 constexpr u32 MAX_NODE_XZ = NodePosition::MAX_XZ;

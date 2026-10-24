@@ -46,6 +46,7 @@ CEffectorBobbing::CEffectorBobbing() : CEffectorCam(eCEBobbing, 10000.0f)
     Run.Speed.Zoom = READ_IF_EXISTS(pSettings, r_float, BOBBING_SECT, "zoom_run_speed", 0.0f);
 
     m_fAmplitudeDelta = READ_IF_EXISTS(pSettings, r_float, BOBBING_SECT, "amplitude_delta", 1.0f);
+	SetHudAffect(READ_IF_EXISTS(pSettings, r_bool, BOBBING_SECT, "affect_hud", true));
 }
 
 void CEffectorBobbing::SetState(u32 mstate, bool limping, bool ZoomMode)
@@ -55,7 +56,7 @@ void CEffectorBobbing::SetState(u32 mstate, bool limping, bool ZoomMode)
     m_bZoomMode = ZoomMode;
 }
 
-BOOL CEffectorBobbing::ProcessCam(SCamEffectorInfo& info)
+bool CEffectorBobbing::ProcessCam(SCamEffectorInfo& info)
 {
     fTime += Device.fTimeDelta;
 
@@ -95,8 +96,8 @@ BOOL CEffectorBobbing::ProcessCam(SCamEffectorInfo& info)
 
         SelectBobbingParams(m_bZoomMode, is_limping, fOldPhase, fOldFreq, fOldAmp, dwMState, fTime, A, ST);
 
-        float _sinA = _abs(_sin(ST) * A) * fReminderFactor * g_bobbing_factor;
-        float _cosA = _cos(ST) * A * fReminderFactor * g_bobbing_factor;
+        float _sinA = std::abs(std::sin(ST) * A) * fReminderFactor * g_bobbing_factor;
+        float _cosA = std::cos(ST) * A * fReminderFactor * g_bobbing_factor;
 
         // apply footstep bobbing effect
         Fvector dangle;
@@ -116,7 +117,7 @@ BOOL CEffectorBobbing::ProcessCam(SCamEffectorInfo& info)
         info.n.set(mR.j);
     }
 
-    return TRUE;
+    return true;
 }
 
 void CEffectorBobbing::SelectBobbingParams(bool zoom_mode, bool is_limping, float& old_phase, float& old_freq, float& old_amp, u32 mstate, float time, float& amp, float& st)

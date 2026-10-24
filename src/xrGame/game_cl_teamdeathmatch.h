@@ -6,7 +6,7 @@ class CUIGameTDM;
 
 class game_cl_TeamDeathmatch :public game_cl_Deathmatch
 {
-typedef game_cl_Deathmatch inherited;
+	using inherited = game_cl_Deathmatch;
 	CUIGameTDM*							m_game_ui;
 protected:
 	bool								m_bFriendlyIndicators;
@@ -25,10 +25,10 @@ public :
 	virtual			void				SetGameUI				(CUIGameCustom*);
 	virtual			void				GetMapEntities			(xr_vector<SZoneMapEntityData>& dst);
 	
-	virtual BOOL					CanCallBuyMenu			();
-	virtual BOOL					CanCallSkinMenu			();
-	virtual	BOOL					CanCallInventoryMenu	();
-	virtual	BOOL					CanCallTeamSelectMenu	();
+	virtual bool					CanCallBuyMenu			();
+	virtual bool					CanCallSkinMenu			();
+	virtual	bool					CanCallInventoryMenu	();
+	virtual	bool					CanCallTeamSelectMenu	();
 
 
 	virtual	void					OnSpectatorSelect		();
@@ -50,7 +50,7 @@ public :
 	virtual			bool				Get_ShowPlayerNamesEnabled () {return m_bFriendlyNames;};
 	
 	virtual			bool				IsPlayerInTeam			(game_PlayerState* ps, ETeam team);
-	virtual			LPCSTR				GetGameScore			(string32&	score_dest);
+	virtual			const char*				GetGameScore			(string32&	score_dest);
 	s32									GetGreenTeamScore		() const { return teams[0].score; };
 	s32									GetBlueTeamScore		() const { return teams[1].score; };
 //from UIGameTDM
@@ -62,7 +62,7 @@ protected:
 	PRESET_ITEMS						PresetItemsTeam1;
 	PRESET_ITEMS						PresetItemsTeam2;
 
-	BOOL								m_bTeamSelected;
+	bool								m_bTeamSelected;
 	bool								m_bShowPlayersNames;
 
 	virtual bool						CanBeReady				();
@@ -83,6 +83,10 @@ protected:
 
 	virtual		u8						GetTeamCount			() { return 2; };
 	virtual		void					OnConnected				();
+
+	virtual game_cl_mp* cast_game_cl_mp() override { return this; }
+	virtual game_cl_Deathmatch* cast_game_cl_deathmatch() override { return this; }
+	virtual game_cl_TeamDeathmatch* cast_game_cl_teamdeathmatch() override { return this; }
 };
 
 IC bool	TDM_Compare_Players		(game_PlayerState* p1, game_PlayerState* p2)

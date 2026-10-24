@@ -23,7 +23,7 @@ void IM_Manipulator::Render(float canvasX, float canvasY, float canvasWidth, flo
 
 	if (ESceneCustomOTool* tool = Scene->GetOTool(LTools->CurrentClassID()))
 	{
-		tool->GetQueryObjects(lst, TRUE, TRUE, FALSE);
+		tool->GetQueryObjects(lst, true, true, false);
 		if (lst.size() < 1)
 			return;
 
@@ -117,7 +117,7 @@ void IM_Manipulator::CommandScale(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatri
 		{
 			Obj->GetUTBox(localBox);
 		}
-		else if (LTools->CurrentClassID() == OBJCLASS_SHAPE || LTools->CurrentClassID() == OBJCLASS_PUDDLES)
+		else if (LTools->CurrentClassID() == OBJCLASS_SHAPE || LTools->CurrentClassID() == OBJCLASS_SOUND_ENV || LTools->CurrentClassID() == OBJCLASS_PUDDLES)
 		{
 			CEditShape* Shape = (CEditShape*)Obj;
 
@@ -297,6 +297,10 @@ void IM_Manipulator::CommandMove(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatrix
 				ObjPtr->Move(DeltaMatrix.c);
 
 				if (CWayObject* WayPtr = smart_cast<CWayObject*>(ObjPtr))
+				{
+					ObjPtr->UpdateTransform();
+				}
+				else if (ESoundSource* SndPtr = smart_cast<ESoundSource*>(ObjPtr))
 				{
 					ObjPtr->UpdateTransform();
 				}

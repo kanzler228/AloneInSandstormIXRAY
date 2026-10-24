@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "cat.h"
 #include "cat_state_manager.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
@@ -17,7 +17,7 @@ CCat::~CCat()
 	xr_delete(StateMan);
 }
 
-void CCat::Load(LPCSTR section)
+void CCat::Load(const char* section)
 {
 	inherited::Load			(section);
 
@@ -91,7 +91,7 @@ void CCat::reinit()
 	inherited::reinit();
 
 	MotionID			def1, def2, def3;
-	IKinematicsAnimated	*pSkel = smart_cast<IKinematicsAnimated*>(Visual());
+	IKinematicsAnimated	*pSkel = Visual()->dcast_PKinematicsAnimated();
 
 	def1 = pSkel->ID_Cycle_Safe("jump_attack_0");	VERIFY(def1);
 	def2 = pSkel->ID_Cycle_Safe("jump_attack_1");	VERIFY(def2);

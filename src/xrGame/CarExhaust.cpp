@@ -7,6 +7,7 @@
 #include "Hit.h"
 #include "PHDestroyable.h"
 #include "Car.h"
+#include "ParticlesObject.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../xrPhysics/IPHWorld.h"
 //#include "PHWorld.h"
@@ -23,7 +24,7 @@ void CCar::SExhaust::Init()
 {
 	VERIFY(!physics_world()->Processing());
 	pelement=(pcar->bone_map.find(bone_id))->second.element;
-	IKinematics* K=smart_cast<IKinematics*>(pcar->Visual());
+	IKinematics* K= PKinematics(pcar->Visual());
 	CBoneData&	bone_data=K->LL_GetData(u16(bone_id));
 	transform.set(bone_data.bind_transform);
 	///transform.mulA(pcar->XFORM());
@@ -31,7 +32,7 @@ void CCar::SExhaust::Init()
 	//pelement->InterpolateGlobalTransform(&element_transform);
 	//element_transform.invert();
 	//transform.mulA(element_transform);
-	p_pgobject=Particles::Details::Create(*pcar->m_exhaust_particles,FALSE);
+	p_pgobject=Particles::Details::Create(*pcar->m_exhaust_particles,false);
 	Fvector zero_vector;
 	zero_vector.set(0.f,0.f,0.f);
 	p_pgobject->UpdateParent(pcar->XFORM(), zero_vector );

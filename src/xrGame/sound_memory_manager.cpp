@@ -14,7 +14,7 @@
 #include "visual_memory_manager.h"
 #include "enemy_manager.h"
 #include "memory_space_impl.h"
-#include "CustomMonster.h"
+#include "Creature.h"
 #include "ai_object_location.h"
 #include "level_graph.h"
 #include "sound_user_data_visitor.h"
@@ -26,7 +26,7 @@
 #include "../xrEngine/IGame_Persistent.h"
 
 #ifndef MASTER_GOLD
-#	include "actor.h"
+#	include "Actor.h"
 #	include "ai_debug.h"
 #endif // MASTER_GOLD
 
@@ -53,7 +53,7 @@ CSoundMemoryManager::~CSoundMemoryManager		()
 #endif
 }
 
-void CSoundMemoryManager::Load					(LPCSTR section)
+void CSoundMemoryManager::Load					(const char* section)
 {
 }
 
@@ -69,7 +69,7 @@ void CSoundMemoryManager::reinit				()
 #endif
 }
 
-void CSoundMemoryManager::reload				(LPCSTR section)
+void CSoundMemoryManager::reload				(const char* section)
 {
 	m_max_sound_count		= READ_IF_EXISTS(pSettings,r_s32,section,"DynamicSoundsCount",1);
 	m_min_sound_threshold	= READ_IF_EXISTS(pSettings,r_float,section,"sound_threshold",0.05f);
@@ -77,7 +77,7 @@ void CSoundMemoryManager::reload				(LPCSTR section)
 	m_sound_decrease_quant	= READ_IF_EXISTS(pSettings,r_u32,section,"self_decrease_quant",250);
 	m_decrease_factor		= READ_IF_EXISTS(pSettings,r_float,section,"self_decrease_factor",.95f);
 
-	LPCSTR					sound_perceive_section = READ_IF_EXISTS(pSettings,r_string,section,"sound_perceive_section",section);
+	const char*					sound_perceive_section = READ_IF_EXISTS(pSettings,r_string,section,"sound_perceive_section",section);
 	m_weapon_factor			= READ_IF_EXISTS(pSettings,r_float,sound_perceive_section,"weapon",10.f);
 	m_item_factor			= READ_IF_EXISTS(pSettings,r_float,sound_perceive_section,"item",1.f);
 	m_npc_factor			= READ_IF_EXISTS(pSettings,r_float,sound_perceive_section,"npc",1.f);
@@ -93,7 +93,7 @@ IC	void CSoundMemoryManager::update_sound_threshold			()
 	VERIFY		(!fis_zero(m_decrease_factor));
 	VERIFY		(m_sound_decrease_quant);
 	// t = max(t*f^((tc - tl)/tq),min_threshold)
-	m_sound_threshold		= _max(
+	m_sound_threshold		= std::max(
 		m_self_sound_factor*
 		m_sound_threshold*
 		exp(
@@ -200,7 +200,7 @@ void CSoundMemoryManager::feel_sound_new(CObject* object, int sound_type, CSound
 
 	m_last_sound_time = Device.dwTimeGlobal;
 	VERIFY(_valid(m_sound_threshold));
-	m_sound_threshold = _max(m_sound_threshold, sound_power);
+	m_sound_threshold = std::max(m_sound_threshold, sound_power);
 	VERIFY(_valid(m_sound_threshold));
 }
 
@@ -251,9 +251,6 @@ void CSoundMemoryManager::add(const CObject* O, int sound_type, const Fvector& p
 	const CEntityAlive* who_entity_alive = object ? object->cast_entity_alive() : NULL;
 	// we do not want to save sounds from the teammates and neutrals
 	if (who_entity_alive && me_entity_alive && (me_entity_alive->tfGetRelationType(who_entity_alive) == ALife::eRelationTypeFriend || me_entity_alive->tfGetRelationType(who_entity_alive) == ALife::eRelationTypeNeutral))
-		return;
-
-	if (who_entity_alive && !m_object->memory().enemy().is_useful(who_entity_alive))
 		return;
 
 	const CGameObject* game_object = object ? object->cast_game_object() : NULL;
@@ -482,8 +479,10 @@ void CSoundMemoryManager::load	(IReader &packet)
 
 		const CClientSpawnManager::CSpawnCallback	*spawn_callback = Level().client_spawn_manager().callback(delayed_object.m_object_id,m_object->ID());
 		if (!spawn_callback || !spawn_callback->m_object_callback)
-			if(!g_dedicated_server)
-				Level().client_spawn_manager().add	(delayed_object.m_object_id,m_object->ID(),callback);
+		{
+			if (!g_dedicated_server)
+				Level().client_spawn_manager().add(delayed_object.m_object_id, m_object->ID(), callback);
+		}
 #ifdef DEBUG
 		else {
 			if (spawn_callback && spawn_callback->m_object_callback) {

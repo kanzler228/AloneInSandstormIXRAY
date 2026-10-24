@@ -17,7 +17,7 @@ class CUIXml;
 
 #define	MAP_ROTATION_LIST	"maprot_list.ltx"
 
-class CUIMapList : public CUIWindow {
+class CUIMapList final : public CUIWindow {
 public:
 					CUIMapList();
 	virtual			~CUIMapList();
@@ -31,14 +31,14 @@ public:
 			void	SetModeSelector(CUIWindow* ms);
 			void	SetMapPic(CUIStatic* map_pic);
 			void	SetMapInfo(CUIMapInfo* map_info);
-			void	SetServerParams(LPCSTR params);
+			void	SetServerParams(const char* params);
 			void	OnModeChange();
 			void	OnListItemClicked();
 			void	LoadMapList();
 			void	SaveMapList();
-	const char*		GetCommandLine(LPCSTR player_name);
-	const char*     GetCommandLineDedicated(LPCSTR player_name);
-	const char*     GetPlayerName(const LPCSTR player_name);
+	const char*		GetCommandLine(const char* player_name);
+	const char*     GetCommandLineDedicated(const char* player_name);
+	const char*     GetPlayerName(const char* player_name);
 			EGameIDs	GetCurGameType();
 			void	StartDedicatedServer();
 			void	ClearList();
